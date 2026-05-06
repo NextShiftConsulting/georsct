@@ -149,8 +149,4 @@ All **VERIFIED** numbers were computed by the following procedure:
 
 **Cross-seed r** verified by computing Pearson correlation between 27-dim vectors of `mean_theory_kappa` per task, for each seed pair.
 
-**Bootstrap values** taken directly from `s019d_bootstrap_summary.json` and `s019d_bootstrap_cis.json`, which are stored at:
-- `rsct-geocert/evidence/experiments/s019d_bootstrap_summary.json`
-- `rsct-geocert/evidence/experiments/s019d_bootstrap_cis.json`
-- `yrsn-experiments/exp/series_019/s019d_comprehensive_theory_kappa/evidence/`
-- `s3://swarm-yrsn-datasets/rsct_curriculum/series_019/results/s019d_bootstrap/`
+**Bootstrap values** taken directly from `s019d_bootstrap_summary.json` and `s019d_bootstrap_cis.json` in `evidence/s019d_bootstrap/`.
