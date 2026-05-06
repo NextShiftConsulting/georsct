@@ -102,7 +102,8 @@
       "description": "Companion sidecar: CDC PLACES 95% confidence intervals for 21 health targets (42 columns: *_ci_low + *_ci_high). Joins on zcta_id.",
       "contentUrl": "https://huggingface.co/datasets/rudymartin/georsct/resolve/main/cdc_places_ci.parquet",
       "encodingFormat": "application/x-parquet",
-      "sha256": "ec0d04582c68c2f2ce7677f89d50a0be5cd0649651e981a86364438c00217f15"
+      "sha256": "ec0d04582c68c2f2ce7677f89d50a0be5cd0649651e981a86364438c00217f15",
+      "contentSize": "1.7 MB"
     },
     {
       "@type": "cr:FileObject",
@@ -111,7 +112,8 @@
       "description": "Companion sidecar: ACS margins of error for 31 features. Joins on zcta_id.",
       "contentUrl": "https://huggingface.co/datasets/rudymartin/georsct/resolve/main/zcta_acs_margins_of_error.parquet",
       "encodingFormat": "application/x-parquet",
-      "sha256": "b01bec50d52651f11bc4f3eb7fb679f2cf963350a2d5473259cf0dc6c44ee6c4"
+      "sha256": "b01bec50d52651f11bc4f3eb7fb679f2cf963350a2d5473259cf0dc6c44ee6c4",
+      "contentSize": "7.9 MB"
     },
     {
       "@type": "cr:FileObject",
@@ -120,7 +122,8 @@
       "description": "Column metadata, types, and summary statistics.",
       "contentUrl": "https://huggingface.co/datasets/rudymartin/georsct/resolve/main/georsct_schema.json",
       "encodingFormat": "application/json",
-      "sha256": "5829fdd849b2e495bf701fa07c59e2a6c25f0b6fa39f2f2ab37d6cc073ca724a"
+      "sha256": "5829fdd849b2e495bf701fa07c59e2a6c25f0b6fa39f2f2ab37d6cc073ca724a",
+      "contentSize": "18.5 KB"
     },
     {
       "@type": "cr:FileObject",
@@ -129,16 +132,8 @@
       "description": "Build provenance and data lineage.",
       "contentUrl": "https://huggingface.co/datasets/rudymartin/georsct/resolve/main/build_manifest.json",
       "encodingFormat": "application/json",
-      "sha256": "7d951f25dcc35e0f03b1888728aa77de94613dd7e549d67d08b11d8c75175f9b"
-    },
-    {
-      "@type": "cr:FileObject",
-      "@id": "croissant-json",
-      "name": "croissant.json",
-      "description": "Machine-readable Croissant metadata for GeoRSCT, including core dataset metadata, source provenance, and Responsible AI metadata for NeurIPS Evaluations & Datasets review.",
-      "contentUrl": "https://huggingface.co/datasets/rudymartin/georsct/resolve/main/croissant.json",
-      "encodingFormat": "application/json",
-      "sha256": "9f238ea8cfd1301f55968e1a6b9527b9eb11bbf0203f9f97c6e0c94e606a498d"
+      "sha256": "7d951f25dcc35e0f03b1888728aa77de94613dd7e549d67d08b11d8c75175f9b",
+      "contentSize": "2.7 KB"
     }
   ],
   "recordSet": [
