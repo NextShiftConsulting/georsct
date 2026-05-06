@@ -157,7 +157,7 @@ Replace the size placeholders after the final v23.0.2 files are uploaded.
 
 ## Field Schema Overview
 
-GeoRSCT is distributed as a row-per-ZCTA tabular benchmark. Each row represents one U.S. ZIP Code Tabulation Area and includes identifiers, centroid coordinates, ACS input features, spatial-lag features, geospatial enrichment features, target labels, coverage flags, geography-aware split assignments, and optional geometry.
+GeoRSCT is distributed as a row-per-ZCTA tabular benchmark (31,789 rows, one per 2020-vintage ZCTA in CONUS). ZCTAs are Census Bureau statistical areas that approximate USPS ZIP code service areas; multiple ZIP codes can map to the same ZCTA, and the mapping is not one-to-one. Each row includes identifiers, centroid coordinates, ACS input features, spatial-lag features, geospatial enrichment features, target labels, coverage flags, geography-aware split assignments, and optional geometry.
 
 | Field group | Example columns | Type | Description |
 |---|---|---|---|
