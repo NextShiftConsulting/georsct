@@ -70,7 +70,7 @@ GeoRSCT is the geospatial benchmark artifact for **Representation–Solver Compa
 
 The underlying RSCT theory is introduced in:
 
-> Rudolph A. Martin. **Intelligence as Representation-Solver Compatibility: A General Theory of Representation-Dependent Reasoning.** Preprint, March 3, 2026. Zenodo DOI: `10.5281/zenodo.18854651`; SSRN: `6339299`.
+> Rudolph A. Martin. **Intelligence as Representation-Solver Compatibility: A General Theory of Representation-Dependent Reasoning.** Preprint, March 3, 2026. [Zenodo](https://doi.org/10.5281/zenodo.18854651) | [SSRN](https://ssrn.com/abstract=6339299)
 
 RSCT argues that problem difficulty is not intrinsic to the problem alone. Instead, observed performance depends on the relationship among the problem, the encoding, and the solver:
 
@@ -476,7 +476,7 @@ If using or redistributing the OSRM-derived drive-time features, preserve approp
 
 ## Related Resources
 
-- **RSCT theory preprint:** Rudolph A. Martin, *Intelligence as Representation-Solver Compatibility: A General Theory of Representation-Dependent Reasoning* (2026). Zenodo DOI: `10.5281/zenodo.18854651`; SSRN: `6339299`.
+- **RSCT theory preprint:** Rudolph A. Martin, *Intelligence as Representation-Solver Compatibility: A General Theory of Representation-Dependent Reasoning* (2026). [Zenodo](https://doi.org/10.5281/zenodo.18854651) | [SSRN](https://ssrn.com/abstract=6339299)
 - **HHS/CDC PLACES ZCTA GIS-friendly datasets:** official source releases for CDC PLACES ZCTA estimates.
 - **PLACES on Data.gov:** official CDC/HHS PLACES ZCTA data release.
 
