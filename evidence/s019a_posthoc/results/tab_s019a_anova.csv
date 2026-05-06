@@ -1,0 +1,10 @@
+Target,Source,F,p,eta2,Sig
+Diabetes,Embedding,4817.51,2.4e-50,0.996,Yes
+,Solver,0.02,0.9782,0.001,No
+,Emb x Solver,1980.91,3.3e-45,0.998,Yes
+Pop. density,Embedding,2773.92,2.5e-45,0.992,Yes
+,Solver,0.07,0.9368,0.003,No
+,Emb x Solver,3066.28,1.3e-48,0.999,Yes
+Elevation,Embedding,81.76,3.3e-15,0.796,Yes
+,Solver,2.44,0.0991,0.104,No
+,Emb x Solver,91.60,1.4e-21,0.953,Yes

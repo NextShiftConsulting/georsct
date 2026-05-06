@@ -1,0 +1,68 @@
+{
+  "dataset": "GeoRSCT",
+  "version": "23.0.2",
+  "build_timestamp": "2026-05-04T19:27:06.015332+00:00",
+  "description": "27 geospatial regression tasks across 31,789 US ZCTAs with 6 enrichment layers",
+  "sources": {
+    "features_labels": "s3://swarm-yrsn-datasets/rsct_curriculum/series_018/processed/zcta_features_labels.parquet",
+    "splits": "s3://swarm-yrsn-datasets/rsct_curriculum/series_018/processed/geocert_splits.parquet",
+    "boundaries": "https://www2.census.gov/geo/tiger/TIGER2022/ZCTA520/tl_2022_us_zcta520.zip",
+    "svi": "CDC/ATSDR SVI 2022 (tract-level, aggregated to ZCTA)",
+    "flood": "FEMA NFHL bulk county shapefiles (2,490 counties, spatial overlay with TIGER ZCTA)",
+    "hifld": "DHS HIFLD Open Data (hospitals, pharmacies)",
+    "drive_times": "OSRM public routing engine"
+  },
+  "geometry": {
+    "source": "Census TIGER/Line 2022 ZCTA boundaries",
+    "crs": "EPSG:4326",
+    "simplification_tolerance_degrees": 0.001
+  },
+  "stats": {
+    "n_zctas": 31789,
+    "n_columns_geo": 89,
+    "n_columns_table": 88,
+    "n_acs_features": 33,
+    "n_svi_features": 5,
+    "n_flood_features": 4,
+    "n_hifld_features": 6,
+    "n_drive_features": 2,
+    "n_targets": 27,
+    "n_split_columns": 3
+  },
+  "evaluation_protocols": {
+    "imputation": "County-holdout 5-fold CV + test. Geographic interpolation.",
+    "extrapolation": "State-holdout 4-fold CV + test. Distribution shift.",
+    "super_resolution": "County-aggregated train -> ZCTA-level prediction."
+  },
+  "licensing": {
+    "CDC_PLACES": "Public domain (US government work)",
+    "ACS": "Public domain (US government work)",
+    "CDC_SVI": "Public domain (US government work)",
+    "FEMA_NFHL": "Public domain (US government work)",
+    "HIFLD": "Public domain (US government work)",
+    "OSRM": "Open Database License (ODbL)",
+    "VIIRS": "Public domain (US government work)",
+    "USGS_NED": "Public domain (US government work)",
+    "Hansen_GFC": "CC-BY-4.0",
+    "Census_TIGER": "Public domain (US government work)"
+  },
+  "files": {
+    "georsct_simplified_001.geoparquet": {
+      "size_bytes": 61136490,
+      "size_mb": 58.3
+    },
+    "georsct_table.parquet": {
+      "size_bytes": 14799544,
+      "size_mb": 14.1
+    },
+    "georsct_schema.json": {
+      "size_bytes": 18530,
+      "size_mb": 0.0
+    }
+  },
+  "uncertainty_sidecars": {
+    "cdc_places_ci.parquet": "42 columns (21 low + 21 high)",
+    "zcta_acs_margins_of_error.parquet": "31 MOE columns"
+  },
+  "notes": "v24.001: Added 6 enrichment layers (SVI, FEMA flood zones, HIFLD facilities, drive times). FEMA flood overlay processed 2,490 CONUS counties via bulk shapefile extract + EPSG:5070 area overlay."
+}

@@ -1,0 +1,7 @@
+% ============================================================
+\section{Injection-Detection Validation}
+\label{sec:injection}
+
+We validate the taxonomy by injection. For each mode in Table~\ref{tab:taxonomy}, we draw $N{=}100$ synthetic certificates from the mode's signal pattern (Gaussian noise around the centroid of each parameter, with covariance set so that mode-specific signals dominate). We then run each synthetic certificate through the diagnostic protocol, which assigns a top-$k$ ranked list of candidate failure modes. Across eight injection seeds and the catalogued mode set, top-1 classification is correct on every mode tested in the harness; top-3 is identical because top-1 is already saturated. Robustness holds across additive noise of standard deviation up to $\sigma_{\text{inj}}{=}0.15$; one mode (range compression, deferred) becomes fragile beyond $\sigma_{\text{inj}}{=}0.20$ and is excluded from v1.
+
+The injection result is a methods-level guarantee, not an empirical claim: it shows the diagnostic protocol can recover known modes from observable certificate signals. The empirical results of Section~\ref{sec:geo} are then the result of running the validated protocol against measured certificates from real geospatial experiments.

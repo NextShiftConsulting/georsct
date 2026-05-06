@@ -1,0 +1,121 @@
+# =============================================================================
+# GeoRSCT — .gitignore
+# =============================================================================
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.prof
+*.lprof
+
+# Editors and IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# =============================================================================
+# Claude / AI Tooling — NEVER commit
+# =============================================================================
+CLAUDE.md
+.claude/
+**/.claude/
+memory/
+**/memory/
+*.claude
+.claudeignore
+
+# =============================================================================
+# Credentials and secrets — NEVER commit
+# =============================================================================
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+secrets.yaml
+secrets.json
+config.local.yaml
+service-account*.json
+**/keys/
+aws_credentials
+~/.aws/
+
+# =============================================================================
+# Large data files — use Git LFS or HuggingFace dataset card
+# =============================================================================
+*.parquet
+*.npz
+*.zip
+*.tar.gz
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+*.feather
+*.arrow
+
+# Raw data downloads (fetch via build scripts)
+data/raw/
+data/downloads/
+data/cache/
+
+# =============================================================================
+# Experiment artifacts — results live on S3 / HuggingFace, not in repo
+# =============================================================================
+exp/*/evidence/
+exp/*/results/
+exp/*/figures/*.png
+experiments/**/figures/
+*.log
+runs/
+
+# =============================================================================
+# Jupyter
+# =============================================================================
+.ipynb_checkpoints/
+*.ipynb
+
+# =============================================================================
+# OS
+# =============================================================================
+.DS_Store
+desktop.ini

@@ -1,0 +1,20 @@
+{
+  "experiment": "S019D",
+  "primary_seed": 42,
+  "n_boot": 1000,
+  "n_ceiling_range": [
+    0.0837,
+    0.4436
+  ],
+  "n_ceiling_range_ratio": 5.3,
+  "ci_width_mean": 0.0278,
+  "ci_width_max": 0.0743,
+  "cross_seed_std_mean": 0.0004,
+  "cross_seed_std_max": 0.0015,
+  "kappa_rho_mean": 0.9471,
+  "kappa_rho_ci": [
+    0.9132,
+    0.9725
+  ],
+  "kappa_rho_n_correct_top_rank": 25
+}
