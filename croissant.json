@@ -82,7 +82,8 @@
       "description": "Primary GeoParquet table: 31,789 ZCTAs x 105 columns (7 metadata + 3 splits + 4 coverage + 33 ACS + 14 spatial lags + 16 enrichment + 27 targets + 1 geometry). Single row per ZCTA. CRS: EPSG:4326.",
       "contentUrl": "https://huggingface.co/datasets/rudymartin/georsct/resolve/main/georsct_simplified_001.geoparquet",
       "encodingFormat": "application/x-parquet",
-      "contentSize": "56.3 MB"
+      "contentSize": "56.3 MB",
+      "sha256": "6a65d990984e16ff10ec6eb9c9a6f9c4660db9ec441806b367ad54280c3c66ff"
     },
     {
       "@type": "cr:FileObject",
@@ -91,7 +92,8 @@
       "description": "Same as main GeoParquet but without geometry column. Lightweight for tabular-only workflows.",
       "contentUrl": "https://huggingface.co/datasets/rudymartin/georsct/resolve/main/georsct_table.parquet",
       "encodingFormat": "application/x-parquet",
-      "contentSize": "12.1 MB"
+      "contentSize": "12.1 MB",
+      "sha256": "d5ac76adcdf29271a4ecd78a9f9a32ae8167b45e3b5f89452e69c55a813ce7a3"
     },
     {
       "@type": "cr:FileObject",
@@ -99,7 +101,8 @@
       "name": "cdc_places_ci.parquet",
       "description": "Companion sidecar: CDC PLACES 95% confidence intervals for 21 health targets (42 columns: *_ci_low + *_ci_high). Joins on zcta_id.",
       "contentUrl": "https://huggingface.co/datasets/rudymartin/georsct/resolve/main/cdc_places_ci.parquet",
-      "encodingFormat": "application/x-parquet"
+      "encodingFormat": "application/x-parquet",
+      "sha256": "ec0d04582c68c2f2ce7677f89d50a0be5cd0649651e981a86364438c00217f15"
     },
     {
       "@type": "cr:FileObject",
@@ -107,7 +110,8 @@
       "name": "zcta_acs_margins_of_error.parquet",
       "description": "Companion sidecar: ACS margins of error for 31 features. Joins on zcta_id.",
       "contentUrl": "https://huggingface.co/datasets/rudymartin/georsct/resolve/main/zcta_acs_margins_of_error.parquet",
-      "encodingFormat": "application/x-parquet"
+      "encodingFormat": "application/x-parquet",
+      "sha256": "b01bec50d52651f11bc4f3eb7fb679f2cf963350a2d5473259cf0dc6c44ee6c4"
     },
     {
       "@type": "cr:FileObject",
@@ -115,7 +119,8 @@
       "name": "georsct_schema.json",
       "description": "Column metadata, types, and summary statistics.",
       "contentUrl": "https://huggingface.co/datasets/rudymartin/georsct/resolve/main/georsct_schema.json",
-      "encodingFormat": "application/json"
+      "encodingFormat": "application/json",
+      "sha256": "5829fdd849b2e495bf701fa07c59e2a6c25f0b6fa39f2f2ab37d6cc073ca724a"
     },
     {
       "@type": "cr:FileObject",
@@ -123,7 +128,8 @@
       "name": "build_manifest.json",
       "description": "Build provenance and data lineage.",
       "contentUrl": "https://huggingface.co/datasets/rudymartin/georsct/resolve/main/build_manifest.json",
-      "encodingFormat": "application/json"
+      "encodingFormat": "application/json",
+      "sha256": "7d951f25dcc35e0f03b1888728aa77de94613dd7e549d67d08b11d8c75175f9b"
     },
     {
       "@type": "cr:FileObject",
@@ -131,7 +137,8 @@
       "name": "croissant.json",
       "description": "Machine-readable Croissant metadata for GeoRSCT, including core dataset metadata, source provenance, and Responsible AI metadata for NeurIPS Evaluations & Datasets review.",
       "contentUrl": "https://huggingface.co/datasets/rudymartin/georsct/resolve/main/croissant.json",
-      "encodingFormat": "application/json"
+      "encodingFormat": "application/json",
+      "sha256": "9f238ea8cfd1301f55968e1a6b9527b9eb11bbf0203f9f97c6e0c94e606a498d"
     }
   ],
   "recordSet": [
