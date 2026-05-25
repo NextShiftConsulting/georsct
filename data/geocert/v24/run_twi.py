@@ -81,17 +81,18 @@ def get_sciencebase_zip_url(item_id: str, zip_name: str) -> str:
 
 
 def download_zip_csv(url: str, label: str) -> pd.DataFrame:
-    """Download a ZIP from URL, extract first CSV, return as DataFrame."""
+    """Download a ZIP from URL, extract first CSV or TXT tabular file, return as DataFrame."""
     log.info("Downloading %s...", label)
     resp = requests.get(url, timeout=300, stream=True)
     resp.raise_for_status()
     data = b"".join(resp.iter_content(chunk_size=1024 * 1024))
     log.info("  Downloaded %.1f MB for %s", len(data) / 1e6, label)
     with zipfile.ZipFile(io.BytesIO(data)) as zf:
-        csv_names = [n for n in zf.namelist() if n.lower().endswith(".csv")]
-        if not csv_names:
-            raise RuntimeError(f"No CSV found in ZIP for {label}: {zf.namelist()}")
-        csv_name = csv_names[0]
+        # StreamCat uses .txt extension for CSV-formatted data
+        tabular = [n for n in zf.namelist() if n.lower().endswith((".csv", ".txt"))]
+        if not tabular:
+            raise RuntimeError(f"No tabular file found in ZIP for {label}: {zf.namelist()}")
+        csv_name = tabular[0]
         log.info("  Extracting: %s", csv_name)
         with zf.open(csv_name) as f:
             df = pd.read_csv(f, dtype={"COMID": str})

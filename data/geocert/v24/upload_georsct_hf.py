@@ -27,6 +27,7 @@ from pathlib import Path
 import boto3
 import pandas as pd
 from huggingface_hub import HfApi
+from swarm_auth import get_credential
 
 BUCKET = "swarm-yrsn-datasets"
 PREFIX = "rsct_curriculum/series_018/processed"
@@ -256,7 +257,8 @@ def main():
 
     # --- 4. Upload to HuggingFace ---
     print(f"\n=== UPLOADING TO HUGGINGFACE ===")
-    api = HfApi()
+    hf_token = get_credential("HF_TOKEN")
+    api = HfApi(token=hf_token)
 
     # Fetch and update Croissant
     print("  Updating croissant.json...")

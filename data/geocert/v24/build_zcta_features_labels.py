@@ -73,9 +73,6 @@ PROVENANCE_KEY = f"{PREFIX}/zcta_features_labels_provenance.json"
 def download(s3, key: str, local_dir: Path, optional: bool = False) -> Path | None:
     """Download a file from S3 to local_dir, return local path (or None if optional+missing)."""
     local = local_dir / Path(key).name
-    if local.exists():
-        log.info("  Already local: %s", local)
-        return local
     log.info("  Downloading s3://%s/%s", BUCKET, key)
     try:
         s3.download_file(BUCKET, key, str(local))
