@@ -70,14 +70,20 @@ OUTPUT_KEY = f"{PREFIX}/zcta_features_labels.parquet"
 PROVENANCE_KEY = f"{PREFIX}/zcta_features_labels_provenance.json"
 
 
-def download(s3, key: str, local_dir: Path) -> Path:
-    """Download a file from S3 to local_dir, return local path."""
+def download(s3, key: str, local_dir: Path, optional: bool = False) -> Path | None:
+    """Download a file from S3 to local_dir, return local path (or None if optional+missing)."""
     local = local_dir / Path(key).name
     if local.exists():
         log.info("  Already local: %s", local)
         return local
     log.info("  Downloading s3://%s/%s", BUCKET, key)
-    s3.download_file(BUCKET, key, str(local))
+    try:
+        s3.download_file(BUCKET, key, str(local))
+    except Exception as exc:
+        if optional:
+            log.warning("  SKIP (not yet available): s3://%s/%s -- %s", BUCKET, key, exc)
+            return None
+        raise
     return local
 
 
@@ -133,20 +139,24 @@ def main():
 
     # -- 2. Download enrichment parquets --
     log.info("\n=== LOADING ENRICHMENT LAYERS ===")
+    # required=True means a missing S3 key is fatal; optional layers are skipped gracefully
     enrichment_keys = {
-        "CDC SVI": SVI_KEY,
-        "HIFLD facilities": HIFLD_KEY,
-        "FEMA flood zones": FLOOD_KEY,
-        "Drive times": DRIVE_KEY,
-        # v24 flood modal sources — optional, skip if not yet built
-        "NOAA storm events": NOAA_KEY,
-        "NFIP claims": NFIP_KEY,
-        "TWI watershed": TWI_KEY,
+        "CDC SVI":            (SVI_KEY,   False),
+        "HIFLD facilities":   (HIFLD_KEY, False),
+        "FEMA flood zones":   (FLOOD_KEY, False),
+        "Drive times":        (DRIVE_KEY, False),
+        # v24 flood modal sources — built by SageMaker jobs, may not exist yet
+        "NOAA storm events":  (NOAA_KEY,  True),
+        "NFIP claims":        (NFIP_KEY,  True),
+        "TWI watershed":      (TWI_KEY,   True),
     }
     enrichment_dfs = {}
-    for name, key in enrichment_keys.items():
+    for name, (key, optional) in enrichment_keys.items():
         if s3:
-            path = download(s3, key, local_dir)
+            path = download(s3, key, local_dir, optional=optional)
+            if path is None:
+                enrichment_dfs[name] = None
+                continue
         else:
             path = local_dir / Path(key).name
         enrichment_dfs[name] = load_enrichment(path, name)

@@ -52,6 +52,7 @@ log = logging.getLogger(__name__)
 S3_BUCKET = "swarm-yrsn-datasets"
 S3_OUTPUT_KEY = "rsct_curriculum/geo/comid_zcta_crosswalk.parquet"
 S3_PROVENANCE_KEY = "rsct_curriculum/geo/comid_zcta_crosswalk_provenance.json"
+S3_CHECKPOINT_PREFIX = "rsct_curriculum/geo/comid_zcta_huc8_ckpt"
 TARGET_CRS = "EPSG:5070"
 
 # CONUS HUC2 regions (01-18)
@@ -67,6 +68,36 @@ def _s3_upload(local_path: str, key: str):
         log.info("  -> s3://%s/%s", S3_BUCKET, key)
     except Exception as e:
         log.warning("  S3 upload failed for %s: %s", key, e)
+
+def _ckpt_key(huc8: str) -> str:
+    return f"{S3_CHECKPOINT_PREFIX}/{huc8}.parquet"
+
+def _load_completed_huc8s() -> dict[str, str]:
+    """Return {huc8: s3_key} for all HUC8s already checkpointed in S3."""
+    s3 = _s3()
+    completed = {}
+    try:
+        paginator = s3.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=S3_CHECKPOINT_PREFIX + "/"):
+            for obj in page.get("Contents", []):
+                key = obj["Key"]
+                huc8 = Path(key).stem  # strip .parquet
+                completed[huc8] = key
+    except Exception as exc:
+        log.warning("Could not list checkpoint keys: %s", exc)
+    if completed:
+        log.info("Checkpoint: %d HUC8s already done — skipping", len(completed))
+    return completed
+
+def _download_checkpoint(huc8: str, local_dir: Path) -> str | None:
+    """Download a checkpoint parquet from S3 to local_dir, return path or None."""
+    key = _ckpt_key(huc8)
+    local = local_dir / f"{huc8}.parquet"
+    try:
+        _s3().download_file(S3_BUCKET, key, str(local))
+        return str(local)
+    except Exception:
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -192,6 +223,12 @@ def process_huc8(args: tuple) -> tuple[str, str | None]:
     out_path = work_dir / "pairs.parquet"
     result.to_parquet(out_path, index=False)
 
+    # --- Checkpoint to S3 immediately so restarts can skip this HUC8 ---
+    try:
+        _s3().upload_file(str(out_path), S3_BUCKET, _ckpt_key(huc8))
+    except Exception as exc:
+        logger.warning("[%s] Checkpoint upload failed: %s", huc8, exc)
+
     logger.info("[%s] %d catchments → %d COMID-ZCTA pairs", huc8, len(catchments), len(result))
     return huc8, str(out_path)
 
@@ -255,8 +292,19 @@ def main():
         sys.exit(1)
     log.info("Total HUC8 work units: %d", len(huc8_list))
 
-    # --- Parallel HUC8 processing ---
-    log.info("=== PARALLEL HUC8 PROCESSING (%d workers) ===", n_workers)
+    # --- Resume: load already-completed HUC8 checkpoints from S3 ---
+    completed = _load_completed_huc8s()
+    results = {}
+    for huc8_code, s3_key in completed.items():
+        local = work_base / f"huc8_{huc8_code}" / "pairs.parquet"
+        local.parent.mkdir(parents=True, exist_ok=True)
+        path = _download_checkpoint(huc8_code, local.parent)
+        results[huc8_code] = path  # None if download failed (will re-run)
+
+    pending = [item for item in huc8_list if item["huc8"] not in results]
+    log.info("=== PARALLEL HUC8 PROCESSING (%d workers) === resumed=%d pending=%d",
+             n_workers, len(results), len(pending))
+
     worker_args = [
         (
             item["huc8"],
@@ -265,28 +313,28 @@ def main():
             str(work_base / f"huc8_{item['huc8']}"),
             0,
         )
-        for item in huc8_list
+        for item in pending
     ]
 
-    results = {}
     t0 = time.time()
     ctx = multiprocessing.get_context("spawn")
 
-    with ProcessPoolExecutor(max_workers=n_workers, mp_context=ctx) as pool:
-        futures = {pool.submit(process_huc8, wa): wa[0] for wa in worker_args}
-        for future in as_completed(futures):
-            huc8 = futures[future]
-            try:
-                huc8_out, path = future.result()
-                results[huc8_out] = path
-                n_done = sum(1 for p in results.values() if p)
-                n_fail = sum(1 for p in results.values() if p is None)
-                remaining = len(huc8_list) - len(results)
-                if len(results) % 50 == 0:
-                    log.info("Progress: done=%d failed=%d remaining=%d", n_done, n_fail, remaining)
-            except Exception as exc:
-                log.warning("HUC8 %s exception: %s", huc8, exc)
-                results[huc8] = None
+    if worker_args:
+        with ProcessPoolExecutor(max_workers=n_workers, mp_context=ctx) as pool:
+            futures = {pool.submit(process_huc8, wa): wa[0] for wa in worker_args}
+            for future in as_completed(futures):
+                huc8 = futures[future]
+                try:
+                    huc8_out, path = future.result()
+                    results[huc8_out] = path
+                    n_done = sum(1 for p in results.values() if p)
+                    n_fail = sum(1 for p in results.values() if p is None)
+                    remaining = len(pending) - sum(1 for h in pending if h["huc8"] in results)
+                    if len(results) % 50 == 0:
+                        log.info("Progress: done=%d failed=%d remaining=%d", n_done, n_fail, remaining)
+                except Exception as exc:
+                    log.warning("HUC8 %s exception: %s", huc8, exc)
+                    results[huc8] = None
 
     elapsed = time.time() - t0
     log.info("All HUC8s finished in %.1f min", elapsed / 60)
