@@ -46,6 +46,8 @@ log = logging.getLogger(__name__)
 S3_BUCKET = "swarm-yrsn-datasets"
 S3_OUTPUT_KEY = "rsct_curriculum/series_018/processed/noaa_storm_events_zcta.parquet"
 S3_PROVENANCE_KEY = "rsct_curriculum/series_018/processed/noaa_storm_events_zcta_provenance.json"
+S3_LONG_KEY = "rsct_curriculum/series_018/processed/noaa_storm_events_long.parquet"
+S3_WIDE_KEY = "rsct_curriculum/series_018/processed/noaa_storm_events_wide.parquet"
 
 NOAA_BASE = "https://www.ncei.noaa.gov/pub/data/swdi/stormevents/csvfiles/"
 
@@ -56,6 +58,13 @@ RECENT_CUTOFF = 2019
 N_YEARS = 2024 - FIRST_YEAR + 1
 
 DAMAGE_MULTIPLIERS = {"K": 1.0, "M": 1000.0, "B": 1_000_000.0}
+
+# Temporal epochs keyed to major flood events
+EPOCHS = {
+    "e1": (1996, 2004),   # pre-Katrina baseline
+    "e2": (2005, 2011),   # post-Katrina / pre-Sandy
+    "e3": (2012, 2024),   # Sandy onward
+}
 
 
 # ---------------------------------------------------------------------------
@@ -225,6 +234,115 @@ def county_to_zcta(county_df: pd.DataFrame, crosswalk_path: Path) -> pd.DataFram
 
 
 # ---------------------------------------------------------------------------
+# Temporal pipeline
+# ---------------------------------------------------------------------------
+def aggregate_to_county_by_year(events: pd.DataFrame) -> pd.DataFrame:
+    """Aggregate flood events to county × year grain."""
+    log.info("Aggregating to county x year (%d events)...", len(events))
+    by_county_year = events.groupby(["county_fips", "year"]).agg(
+        flood_events=("prop_dmg_k", "count"),
+        deaths=("deaths", "sum"),
+        injuries=("injuries", "sum"),
+        property_damage_k=("prop_dmg_k", "sum"),
+        crop_damage_k=("crop_dmg_k", "sum"),
+    ).reset_index()
+    log.info("  %d county x year rows (%d counties, %d years)",
+             len(by_county_year),
+             by_county_year["county_fips"].nunique(),
+             by_county_year["year"].nunique())
+    return by_county_year
+
+
+def make_long_zcta(
+    county_year: pd.DataFrame, crosswalk_path: Path
+) -> pd.DataFrame:
+    """Join county x year to ZCTA, zero-fill all zcta x year combinations.
+
+    Returns long format: one row per (zcta_id, year) for all years in FIRST_YEAR..2024.
+    """
+    import numpy as np
+
+    log.info("Building long format (zcta x year)...")
+    xwalk = pd.read_parquet(crosswalk_path)[["zcta_id", "county_fips"]].copy()
+    xwalk["zcta_id"] = xwalk["zcta_id"].astype(str).str.zfill(5)
+    xwalk["county_fips"] = xwalk["county_fips"].astype(str).str.zfill(5)
+
+    merged = xwalk.merge(county_year, on="county_fips", how="left")
+
+    # Build complete zcta x year index so every combination exists
+    all_zctas = xwalk["zcta_id"].unique()
+    all_years = np.arange(FIRST_YEAR, 2025)
+    idx = pd.MultiIndex.from_product([all_zctas, all_years], names=["zcta_id", "year"])
+    template = pd.DataFrame(index=idx).reset_index()
+
+    long = template.merge(
+        merged[["zcta_id", "year", "flood_events", "deaths",
+                "injuries", "property_damage_k", "crop_damage_k"]],
+        on=["zcta_id", "year"],
+        how="left",
+    )
+    for col in ("flood_events", "deaths", "injuries"):
+        long[col] = long[col].fillna(0).astype(int)
+    for col in ("property_damage_k", "crop_damage_k"):
+        long[col] = long[col].fillna(0.0)
+
+    long = long.sort_values(["zcta_id", "year"]).reset_index(drop=True)
+    log.info("  Long format: %d rows (%d ZCTAs x %d years)",
+             len(long), len(all_zctas), len(all_years))
+    return long
+
+
+def make_wide_epochs(long: pd.DataFrame) -> pd.DataFrame:
+    """Pivot long format to pre-computed epoch aggregates.
+
+    Produces one row per zcta_id with e1/e2/e3 columns for each metric,
+    plus total and peak-year features.
+    """
+    log.info("Building wide epoch format...")
+    metrics = ["flood_events", "deaths", "property_damage_k", "crop_damage_k"]
+    result = long[["zcta_id"]].drop_duplicates().copy()
+
+    for epoch, (y0, y1) in EPOCHS.items():
+        mask = long["year"].between(y0, y1)
+        epoch_agg = (
+            long[mask]
+            .groupby("zcta_id")[metrics]
+            .sum()
+            .reset_index()
+            .rename(columns={m: f"{m}_{epoch}" for m in metrics})
+        )
+        result = result.merge(epoch_agg, on="zcta_id", how="left")
+
+    # Rolling totals and peak-year features
+    totals = long.groupby("zcta_id")[metrics].sum().reset_index()
+    totals = totals.rename(columns={m: f"{m}_total" for m in metrics})
+    result = result.merge(totals, on="zcta_id", how="left")
+
+    peak = (
+        long.groupby("zcta_id")["property_damage_k"]
+        .max()
+        .reset_index(name="property_damage_k_peak_yr")
+    )
+    result = result.merge(peak, on="zcta_id", how="left")
+
+    # Zero-fill
+    for col in result.columns:
+        if col != "zcta_id":
+            result[col] = result[col].fillna(0)
+
+    # Coerce integer columns
+    int_cols = [c for c in result.columns
+                if c.startswith("flood_events") or c.startswith("deaths")]
+    for col in int_cols:
+        result[col] = result[col].astype(int)
+
+    log.info("  Wide format: %d rows, %d columns", len(result), len(result.columns))
+    log.info("  Epoch columns: %s",
+             [c for c in result.columns if any(f"_{e}" in c for e in EPOCHS)])
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Main pipeline
 # ---------------------------------------------------------------------------
 def main():
@@ -234,6 +352,8 @@ def main():
     parser.add_argument("--output-dir", default="/opt/ml/processing/output")
     parser.add_argument("--year-start", type=int, default=FIRST_YEAR)
     parser.add_argument("--year-end", type=int, default=2024)
+    parser.add_argument("--temporal", action="store_true",
+                        help="Also produce long (zcta x year) and wide (epoch) Parquet outputs")
     args = parser.parse_args()
 
     timestamp = datetime.now(timezone.utc).isoformat()
@@ -294,11 +414,10 @@ def main():
     if n_with < 1000:
         log.warning("VALIDATION WARN: Only %d ZCTAs with events — expected >5K", n_with)
 
-    # Save and upload
+    # Save and upload — standard aggregated output
     out_path = output_dir / "noaa_storm_events_zcta.parquet"
     result.to_parquet(out_path, index=False)
     log.info("Saved: %s (%.1f KB)", out_path, out_path.stat().st_size / 1024)
-
     _s3_upload(str(out_path), S3_OUTPUT_KEY)
 
     provenance = {
@@ -312,10 +431,43 @@ def main():
         "total_events": int(events.shape[0]),
         "total_deaths": int(result["flood_deaths"].sum()),
         "total_property_damage_k": float(result["flood_property_damage_k"].sum()),
+        "temporal": args.temporal,
     }
     prov_path = output_dir / "noaa_storm_events_zcta_provenance.json"
     prov_path.write_text(json.dumps(provenance, indent=2))
     _s3_upload(str(prov_path), S3_PROVENANCE_KEY)
+
+    # Temporal outputs — long and wide epoch
+    if args.temporal:
+        log.info("=== TEMPORAL PIPELINE ===")
+
+        county_year = aggregate_to_county_by_year(events)
+
+        log.info("Building long format...")
+        long = make_long_zcta(county_year, crosswalk_path)
+        long_path = output_dir / "noaa_storm_events_long.parquet"
+        long.to_parquet(long_path, index=False)
+        log.info("Saved: %s (%.1f KB)", long_path, long_path.stat().st_size / 1024)
+        _s3_upload(str(long_path), S3_LONG_KEY)
+
+        log.info("Building wide epoch format...")
+        wide = make_wide_epochs(long)
+        wide_path = output_dir / "noaa_storm_events_wide.parquet"
+        wide.to_parquet(wide_path, index=False)
+        log.info("Saved: %s (%.1f KB)", wide_path, wide_path.stat().st_size / 1024)
+        _s3_upload(str(wide_path), S3_WIDE_KEY)
+
+        log.info("=== TEMPORAL SUMMARY ===")
+        log.info("Long rows:         %d (%d ZCTAs x %d years)",
+                 len(long), long["zcta_id"].nunique(), long["year"].nunique())
+        log.info("Wide rows:         %d", len(wide))
+        for epoch, (y0, y1) in EPOCHS.items():
+            col = f"flood_events_{epoch}"
+            active = (wide[col] > 0).sum()
+            log.info("  %s (%d-%d): %d ZCTAs with events", epoch, y0, y1, active)
+        log.info("Peak damage ZCTA:  %s ($%.1fM damage in worst year)",
+                 wide.loc[wide["property_damage_k_peak_yr"].idxmax(), "zcta_id"],
+                 wide["property_damage_k_peak_yr"].max() / 1000)
 
     log.info("Done.")
 

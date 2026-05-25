@@ -69,6 +69,8 @@ def main():
     parser.add_argument("--deploy-only", action="store_true",
                         help="Upload code to S3, don't launch job")
     parser.add_argument("--instance-type", default="ml.m5.large")
+    parser.add_argument("--temporal", action="store_true",
+                        help="Also produce long (zcta x year) and wide (epoch) Parquet outputs")
     args = parser.parse_args()
 
     session = boto3.Session(profile_name=AWS_PROFILE, region_name=REGION)
@@ -96,12 +98,18 @@ def main():
     print(f"Code:      s3://{BUCKET}/{CODE_PREFIX}/")
     print(f"Crosswalk: s3://{BUCKET}/{DATA_PREFIX}/")
     print(f"Output:    direct S3 upload to s3://{BUCKET}/{OUTPUT_PREFIX}/")
+    print(f"Temporal:  {'yes (long + wide epoch outputs)' if args.temporal else 'no (aggregated only)'}")
     print("=" * 60)
 
     if args.dry_run:
         print("\n[DRY RUN] Would launch with above config.")
-        print("[DRY RUN] Estimated runtime: 15-25 min")
+        runtime = "20-35 min" if args.temporal else "15-25 min"
+        print(f"[DRY RUN] Estimated runtime: {runtime}")
         print(f"[DRY RUN] Estimated cost: ~$0.06 ({args.instance_type} @ $0.115/hr)")
+        if args.temporal:
+            print("[DRY RUN] Temporal outputs:")
+            print(f"[DRY RUN]   s3://{BUCKET}/{OUTPUT_PREFIX}/noaa_storm_events_long.parquet")
+            print(f"[DRY RUN]   s3://{BUCKET}/{OUTPUT_PREFIX}/noaa_storm_events_wide.parquet")
         return
 
     sm = session.client("sagemaker")
@@ -121,6 +129,7 @@ def main():
                 "bash",
                 "/opt/ml/processing/input/code/entrypoint_noaa.sh",
             ],
+            "ContainerArguments": ["--temporal"] if args.temporal else [],
         },
         "RoleArn": role_arn,
         "ProcessingInputs": [
