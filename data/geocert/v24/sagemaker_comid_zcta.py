@@ -5,9 +5,9 @@ SageMaker Launcher: COMID-to-ZCTA Spatial Crosswalk
 Launches a processing job to build the NHDPlus COMID → ZCTA spatial crosswalk
 with area fraction weights. Required for production-quality TWI aggregation.
 
-Instance: ml.m5.4xlarge (16 vCPU, 64 GB RAM, $0.922/hr)
-Runtime:  90-150 min (21 VPUs × download + spatial overlay)
-Cost:     ~$1.50 estimated
+Instance: ml.m5.8xlarge (32 vCPU, 128 GB RAM, $1.845/hr)
+Runtime:  ~20-30 min (21 VPUs fully parallel, bounded by slowest VPU)
+Cost:     ~$0.90 estimated
 Image:    PyTorch 2.5 CPU (pip installs geopandas + py7zr at startup)
 
 Mounts:
@@ -72,7 +72,7 @@ def main():
     )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--deploy-only", action="store_true")
-    parser.add_argument("--instance-type", default="ml.m5.4xlarge")
+    parser.add_argument("--instance-type", default="ml.m5.8xlarge")
     parser.add_argument("--vpus", nargs="+", default=None,
                         help="Subset of VPUs (default: all 21). E.g. --vpus 12 13 15")
     args = parser.parse_args()
@@ -115,8 +115,8 @@ def main():
 
     if args.dry_run:
         print("\n[DRY RUN] Would launch with above config.")
-        print("[DRY RUN] Estimated runtime: 90-150 min")
-        print(f"[DRY RUN] Estimated cost: ~$1.50 ({args.instance_type} @ $0.922/hr)")
+        print("[DRY RUN] Estimated runtime: ~20-30 min (21 VPUs parallel)")
+        print(f"[DRY RUN] Estimated cost: ~$0.90 ({args.instance_type} @ $1.845/hr)")
         return
 
     sm = session.client("sagemaker")
