@@ -56,7 +56,7 @@ S3_PROVENANCE_KEY = "rsct_curriculum/series_018/processed/nfip_claims_provenance
 S3_CHECKPOINT_KEY = "rsct_curriculum/series_018/processed/nfip_checkpoint.json"
 DATA_PREFIX = "rsct_curriculum/series_018/processed"
 
-OPENFEMA_URL = "https://www.fema.gov/api/open/v2/fimaNfipClaims.csv"
+OPENFEMA_URL = "https://www.fema.gov/api/open/v2/FimaNfipClaims"  # case-sensitive
 PAGE_SIZE = 10_000
 MAX_RETRIES = 4
 RETRY_BASE_DELAY = 10  # seconds
@@ -66,7 +66,7 @@ SELECT_COLS = [
     "amountPaidOnBuildingClaim",
     "amountPaidOnContentsClaim",
     "yearOfLoss",
-    "primaryResidence",
+    "primaryResidenceIndicator",  # renamed from primaryResidence in 2024 API update
 ]
 
 # ---------------------------------------------------------------------------
@@ -101,7 +101,7 @@ def get_total_count() -> int:
     """Pre-flight count from OpenFEMA metadata."""
     try:
         resp = requests.get(
-            "https://www.fema.gov/api/open/v2/fimaNfipClaims.json",
+            "https://www.fema.gov/api/open/v2/FimaNfipClaims",
             params={"$top": 1, "$inlinecount": "allpages"},
             timeout=30,
         )
@@ -125,6 +125,9 @@ def fetch_page(offset: int) -> pd.DataFrame:
         try:
             resp = requests.get(OPENFEMA_URL, params=params, timeout=180)
             resp.raise_for_status()
+            # API returns CSV text; first line may be headers
+            if not resp.text.strip() or resp.text.strip().startswith("<"):
+                return pd.DataFrame()
             df = pd.read_csv(StringIO(resp.text), dtype=str, low_memory=False)
             return df
         except Exception as exc:
