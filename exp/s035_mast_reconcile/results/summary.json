@@ -1,0 +1,142 @@
+{
+  "n_traces": 61,
+  "sources": {
+    "AG2": 31,
+    "HyperAgent": 30
+  },
+  "annotation_stats": {
+    "n_modes_observed": 17,
+    "mean_failures_per_trace": 1.8360655737704918,
+    "mode_frequencies": {
+      "Evaluator agent fails to be critical": 19,
+      "No attempt to verify outcome": 17,
+      "Trajectory restart": 13,
+      "Invented content": 9,
+      "Fail to detect ambiguities/contradictions": 9,
+      "Derailing from task objectives": 9,
+      "Proceed with incorrect assumptions": 7,
+      "Step repetition": 7,
+      "Fail to elicit clarification": 4,
+      "Withholding relevant information": 4,
+      "Blurring role": 4,
+      "Ignoring good suggestions from other agent": 3,
+      "Misalignment between internal thoughts and response message": 2,
+      "Discontinued reasoning": 2,
+      "Unaware of stopping conditions": 1,
+      "Poor adherence to specified constraints": 1,
+      "Claiming that a task is done while it is not true.": 1
+    }
+  },
+  "category_profiles": {
+    "FC1_Specification": {
+      "n": 16,
+      "signals": {
+        "repetition_ratio": 0.16704332493407986,
+        "consecutive_dupe_rate": 0.0009717091013525965,
+        "dominance": 0.625,
+        "handoff_rate": 0.75,
+        "error_density": 0.037793247580167444,
+        "verify_density": 0.3138040929660967,
+        "code_density": 1.3880132170738886,
+        "length_cv": 1.2733703865362873,
+        "growth_ratio": 0.3733180688589414,
+        "has_termination": 0.0625,
+        "n_agents": 1.75,
+        "n_steps": 352.6875
+      }
+    },
+    "FC2_Misalignment": {
+      "n": 14,
+      "signals": {
+        "repetition_ratio": 0.5993250420734683,
+        "consecutive_dupe_rate": 0.0058310936982760775,
+        "dominance": 0.8928571428571429,
+        "handoff_rate": 0.21428571428571427,
+        "error_density": 0.041416832348885255,
+        "verify_density": 0.1161679788554406,
+        "code_density": 0.5536724012412434,
+        "length_cv": 1.4825624740490615,
+        "growth_ratio": 0.8196223880259481,
+        "has_termination": 0.07142857142857142,
+        "n_agents": 1.2142857142857142,
+        "n_steps": 7147.0
+      }
+    },
+    "FC3_Verification": {
+      "n": 43,
+      "signals": {
+        "repetition_ratio": 0.3527393207558504,
+        "consecutive_dupe_rate": 0.0031964945284068524,
+        "dominance": 0.7441860465116279,
+        "handoff_rate": 0.5116279069767442,
+        "error_density": 0.016780398102980317,
+        "verify_density": 0.24484783377589409,
+        "code_density": 1.0051518463739344,
+        "length_cv": 1.353925382635329,
+        "growth_ratio": 0.563538657819504,
+        "has_termination": 0.046511627906976744,
+        "n_agents": 1.5116279069767442,
+        "n_steps": 2694.6279069767443
+      }
+    },
+    "baseline": {
+      "n": 9,
+      "signals": {
+        "repetition_ratio": 0.2173578280863566,
+        "consecutive_dupe_rate": 0.0022477697562481394,
+        "dominance": 0.6666666666666666,
+        "handoff_rate": 0.6666666666666666,
+        "error_density": 0.0234711020476485,
+        "verify_density": 0.2790201823449806,
+        "code_density": 1.0501058155620173,
+        "length_cv": 1.1583840662563185,
+        "growth_ratio": 0.5366876977188358,
+        "has_termination": 0.0,
+        "n_agents": 1.6666666666666667,
+        "n_steps": 181.55555555555554
+      }
+    }
+  },
+  "category_distances_zscore": {
+    "FC1_Specification_vs_FC2_Misalignment": 3.154973166467661,
+    "FC1_Specification_vs_FC3_Verification": 1.3803911950703103,
+    "FC1_Specification_vs_baseline": 0.8683172337094273,
+    "FC2_Misalignment_vs_FC3_Verification": 1.8617683248679067,
+    "FC2_Misalignment_vs_baseline": 2.691183325749895,
+    "FC3_Verification_vs_baseline": 0.9555622724483241
+  },
+  "mode_profiles": {
+    "Evaluator agent fails to be critical": {
+      "n": 19,
+      "category": "FC3_Verification"
+    },
+    "No attempt to verify outcome": {
+      "n": 17,
+      "category": "FC3_Verification"
+    },
+    "Trajectory restart": {
+      "n": 13,
+      "category": "FC3_Verification"
+    },
+    "Invented content": {
+      "n": 9,
+      "category": "FC3_Verification"
+    },
+    "Fail to detect ambiguities/contradictions": {
+      "n": 9,
+      "category": "FC1_Specification"
+    },
+    "Derailing from task objectives": {
+      "n": 9,
+      "category": "FC2_Misalignment"
+    },
+    "Proceed with incorrect assumptions": {
+      "n": 7,
+      "category": "FC1_Specification"
+    },
+    "Step repetition": {
+      "n": 7,
+      "category": "FC3_Verification"
+    }
+  }
+}

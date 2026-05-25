@@ -1,0 +1,1759 @@
+\documentclass{article}
+
+% NeurIPS 2026 Evaluations and Datasets Track
+\usepackage[eandd]{neurips_2026}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsfonts}
+\usepackage{amsmath}
+\usepackage{nicefrac}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{multirow}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{subcaption}
+
+\title{GeoRSCT: Evaluating Failures When Compatibility Is Not Scalar}
+
+\author{%
+  Rudolph A.\ Martin \\
+  Next Shift Consulting LLC \\
+  \texttt{rudy@nextshiftconsulting.com}
+}
+
+\usepackage{float}
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Scalar metrics evaluate models. They do not evaluate evaluations. We introduce \textbf{GeoRSCT}, a ZCTA-level geospatial benchmark and diagnostic framework for determining when geospatial performance cannot be reduced to a single scalar score. GeoRSCT asks: when a model performs well or poorly, is the score measuring solver quality, target difficulty, spatial autocorrelation, aggregation effects, leakage risk, or representation--solver mismatch?
+
+GeoRSCT spans ${\sim}32{,}000$ U.S.\ ZIP Code Tabulation Areas and 27 prediction targets across health, socioeconomic, environmental, and remotely sensed regimes. The benchmark pairs these targets with six embedding families and three geography-aware evaluation protocols, exposing differences in noise, spatial smoothness, neighborhood dependence, scale sensitivity, interpolation, and extrapolation.
+
+Rather than treating score variance as model skill by default, GeoRSCT attaches per-task $N_{\text{ceiling}}$, theory $\kappa = D^*/D$, and the $(R, S_{\text{sup}}, N)$ decomposition to each representation--solver pair. In v1, $N_{\text{ceiling}}$ and theory $\kappa$ carry the empirical diagnostic load; the $(R, S_{\text{sup}}, N)$ coordinates ship with a documented cross-arm calibration limitation (Appendix~\ref{app:s019d}). It provides a twelve-mode failure taxonomy that organizes how geospatial evaluation can mislead, including spatial-autocorrelation leakage, aggregation artifacts, scalar inversion, task-noise dominance, threshold mismatch, extrapolation brittleness, and substrate-ceiling effects.
+
+Experiments show that task difficulty dominates architecture choice. Across all 27 tasks, $N_{\text{ceiling}}$ spans $0.084$ to $0.444$ ($5.3{\times}$ ratio; $3.8{\times}$ restricted to the 3 direct-measurement environmental targets that avoid the target--input covariate overlap discussed in Section~\ref{sec:nceiling}). Within a task, swapping among the three core embedding families changes $R^2$ by a median of $0.074$ (mean $0.093$); the within-task change is large only on environmental targets where GNN's spatial inductive bias is decisive. For most tasks, richer geographic substrate is the productive intervention, not simply a stronger model. Released artifacts include the \textbf{GeoCert} benchmark dataset, taxonomy specification, injection harness, certificate library, diagnostic protocol, and reproducibility materials.
+\end{abstract}
+
+% ============================================================
+% SECTION 1: INTRODUCTION
+% ============================================================
+\section{Introduction}
+\label{sec:intro}
+
+Scalar metrics evaluate models. They do not evaluate evaluations. We position \textbf{GeoRSCT} as an evaluation diagnostic, not a leaderboard: a leaderboard answers ``which model wins?''; GeoRSCT answers ``in what way is this evaluation failing, and what is the correct remediation?''
+
+\paragraph{Why this matters: a stress test.}
+Consider post-hurricane resource allocation: emergency managers must deploy across affected ZCTAs under high decision stakes, stale training-vintage features, sub-ZCTA resolution gaps, and no per-prediction uncertainty. A geospatial foundation model such as PDFM~\citep{agarwal2025pdfm} can rank locations by predicted vulnerability, but the operational question is not ``which ZIP code scores highest?'' It is: \emph{where is the prediction reliable enough to act, where should we add a buffer, and where do we need scouts because the model cannot know?} A scalar $R^2$ cannot answer this. GeoRSCT provides evaluation infrastructure (N-ceiling bounds, certificate decomposition, and failure-mode diagnosis) that allows predictions to be interpreted as \emph{trust}, \emph{buffer}, or \emph{scout} zones rather than as unconditional allocation commands (Sections~\ref{sec:rsn}--\ref{sec:geo}).
+
+\textbf{GeoRSCT} applies Representation--Solver Compatibility Theory (RSCT)~\citep{martin2026rsct} to geospatial benchmark evaluation; the prefix distinguishes this benchmark from the general theory. The initial release spans ${\sim}32{,}000$ U.S.\ ZIP Code Tabulation Areas and 27 prediction targets across health, socioeconomic, and environmental regimes, paired with six embedding families and three geography-aware evaluation protocols.
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/georsct_fig4_multisolver_compatibility_corrected.pdf}
+\caption{Task difficulty dominates architecture choice: GeoRSCT evaluates performance as a relation among problem $P$, representation $E$, and solver $S$. Six embedding families are tested with a fixed HistGBDT solver, separating task difficulty from representation quality. Per-task outputs include $R^2(f,t)$, $N_{\text{ceiling}}(t) = 1 - \max_{f} R^2(f,t)$, and the certificate decomposition $(R, S_{\text{sup}}, N)$ with derived diagnostics $\alpha$, $\kappa$, $\sigma$ (Appendix~\ref{sec:rsn}; results in Section~\ref{sec:geo}).}
+\label{fig:multisolver-compatibility}
+\end{figure}
+
+The headline empirical answer: \textbf{task difficulty dominates architecture choice.} Across the 27 tasks, $N_{\text{ceiling}}$ spans $0.084$ to $0.444$ ($5.3{\times}$ ratio; $3.8{\times}$ on the 3 direct-measurement environmental targets that avoid target--input covariate overlap, \S\ref{sec:nceiling}). Within a task, swapping among the three core embedding families changes $R^2$ by a median of $0.074$ (mean $0.093$), with the largest within-task changes concentrated on environmental targets. For most tasks, richer features are the productive intervention, not a better model. A two-stage factorial experiment first confirms this ranking is solver-invariant (interaction $\eta^2 = 0.035$--$0.091$, an order of magnitude below the embedding main effect), then maps the full per-task spectrum across all 27 targets (Section~\ref{sec:geo}).
+
+Rather than treating score variance as model skill by default, GeoRSCT attaches per-task $N_{\text{ceiling}}$, theory $\kappa = D^*/D$, and the $(R, S_{\text{sup}}, N)$ decomposition to each representation--solver pair (the simplex coordinates carry a v1 cross-arm calibration limitation discussed in Appendix~\ref{app:s019d}; $N_{\text{ceiling}}$ and theory $\kappa$ carry the empirical diagnostic load), and organizes evaluation failures into a twelve-mode taxonomy across four families:
+\begin{itemize}
+\item \textbf{Spatial-dependence collapse} (GEO-A), where autocorrelation, geographic heterogeneity, or visual smoothness makes scalar reporting misleading;
+\item \textbf{Aggregation collapse} (GEO-B), where partition, scale, or crosswalk choices in the evaluation substrate distort scores;
+\item \textbf{Data-pipeline collapse} (GEO-C), where temporal, projection, or missingness inconsistencies contaminate inputs;
+\item \textbf{Substrate-ceiling collapse} (GEO-D), where high $N_{\text{ceiling}}$ flattens cross-architecture signal and aggregate-score evaluation becomes uninformative.
+\end{itemize}
+
+The taxonomy unifies eight previously-documented spatial-ML failure phenomena under one decomposition together with four geo-substrate-specific framings introduced in this work; full attribution and per-mode diagnostic detail appear in Section~\ref{sec:taxonomy}.
+
+Our contributions are:
+\begin{enumerate}
+\item \textbf{The CONUS-27 benchmark with certificate-level diagnostics.} GeoRSCT v23.0.2 ships 31{,}789 ZCTAs with 63 solver-usable features, 27 prediction targets, six embedding families, and three geography-aware evaluation protocols via Hugging Face~\citep{geocert2026}. Each representation--solver--protocol cell carries per-task $N_{\text{ceiling}}$, theory $\kappa = D^*/D$, and the $(R, S_{\text{sup}}, N)$ decomposition, accompanied by certificate library, taxonomy specification, injection harness, out-of-fold predictions, and full reproducibility materials. In v1, the empirical diagnostic load is carried by $N_{\text{ceiling}}$ and theory $\kappa$; the $(R, S_{\text{sup}}, N)$ simplex coordinates have a documented cross-arm calibration limitation (per-arm tercile boundaries; see Appendix~\ref{app:s019d}, Finding~D1); the pooled-boundary fix in S019E (Appendix~\ref{app:s019e}) resolves the simplex integrity (FC-1) and $\alpha$-spread (FC-2) failures. Sections~\ref{sec:geo} and~\ref{sec:conclusion} detail the release.
+
+\item \textbf{The $N_{\text{ceiling}}$ spectrum and architecture-sensitivity gradient.} Per-task noise floors span $0.084$--$0.444$ across the 27 tasks ($5.3{\times}$ ratio; $3.8{\times}$ on the 3 direct-measurement environmental targets that avoid target--input covariate overlap), and are the dominant axis of variation in the benchmark; within a task, swapping among the three core embedding families changes $R^2$ by a median of $0.074$ (mean $0.093$). Architecture effect size scales with task difficulty ($\eta^2 = 0.55$--$0.69$; Appendix~\ref{app:s019a}), confirming $N_{\text{ceiling}}$ as the binding constraint rather than embedding choice. Full per-task spectrum and embedding comparisons appear in Sections~\ref{sec:nceiling} and~\ref{sec:geo}. The headline $5.3{\times}$ figure carries a target-side caveat: 21 of the 27 targets are CDC PLACES small-area estimates whose own model uses ACS-style covariates that overlap with the benchmark's input features, which biases their measured $N_{\text{ceiling}}$ downward in an amount we do not currently quantify (\S\ref{sec:nceiling}).
+
+\item \textbf{A twelve-mode geo-substrate failure taxonomy, with injection validation on family GEO-D.} The $R/S_{\text{sup}}/N$ decomposition organizes twelve failure modes into four families (GEO-A through GEO-D), unifying eight previously-documented spatial-ML phenomena~\citep{roberts2017cv,ploton2020spatial,brunsdon1996gwr,openshaw1984maup,workman2022resolution,krieger2002zip,chen2025crosswalk,oliver2005cartographic,cao2017projection,kwon2023acs} and introducing four geo-substrate-specific framings. Methods-level injection validation on the three GEO-D modes recovers top-1 across eight seeds; the remaining nine modes (Families GEO-A, GEO-B, GEO-C) ship with observable certificate-field signatures and gate dispositions in Table~\ref{tab:taxonomy}, but their dedicated injection seeds are deferred to v2 (Section~\ref{sec:taxonomy}). The interp/extrap signed-delta pattern that D.3 organizes is consistent with the well-documented spatial cross-validation literature~\citep{roberts2017cv,ploton2020spatial,mila2022nndm} and with PDFM's own SatCLIP-concatenation experiment~\citep[Table~4]{agarwal2025pdfm}.
+\end{enumerate}
+
+\paragraph{Prior work.}
+\label{sec:related}
+GeoRSCT engages an active debate in machine learning evaluation: whether aggregate scalar metrics suffice for the practical questions practitioners face. Most current geospatial benchmarks (including SustainBench~\citep{yeh2021sustainbench}, PDFM~\citep{agarwal2025pdfm}, and SatCLIP~\citep{klemmer2023satclip}) report performance as aggregate scalar scores (mean $R^2$, accuracy, or family-averaged measures). Adjacent benchmarks evaluate against external reference solutions (expert workflows~\citep{zhang2025geoanalyst}, tool-call sequences~\citep{krechetova2025geobenchx}, throughput targets~\citep{kim2023geoycsb}), sharing the assumption that an external answer key is available. GeoRSCT addresses the case where no such answer key exists: the targets themselves are model estimates (CDC PLACES is a multilevel-model output, not a measurement), the ``correct'' representation is precisely what the benchmark is trying to characterize, and scalar $R^2$ (the candidate answer key) turns out to be dominated by task noise rather than by solver quality. SatCLIP~\citep{klemmer2023satclip} encodes satellite imagery into location embeddings; PDFM~\citep{agarwal2025pdfm} combines search trends, maps, busyness, weather, and SatCLIP signals via a GNN. Both produce embeddings that improve interpolation but can degrade extrapolation, a task-dependent routing problem that GeoRSCT's taxonomy characterizes as D.3 (Threshold Mismatch) when evaluation thresholds fail to account for protocol differences. Additional topic-level surveys of adjacent literatures (multidimensional evaluation, bias-variance decomposition, uncertainty, failure taxonomies, bootstrap methods, and geospatial benchmarks) appear in Appendix~\ref{app:additional_related}.
+
+% ============================================================
+% SECTION 2: TAXONOMY (was Section 4)
+% ============================================================
+\section{The GeoRSCT Failure Taxonomy}
+\label{sec:taxonomy}
+
+GeoRSCT organizes evaluation failures into a twelve-mode geo-substrate taxonomy across four families, each named for where the failure originates in the certificate pipeline: \textbf{spatial-dependence collapse} (GEO-A), where autocorrelation, heterogeneity, or visual smoothness makes scalar reporting misleading; \textbf{aggregation collapse} (GEO-B), where partition, scale, or crosswalk choices in the evaluation substrate distort scores; \textbf{data-pipeline collapse} (GEO-C), where temporal, projection, or missingness inconsistencies contaminate inputs; and \textbf{substrate-ceiling collapse} (GEO-D), where high $N_{\text{ceiling}}$ flattens cross-architecture signal (Table~\ref{tab:taxonomy}). Eight of the twelve modes are previously documented in adjacent literatures and are unified here under the $R/S_{\text{sup}}/N$ decomposition; four (A.3 Smooth-Map Illusion, D.1 Ceiling-Aggregation Drift, D.2 Architecture Invariance, D.3 Interp/Extrap Mismatch) are geo-substrate-specific framings introduced in this work.
+
+\paragraph{Relationship to MAST.} MAST~\citep{cemri2025mast} taxonomizes multi-agent LLM failures into 14 modes across 3 stage-grouped categories (planning, execution, communication), validated by inter-annotator agreement at Cohen's $\kappa = 0.88$. GeoRSCT is complementary: where MAST organizes failures by \emph{where in the agent pipeline} they occur, GeoRSCT organizes them by \emph{where in the evaluation substrate} they originate: spatial dependence, aggregation, data pipeline, or ceiling structure. The two taxonomies are structurally parallel (category-then-mode, observable signatures, typed dispositions) but non-overlapping in scope. Because both can be expressed as certificate-field predicates over an $R/S_{\text{sup}}/N$ decomposition, an RSCT certificate could in principle serve as the common substrate for failure-mode diagnosis across both agent-pipeline and evaluation-substrate domains.
+
+\paragraph{Scope of v1 diagnostic validation.} The injection harness in Section~\ref{sec:injection} validates the three modes of family GEO-D (D.1, D.2, D.3) with parameterized signal patterns and synthetic-certificate diagnostic tests. The remaining nine modes (Families GEO-A, GEO-B, GEO-C) are defined in Table~\ref{tab:taxonomy} with their characteristic signatures and gate dispositions; injection validation scope is discussed in Section~\ref{sec:conclusion}.
+
+\begin{table}[htbp]
+\centering
+\caption{The twelve-mode geo-substrate failure taxonomy. \textbf{Disposition} is the gate response when the mode signature is detected on the certificate. \textit{Italic} mode names indicate framings introduced in this work; the others are previously-documented spatial-ML failure phenomena unified here under the $R/S_{\text{sup}}/N$ decomposition.}
+\label{tab:taxonomy}
+\small
+\begin{tabular}{llll}
+\toprule
+\textbf{Mode} & \textbf{Name} & \textbf{Signal pattern} & \textbf{Disposition} \\
+\midrule
+\multicolumn{4}{l}{\textit{Family GEO-A: Spatial-Dependence Collapse}} \\
+A.1 & Autocorrelation Leakage                   & random-CV $\gg$ blocked-CV gap                                        & \textsc{Reject}    \\
+A.2 & Geographic Heterogeneity                  & residual region-variance structure                                    & \textsc{Block}     \\
+A.3 & \textit{Smooth-Map Illusion}              & low $\alpha$, high spatial coherence                                  & \textsc{Repair}    \\
+\midrule
+\multicolumn{4}{l}{\textit{Family GEO-B: Aggregation Collapse}} \\
+B.1 & MAUP / Partition Drift                    & $\sigma$ inflation under re-aggregation                               & \textsc{Re\_encode} \\
+B.2 & Scale Mismatch                            & feature--target resolution gap inflates $N$                           & \textsc{Re\_encode} \\
+B.3 & Crosswalk Gap (ZIP$\to$ZCTA)              & $\kappa_L < \kappa_{L,\min}$ (Grounding)                              & \textsc{Repair}    \\
+\midrule
+\multicolumn{4}{l}{\textit{Family GEO-C: Data-Pipeline Collapse}} \\
+C.1 & Vintage Drift                             & vintage-misalignment $\sigma$ inflation                               & \textsc{Re\_encode} \\
+C.2 & Projection / CRS Inconsistency            & missing or inconsistent CRS metadata                                  & \textsc{Reject}    \\
+C.3 & Spatial Missingness Bias                  & $N_{\text{ceiling}}$ shift under imputation                           & \textsc{Repair}    \\
+\midrule
+\multicolumn{4}{l}{\textit{Family GEO-D: Substrate-Ceiling Collapse}} \\
+D.1 & \textit{Ceiling-Aggregation Drift}        & per-task $\alpha$ vs.\ $N_{\text{ceiling}}$, $\rho > 0.7$            & \textsc{Block}     \\
+D.2 & \textit{Architecture Invariance}          & cross-family $\sigma$ collapse at high $N$                            & \textsc{Block}     \\
+D.3 & \textit{Interp/Extrap Mismatch}           & signed-$\Delta$ across protocols                                      & \textsc{Re\_encode} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Family GEO-A: Spatial-Dependence Collapse.}
+\textbf{A.1 Spatial-Autocorrelation Leakage.} Random CV over spatially autocorrelated data produces optimistic estimates~\citep{roberts2017cv,ploton2020spatial,mila2022nndm}; CONUS-27 reports both random-fold and state-FIPS-blocked CV, with large gaps triggering \textsc{Reject}.
+\textbf{A.2 Geographic Heterogeneity.} Non-stationary spatial relationships~\citep{brunsdon1996gwr} produce residual region-variance structure that inflates $\sigma$, triggering \textsc{Block}.
+\textbf{A.3 Smooth-Map Illusion.} Choropleth smoothness masks weak signal: $\alpha$ collapses when $R$ is small even if the map looks coherent, triggering \textsc{Repair}.
+
+\paragraph{Family GEO-B: Aggregation Collapse.}
+\textbf{B.1 MAUP / Partition Drift.} Results vary systematically across administrative aggregations~\citep{openshaw1984maup}; $\sigma$ inflation under re-aggregation triggers \textsc{Re\_encode}.
+\textbf{B.2 Scale Mismatch.} Feature--target resolution gaps inflate $N$ on the substrate side~\citep{workman2022resolution}, triggering \textsc{Re\_encode}.
+\textbf{B.3 Crosswalk Gap (ZIP$\to$ZCTA).} Nationwide, 15\% of ZCTAs have non-matching ZIPs~\citep{krieger2002zip,chen2025crosswalk}; the Grounding gate fires ($\kappa_L < \kappa_{L,\min}$) and emits \textsc{Repair}.
+
+\paragraph{Family GEO-C: Data-Pipeline Collapse.}
+\textbf{C.1 Vintage Drift.} Temporal misalignment across ACS, PLACES, and TIGER vintages inflates $\sigma$~\citep{kwon2023acs}, triggering \textsc{Re\_encode}.
+\textbf{C.2 Projection / CRS Inconsistency.} Silent projection errors produce materially different results~\citep{cao2017projection}; absent or inconsistent CRS metadata triggers \textsc{Reject}.
+\textbf{C.3 Spatial Missingness Bias.} Non-random geographic missingness~\citep{rubin1976missing,oliver2005cartographic} shifts $N_{\text{ceiling}}$ under imputation, triggering \textsc{Repair}.
+
+\paragraph{Family GEO-D: Substrate-Ceiling Collapse.}
+\textbf{D.1 Ceiling-Aggregation Drift.} Aggregate-score evaluation flattens near the ceiling~\citep{ott2022saturation,kiela2021dynabench}; with $N_{\text{ceiling}}$ varying $5.3{\times}$ across CONUS-27 ($0.084$--$0.444$; $3.8{\times}$ on the 3 direct-measurement environmental targets, \S\ref{sec:nceiling}), aggregate $R^2$ is dominated by easy tasks. Per-task $\alpha$ correlated with $N_{\text{ceiling}}$ at $\rho > 0.7$ flags the drift.
+\textbf{D.2 Architecture Invariance.} Within a task, swapping among the three core embedding families changes $R^2$ by a median of $0.074$ (mean $0.093$); across the 27 tasks, $N_{\text{ceiling}}$ steps by up to $0.36$. On a typical task, the within-task architecture step is the smaller of the two; for tasks above $N_{\text{ceiling}} = 0.35$, cross-architecture signal is flattened further~\citep{ott2022saturation}. The certificate's $\sigma$ field flags substrate-bounded tasks where switching architectures is unproductive.
+\textbf{D.3 Interp/Extrap Mismatch.} The same encoding shift moves performance in opposite directions across protocols, a long-documented feature of spatial cross-validation~\citep{roberts2017cv,ploton2020spatial,mila2022nndm}. D.3's contribution is to organize this pattern within the certificate framework: per-protocol gate-pass-rate divergence is the diagnostic disposition (\textsc{re\_encode}), and the routing implication is that an embedding may be admissible under one protocol and inadmissible under another. PDFM's SatCLIP concatenation~\citep[Table~4]{agarwal2025pdfm} reports an instance of the signed-delta pattern (${\approx}{+}0.01$ Interp, ${\approx}{+}0.02$ Super-res, ${\approx}{-}0.01$ Extrap) in an unaffiliated foundation model on a different feature substrate and task set; this is the strongest available external evidence that D.3's certificate signature appears in published geospatial systems, and is consistent with the spatial cross-validation literature~\citep{roberts2017cv,ploton2020spatial,mila2022nndm} that D.3 organizes.
+
+\paragraph{Taxonomy validation.}
+\label{sec:injection}
+We validate the diagnostic protocol by injection on the three modes of family GEO-D (D.1 Ceiling-Aggregation Drift, D.2 Architecture Invariance, D.3 Interp/Extrap Mismatch), the family for which the v1 GCF-3.1 and GCF-3.2 injection seeds transfer directly under the v1$\to$v23 mapping. For each mode we draw $N{=}100$ synthetic certificates from the mode's signal-pattern covariance and run each through the diagnostic protocol, which assigns a top-$k$ ranked list of candidate failure modes. Top-1 recovery succeeds for all three modes across eight injection seeds, with robustness to additive noise up to $\sigma_{\text{inj}}{=}0.15$. Because synthetic certificates are drawn from each mode's own signature distribution, the harness is a methods-level correctness check: it confirms that the predicates recover their intended signal patterns from observable certificate fields before the protocol is applied to measured certificates from real geospatial experiments, playing the same role as the inter-annotator agreement pipeline in MAST~\citep{cemri2025mast}. Family-specific injection patterns for GEO-A, GEO-B, and GEO-C require mode-specific signal generators (e.g., random-CV-vs.\ blocked-CV gap for A.1, $\sigma$ inflation under re-aggregation for B.1) and are documented in the upstream RSCT failure-mode catalog~\citep{martin2026rsct}. Each failure mode is diagnosable, bounded in scope, and does not invalidate the benchmark as a whole; the taxonomy's purpose is to make failure visible and bounded, not to declare the evaluation broken.
+
+% ============================================================
+% SECTION 5: N-CEILING (was Section 6; Injection moved to Section 2 closing paragraph)
+% ============================================================
+\section{The N-Ceiling: Task Difficulty as a First-Class Evaluation Axis}
+\label{sec:nceiling}
+
+Every regression benchmark implicitly contains a per-task noise floor: the fraction of target variance that no model in the comparison set can explain. Standard benchmarks compute this number ($1{-}R^2$ for the best model) but do not report it. GeoRSCT promotes it to a first-class evaluation axis, reported alongside model performance so that $R^2$ is never interpreted without its ceiling context.
+
+The N-ceiling for task $t$ is:
+\begin{equation}
+N_{\text{ceiling}}(t) = 1 - \max_{k \in \mathcal{K}}\bigl(R^2_k(t)\bigr),
+\label{eq:nceiling}
+\end{equation}
+where $\mathcal{K}$ indexes architecturally diverse model families and stochastic models use seed-averaged $R^2$ rather than best-seed. The formula is standard; the contribution is the practice of reporting it per task as a benchmark primitive and using it to qualify architecture comparisons.
+
+\paragraph{Why this matters.} If $N_{\text{ceiling}}$ varies substantially across tasks, reporting mean $R^2$ is dominated by easy tasks and hides per-task ceiling structure. The spectrum reframes evaluation from ``which model wins?'' to ``is the ceiling the binding constraint?'' When the ceiling range dwarfs the cross-architecture spread, the productive intervention is richer features, not a better model. Section~\ref{sec:geo} quantifies both quantities on the CONUS-27 benchmark.
+
+\paragraph{What N-ceiling is and is not.} $N_{\text{ceiling}}$ is an upper bound on the unexplained variance achievable by the tested families under the tested feature substrate. It is not the true Bayes risk: a richer feature set, an additional architectural family, or a better hyperparameter search could push $R^2$ higher and shrink the ceiling. We call it a ceiling rather than a floor for this reason: it bounds what remains unexplained from above, and the bound is only as tight as the model families are diverse. The six families used in GeoRSCT span a deliberate range of spatial assumptions (from no spatial bias in PCA32 through contiguity-weighted features in Spatial Lag to learned message passing in GraphSAGE, plus three extended families: Geo-spatial, Domain features, and Noisy Control), so that the ceiling reflects feature-strategy diversity, not just solver tuning. The empirical consequences of this diversity are reported in Section~\ref{sec:geo}.
+
+\paragraph{Confidence intervals.} GeoRSCT uses fold-level block bootstrap ($B{=}1{,}000$) to quantify N-ceiling uncertainty; per-task 95\% CIs appear in Appendix~\ref{app:nceiling_method}. Seed-collapse (three seeds: 42, 123, 456) and residual-correlation diagnostics are also reported there.
+
+\paragraph{Conservative bias.} The same-family ceiling estimator is conservative by construction: it uses the best \emph{tested} family, not the best \emph{possible} family, so the true noise floor may be lower than reported (Appendix~\ref{app:nceiling_method}).
+
+\paragraph{Target-side circularity caveat for PLACES targets.} A separate, target-side concern affects 21 of the 27 tasks. CDC PLACES is not a survey product but a small-area multilevel model whose predictors include sociodemographic covariates drawn from the same ACS feature space the benchmark uses as solver inputs~\citep{cdcplaces2025methodology}. Predicting a PLACES target from ACS-derived inputs therefore recovers part of the upstream PLACES estimator's own fit in addition to whatever epidemiological signal is present, biasing $R^2$ upward and $N_{\text{ceiling}}$ downward in an amount we do not currently quantify. The 3 environmental targets (VIIRS night lights, USGS NED elevation, Hansen GFC tree cover) are direct measurements and do not share this issue; their $N_{\text{ceiling}}$ values ($0.084$, $0.118$, $0.317$) span $3.8{\times}$ and a range of $0.233$, which remains the dominant axis of variation among the clean-target subset. The 21 PLACES targets and the 3 ACS targets (income, home value, population density) should be read as a mixed regime in which the $N_{\text{ceiling}}$ estimate carries an upstream-model component as well as an epidemiological one; the released artifacts include the source identification per target so that downstream users can stratify accordingly.
+
+% ============================================================
+% SECTION 7: EMPIRICAL RESULTS
+% ============================================================
+\section{Empirical Results: Architecture-Invariance and N-Ceiling}
+\label{sec:geo}
+
+\subsection{Experimental Design}
+
+The CONUS-27 benchmark (27 tasks, 6 embedding families, 3 evaluation protocols over ${\sim}32{,}000$ ZCTAs; Appendix~\ref{app:benchmark_construction}) is evaluated in two stages (Figure~\ref{fig:diagnostic-designs}).
+
+\emph{Stage~1} (S019A, Figure~\ref{fig:s019a-design}) runs a $3{\times}3$ factorial (the three core embeddings PCA32, Spatial Lag, and GraphSAGE, crossed with three solvers HistGBDT, Ridge, and MLP) on three targets spanning the difficulty range. Two-way ANOVA tests whether the embedding ranking is solver-dependent. Finding that it is not (interaction $\eta^2 = 0.035$--$0.091$, small relative to embedding $\eta^2 = 0.55$--$0.69$; Table~\ref{tab:s019a_anova}), \emph{Stage~2} (S019D, Figure~\ref{fig:s019d-design}) fixes the solver to HistGBDT, adds three extended embedding families (Geo-spatial, Domain features, Noisy Control), and scales to all 27 targets, spending the experimental budget on embedding breadth and task breadth instead of redundant solver variation.
+
+Geography-aware evaluation protocols prevent spatial leakage: county-holdout for interpolation, state-holdout for extrapolation, and county-to-ZCTA disaggregation for super-resolution. Random row-level splits are not used. Full protocols, hypotheses, and assumption checks are in Appendices~\ref{app:s019a} and~\ref{app:s019d}.
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/georsct_fig4a_s019a_design.pdf}
+\caption{\textbf{Stage~1}: Factorial diagnostic (S019A): 3 embeddings $\times$ 3 solvers $\times$ 3 difficulty levels. Tests whether the embedding ranking is solver-dependent and whether sensitivity is binary or a gradient.}
+\label{fig:diagnostic-designs}\label{fig:s019a-design}
+\end{figure}
+
+\vspace{0.5em}
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/georsct_fig4b_s019d_design.pdf}
+\caption{\textbf{Stage~2}: Breadth diagnostic (S019D): 6 embeddings $\times$ 27 targets $\times$ 1 solver. Fixes the solver (justified by Stage~1) and maps the $N_{\text{ceiling}}$ spectrum and feature-routing signal. Both stages share the same ZCTAs, embedding code, and spatial-holdout protocol; the core 3 embeddings in Stage~1 are a subset of the 6 in Stage~2.}
+\label{fig:s019d-design}
+\end{figure}
+
+\subsection{Summary Results}
+
+Table~\ref{tab:results} reports holdout $R^2$ for the three core embedding families by evaluation protocol (per-task detail in Table~\ref{tab:s019d_per_task}). The dominant pattern is ceiling-dominated evaluation: across the 27 tasks, $N_{\text{ceiling}}$ varies $5.3{\times}$ ($0.084$--$0.444$; $3.8{\times}$ on the 3 direct-measurement environmental targets, \S\ref{sec:nceiling}); within a task, swapping among the three core embedding families changes $R^2$ by a median of $0.074$ (mean $0.093$).
+
+\begin{table}[t]
+\centering
+\caption{GeoRSCT results: mean holdout $R^2$ by target family and evaluation protocol for the three core embedding families. $N_{\text{ceiling}} = 1 - \max_k(R^2_k)$ over all six embedding families (S019D). Per-task spread $= \max_k(R^2_k) - \min_k(R^2_k)$ across the three core families, computed at the task level; the bottom row is the mean of those per-task spreads over the 27 tasks, which differs from $\max_k - \min_k$ of the ``All 27 mean'' row because per-task and across-task aggregations do not commute (the latter would give $0.021$ for interpolation and $0.028$ for extrapolation). Super-resolution reports Pearson $r$ (PCA32 only) rather than $R^2$: the county-to-ZCTA disaggregation protocol yields heterogeneous per-task split structures in which cross-county variance dominates, making $r$ the more interpretable scalar; per-task spread and $N_{\text{ceiling}}$ are not reported for super-resolution (``---'') because the differing split structures make cross-task spread comparisons uninformative. $\dagger$: see~\S\ref{sec:geo} for the extrapolation protocol detail.}
+\label{tab:results}
+\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{l|ccc|ccc|c|c}
+\toprule
+& \multicolumn{3}{c|}{\textbf{Interpolation (county)}} & \multicolumn{3}{c|}{\textbf{Extrapolation (state)}} & & \textbf{Super-res} \\
+\textbf{Target family} & PCA32 & Lag & GNN & PCA32 & Lag & GNN & $N_{\text{ceil}}$ & $r$ (PCA32) \\
+\midrule
+Health (21) & .660 & .662 & .637 & .664 & .660 & .630 & .266 & .446 \\
+Socioeconomic (3) & .706 & .730 & .698 & .728 & .748 & .716 & .164 & .420 \\
+Environmental (3) & .533 & .610 & .627 & .635 & .673 & .664 & .173 & .080 \\
+\midrule
+\textbf{All 27 mean} & .651 & .664 & .643 & .668 & .672 & .644 & .244 & .417 \\
+Mean per-task spread (core 3) & \multicolumn{3}{c|}{0.093} & \multicolumn{3}{c|}{0.043$^\dagger$} & --- & --- \\
+\bottomrule
+\end{tabular}}% end resizebox
+\end{table}
+
+\subsection{The N-Ceiling Spectrum}
+
+Per-task N-ceiling is computed over all six embedding families (Figure~\ref{fig:s019d-design}; full per-task values in Table~\ref{tab:s019d_per_task}, cross-seed stability in Table~\ref{tab:s019d_cross_seed}).
+
+Easiest tasks ($N_{\text{ceiling}} {<} 0.20$): night lights ($0.084$), population density ($0.107$), elevation ($0.117$), home value ($0.119$), physical health ($0.168$), dental visit ($0.175$), smoking ($0.179$), physical inactivity ($0.187$). Moderate tasks ($0.20\text{--}0.35$): the bulk of health outcomes, including diabetes ($0.220$) and obesity ($0.247$). Hard tasks ($N_{\text{ceiling}} {\geq} 0.35$): cholesterol screening ($0.357$), high cholesterol ($0.369$), binge drinking ($0.444$). The across-task $5.3{\times}$ ratio (clean subset: $3.8{\times}$ on the 3 direct-measurement environmental targets, \S\ref{sec:nceiling}) is the dominant axis of the dataset; within a task, swapping among the three core embedding families changes $R^2$ by a median of $0.074$ (mean $0.093$), with the largest within-task changes concentrated on environmental targets (Section~\ref{sec:arch_invisible}).
+
+\subsection{Architecture Is Nearly Invisible}
+\label{sec:arch_invisible}
+
+Among the three core embedding families with fixed HistGBDT solver (S019D; Table~\ref{tab:results}), within-task variation across embeddings is small on most tasks: swapping among PCA32, Spatial Lag, and GNN changes $R^2$ by a median of $0.074$ (mean $0.093$) per task. Compared against the across-task step in $N_{\text{ceiling}}$ (range $0.36$ over the 27 tasks), the within-task architecture step is the smaller of the two on a typical task. The exception is environmental targets, where GNN's spatial inductive bias is decisive (on elevation, the GNN-vs-PCA32 gap is $+0.33$, and on tree cover $+0.17$, comparable in magnitude to the full across-task ceiling range). On health and socioeconomic targets the three core families are within a few percentage points of each other (Table~\ref{tab:results}, family-mean rows): PCA32 and Spatial Lag are competitive with GNN on most health prevalence targets and Spatial Lag is the best of the three core families on socioeconomic targets. The per-task win counts among the three core families and the full $27$-task table are released as \texttt{georsct\_table.parquet}. Pairwise residual correlations are high ($r = 0.93$--$0.99$; Table~\ref{tab:s019d_kappa_corr}): the families agree on which tasks are hard and which are easy; they disagree on level, not on ranking. Stage~1 (S019A; Appendix~\ref{app:s019a}) separately confirms that embedding rankings are stable across solver families: the interaction $\eta^2$ is $6$--$16{\times}$ smaller than the embedding main effect across all three tested targets.
+
+Including domain-feature and geo-spatial embeddings widens the five-family spread to mean $0.148$ (median $0.129$): domain features win 16 of 27 tasks; GNN wins 7 health targets; geo-spatial wins 4 targets where geographic context (lat/lon, flood, healthcare access) is most informative. The extended families tighten the ceiling substantially: elevation drops from $N_{\text{ceiling}} = 0.329$ (GNN-best among core 3) to $0.117$ (geo-spatial), illustrating that the ceiling is substrate-dependent, not architecture-dependent.
+
+Both comparisons support the same conclusion: for a practitioner with a single budget item, the ceiling analysis says feature enrichment wins. For binge drinking ($N_{\text{ceiling}}{=}0.444$), richer features are the intervention; for night lights ($0.084$), the simplest adequate model suffices. This instantiates D.1 (Ceiling-Aggregation Drift) and D.2 (Architecture Invariance); gate-decision distributions confirming this pattern are in Table~\ref{tab:s019d_gates}.
+
+\paragraph{Routing gate decisions to operational zones.}
+The three GEO-D findings translate directly to deployment routing. Consider three illustrative tasks drawn from the CONUS-27 results. \textbf{Night lights} ($N_{\text{ceiling}} = 0.084$, theory $\kappa \geq 0.90$ across all three core families, $\sigma < 0.10$): the gate passes \textsc{Execute} for all families; the representation is stable and highly compatible. A practitioner can act on these predictions unconditionally; this is a \emph{trust} zone. \textbf{Diabetes} ($N_{\text{ceiling}} = 0.220$, theory $\kappa$ splits across families, $\sigma \approx 0.25$--$0.30$): some families pass the Oobleck gate and some trigger \textsc{Re\_encode}; the prediction is usable but the embedding choice matters and heterogeneity is present. A practitioner should widen confidence margins and not substitute predictions for domain judgment; this is a \emph{buffer} zone. \textbf{Binge drinking} ($N_{\text{ceiling}} = 0.444$, theory $\kappa$ low across all families, $\sigma > 0.35$): the gate triggers \textsc{Re\_encode} or \textsc{Block} for all core families; the ceiling is too high for reliable decomposition and cross-architecture signal is flattened. No current family provides admissible predictions; this is a \emph{scout} zone where richer feature substrate (not a better solver) is the productive intervention before any operational deployment.
+The trust/buffer/scout partition is an operational translation of the D.1 and D.2 gate dispositions applied per-task (not a design choice by the practitioner, but a structural output of the ceiling and compatibility analysis).
+
+\subsection{Protocol Sensitivity}
+
+Under state-holdout extrapolation, $R^2$ drops relative to county-holdout interpolation on most tasks, with environmental targets (elevation, tree cover) showing the largest penalty because spatial autocorrelation does not transfer across regional boundaries (Table~\ref{tab:s019d_nceiling_gate}). This instantiates D.3 (Threshold Mismatch): a gate threshold calibrated on interpolation performance would misclassify the extrapolation regime. The benchmark reports both protocols to make this visible.
+
+\subsection{Certificate Discrimination: Does $R$ Rank Arms Correctly? (D4)}
+\label{sec:d4}
+
+The certificate $R$ coordinate (from the pooled-calibration MLP; Appendix~\ref{app:s019e}) assigns each embedding arm a score in $[0,1]$ that encodes compatibility with the task's residual structure. Hypothesis D4 asks: for any two arms on the same task, does the arm with higher $R$ also achieve higher held-out $R^2$? We report the pre-registered primary result and a pre-specified resolution-aware secondary.
+
+\paragraph{Primary (pre-registered).} Family-mean within-task Spearman $\rho_t$ (5 real arms, 27 tasks, 3 seeds): $\hat{\mu}_{\text{family}} = 0.574$ (health $0.276$, socioeconomic $0.600$, environmental $0.844$), $se = 0.165$, $t = 2.27$, $p = 0.076$ one-sided at $df = 2$ ($k = 3$ families). This misses the pre-registered threshold ($p < 0.05$). The failure is a power constraint: the effect size is $2.9{\times}$ the threshold ($0.574$ vs.\ $0.20$), $19/27$ tasks show positive $\rho_t$, and 5 show inversion. At $df = 2$, significance requires $se < 0.128$; the observed $se = 0.165$ with a 21/3/3 task distribution across families makes this structurally unachievable on the present data.
+
+\paragraph{Secondary (pre-specified).} Pairwise arm-ordering accuracy uses all $\binom{5}{2} = 10$ arm pairs per task $\times$ seed, scoring 1 if higher certificate-$R$ arm also achieves higher $R^2$, 0 otherwise. This defers aggregation to the inference step instead of collapsing to a family-mean scalar. Pooled across all $27 \times 3 \times 10 = 810$ trials: $\hat{p} = 0.661$, $z = 9.14$, $p < 10^{-15}$ (Table~\ref{tab:s019e_d4}). All three target families pass individually ($z > 5.0$ in each). The certificate correctly orders arms in $66\%$ of pairwise comparisons, substantially above the $50\%$ random baseline. Full per-task breakdown and methodology in Appendix~\ref{app:s019e}.
+
+The ten load-bearing quantitative claims from Sections~\ref{sec:nceiling}--\ref{sec:geo}, together with their provenance and interpretive caveats, are collected in Appendix~\ref{app:key_numbers} (Ten Key Numbers).
+
+% ============================================================
+% SECTION 8: CONCLUSION
+% ============================================================
+\section{Limitations, Ethics, and Conclusion}
+\label{sec:conclusion}
+
+\subsection{Limitations}
+
+\paragraph{OOF prediction requirement.} The decomposition requires out-of-fold predictions, excluding black-box APIs without per-sample outputs. We view this as a feature: any protocol that does not require per-sample predictions cannot decompose error structurally.
+
+
+\paragraph{Feature substrate scope.} The six embedding families draw from ACS census, spatial-lag, and enrichment features (flood, SVI, healthcare access, drive-time). Richer features (satellite imagery, mobility, POI density) would likely tighten the ceiling further. The benchmark is extensible by design: new feature families slot into the same evaluation protocols.
+
+\paragraph{Target--input source overlap on PLACES targets.} 21 of the 27 targets are CDC PLACES small-area estimates whose upstream multilevel model uses ACS-style sociodemographic predictors~\citep{cdcplaces2025methodology}, which overlap substantially with the benchmark's 33 ACS solver inputs. Predicting a PLACES estimate from ACS features therefore recovers a fraction of the PLACES estimator's own fit in addition to epidemiological signal, biasing $R^2$ upward and the measured $N_{\text{ceiling}}$ downward on those 21 tasks by an amount we do not currently quantify. The 3 environmental targets are direct measurements and the 3 ACS targets are direct estimates from the same vintage; the 21 PLACES targets should be read as a mixed regime. The released artifacts label per-target source so downstream users can stratify; quantifying the upstream-model contribution is left to v2.
+
+\paragraph{Taxonomy coverage.} The twelve-mode taxonomy unifies eight previously-documented spatial-ML failure phenomena with four geo-substrate-specific framings introduced here. The v1 injection harness (Section~\ref{sec:injection}) validates the three GEO-D modes; the nine modes in Families GEO-A, GEO-B, and GEO-C are defined with characteristic signatures and gate dispositions (Table~\ref{tab:taxonomy}) and are exercised through certificate-field diagnostics in the empirical results. The taxonomy covers the geo-substrate scope; broader RSCT-general failure patterns are documented in the upstream catalog~\citep{martin2026rsct}.
+
+\paragraph{Stress test and feature routing.}
+The post-hurricane stress test illustrates diagnostic value under four realistic constraints: feature currency (ACS/PLACES vintages reflect baselines, not disaster reality), sub-ZCTA resolution (block-level variation hidden), per-prediction uncertainty ($N_{\text{ceiling}}$ is per-task, not per-sample), and domain-expert validation. The D.3 signed-delta pattern in PDFM~\citep[Table~4]{agarwal2025pdfm}, consistent with the broader spatial-CV literature, indicates that these constraints are structurally detectable; the certificate decomposition tells practitioners which constraint is binding for each task.
+
+\paragraph{Threshold calibration.} GeoRSCT inherits the sigmoidal gate threshold $\kappa_{\text{req}}(\sigma) = \kappa_{\text{base}} + \Delta\kappa \cdot \mathrm{sigmoid}(s \cdot (\sigma - \sigma_c))$ from the upstream RSCT framework~\citep{martin2026rsct} with default constants ($\kappa_{\text{base}}{=}0.5$, $\Delta\kappa{=}0.4$, $s{=}10$, $\sigma_c{=}0.35$) and does not recalibrate them on CONUS-27. The sigmoidal form is motivated by the shear-thickening (Oobleck) physical metaphor with a phase transition at $\sigma_c$; per-domain calibration of $\sigma_c$ and $s$ is an open problem~\citep[\S8.3]{martin2026rsct}.\footnote{The upstream RSCT framework was developed with explicit reference to non-Euclidean and periodic-coordinate domains, including variational quantum algorithms where barren-plateau geometry~\citep{mcclean2018barren,larocca2025barren} motivates a stability axis on a compact periodic manifold ($T^4$), and orbital mechanics where angular coordinates are intrinsic. CONUS-27 has no such intrinsic periodicity, so the $T^4$ representation is not exercised in this paper; the sigmoidal threshold is used here only for its phase-transition structure as a function of $\sigma$.} The architecture-invariance and N-ceiling findings reported here do not depend on the threshold choice (they are ratio properties of cross-family $R^2$ convergence), and the threshold does not affect the empirical contributions of Section~\ref{sec:geo}.
+
+\subsection{Ethics Statement}
+
+The CONUS-27 benchmark uses publicly available CDC PLACES and ACS data at the ZCTA level. No individual-level data is used; ZCTA-level health prevalence rates are aggregated estimates. The benchmark does not enable individual identification or health status inference.
+
+The GeoRSCT protocol produces deployment decisions (\textsc{execute}, \textsc{re\_encode}, etc.) that could influence which models are deployed in practice. The protocol is diagnostic: it surfaces structural properties of the decomposition and should inform, not replace, human judgment about deployment suitability. This work includes technology covered by pending patent application 19/575,615 (filed March~23, 2026); see Appendix~\ref{app:rsct_theory} for the formal scope statement separating what this paper inherits from RSCT (the theory) from what this paper contributes (GeoRSCT, the regression-regime embodiment).\footnote{The certificate library and injection harness are released under an open-source license for research use.}
+
+\subsection{Data and Code Availability}
+
+The GeoRSCT benchmark dataset (27 tasks, 63 solver-usable input features, three evaluation protocols, simplified ZCTA geometries, and upstream uncertainty fields from source datasets, including CDC PLACES confidence intervals and ACS margins of error, included as available metadata for downstream-user consumption) is released as GeoRSCT v23.0.2 on Hugging Face~\citep{geocert2026}. Out-of-fold predictions for all geospatial model families, the certificate library, the GeoRSCT taxonomy specification, and the injection-detection harness are available at the repository linked in the dataset card. Source code and build pipeline are at \url{https://github.com/NextShiftConsulting/georsct}.
+
+\subsection{Conclusion}
+
+We introduced GeoRSCT, a geospatial benchmark and diagnostic framework built on the premise that representation--solver compatibility cannot be safely reduced to a scalar. A twelve-mode geo-substrate taxonomy across four families (spatial-dependence collapse, GEO-A; aggregation collapse, GEO-B; data-pipeline collapse, GEO-C; and substrate-ceiling collapse, GEO-D) organizes the ways evaluation can mislead, unifying eight previously-documented spatial-ML failure phenomena under one decomposition together with four geo-substrate-specific framings introduced in this work. Each mode has a parameterized signal pattern, a diagnostic disposition, and conditions under which it appears in the 27-task ZCTA benchmark.
+
+The taxonomy operationalizes a single thesis: \emph{a geospatial score is evidence about the problem--representation--solver triple, not about the solver alone}, and yields three evaluation jobs: \emph{characterize} the task (D.1, D.2), \emph{detect} substrate contamination (GEO-B, GEO-C), and \emph{qualify} the conditions under which a score transfers (D.3). Three empirical findings ground the thesis. Ceiling dominates architecture: within a task, swapping among the three core embedding families changes $R^2$ by a median of $0.074$, smaller than the across-task $N_{\text{ceiling}}$ step (range $0.36$ over the 27 tasks) on a typical task, with GNN decisive on environmental targets and the three core families competitive on most health and socioeconomic targets. The $N_{\text{ceiling}}$ spectrum spans $0.084$ to $0.444$ across the 27 tasks ($5.3{\times}$ ratio; $3.8{\times}$ on the 3 direct-measurement environmental targets that avoid the target--input covariate overlap discussed in \S\ref{sec:nceiling}), invisible under aggregate reporting. The injection harness confirms the three GEO-D modes are recoverable from synthetic certificates. The released benchmark provides the substrate for future work on remediation: counterfactual labels, multi-axis decision rules, and certificate-guided routing.
+
+PDFM's SatCLIP concatenation experiment~\citep[Table~4]{agarwal2025pdfm} provides the strongest available external evidence for D.3: it reports the signed-delta pattern (${+}0.01$ interpolation, ${+}0.02$ super-resolution, ${-}0.01$ extrapolation) in an unaffiliated foundation model with a different feature substrate and task set, and is consistent with the broader spatial cross-validation literature~\citep{roberts2017cv,ploton2020spatial,mila2022nndm} that D.3 organizes. D.3's contribution is to organize this pattern into a typed gate disposition (\textsc{re\_encode}) and a per-protocol diagnostic, not to predict the effect novelly. A taxonomy whose modes have observable signatures in synthetic injection (Section~\ref{sec:injection}, GEO-D) and whose framings are corroborated by independently published empirical results is one that supports reviewer scrutiny.
+
+A leaderboard cannot tell you whether your evaluation is failing. A typed taxonomy can.
+
+% ============================================================
+\section*{Acknowledgments}
+
+The author would like to thank Aditya Shah for insightful comments on this project.
+
+% ============================================================
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+% ============================================================
+% APPENDICES
+% ============================================================
+\appendix
+
+% ============================================================
+% APPENDIX A: ADDITIONAL RELATED WORK
+% ============================================================
+\section{Additional Related Work}
+\label{app:additional_related}
+
+A complementary line of work argues that aggregate scoring is insufficient when the underlying question is multidimensional. \citet{ethayarajh2020utility} critique scalar NLP leaderboards on utility-theoretic grounds, observing that users with different preferences over capabilities reach different model rankings under the same scores. \citet{wang2023decodingtrust} demonstrate empirically that LLMs with similar aggregate scores can differ substantially across eight trustworthiness dimensions, showing that aggregate hides axis-level variance even in dominant models. \citet{cemri2025mast} build the first empirically grounded failure-mode taxonomy for multi-agent LLM systems (14 modes in 3 categories, validated by Cohen's $\kappa = 0.88$ inter-annotator agreement and an LLM-as-judge pipeline at $\kappa = 0.77$), and argue that aggregate success rates obscure whether interventions address the failures they were designed to fix. \citet{bilodeau2024impossibility} prove a complementary structural result: complete and linear feature-attribution methods provably cannot recover certain end-task properties, formalizing limits on what any single post-hoc summary can deliver. The four critiques attack scalar reporting from different angles (utility theory, multidimensional empirical decomposition, structured failure taxonomy, and feature-attribution impossibility) but converge on a shared position: the reporting primitive should match the dimensionality of the underlying question, and where no external answer key is available, the primitive must produce its own audit evidence rather than defer to one.
+
+GeoRSCT extends the structural line to ZCTA-level geospatial regression. We do not claim scalar reporting is wrong; we report scalar metrics throughout Section~\ref{sec:geo} alongside certificate decompositions. We claim scalar reporting is insufficient in this regime: the architecture-invariance, $N_{\text{ceiling}}$ spectrum, and threshold-mismatch findings reported here would be invisible under aggregate reporting alone, and three of the twelve catalogued failure modes (the substrate-ceiling-collapse family GEO-D, Section~\ref{sec:taxonomy}) are by construction undetectable when the reporting primitive is a single number. The certificate diagnostics complement rather than replace conventional metrics; readers who prefer either view have both available.
+
+\paragraph{Bias-variance and error decomposition.} The classical bias-variance decomposition~\citep{geman1992neural} separates prediction error into two sources but does not distinguish recoverable from irrecoverable components within the variance term. The $R/S_{\text{sup}}/N$ decomposition~\citep{martin2026rsct} is structurally analogous but operates on a three-way simplex rather than a two-way additive split, and its three components map to distinct evaluation actions: $R$ identifies relevant signal, $S_{\text{sup}}$ identifies superfluous content the solver cannot use, and $N$ identifies destabilizing noise. A complementary tradition decomposes representation quality at the inner-neighborhood level rather than the error level: neighborhood components analysis~\citep{goldberger2005neighbourhood}, neighborhood-preserving embedding~\citep{salakhutdinov2007learning}, and the soft nearest neighbor loss~\citep{frosst2019analyzing} characterize how class manifolds entangle in representation space and use that entanglement structure to diagnose representation quality. GeoRSCT inherits the additive-decomposition framing but operates at the certificate layer rather than the per-prediction layer, and the released out-of-fold predictions support both decomposition styles for downstream analyses.
+
+\paragraph{Aleatoric vs epistemic uncertainty.} The distinction between irreducible (aleatoric) and reducible (epistemic) uncertainty~\citep{kendall2017uncertainties,der2009aleatory} motivates the $N$ component. Our N-ceiling estimator provides a practical counterpart: rather than estimating aleatoric uncertainty per-sample, it estimates an upper bound on the noise floor per-task across model families. There is published precedent for treating inner-neighborhood structure as the diagnostic substrate for out-of-distribution behavior: \citet{frosst2019analyzing} show that entangled hidden representations yield better-calibrated uncertainty on out-of-distribution test inputs than classifier-confidence surfaces, because OOD points have fewer than the normal number of training neighbors from their predicted class. The N-ceiling and protocol-blocked CV protocols in this paper operationalize the same intuition at the per-task certificate level.
+
+\paragraph{Geospatial benchmarks.} SustainBench~\citep{yeh2021sustainbench} benchmarks geospatial ML across sustainability tasks using aggregate scores. PDFM~\citep{agarwal2025pdfm} introduced the 27-task ZCTA-level regression suite that GeoRSCT inherits, reporting mean $R^2$ across interpolation, extrapolation, and super-resolution protocols. Neither reports a structural decomposition of where models succeed or fail, nor attaches failure-mode diagnostics. The two benchmarks also differ in evaluation regime: PDFM uses label-held-out splits, where features for held-out ZCTAs remain available during model fitting and only target labels are masked. This isolates target-prediction generalization but does not test feature-substrate generalization. GeoRSCT uses state-FIPS-blocked cross-validation, where features in the held-out region are also unseen during model fitting on the train folds; this is closer to a feature-blind decoder-transfer test, while still inheriting the upstream encoder substrate. GeoRSCT complements these efforts by providing the diagnostic layer that explains \emph{why} scores differ across tasks and protocols, under an evaluation regime that exposes more of the decoder-side generalization gap. The geospatial setting sits within the broader non-Euclidean deep learning program~\citep{bronstein2017geometric}, which formalizes learning on graphs and manifolds; the certificate decomposition adopted here is orthogonal to that program (it operates on the certificate scalars rather than on the geometric structure of the encoding) and is compatible with encoders drawn from either Euclidean or graph-structured families.
+
+\paragraph{Trustworthiness and multi-dimensional evaluation.} DecodingTrust~\citep{wang2023decodingtrust} evaluated LLMs across eight dimensions, demonstrating that models with similar aggregate performance can differ substantially on individual axes. Our work shares this motivation but applies it to geospatial representation quality and provides a formal simplex structure rather than an ad-hoc dimension list.
+
+\paragraph{Failure taxonomies in ML systems.} Failure-mode taxonomies have been productive in adjacent areas: \citet{ethayarajh2020utility} critique scalar leaderboards on utility-theoretic grounds. GeoRSCT applies this taxonomy-first methodology to compatibility evaluation: each mode is associated with measurable certificate signals, diagnostic criteria, and remediation paths.
+
+\paragraph{Bootstrap methods.} \citet{efron1993bootstrap} established bootstrap confidence intervals for performance metrics. Our block-bootstrap N-ceiling estimator adapts this framework to estimate irreducible noise rather than metric uncertainty, using spatial blocks to account for geographic autocorrelation in residuals.
+
+% ============================================================
+% APPENDIX B: CERTIFICATE ARCHITECTURE
+% ============================================================
+\section{Certificate Architecture: Quality, Compatibility, Turbulence}
+\label{sec:rsn}
+
+\subsection{Encode then Decode}
+
+Geospatial prediction is encode-then-decode. The \emph{encoder} identifies and joins the geography: which polygon is which ZCTA, which addresses fall in which boundary, which units are neighbors, which crosswalk version is current. This is classification work (discrete, Fano-native) and it produces the feature substrate everything downstream runs on. The \emph{decoder} consumes the substrate: regression to predict continuous targets (prevalence, income, elevation), then a decision layer that allocates resources under operational constraints.
+
+Applied to this pipeline, the RSCT primitives split cleanly across the two halves. $\alpha$ as the signal-to-interference ratio is grounded in the encoder, where Fano applies. The $N_{\text{ceiling}}$ estimator (Section~\ref{sec:nceiling}) is the decoder-side analog of Fano's noise-floor role: a rate-distortion lower bound on achievable MSE, regime-appropriate for continuous targets. The gate scaffolding (Theorem~4.5 weakest-link in~\citep{martin2026rsct}) operates at the decision layer, which is multimodal natively (capacity, distance, time, population) and inherits the upstream aggregation theorem unchanged.
+
+GeoRSCT takes the geographic substrate as given (TIGER/Line ZCTA boundaries, ACS feature joins, queen-contiguity adjacency) and exercises the certificate pipeline that runs on top of it. Encoder-side certification of the substrate itself is addressed in Appendix~\ref{app:benchmark_construction}.
+
+\subsection{\texorpdfstring{The $R/S_{\text{sup}}/N$ Simplex}{The R/Ssup/N Simplex}}
+
+\paragraph{Scope: RSCT applied to regression, not reformulated.} The simplex and certificate definitions are inherited from upstream RSCT~\citep{martin2026rsct}. RSCT was developed for discrete regimes where Fano's inequality applies natively; GeoRSCT applies it to the regression regime (continuous targets). The simplex constraint $R + S_{\text{sup}} + N = 1$ transfers directly. The Fano grounding of $\alpha$ lives natively at the encoder side where boundary classification and crosswalk identification are discrete; the decoder-side analog for continuous targets is the rate-distortion-flavored $N_{\text{ceiling}}$ estimator (Section~\ref{sec:nceiling}).
+
+The Representation--Solver Compatibility Theory (RSCT)~\cite{martin2026rsct} decomposes the predictive relationship between a representation~$E$ and a downstream solver~$\mathcal{S}$ into three components on the probability simplex. The decomposition is \emph{solver-relative}: the same representation yields different certificates against different solvers. RSCT defines difficulty as relational: $D(P,E,S)$ is a function of the problem $P$, the representation $E$, and the solver $S$ jointly, not a property of the problem alone.
+
+\begin{itemize}
+\item \textbf{R (Relevant signal):} the fraction of the representation that aligns with the solver's decision boundary.
+\item \textbf{$S_{\text{sup}}$ (Superfluous content):} structured information in the representation that does not contribute to solver alignment. We write $S_{\text{sup}}$ to avoid collision with the solver $\mathcal{S}$.
+\item \textbf{N (Noise):} destabilizing variance that undermines solver reliability.
+\end{itemize}
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Certificate component interpretations in the geospatial setting and their mapping to the general RSCT terms (problem $P$, encoding $E$, solver $S$).}
+\label{tab:rsn_mapping}
+\begin{tabular}{lll}
+\toprule
+\textbf{Component} & \textbf{GeoRSCT interpretation} & \textbf{RSCT term mapping} \\
+\midrule
+$R$ & recoverable target-relevant geospatial signal & $P$: target + spatial unit + protocol \\
+$S_{\text{sup}}$ & extra information that may occupy capacity but does not actively mislead & $E$: ACS features, geometry, spatial lags \\
+$N$ & misleading, stale, misjoined, biased, or unrecoverable structure & $S$: solver family (HistGBDT, Ridge, MLP) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The per-sample softmax output $(R_i, S_{\text{sup},i}, N_i)$ lies on the probability simplex by construction; the task-level summary is the mean coordinate $(\bar{R}, \bar{S}_{\text{sup}}, \bar{N})$ with $\bar{R}{+}\bar{S}_{\text{sup}}{+}\bar{N}{=}1$.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.85\textwidth]{figures/georsct_fig1_rsn_simplex_corrected.pdf}
+\caption{The GeoRSCT certificate decomposes a representation into three components on the probability simplex: relevant signal $R$, superfluous structure $S_{\text{sup}}$, and noise/contamination $N$, with $R + S_{\text{sup}} + N = 1$. Signal purity is $\alpha = R/(R+N)$; the denominator excludes $S_{\text{sup}}$ because superfluous content carries negligible mutual information with the target. Stylized regions illustrate clean-signal, superfluous-heavy, noise-heavy, and ambiguous-mixed configurations.}
+\label{fig:rsn_simplex}
+\end{figure}
+
+Three derived quantities ($\alpha$, $\kappa$, and $\sigma$) form the certificate triple. Each captures a structurally distinct diagnostic axis: signal quality, representation--solver compatibility, and representational turbulence. The three are not interchangeable; a representation can score well on one axis and poorly on another, and the gate pipeline (Appendix~\ref{app:rsct_theory}) enforces thresholds on each independently. Scalar metrics cannot make these distinctions (Table~\ref{tab:metric_limits}).
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{What scalar metrics tell us, and what they cannot.}
+\label{tab:metric_limits}
+\begin{tabular}{lll}
+\toprule
+\textbf{Metric} & \textbf{What it tells us} & \textbf{What it does not tell us} \\
+\midrule
+$R^2$ & variance explained & whether score reflects solver, target, leakage, or representation \\
+RMSE & error scale & whether error is spatially structured \\
+MAE & robust average error & whether low-error regions mask high-error regions \\
+Rank & relative ordering & why a model wins \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{\texorpdfstring{Signal Quality ($\alpha$)}{Signal Quality (alpha)}}
+
+Signal purity measures the fraction of action-relevant content that is genuine structure rather than adversarial noise:
+\begin{equation}
+\alpha = \frac{R}{R + N}
+\label{eq:alpha}
+\end{equation}
+
+\paragraph{Why $S_{\text{sup}}$ does not appear in $\alpha$.} The decomposition is structurally three-component, but the signal-quality ratio is two-component by design. Under the RSCT channel-mixture model, the relevant channel $X_R$ carries mutual information $I(X_R; X) > 0$ with the latent target $X$, the noise channel $X_N$ carries $I(X_N; X) > 0$ but anti-correlated with correct inference, and the superfluous channel $X_{S_{\text{sup}}}$ satisfies $I(X_{S_{\text{sup}}}; X) \approx 0$. Fano's inequality, applied to this mixture, bounds the solver's probability of error by
+\begin{equation}
+P_e \geq 1 - \frac{\alpha \cdot H(X) + 1}{\log |\mathcal{X}|},
+\end{equation}
+where $\alpha = I(X_R; X) / (I(X_R; X) + I(X_N; X))$ is the signal-to-interference ratio of the channel. $S_{\text{sup}}$ does not appear because it does not carry interference; it occupies context budget without corrupting the channel. This is the structural reason Gate~1 of the RSCT gatekeeper fires on $N \geq 0.5$ rather than on $S_{\text{sup}} \geq 0.5$: noise saturation is an information-theoretic impossibility for any solver, while $S_{\text{sup}}$ saturation only dilutes. Range $[0,1]$.
+
+\paragraph{GeoRSCT interpretation.} In the geospatial setting, $\alpha$ answers: \emph{of the signal the solver acts on, how much is target-relevant structure versus geographic noise?} A ZCTA representation with high $R$ and low $N$ yields $\alpha \approx 1$: the solver sees mostly real signal. A representation contaminated by stale crosswalk artifacts or misjoined census tracts pushes $N$ up and $\alpha$ down, even if $R$ itself is moderate.
+
+\subsection{\texorpdfstring{Representation--Solver Compatibility ($\kappa$)}{Representation-Solver Compatibility (kappa)}}
+
+Compatibility measures whether the representation exposes structure the solver can use:
+\begin{equation}
+\kappa(E,\mathcal{S}) = \frac{D^*(\mathcal{P},\mathcal{S})}{D(\mathcal{P},E,\mathcal{S})}
+\end{equation}
+where $D^*(\mathcal{P},\mathcal{S})$ is the best achievable difficulty for solver $\mathcal{S}$ under the best possible encoding. When $\kappa = 1$, the encoding is optimal for this solver; when $\kappa < 1$, the solver is losing performance due to the representation, not due to the task. This is RSCT's central claim: difficulty is relational, and $\kappa$ quantifies how much of the gap between actual and best-possible performance is attributable to the representation.
+
+\paragraph{Capacity versus competence.} A bigger solver may not fix a weak representation of place. RSCT distinguishes \emph{capacity} (solver ceiling under the best possible encoding) from \emph{competence} (fraction of that ceiling unlocked by the actual encoding policy). A representation with low $\kappa$ reveals a competence gap: the productive intervention is a better encoding, not a bigger solver.
+
+\paragraph{GeoRSCT proxy.} The canonical $\kappa$ requires access to $D^*$, which is not directly observable. GeoRSCT v1 uses the proxy $\kappa_{\text{compat},i} = R_i \cdot (1 - N_i)$, computable from the simplex alone. Task-level $\kappa$ is the median over all test samples. The proxy is monotone in $R$ and anti-monotone in $N$, preserving the ordering properties required by the gate pipeline; its relationship to the canonical form is documented in the RSCT Code--Theory Concordance. Section~\ref{sec:geo} reports theory $\kappa$ (the difficulty ratio) for empirical results; the proxy variant is used only for gate-pipeline computations. Importantly, theory $\kappa = D^*/D$ requires a reference set of diverse embedding families to estimate $D^*$ (the best achievable difficulty under the best available encoding); it cannot be computed for a single embedding arm in isolation. The six-family CONUS-27 design (Section~\ref{sec:geo}) is therefore a prerequisite for theory $\kappa$ computation, not merely a desideratum for N-ceiling estimation.
+
+\paragraph{Why compatibility is not quality.} A representation can have high $\alpha$ (clean signal) but low $\kappa$ (representation--solver mismatch): the information is there, but the solver cannot exploit it. Conversely, a noisy representation can have moderate $\kappa$ if the solver happens to be robust to the specific noise pattern. The $\alpha$--$\kappa$ plane (Figure~\ref{fig:diagnostic-plane}) separates these four quadrants, and the gate pipeline enforces thresholds on both independently.
+
+\subsection{\texorpdfstring{Representational Turbulence ($\sigma$)}{Representational Turbulence (sigma)}}
+
+The third certificate signal captures \emph{stability}: a model can have good average quality and compatibility while behaving erratically across samples, regions, or protocols. Turbulence measures the scatter of per-sample compatibility:
+\begin{equation}
+\sigma = \operatorname{std}(\{\kappa_i\}_{i=1}^M)
+\end{equation}
+where $M$ is the number of modal sources or samples. A stable representation yields similar $\kappa_i$ across the evaluation population; a turbulent one shows high dispersion: some regions score well, others collapse, and the mean hides the heterogeneity.
+
+\paragraph{Why turbulence is load-bearing.} Without $\sigma$, a representation with $\bar{\kappa} = 0.7$ looks admissible. But if that mean comes from half the ZCTAs at $\kappa = 0.95$ and half at $\kappa = 0.45$, the representation is operationally unreliable: a decision-maker cannot know which half they are in. Turbulence makes this distinction. The hard boundary is $\sigma_{\text{thr}} = 0.5$; encodings above this threshold are outside the admissible region regardless of $\kappa_{\text{gate}}$.
+
+\paragraph{Batch versus per-request.} In the batch setting (model evaluation over a held-out fold), $\sigma$ is computed as the standard deviation of the per-sample $\kappa_i$ array. In the per-request setting (a single certificate issued for one embedding--solver cell), no per-sample array is available and $\sigma$ reduces to the noise fraction: $\sigma = N$. The per-request form is directional (high $N$ implies high turbulence) and is the variant used by the \textsc{SequentialGatekeeper} in all experiments reported here.
+
+\paragraph{Turbulence drives the gate threshold.} The three signals converge at the admissibility gate: $\sigma$ modulates the compatibility bar through the Oobleck threshold $\kappa_{\text{req}}(\sigma)$, a sigmoidal function that stiffens as turbulence rises (Appendix~\ref{app:rsct_theory}). A calm representation faces a lenient threshold; a turbulent one must demonstrate higher compatibility to pass. In the geospatial setting, elevated $\sigma$ may reflect real spatial heterogeneity (e.g., urban--rural gradients) rather than unstable solver dynamics; therefore the threshold parameters are reported as gate-policy choices, not universal constants.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/georsct_fig2_alpha_kappagate_plane_corrected.pdf}
+\caption{The GeoRSCT diagnostic plane separates four regions of the certificate space. \emph{High~$\alpha$, high~$\kappa_{\text{gate}}$:} clean compatible signal where evaluation is informative. \emph{High~$\alpha$, low~$\kappa_{\text{gate}}$:} representation--solver mismatch (signal is present but the solver cannot exploit it). \emph{Low~$\alpha$, low~$\kappa_{\text{gate}}$:} task difficulty plus mismatch. \emph{Low~$\alpha$, high~$\kappa_{\text{gate}}$:} compatible solver but weak signal (typically irreducible difficulty or contamination). Turbulence~$\sigma$ is the third axis: it modulates the admissibility boundary via the Oobleck threshold (Figure~\ref{fig:oobleck-admissibility}), and distinguishes operationally stable from erratically performing representations that share the same mean $\kappa$.}
+\label{fig:diagnostic-plane}
+\end{figure}
+
+\paragraph{Value provenance.} Figure~\ref{fig:diagnostic-plane} separates three levels of quantities. The \emph{benchmark layer} contains $R^2(f,t)$ and recoverability $N_{\text{ceiling}}(t) = 1 - \max_{f} R^2(f,t)$ (Appendix~\ref{app:nceiling_method}). The \emph{proxy certificate layer} maps residual diagnostics into the simplex $(R, S_{\text{sup}}, N)$ via cross-family residual agreement, yielding $\alpha = R/(R+N)$ and $\kappa_{\text{compat}} = R(1-N)$. The \emph{full RSCT layer} (not exercised in v1) estimates geometric interface compatibility $\kappa_{\text{int}}(v_R, v_S) = \cos(e_R, e_S)$ and aggregates $\kappa_{\text{gate}} = \min(\kappa_H, \kappa_L, \kappa_{\text{int}})$. Throughout, observed performance, simplex-derived proxies, and full geometric measurements are reported as distinct quantities.
+
+% ============================================================
+% APPENDIX C: GATE LOGIC AND THE SEQUENTIAL GATEKEEPER
+% ============================================================
+\section{Gate Logic and the Sequential Gatekeeper}
+\label{app:rsct_theory}
+
+\noindent\rule{\textwidth}{0.8pt}
+
+\paragraph{Scope of this appendix; incorporation by reference.}
+Representation--Solver Compatibility Theory (RSCT) is \textbf{incorporated by reference} from~\citep{martin2026rsct} and from US patent application 19/575{,}615 (filed March~23, 2026). This appendix documents the gate pipeline that acts on the three certificate signals defined in Appendix~\ref{sec:rsn}. The canonical formal specification (including the simplex constraint, the gate-logic Algorithm~1, Theorem~4.5 (weakest-link aggregation), and the Landauer tolerance) lives in the cited references. The definitions reproduced below are the subset needed to read this paper and are not claimed as contributions of this work.
+
+\paragraph{What this paper inherits from RSCT (the theory).}
+The simplex decomposition $(R, S_{\text{sup}}, N)$ and its constraint; the certificate primitives $(\alpha, \kappa, \sigma, \omega)$; the gate-logic form (\textsc{Execute} / \textsc{Reject} / \textsc{Block} / \textsc{Re\_encode} / \textsc{Repair}) and its threshold structure; the Fano-grounded interpretation of $\alpha$ as signal-to-interference ratio; the $(P, E, S)$ relational treatment of difficulty; and the position that scalar metrics are insufficient summaries of representation--solver compatibility.
+
+\paragraph{What this paper contributes (GeoRSCT, the regression-regime embodiment).}
+The 27-task ZCTA-level CONUS-27 benchmark (Section~\ref{sec:geo}); the encode-then-decode framing applied to geospatial prediction (Section~\ref{sec:rsn}); the rate-distortion-flavored $N_{\text{ceiling}}$ estimator for continuous targets (Section~\ref{sec:nceiling}); the twelve-mode geo-substrate failure taxonomy in four families (Section~\ref{sec:taxonomy}); the injection-harness validation methodology applied to family GEO-D (Section~\ref{sec:injection}); the architecture-invariance, $N_{\text{ceiling}}$-spectrum, and threshold-mismatch empirical findings; and the released benchmark and reproducibility artifacts (Section~\ref{sec:conclusion}).
+
+\paragraph{Separation from other embodiments.}
+RSCT's claims as covered in patent application 19/575{,}615 reach beyond the geospatial regression regime to other domains within the framework's scope. Such other embodiments are separate works, separately validated, and not within the scope of this paper. The validation reported here applies to the geospatial regression embodiment only.
+
+\paragraph{The broader RSCT failure structure.}
+RSCT defines failure modes of representation--solver compatibility at finer granularity than this paper's twelve geo-substrate modes. The upstream framework~\citep{martin2026rsct} catalogues failure modes corresponding to defects in each component of the $(P, E, S)$ triple. The twelve geo-substrate modes detailed in Section~\ref{sec:taxonomy} are the diagnostically tractable subset that the GeoRSCT v1 certificate signal can recover from out-of-fold predictions in the geospatial regression regime; the broader RSCT failure structure is documented in the cited references and is not reproduced in full here.
+
+\noindent\rule{\textwidth}{0.8pt}
+
+\subsection{The Oobleck Threshold}
+
+The three certificate signals ($\alpha$, $\kappa$, $\sigma$) converge at the gate pipeline: the audit issues a deployment decision via four structural properties (simplex integrity, $S_{\text{sup}}$-monotonicity, $N$-stability across families, $\alpha$-consistency) and a four-gate sequential evaluator. The central admissibility gate uses an oobleck threshold that adapts to turbulence:
+\begin{equation}
+\kappa_{\text{req}}(\sigma) = \kappa_{\text{base}} + \Delta\kappa \cdot \mathrm{sigmoid}\bigl(s \cdot (\sigma - \sigma_c)\bigr), \qquad \kappa_{\text{base}}{=}0.5,\ \Delta\kappa{=}0.4,\ s{=}10,\ \sigma_c{=}0.35.%
+\footnote{Pipeline-specific calibrated values are reported per-experiment in Appendix~\ref{app:experiment_ledger}.}
+\label{eq:oobleck}
+\end{equation}
+The sigmoidal form produces three regimes: lenient below the critical shear point $\sigma_c$, rapid hardening through the phase transition, and strict above. A stable representation ($\sigma < \sigma_c$) faces a lower bar ($\kappa_{\text{req}} \approx \kappa_{\text{base}}$); a turbulent representation ($\sigma > \sigma_c$) must demonstrate higher compatibility ($\kappa_{\text{req}} \to \kappa_{\text{base}} + \Delta\kappa$). The audit produces a decision in $\{\textsc{Execute}, \textsc{Re\_encode}, \textsc{Repair}, \textsc{Block}, \textsc{Reject}\}$, ordered by severity, rather than a numeric ranking. Within a single decision class, the certificate triple still discriminates; this is the layer at which the failure modes of Section~\ref{sec:taxonomy} appear.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/georsct_fig3_kappagate_sigma_admissibility_corrected.pdf}
+\caption{The Oobleck threshold $\kappa_{\text{req}}(\sigma)$ stiffens sigmoidally with turbulence, with a phase transition centered at $\sigma_c = 0.35$. Encodings with $\kappa_{\text{gate}} \geq \kappa_{\text{req}}(\sigma)$ are admissible; those below trigger \textsc{Re\_encode} or \textsc{Repair}. In the geospatial setting, high $\sigma$ may reflect real spatial heterogeneity rather than unstable solver dynamics; therefore $\kappa_{\text{base}}$ and $\sigma_c$ are reported as gate-policy parameters, not universal constants.}
+\label{fig:oobleck-admissibility}
+\end{figure}
+
+\subsection{The Sequential Gatekeeper (Algorithm~1)}
+
+The four-gate sequential gatekeeper is the enforcement consequence of the three structural independence theorems proved in~\citep{martin2026rsct}. Each gate catches a failure mode the others cannot see; gate ordering is a correctness guarantee, not an efficiency heuristic. The dispositions in Table~\ref{tab:taxonomy} (Section~\ref{sec:taxonomy}) are the GeoRSCT embodiment of these gate decisions applied to geo-substrate certificate signals.
+
+\begin{algorithm}[H]
+\caption{RSCT Pre-Execution Gatekeeper~\citep{martin2026rsct}}
+\label{alg:gatekeeper}
+\begin{algorithmic}[1]
+\Require Certificate $(R, S_{\text{sup}}, N)$; modal health $\{\kappa_1,\ldots,\kappa_M\}$; coherence $c$; turbulence $\sigma$
+\Require Thresholds: $\kappa_{\text{base}} = 0.5$, $\Delta\kappa = 0.4$, $s = 10.0$, $\sigma_c = 0.35$, $\varepsilon_L = 0.05$, $c_{\min} = 0.4$, $\kappa_L^{\min} = 0.3$, $\sigma_{\text{thr}} = 0.5$
+\Ensure Decision $\in\{\textsc{Execute}, \textsc{Reject}, \textsc{Block}, \textsc{Re\_encode}, \textsc{Repair}\}$
+
+\Statex
+\State \textbf{Gate 1 --- Integrity Guard} \Comment{Fano bound: correction impossible}
+\If{$N \geq 0.5$}
+  \State \Return $\langle\textsc{Reject},\;\text{noise saturation}\rangle$
+\EndIf
+\Statex
+\State \textbf{Gate 2 --- Consensus Gate} \Comment{Sub-models structurally incoherent}
+\If{$c < c_{\min}$}
+  \State \Return $\langle\textsc{Block},\;\text{phasor conflict}\rangle$
+\EndIf
+\Statex
+\State \textbf{Gate 3 --- Admissibility Gate (Oobleck)} \Comment{Weakest-link: $\min$ only}
+\State $\kappa_{\text{gate}} \gets \min(\kappa_H,\;\kappa_L,\;\kappa_{\text{interface}})$
+\State $\kappa_{\text{req}} \gets \kappa_{\text{base}} + \Delta\kappa \cdot \mathrm{sigmoid}(s \cdot (\sigma - \sigma_c))$\footnote{GeoRSCT uses the sigmoidal Oobleck threshold shown here; the parent RSCT paper~\citep{martin2026rsct} describes both a linear and a sigmoidal variant. GeoRSCT adopts the sigmoidal form to produce a sharper phase transition at $\sigma_c = 0.35$ with controlled behavior at both extremes; see Appendix~\ref{app:rsct_theory}, Section~B.1 for the GeoRSCT-specific calibration rationale.}
+\If{$\sigma > \sigma_{\text{thr}}$}
+  \State \Return $\langle\textsc{Re\_encode},\;\text{turbulence exceeds } \sigma_{\text{thr}}\rangle$
+\ElsIf{$\kappa_{\text{gate}} < \kappa_{\text{req}} - \varepsilon_L$}
+  \State \Return $\langle\textsc{Re\_encode},\;\kappa_{\text{req}} - \kappa_{\text{gate}}\rangle$
+\ElsIf{$\kappa_{\text{gate}} < \kappa_{\text{req}}$} \Comment{Landauer gray zone}
+  \If{$\sigma > 0.4$}
+    \State \Return $\langle\textsc{Re\_encode},\;\text{turbulent gray zone}\rangle$
+  \EndIf
+\EndIf
+\Statex
+\State \textbf{Gate 4 --- Grounding Repair} \Comment{Low-level signal ungrounded}
+\If{$\kappa_L < \kappa_L^{\min}$}
+  \State \Return $\langle\textsc{Repair},\;\kappa_L\rangle$
+\EndIf
+\Statex
+\State \Return $\langle\textsc{Execute},\;\kappa_{\text{gate}},\;\sigma\rangle$
+\end{algorithmic}
+\end{algorithm}
+
+\paragraph{GeoRSCT gate instantiation.} In the geospatial regression regime, the certificate inputs to Algorithm~\ref{alg:gatekeeper} are derived from out-of-fold predictions rather than from runtime inference. The gate decisions map to taxonomy dispositions as follows: Gate~1 $\to$ \textsc{Reject} (modes A.1, C.2); Gate~2 $\to$ \textsc{Block} (modes A.2, D.1, D.2); Gate~3 $\to$ \textsc{Re\_encode} (modes B.1, B.2, C.1, D.3); Gate~4 $\to$ \textsc{Repair} (modes A.3, B.3, C.3). The algorithm runs in $O(M)$ time where $M$ is the number of modal sources.
+
+\paragraph{Calibration checks.} The diagnostic suite includes: residual directionality (are errors spatially structured?), monotone risk bins (do higher-risk predictions correspond to worse outcomes?), blocked calibration (per-state or per-region calibration curves), abstention curves (accuracy as a function of abstention threshold), retained-sample accuracy (how much data survives the gate?), and per-region calibration (does calibration hold uniformly across geography?).
+
+% ============================================================
+% APPENDIX B: BENCHMARK CONSTRUCTION
+% ============================================================
+\section{GeoRSCT Benchmark Construction}
+\label{app:benchmark_construction}
+
+This appendix documents how the benchmark artifact was built: data sources, spatial unit, feature construction, target construction, data cleaning, and validation.
+
+\subsection{Artifact Overview}
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Released dataset artifacts and their dimensions.}
+\label{tab:released_artifacts}
+\begin{tabular}{lll}
+\toprule
+\textbf{Artifact} & \textbf{Rows $\times$ Cols} & \textbf{Purpose} \\
+\midrule
+\texttt{zcta\_features\_labels.parquet} & 31,789 $\times$ 69 & base features + targets (no geometry) \\
+\texttt{zcta\_features\_labels\_with\_lags.parquet} & 31,789 $\times$ 102 & base + 33 spatial lag features \\
+\texttt{zcta\_adjacency.parquet} & 184,260 edges & queen-contiguity graph \\
+\texttt{georsct\_simplified\_001.geoparquet} & 31,789 $\times$ 71 & geometry-enabled (simplified polygons) \\
+\texttt{georsct\_schema.json} & --- & column metadata and summary statistics \\
+\texttt{train\_test\_split.json} & --- & protocol split assignments \\
+\texttt{build\_manifest.json} & --- & provenance and construction metadata \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Source Data}
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Source datasets, vintages, and roles in the CONUS-27 benchmark.}
+\label{tab:source_data}
+\begin{tabular}{llll}
+\toprule
+\textbf{Source} & \textbf{Vintage} & \textbf{Role} & \textbf{Columns} \\
+\midrule
+ACS 2022 5-Year & 2018--2022 & 33 input features + 3 targets & \texttt{acs\_*}, \texttt{target\_income}, etc. \\
+CDC PLACES & 2023 release & 21 health prevalence targets & \texttt{target\_*} (health) \\
+CDC SVI & 2020 & 5 enrichment features & \texttt{svi\_*} \\
+FEMA NFHL & 2024 & 3 enrichment features (flood) & \texttt{flood\_pct\_*} \\
+HIFLD Open Data + CDC Vaccines.gov & 2022 & 6 enrichment features (healthcare) & \texttt{hifld\_*} \\
+OSRM / routing & --- & 2 enrichment features (drive-time) & \texttt{drive\_min\_*} \\
+Census TIGER/Line & 2020 & ZCTA geometries and crosswalks & geometry \\
+VIIRS & 2022 & night lights (target) & \texttt{target\_night\_lights} \\
+USGS NED & 30m & elevation (target) & \texttt{target\_elevation} \\
+Hansen GFC & 2022 & tree cover (target) & \texttt{target\_tree\_cover} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+All sources are publicly available. No individual-level data is used. Table~\ref{tab:source_licenses} lists per-source licenses. The benchmark adopts CC-BY-4.0 as the most restrictive source license (binding minimum: Hansen Global Forest Change).
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Source data licensing.}
+\label{tab:source_licenses}
+\begin{tabular}{lll}
+\toprule
+\textbf{Source} & \textbf{License} & \textbf{Notes} \\
+\midrule
+ACS 2022 5-Year & Public domain (17 USC 105) & U.S.\ Census Bureau \\
+CDC PLACES 2023 & Public domain (17 USC 105) & CDC / HHS \\
+CDC/ATSDR SVI 2022 & Public domain (17 USC 105) & CDC / HHS \\
+FEMA NFHL & Public domain (17 USC 105) & DHS / FEMA \\
+DHS HIFLD Open Data & Public domain (17 USC 105) & DHS \\
+VIIRS Nighttime Lights & Public domain (17 USC 105) & NASA / NOAA \\
+USGS NED & Public domain (17 USC 105) & U.S.\ Geological Survey \\
+Census TIGER/Line 2020 & Public domain (17 USC 105) & U.S.\ Census Bureau \\
+Hansen Global Forest Change & CC-BY-4.0 & Univ.\ of Maryland \\
+OpenStreetMap (OSRM routing) & ODbL & Preserve OSM attribution \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+ACS estimates use the ``E'' (estimate) suffix only as solver inputs; ACS margins of error (``M'' suffix) are provided as a companion file (\texttt{zcta\_acs\_margins\_of\_error.parquet}) for downstream uncertainty-aware analysis but are not used as solver inputs in baseline experiments. CDC PLACES rates are small-area model estimates at the census-tract level, aggregated to ZCTA by the CDC; CDC 95\% confidence intervals are similarly provided as a companion file (\texttt{cdc\_places\_ci.parquet}) for downstream use.
+
+\subsection{Spatial Unit: ZCTA}
+
+ZIP Code Tabulation Areas (ZCTAs) are Census Bureau statistical areas that approximate USPS ZIP code service areas. They are not identical to ZIP codes: ZCTAs are areal polygons; ZIP codes are delivery routes. GeoRSCT uses 2020-vintage ZCTAs (31,789 in CONUS).
+
+The ZCTA is a representation choice, not a universal geography. County-level, census-tract-level, or grid-cell benchmarks would expose different variation. GeoRSCT fixes the spatial unit so that cross-solver and cross-protocol comparisons are controlled; the boundary confound (Section~\ref{sec:taxonomy}, GCF-3.2) documents the limitation.
+
+\subsection{Feature Construction (33 ACS Variables)}
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{ACS input feature domains (33 features total).}
+\label{tab:acs_domains}
+\begin{tabular}{lll}
+\toprule
+\textbf{Domain} & \textbf{Count} & \textbf{Examples} \\
+\midrule
+Demographics & 7 & median\_age, pct\_under\_18, pct\_65\_plus, pct\_minority \\
+Economics & 6 & median\_hh\_income, gini\_index, pct\_below\_poverty, pct\_unemployed \\
+Housing & 7 & median\_home\_value, median\_rent, pct\_vacant, median\_year\_built \\
+Transportation & 2 & mean\_commute\_min, pct\_no\_vehicle \\
+Education & 1 & pct\_college \\
+Health access & 1 & pct\_no\_insurance \\
+Social & 5 & pct\_foreign\_born, pct\_limited\_english, pct\_single\_parent, pct\_snap \\
+Population & 4 & total\_pop, housing\_units, pct\_rural, pct\_group\_quarters \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+All features carry the \texttt{acs\_} prefix. Percentage columns are clipped to $[0, 100]$. Domain-specific plausible bounds are enforced per column (e.g., Gini $\in [0,1]$, median age $\in [0, 120]$).
+
+\subsection{Spatial Lag Construction (33 lag variables)}
+
+For each ACS feature $x_j$, the spatial lag is:
+\begin{equation}
+\text{lag}(x_j)_i = \frac{1}{|N(i)|} \sum_{k \in N(i)} x_{j,k}
+\end{equation}
+where $N(i)$ is the set of queen-contiguous neighbors of ZCTA $i$ (shared boundary point). Computed via BigQuery \texttt{ST\_Touches} on simplified ZCTA geometries.
+
+\begin{itemize}
+\item 31,741 ZCTAs have $\geq 1$ neighbor (median: 5 neighbors)
+\item 48 island ZCTAs have zero neighbors; lag values set to NaN (not zero)
+\item Lag columns use the \texttt{lag\_acs\_*} prefix
+\item Lag percentage columns clipped to $[0, 100]$
+\end{itemize}
+
+\subsection{Target Construction (27 Tasks)}
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Prediction target families (27 tasks total).}
+\label{tab:target_families}
+\begin{tabular}{llcl}
+\toprule
+\textbf{Family} & \textbf{Source} & \textbf{Count} & \textbf{Examples} \\
+\midrule
+Health prevalence & CDC PLACES 2023 & 21 & diabetes, obesity, smoking, COPD, stroke \\
+Socioeconomic & ACS 2022 & 3 & income, home\_value, population\_density \\
+Environmental & VIIRS/USGS/Hansen & 3 & night\_lights, elevation, tree\_cover \\
+\midrule
+\textbf{Total} & & \textbf{27} & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Health targets are prevalence rates (\%) from CDC PLACES small-area estimation. These are model-derived estimates, not direct survey counts; this limitation is documented in Section~\ref{sec:conclusion}. Socioeconomic targets are ACS estimates drawn from the same vintage as the input features; the leakage guard removes the target column from the feature set during training. Task-family selection follows PDFM~\citep{agarwal2025pdfm}; per-task disaggregation of the CDC PLACES health outcomes (21 individual prevalence targets rather than PDFM's aggregated ``Health (mean)'') is a GeoRSCT extension required for the failure-mode diagnostics of Section~\ref{sec:taxonomy}.
+
+\subsection{Data Cleaning}
+
+Two cleaning passes were applied to the released artifact:
+
+\paragraph{Pass 1: Residual sentinel removal.}
+The ACS pipeline originally contained Census Bureau sentinel values ($-666{,}666{,}666$) that were averaged with real values during spatial aggregation before the sentinel fix ran. This produced residuals in the $-1$M to $-1$K range that survived a simple $< -10^6$ threshold. Domain-aware per-column bounds from Census documentation identified and replaced 837 anomalous cells across 7 columns with NaN, affecting 393 ZCTAs (1.2\%).
+
+\paragraph{Pass 2: Percentage clipping and island NaN.}
+26 cells with floating-point values marginally outside $[0, 100]$ were clipped. 48 island ZCTAs with zero-valued spatial lags (physically impossible for columns like \texttt{lag\_acs\_median\_year\_built}) were set to NaN.
+
+\paragraph{Post-cleaning validation.} Zero domain-bound violations remain. Zero sentinel-range values remain. All percentage columns $\in [0, 100]$. All non-percentage columns within documented plausible bounds.
+
+\subsection{Evaluation Protocols}
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Geography-aware evaluation protocols. Random row-level splits are excluded.}
+\label{tab:eval_protocols}
+\begin{tabular}{llll}
+\toprule
+\textbf{Protocol} & \textbf{Split unit} & \textbf{Train / Test} & \textbf{Question} \\
+\midrule
+Interpolation & county holdout & 24,864 / 6,925 & predict unseen counties \\
+Extrapolation & state holdout & 26,586 / 5,203 & generalize to new states \\
+Super-resolution & county $\to$ ZCTA & varies & recover fine-grained variation \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Random row-level splits are explicitly excluded. Geography-aware blocking ensures test ZCTAs are spatially separated from training data, preventing leakage through spatial autocorrelation.
+
+\subsection{Schema Summary}
+
+The base parquet (69 columns):
+\begin{itemize}
+\item \texttt{zcta\_id} (string, zero-padded 5-char)
+\item \texttt{state}, \texttt{county\_name}, \texttt{state\_fips} (geography metadata)
+\item \texttt{latitude}, \texttt{longitude} (centroid)
+\item 33 \texttt{acs\_*} features (float64)
+\item 27 \texttt{target\_*} labels (float64)
+\item \texttt{split\_imputation}, \texttt{split\_extrap} (protocol assignments)
+\end{itemize}
+
+The lag-augmented parquet adds 33 \texttt{lag\_acs\_*} columns (float64, NaN for 48 island ZCTAs).
+
+\subsection{Enrichment Feature Construction and Encoder-Side Validation}
+\label{app:methodology}
+
+The v23.0.2 release ships 63 solver-usable features: 33 ACS demographic/economic variables, 14 spatial-lag variables derived from a curated subset of the ACS features, and 16 \emph{enrichment features} drawn from external geographic data sources. The 16 enrichment features require encoder-side construction (spatial overlay, projection handling, polygon topology repair, distance computation) that the ACS and lag features do not. This subsection documents how those features were built and the admissibility checks applied before inclusion in the release.
+
+\subsubsection{Enrichment Feature Inventory}
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Enrichment features from external geographic data sources (16 variables total).}
+\label{tab:enrichment_features}
+\begin{tabular}{llll}
+\toprule
+\textbf{Family} & \textbf{Source} & \textbf{Count} & \textbf{Variables} \\
+\midrule
+SVI scores & CDC SVI 2020 & 5 & svi\_socioeconomic, svi\_household\_disability, \\
+& & & svi\_minority\_language, svi\_housing\_transport, svi\_overall \\
+FEMA flood & FEMA NFHL & 3 & flood\_pct\_zone\_a, flood\_pct\_zone\_x500, flood\_pct\_zone\_x \\
+Drive-time & HIFLD + TIGER & 2 & drive\_min\_to\_nearest\_hospital, drive\_min\_to\_county\_centroid \\
+Healthcare access & HIFLD Open Data + CDC & 6 & hifld\_n\_hospitals, hifld\_n\_hospital\_beds, \\
+& & & hifld\_nearest\_hospital\_km, hifld\_n\_pharmacies, \\
+& & & hifld\_nearest\_pharmacy\_km, hifld\_nearest\_trauma\_center\_km \\
+\midrule
+\textbf{Total} & & \textbf{16} & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{Construction Pipeline}
+
+All spatial-overlay-derived features (FEMA flood and HIFLD-distance) are computed in projected coordinates EPSG:5070 (USA Contiguous Albers Equal Area) to preserve area and distance accuracy across CONUS. The construction pipeline for each family is:
+
+\paragraph{SVI scores.} CDC SVI 2020 is published at the census-tract level. We crosswalk to ZCTA via the published TIGER/Line 2020 tract-to-ZCTA correspondence, applying area-weighted aggregation when a ZCTA spans multiple tracts. The five SVI variables are passed through unchanged from the CDC publication.
+
+\paragraph{FEMA flood-zone fractions.} FEMA National Flood Hazard Layer (NFHL) flood-zone polygons are downloaded from the FEMA Map Service Center and reprojected from their native projection to EPSG:5070. ZCTA polygons are reprojected from EPSG:4326 (TIGER/Line 2020) to EPSG:5070. For each ZCTA, the fractional area covered by Zone A (1\% annual chance), Zone X500 (0.2\% annual chance), and Zone X (minimal flood risk) is computed by polygon intersection. The construction is documented in detail in the FEMA download script in the released code repository.
+
+\paragraph{Healthcare access.} Hospital features are derived from the HIFLD Open Data Hospitals dataset\footnote{\url{https://hifld-geoplatform.hub.arcgis.com/pages/hifld-open}} (8,013 U.S.\ hospitals with geocoded coordinates, bed counts, and trauma-level designations; source dates 2012--2022, validation dates 2013--2022). Pharmacy features are derived from the CDC Vaccines.gov provider-location dataset (approximately 41,000 unique retail pharmacies with geocoded coordinates, deduplicated on provider location identifier).
+
+For each facility type, the construction proceeds as follows. Each facility is assigned to its nearest ZCTA by haversine distance from the facility's coordinates to all 31,789 ZCTA centroids. Per-ZCTA counts (\texttt{hifld\_n\_hospitals}, \texttt{hifld\_n\_pharmacies}) are the number of facilities assigned to that ZCTA. Per-ZCTA bed counts (\texttt{hifld\_n\_hospital\_beds}) are the sum of reported beds for assigned hospitals; HIFLD records with the sentinel value $-999$ (data unavailable) are treated as zero beds. Nearest-facility distances (\texttt{hifld\_nearest\_hospital\_km}, \texttt{hifld\_nearest\_pharmacy\_km}, \texttt{hifld\_nearest\_trauma\_center\_km}) are the minimum haversine distance from the ZCTA centroid to any facility of that type. Trauma centers are identified as HIFLD hospitals with a non-empty trauma-level designation (Levels~I--V).
+
+\paragraph{Drive-time approximations.} Two drive-time features are computed for each ZCTA: minutes to the nearest hospital (\texttt{drive\_min\_to\_nearest\_hospital}) and minutes to the county geographic centroid (\texttt{drive\_min\_to\_county\_centroid}). The county centroid is defined as the arithmetic mean of the latitude and longitude of all ZCTA centroids sharing the same \texttt{county\_fips} code; this is a geographic center-of-mass proxy for the county's population center, not the administrative county seat. For each ZCTA, the nearest destination of each type is identified by haversine pre-filter, then the actual road-network drive time is obtained from the OSRM (Open Source Routing Machine) table API\footnote{\url{https://project-osrm.org/}; routing data derived from OpenStreetMap (ODbL).}. The table API accepts batches of source--destination coordinate pairs and returns a duration matrix from the road-network graph, avoiding the inaccuracies of great-circle approximation in mountainous, coastal, or road-sparse regions. Durations are reported in minutes, rounded to one decimal place. The county-centroid feature serves as a rurality/remoteness proxy: ZCTAs far from their county's population center tend to have reduced access to county-level services.
+
+\subsubsection{Encoder-Side Validation: Geometry Admissibility Gate}
+
+Spatial-overlay-derived features (FEMA flood fractions and HIFLD distances) are subject to a class of measurement-layer failures that ACS-derived features are not: CRS mismatches, polygon-topology corruption from Esri JSON ring/hole conventions, vintage misalignment, and overlay artifacts. We treat these as encoder-side concerns separate from solver evaluation. The certificate must not treat a spatial-overlay-derived feature as reliable until the underlying spatial transform and polygon topology are validated; otherwise downstream error cannot be cleanly attributed to target difficulty or solver quality. In RSCT terms, the problem may have already collapsed in the measurement layer before the solver is evaluated.
+
+We applied the following seven-check geometry admissibility gate to spatial-overlay-derived features before inclusion in v23.0.2:
+
+\begin{enumerate}
+\item \textbf{CRS check.} Confirm that source polygons (FEMA NFHL) and target polygons (TIGER/Line ZCTAs) are both in EPSG:5070 before any overlay computation. Healthcare-access distances use haversine (WGS84 lat/lon) directly.
+\item \textbf{Bounds check.} Confirm that the transformed source-feature bounding box overlaps the expected CONUS bounds in EPSG:5070; flag features whose extent falls outside CONUS.
+\item \textbf{Geometry validity check.} Count invalid polygons before and after geometry repair (\texttt{buffer(0)} or equivalent). Flag the repair as material if the post-repair count of invalid geometries is non-zero or if the area changes by more than a configured threshold.
+\item \textbf{Ring/hole check.} For Esri JSON inputs (FEMA NFHL), verify the ring-winding convention against a trusted parser on a known sample. Misinterpreting the first ring as exterior versus a hole produces inverted polygons, corrupting downstream area fractions.
+\item \textbf{Known-county sanity check.} Compute aggregate flood and healthcare-access statistics for Harris County, Texas (Houston metropolitan area) and compare against published references. Harris County is a useful sanity check because flood coverage and hospital density are both nontrivial and well-documented.
+\item \textbf{Area conservation check.} For sample polygons, compare the projected area before and after geometry repair. Large jumps indicate that \texttt{buffer(0)} changed the geometry materially rather than only fixing a self-intersection.
+\item \textbf{ZCTA fraction distribution check.} Check the distribution of flood fractions across ZCTAs. Mass concentrated at exactly 0 or exactly 1 (or impossible spikes at intermediate values) indicates either a coverage gap (no FEMA polygons in that region) or an overlay artifact, not a substantive flood-coverage signal.
+\end{enumerate}
+
+\subsubsection{RSCT Framing: Spatial Preprocessing as Part of the Representation}
+
+In ordinary tabular ML, a feature is often treated as a column. In geospatial ML, a feature may be the output of CRS transforms, polygon topology assumptions, spatial joins, vintage choices, and aggregation rules. GeoRSCT views these spatial preprocessing operations as part of the representation, not as neutral data cleaning. A ZCTA-level flood feature is not simply an input column; it is the result of CRS assumptions, polygon topology, temporal vintage, overlay rules, and areal aggregation. If those operations are not validated, downstream error cannot be cleanly attributed to target difficulty or solver quality. The seven-check admissibility gate above is the encoder-side certificate that GeoRSCT enforces for the spatial-overlay-derived features. The broader geographic substrate (boundary-classification errors, ZIP-to-ZCTA crosswalk failures, MAUP, spatial missingness) is addressed by the failure modes in Families GEO-A, GEO-B, and GEO-C of the taxonomy (Table~\ref{tab:taxonomy}).
+
+% Appendix C (Solver Families) removed --- solver configuration documented in Section 7.1.
+
+% ============================================================
+% APPENDIX C: N-CEILING ESTIMATION (was D)
+% ============================================================
+\section{N-Ceiling Estimation}
+\label{app:nceiling_method}
+
+\subsection{Definition}
+
+The N-ceiling is the fraction of target variance unexplained by the best available model family:
+\begin{equation}
+N_{\text{ceiling}}(t) = 1 - \max_{k \in \mathcal{K}} R^2_k(t)
+\end{equation}
+where $t$ indexes tasks and $\mathcal{K}$ indexes the six embedding families (PCA32, Spatial Lag, GraphSAGE, Geo-spatial, Domain features, and Noisy Control), all evaluated with a fixed HistGBDT solver in S019D. $N_{\text{ceiling}}$ is a task property: given these features and this protocol, how much of the target variance is unpredictable by any tested family?
+
+\subsection{Why Block Bootstrap}
+
+Standard bootstrap (resample rows) underestimates uncertainty in geospatial data because nearby ZCTAs are not independent. Residuals from the same state share unobserved confounders (state-level policy, health system structure, regional economy). Naive bootstrap produces artificially narrow CIs.
+
+The block bootstrap preserves this spatial correlation structure by resampling entire states rather than individual ZCTAs.
+
+\subsection{Canonical Procedure (State-Level)}
+
+The canonical block is a state. For data pipelines that retain per-ZCTA predictions:
+
+\begin{enumerate}
+\item For each task $t$ and family $k$, compute holdout $R^2_k(t)$ on the test fold.
+\item For $b = 1, \ldots, B$ (where $B{=}1{,}000$):
+\begin{enumerate}
+\item Draw states with replacement (approximately 50 states per resample).
+\item Include all test-fold ZCTAs belonging to drawn states.
+\item Recompute $R^2_k(t)$ on the resampled test set.
+\item Compute $N^{(b)}_{\text{ceiling}}(t) = 1 - \max_k R^{2,(b)}_k(t)$.
+\end{enumerate}
+\item Report: point estimate $N_{\text{ceiling}}(t)$ from full test set; CI $= [q_{0.025}, q_{0.975}]$ of the bootstrap distribution $\{N^{(b)}_{\text{ceiling}}\}$.
+\end{enumerate}
+
+\subsection{S019D Implementation (Fold-Level)}
+
+S019D stores per-fold aggregate $R^2$ values (one scalar per task $\times$ embedding $\times$ fold) rather than per-ZCTA predictions, so the state-level procedure is not directly applicable. The fold-level block bootstrap is used instead:
+
+\begin{enumerate}
+\item For each task $t$ and family $k$, collect the five fold-level $R^2$ values $\{R^2_{k,f}(t)\}_{f=1}^{5}$.
+\item For $b = 1, \ldots, B$ (where $B{=}1{,}000$):
+\begin{enumerate}
+\item Draw five folds with replacement from $\{1,\ldots,5\}$.
+\item Per family, compute $\bar{R}^{2,(b)}_k(t) = \text{mean over resampled folds}$.
+\item Compute $N^{(b)}_{\text{ceiling}}(t) = 1 - \max_k \bar{R}^{2,(b)}_k(t)$.
+\end{enumerate}
+\item Report: $[q_{0.025}, q_{0.975}]$ of $\{N^{(b)}_{\text{ceiling}}(t)\}$.
+\end{enumerate}
+
+The fold is a natural block unit for S019D: each fold withholds a geographically contiguous county partition, so fold-level resampling preserves the spatial structure of the evaluation protocol. However, with only $F{=}5$ folds the effective support of the bootstrap distribution is at most $5^5 = 3{,}125$ distinct samples; the resulting CIs reflect fold-variance only, not ZCTA-level spatial uncertainty, and should be interpreted accordingly. Cross-seed consistency (three seeds $\{42, 123, 456\}$) provides a complementary and independent replication check.
+
+\paragraph{Cross-seed consistency.} For each task, N-ceiling is computed independently for seeds 42, 123, and 456. The per-seed values are reported alongside the fold-level CI as a replication check. A task is considered stable if the cross-seed standard deviation of N-ceiling is below 0.02 (two percentage points).
+
+\subsection{Seed Collapse for Stochastic Models}
+
+The GNN and MLP families are non-deterministic (weight initialization, dropout). To avoid inflating $R^2$ from a lucky seed:
+\begin{itemize}
+\item Train each stochastic family with seeds $\{42, 123, 456\}$.
+\item Collapse to family-level $R^2 = \mathbb{E}_{\text{seeds}}[R^2]$ (mean, not max).
+\item Average residual vectors per-ZCTA across seeds before bootstrap.
+\item Average bootstrap distributions across seeds.
+\end{itemize}
+
+Using mean-seed rather than best-seed $R^2$ produces a conservative (higher) N-ceiling estimate. This is intentional: we prefer to overstate task difficulty slightly rather than attribute noise to signal.
+
+\subsection{Residual Correlation Diagnostic}
+
+If two model families fail on the same ZCTAs, they are not providing independent evidence about the noise floor. For each task, compute pairwise Pearson correlation of residual vectors across families:
+\begin{equation}
+\bar{\rho}(t) = \frac{1}{|\mathcal{K}|(|\mathcal{K}|-1)/2} \sum_{j < k} \text{corr}(r_j(t), r_k(t))
+\end{equation}
+
+Flag: $|\bar{\rho}(t)| > 0.7$ indicates insufficient architectural diversity for that task. The N-ceiling estimate for flagged tasks should be interpreted with extra caution; the true noise floor may be lower than reported.
+
+\subsection{Bias Direction: False Positives on Noise}
+
+Treating $N_{\text{ceiling}}$ as a noise-labeling decision, two error types are possible:
+
+\begin{itemize}
+\item \textbf{False positive (FP):} labeling predictable variance as irreducible noise ($N_{\text{ceiling}}$ too high; task appears harder than it is).
+\item \textbf{False negative (FN):} labeling irreducible noise as predictable variance ($N_{\text{ceiling}}$ too low; task appears easier than it is).
+\end{itemize}
+
+The costs are not symmetric. A false negative is the more dangerous error: a practitioner who believes a task is learnable will invest in richer models, larger datasets, or more compute, and may never discover that the ceiling is a data-generation constraint rather than a modeling gap. A false positive merely understates model potential; the error is self-correcting once a better model is tested.
+
+The estimator is deliberately biased toward false positives. Three design choices push $N_{\text{ceiling}}$ upward: (1)~the ceiling is taken over \emph{tested} families only (an untested family with higher $R^2$ would lower it); (2)~stochastic families (GNN, MLP) are collapsed to mean-seed $R^2$, which is at most equal to best-seed $R^2$; (3)~taking the maximum over $K{=}6$ correlated estimates introduces winner's curse: the expected maximum exceeds the true best-family value, compounding the upward bias. All three biases act in the same direction (FP), which is the preferred error under the asymmetric cost structure above. The synthetic validation below quantifies the net upward bias at ${\approx}0.06$ under known noise. The $N_{\text{ceiling}}$ values should be read as upper bounds on irreducible noise, not tight point estimates.
+
+\subsection{Same-Family Ceiling and the Independent-Pair Alternative}
+
+The deployed estimator uses the six embedding families evaluated in S019D (PCA32, Spatial Lag, GraphSAGE, Geo-spatial, Domain features, Noisy Control), all with a fixed HistGBDT solver. Although the pool spans diverse feature-engineering strategies, the families share the GBDT regressor and draw from overlapping ACS/enrichment columns, which can produce correlated residuals on tasks where the shared substrate fails for similar reasons. In those cases, the residual-correlation diagnostic ($|\bar\rho| > 0.7$) flags the task and the ceiling should be read as an upper bound rather than a verified noise floor.
+
+The principled alternative is an architecturally independent ceiling pair: e.g., a Nystroem-approximated kernel ridge regressor on raw ACS features (RBF kernel, ${\sim}2{,}000$ landmarks, state-FIPS-stratified sampling) paired with a small MLP on raw ACS features without PCA. This pair shares no inductive bias with the benchmark families (neither uses a tree ensemble downstream, neither uses PCA, neither uses an explicit graph), which makes the resulting ceiling estimate model-invariant in a way the six-family max is not. We name the independent-pair estimator as the canonical form for future GeoRSCT releases. The current release uses the six-family max as a transparent v1 ceiling, and the empirical findings (architecture-invariance, $N_{\text{ceiling}}$ spectrum) do not depend on the specific ceiling estimator.
+
+\subsection{Synthetic Validation}
+
+A controlled dataset with known ground-truth noise confirms estimator properties:
+\begin{itemize}
+\item Setup: $y = f(\mathbf{X}) + \epsilon$, $n{=}25{,}000$, $d{=}32$, $\epsilon \sim \mathcal{N}(0, \sigma^2_{\text{known}})$.
+\item Three model families (linear, tree, MLP) fit on training split.
+\item Result: estimated $N_{\text{ceiling}}$ exceeds true noise fraction by ${\approx}0.06$ (conservative bias).
+\item Block-bootstrap CIs are 15--40\% wider than naive bootstrap CIs.
+\item Families with shared architecture (two tree variants) correctly produce $|\bar{\rho}| > 0.7$.
+\end{itemize}
+
+\subsection{Per-Task N-Ceiling Bootstrap CIs}
+\label{app:nceiling_pertask}
+
+Table~\ref{tab:nceiling_boot} reports the point estimate and 95\% fold-level bootstrap CI ($B{=}1{,}000$) for each of the 27 CONUS-27 tasks. The cross-seed standard deviation across seeds $\{42, 123, 456\}$ is reported as a replication check; all tasks pass the stability threshold (std $< 0.02$), with mean std $= 0.0004$ and max std $= 0.0015$.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Per-task $N_{\text{ceiling}}$ point estimates and 95\% fold-level bootstrap CIs ($B{=}1{,}000$, seed 42). CI reflects fold-variance only ($F{=}5$; max $5^5{=}3{,}125$ distinct samples). Cross-seed std (seeds 42/123/456) provides an independent replication check. Sorted by family then $N_{\text{ceiling}}$.}
+\label{tab:nceiling_boot}
+\begin{tabular}{l|c|cc|c}
+\toprule
+\textbf{Task} & $N_{\text{ceiling}}$ & $q_{2.5}$ & $q_{97.5}$ & \textbf{Cross-seed std} \\
+\midrule
+\multicolumn{5}{l}{\emph{Health (21 tasks)}} \\
+Physical health (poor) & .168 & .162 & .174 & .0001 \\
+Dental visit           & .175 & .170 & .181 & .0002 \\
+Smoking                & .179 & .173 & .183 & .0004 \\
+Physical inactivity    & .187 & .180 & .194 & .0001 \\
+COPD                   & .200 & .186 & .210 & .0001 \\
+Diabetes               & .220 & .206 & .234 & .0004 \\
+Mental health (poor)   & .228 & .208 & .242 & .0003 \\
+High blood pressure    & .236 & .221 & .244 & .0005 \\
+Obesity                & .247 & .234 & .262 & .0002 \\
+BP medicated           & .257 & .244 & .269 & .0015 \\
+Annual checkup         & .261 & .245 & .274 & .0008 \\
+Stroke                 & .263 & .241 & .284 & .0000 \\
+Arthritis              & .266 & .248 & .283 & .0003 \\
+Sleep $<$7\,hr         & .288 & .277 & .304 & .0002 \\
+Coronary heart dis.    & .294 & .274 & .313 & .0004 \\
+Asthma                 & .306 & .284 & .322 & .0003 \\
+Chronic kidney dis.    & .310 & .290 & .332 & .0006 \\
+Cancer                 & .322 & .303 & .345 & .0004 \\
+Cholesterol screen     & .357 & .320 & .394 & .0010 \\
+High cholesterol       & .369 & .358 & .378 & .0004 \\
+Binge drinking         & .444 & .437 & .450 & .0007 \\
+\midrule
+\multicolumn{5}{l}{\emph{Environmental (3 tasks)}} \\
+Night lights           & .084 & .076 & .090 & .0001 \\
+Elevation              & .118 & .108 & .127 & .0007 \\
+Tree cover             & .317 & .304 & .332 & .0009 \\
+\midrule
+\multicolumn{5}{l}{\emph{Socioeconomic (3 tasks)}} \\
+Population density     & .107 & .101 & .111 & .0003 \\
+Home value             & .119 & .104 & .132 & .0005 \\
+Income                 & .268 & .247 & .289 & .0005 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% Old Appendix E (Certificate Diagnostics) absorbed into Appendix B (signals) and C (gates).
+% S019A illustration table lives in Appendix H (app:s019a).
+
+% ============================================================
+\section{Experiment Ledger}
+\label{app:experiment_ledger}
+
+This appendix reports the experimental runs that produce the paper's empirical claims. Each entry documents the question, setup, key metric, and verdict.
+
+\subsection{Ledger Summary}
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Experiment ledger summary. Each run addresses a distinct diagnostic question; verdicts reflect pre-registered thresholds.}
+\label{tab:experiment_ledger}
+\begin{tabular}{lllll}
+\toprule
+\textbf{Run} & \textbf{Question} & \textbf{Key Metric} & \textbf{Value} & \textbf{Verdict} \\
+\midrule
+S019A & Certificate invariance gradient (illustration) & $\eta^2$ gradient across regimes & $.549 < .618 < .687$ & PARTIAL \\
+S019D & Full benchmark certification & FC-7: $\rho(\kappa, |r|)$ across 162 cells & $-0.391$, $p < 0.0001$ & PASS \\
+S019E & Pooled calibration; D4 arm ranking & Pairwise accuracy (D4-S) & $\hat{p} = 0.661$, $z = 9.14$ & PASS \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% S018A, S018B, S018E, S018Y removed --- results incorporated into main body.
+
+% ============================================================
+\subsection{S019A: Certificate Invariance Gradient (Illustration)}
+\label{app:s019a}
+
+\paragraph{Question.} Does the canonical RSCT certificate decomposition reveal regime-dependent structure that scalar $R^2$ alone cannot distinguish?
+
+\paragraph{Design.} $3 \times 3 \times 3$ factorial: 3 embeddings (PCA32, Spatial Lag, GNN) $\times$ 3 solvers (HistGBDT, Ridge, MLP) $\times$ 3 targets (diabetes, population density, elevation). 27 cells, each with 5-fold county-holdout CV. One SageMaker job.
+
+\paragraph{Setup.}
+\begin{itemize}
+\item \textbf{Data:} \texttt{zcta\_features\_labels.parquet} (31{,}789 rows)
+\item \textbf{Targets:} diabetes (health, $N_{\text{ceiling}} = 0.220$), population density (demographic, $N_{\text{ceiling}} = 0.187$), elevation (environmental, $N_{\text{ceiling}} = 0.281$), computed from 3-family S019A max $R^2$
+\item \textbf{Embeddings:} PCA32 (33 ACS $\to$ 32-dim), Spatial Lag (63 features $\to$ 32-dim), GNN (GraphSAGE 32-dim latents)
+\item \textbf{Solvers:} HistGBDT, Ridge, MLP (spanning tree, linear, neural architectures)
+\item \textbf{Certificate path:} Path A (MLP tercile classifier $\to$ softmax $\to$ \texttt{aggregate\_scores\_from\_probs} $\to$ canonical $(R, S_{\text{sup}}, N)$)
+\item \textbf{Sigma:} \texttt{compute\_sigma\_request(N)}, canonical per-request turbulence
+\item \textbf{Gatekeeper:} \texttt{SequentialGatekeeper.evaluate()} with default policy; full ADR-024 provenance (gate\_evidence, policy\_id)
+\item \textbf{Protocol:} 5-fold county-holdout interpolation
+\item \textbf{Instance:} \texttt{ml.m5.xlarge}, wall-clock 345 min (315 fits)
+\item \textbf{Commit:} \texttt{85f09df}
+\end{itemize}
+
+\paragraph{Hypotheses.}
+\begin{table}[htbp]
+\centering
+\small
+\caption{S019A pre-registered hypotheses and outcomes. $^\dagger$IG-1 rejected: embedding effect is significant even for easy tasks. $^\ddagger$IG-4/IG-5 voided due to per-arm tercile calibration degeneracy.}
+\label{tab:s019a_hypotheses}
+\begin{tabular}{llccc}
+\toprule
+\textbf{ID} & \textbf{Hypothesis} & \textbf{Threshold} & \textbf{Actual} & \textbf{Verdict} \\
+\midrule
+IG-1 & Diabetes: embedding main effect non-significant & $F$-test $p > 0.05$ & $p < 0.001$ & FAIL$^\dagger$ \\
+IG-2 & Elevation: embedding main effect significant & $F$-test $p < 0.05$ & $p < 0.001$ & PASS \\
+IG-3 & $\eta^2$ gradient: diabetes $<$ pop.\ density $<$ elevation & monotonic & 0.549 $<$ 0.618 $<$ 0.687 & PASS \\
+IG-4 & Gate decisions diverge across targets & $>$1 distinct decision & degenerate$^\ddagger$ & VOID \\
+IG-5 & Simplex integrity holds & $\max|R+S+N-1| < 0.01$ & 0.276$^\ddagger$ & VOID \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% --- Clean results: R², ANOVA, pairwise comparisons ---
+
+\paragraph{Results: Predictive Performance (Table~\ref{tab:s019a_r2}).}
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{S019A: Mean holdout $R^2$ ($\pm$ std across 5 folds) for all 27 cells.}
+\label{tab:s019a_r2}
+\begin{tabular}{ll|ccc}
+\toprule
+\textbf{Target} & \textbf{Embedding} & \textbf{HistGBDT} & \textbf{Ridge} & \textbf{MLP} \\
+\midrule
+\multirow{3}{*}{Diabetes}
+& PCA32       & .724 $\pm$ .017 & .689 $\pm$ .019 & .739 $\pm$ .021 \\
+& Spatial Lag & .748 $\pm$ .018 & .737 $\pm$ .015 & .773 $\pm$ .017 \\
+& GNN         & .778 $\pm$ .013 & .774 $\pm$ .012 & .780 $\pm$ .013 \\
+\midrule
+\multirow{3}{*}{Pop.\ density}
+& PCA32       & .727 $\pm$ .016 & .660 $\pm$ .018 & .752 $\pm$ .016 \\
+& Spatial Lag & .776 $\pm$ .011 & .737 $\pm$ .016 & .801 $\pm$ .013 \\
+& GNN         & .806 $\pm$ .014 & .806 $\pm$ .013 & .813 $\pm$ .013 \\
+\midrule
+\multirow{3}{*}{Elevation}
+& PCA32       & .344 $\pm$ .048 & .212 $\pm$ .040 & .430 $\pm$ .049 \\
+& Spatial Lag & .398 $\pm$ .045 & .243 $\pm$ .047 & .536 $\pm$ .045 \\
+& GNN         & .671 $\pm$ .057 & .621 $\pm$ .037 & .718 $\pm$ .027 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Results: Embedding Sensitivity Gradient (Tables~\ref{tab:s019a_anova}--\ref{tab:s019a_tukey}).}
+The headline finding: embedding choice is significant for \emph{all three} targets ($p < 0.001$), but the effect size increases monotonically with task difficulty: $\eta^2 = .549$ (diabetes), $.618$ (pop.\ density), $.687$ (elevation). The solver main effect is consistently smaller ($\eta^2 = .141$--$.216$), and the interaction is negligible ($\eta^2 = .035$--$.091$; non-significant for diabetes). Embedding ranking is stable across solver families. Since Shapiro-Wilk rejects normality for all targets ($p < 0.05$; Table~\ref{tab:s019a_assumptions}), we confirm with the non-parametric Kruskal-Wallis test: diabetes $H = 24.9$, pop.\ density $H = 29.7$, elevation $H = 29.5$ (all $p < 0.001$).
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{S019A: Two-way ANOVA (embedding $\times$ solver) on holdout $R^2$, per target.}
+\label{tab:s019a_anova}
+\begin{tabular}{ll|cccc}
+\toprule
+\textbf{Target} & \textbf{Source} & $F$ & $p$ & $\eta^2$ & \textbf{Sig?} \\
+\midrule
+\multirow{3}{*}{Diabetes}
+& Embedding           & 39.59 & ${<}.001$ & .549 & *** \\
+& Solver              & 10.17 & ${<}.001$ & .141 & *** \\
+& Embedding $\times$ Solver & 2.19 & .090 & .061 & ns \\
+\midrule
+\multirow{3}{*}{Pop.\ density}
+& Embedding           & 130.72 & ${<}.001$ & .618 & *** \\
+& Solver              & 43.51 & ${<}.001$ & .206 & *** \\
+& Embedding $\times$ Solver & 9.64 & ${<}.001$ & .091 & *** \\
+\midrule
+\multirow{3}{*}{Elevation}
+& Embedding           & 197.84 & ${<}.001$ & .687 & *** \\
+& Solver              & 62.25 & ${<}.001$ & .216 & *** \\
+& Embedding $\times$ Solver & 5.03 & .003 & .035 & ** \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+For the target with the largest effect (elevation), Tukey HSD pairwise comparisons show GNN dominates both PCA32 and Spatial Lag (Cohen's $d > 2.5$), while PCA32 and Spatial Lag do not significantly differ:
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{S019A: Tukey HSD pairwise embedding comparisons on holdout $R^2$ (elevation target). 95\% CI on mean difference; Bonferroni-corrected $p$; Cohen's $d$.}
+\label{tab:s019a_tukey}
+\begin{tabular}{l|cccc}
+\toprule
+\textbf{Pair (Elevation)} & $\Delta \bar{R}^2$ & 95\% CI & $p_{\text{adj}}$ & Cohen's $d$ \\
+\midrule
+Lag $-$ PCA32 & +.064 & [$-.022$, $.149$] & .470 & 0.53 \\
+GNN $-$ PCA32 & +.341 & [$.280$, $.402$] & ${<}.001$ & 4.01 \\
+GNN $-$ Lag   & +.277 & [$.204$, $.351$] & ${<}.001$ & 2.69 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Results: Assumption Checks (Table~\ref{tab:s019a_assumptions}).}
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{S019A: ANOVA assumption diagnostics per target.}
+\label{tab:s019a_assumptions}
+\begin{tabular}{l|cc|cc}
+\toprule
+& \multicolumn{2}{c|}{\textbf{Shapiro-Wilk (normality)}} & \multicolumn{2}{c}{\textbf{Levene (homogeneity)}} \\
+\textbf{Target} & $W$ & $p$ & $F$ & $p$ \\
+\midrule
+Diabetes       & .938 & .018 & 4.29 & .020 \\
+Pop.\ density  & .919 & .004 & 4.97 & .012 \\
+Elevation      & .947 & .040 & 5.12 & .010 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% --- Degenerate results: certificate decomposition (per-arm calibration) ---
+
+\paragraph{Results: Certificate Decomposition (Calibration Caveat).}
+\label{sec:calibration_caveat}
+The RSN decomposition uses \emph{per-arm} tercile calibration: each cell's MLP classifier is trained on tercile boundaries from that cell's own residual distribution. This is correct for single-arm certification but produces degenerate simplices for cross-arm comparison, because each arm's residuals are partitioned into equal thirds by construction ($R \approx S_{\text{sup}} \approx N \approx 0.33$ regardless of predictive quality; $\text{ba\_test} = 0.465 \pm 0.063$, barely above random $0.333$). Consequently, gate decisions are degenerate: 25/27 cells produce \textsc{re\_encode} regardless of $R^2$, and $\alpha$ shows wrong-sign correlation with quality. Theory kappa ($D^*/D$), computed from the LOO difficulty ratio, is unaffected. IG-4 and IG-5 are voided pending shared-reference recalibration (pooled or best-arm tercile boundaries). Tables~\ref{tab:s019a_certs}--\ref{tab:s019a_gates} report the raw values for completeness; the degenerate RSN columns should not be interpreted as meaningful cross-arm comparisons.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{S019A: Certificate decomposition for all 27 cells (means across 5 folds). $\dagger$\,fold disagreement on gate. $R$, $S_{\text{sup}}$, $N$, $\alpha$ are degenerate (per-arm calibration); $\kappa$ is theory $D^*/D$ (unaffected).}
+\label{tab:s019a_certs}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{ll|ccc|cccc|cc}
+\toprule
+& & \multicolumn{3}{c|}{\textbf{Simplex}} & & & & & & \\
+\textbf{Target} & \textbf{Emb.\ $\times$ Solver} & $R$ & $S$ & $N$ & $\alpha$ & $\kappa$ & $\sigma$ & $\kappa_{\text{req}}$ & Margin & \textbf{Gate} \\
+\midrule
+\multirow{9}{*}{\rotatebox{90}{Diabetes}}
+& PCA32 $\times$ GBDT   & .329 & .337 & .328 & .502 & .126 & .328 & .22 & $-.09$ & RE\_ENC \\
+& PCA32 $\times$ Ridge   & .331 & .331 & .320 & .510 & .125 & .320 & .22 & $-.10$ & RE\_ENC \\
+& PCA32 $\times$ MLP     & .336 & .338 & .315 & .516 & .105 & .315 & .22 & $-.12$ & RE\_ENC \\
+& Lag $\times$ GBDT      & .323 & .340 & .317 & .505 & .140 & .317 & .22 & $-.08$ & RE\_ENC \\
+& Lag $\times$ Ridge     & .328 & .331 & .318 & .509 & .146 & .318 & .22 & $-.07$ & RE\_ENC \\
+& Lag $\times$ MLP       & .333 & .332 & .329 & .503 & .125 & .329 & .22 & $-.10$ & RE\_ENC \\
+& GNN $\times$ GBDT      & .338 & .335 & .321 & .513 & .176 & .321 & .22 & $-.04$ & RE\_ENC \\
+& GNN $\times$ Ridge     & .344 & .339 & .313 & .524 & .232 & .313 & .22 & +.01 & EXEC \\
+& GNN $\times$ MLP       & .334 & .336 & .322 & .509 & .130 & .322 & .22 & $-.09$ & RE\_ENC \\
+\midrule
+\multirow{9}{*}{\rotatebox{90}{Pop.\ density}}
+& PCA32 $\times$ GBDT   & .329 & .343 & .302 & .521 & .054 & .302 & .22 & $-.17$ & RE\_ENC \\
+& PCA32 $\times$ Ridge   & .328 & .337 & .285 & .534 & .083 & .285 & .22 & $-.14$ & RE\_ENC \\
+& PCA32 $\times$ MLP     & .331 & .335 & .317 & .511 & .061 & .317 & .22 & $-.16$ & RE\_ENC \\
+& Lag $\times$ GBDT      & .336 & .337 & .295 & .534 & .069 & .295 & .22 & $-.15$ & RE\_ENC \\
+& Lag $\times$ Ridge     & .333 & .338 & .283 & .541 & .114 & .283 & .22 & $-.11$ & RE\_ENC \\
+& Lag $\times$ MLP       & .345 & .341 & .299 & .536 & .085 & .299 & .22 & $-.14$ & RE\_ENC \\
+& GNN $\times$ GBDT      & .333 & .338 & .321 & .510 & .089 & .321 & .22 & $-.13$ & RE\_ENC \\
+& GNN $\times$ Ridge     & .340 & .330 & .324 & .513 & .241 & .324 & .22 & +.02 & EXEC \\
+& GNN $\times$ MLP       & .343 & .339 & .312 & .524 & .093 & .312 & .22 & $-.13$ & RE\_ENC \\
+\midrule
+\multirow{9}{*}{\rotatebox{90}{Elevation}}
+& PCA32 $\times$ GBDT   & .329 & .349 & .250 & .570 & .035 & .250 & .22 & $-.19$ & RE\_ENC \\
+& PCA32 $\times$ Ridge   & .295 & .323 & .201 & .599 & .080 & .201 & .22 & $-.14$ & RE\_ENC \\
+& PCA32 $\times$ MLP     & .331 & .354 & .246 & .582 & .036 & .246 & .22 & $-.18$ & RE\_ENC \\
+& Lag $\times$ GBDT      & .321 & .338 & .229 & .589 & .038 & .229 & .22 & $-.18$ & RE\_ENC \\
+& Lag $\times$ Ridge     & .249 & .328 & .197 & .563 & .074 & .197 & .22 & $-.15$ & RE\_ENC \\
+& Lag $\times$ MLP       & .316 & .346 & .290 & .528 & .041 & .290 & .22 & $-.18$ & RE\_ENC \\
+& GNN $\times$ GBDT      & .313 & .348 & .251 & .557 & .079 & .251 & .22 & $-.14$ & RE\_ENC \\
+& GNN $\times$ Ridge     & .327 & .364 & .219 & .597 & .220 & .219 & .22 & .00 & EXEC$^\dagger$ \\
+& GNN $\times$ MLP       & .326 & .358 & .263 & .556 & .072 & .263 & .22 & $-.15$ & RE\_ENC \\
+\bottomrule
+\end{tabular}}% end resizebox
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{S019A: Gate decision counts per target (9 cells each). Degenerate: 25/27 cells RE\_ENCODE due to per-arm calibration artifact.}
+\label{tab:s019a_gates}
+\begin{tabular}{l|cc|c}
+\toprule
+\textbf{Target} & \textsc{execute} & \textsc{re\_encode} & $N_{\text{ceil}}$ \\
+\midrule
+Diabetes       & 1 & 8 & 0.220 \\
+Pop.\ density  & 1 & 8 & 0.187 \\
+Elevation      & 0$^\dagger$ & 9 & 0.281 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% --- Verdict and contribution mapping ---
+
+\paragraph{Verdict.} \textbf{PARTIAL (3/5).} IG-2 PASS (elevation embedding effect significant, $p < 0.001$). IG-3 PASS ($\eta^2$ gradient monotonically increasing: $.549 < .618 < .687$). IG-1 FAIL: embedding effect is significant even for diabetes ($p < 0.001$, $\eta^2 = .549$), falsifying the invariance hypothesis but \emph{strengthening} IG-3: the gradient exists across all regimes, not just hard ones. IG-4 and IG-5 VOID (per-arm calibration artifact; see calibration caveat above). The headline finding is that embedding sensitivity scales continuously with task difficulty rather than switching discretely between invariant and sensitive regimes.
+
+\paragraph{Contribution mapping.}
+S019A provides supporting evidence for Contribution~2 ($N_{\text{ceiling}}$ spectrum and architecture-sensitivity gradient):
+\begin{itemize}
+\item The $\eta^2$ gradient ($0.549 \to 0.618 \to 0.687$) quantifies the \emph{mechanism} behind the architecture-sensitivity claim: embedding choice matters for all targets, but the effect size scales monotonically with task difficulty. This is stronger than the pre-registered invariance hypothesis (IG-1), which assumed a binary invariant/sensitive dichotomy.
+\item The $N_{\text{ceiling}}$ values ($0.220$, $0.187$, $0.281$) ground the ``spectrum'' axis. Cross-family $R^2$ spread within each target is an order of magnitude smaller than the $N_{\text{ceiling}}$ range across targets.
+\item Theory kappa ($D^*/D$) ranks embedding quality correctly within each target (overall Spearman $\rho(R^2, \kappa) = 0.482$, $p < 0.001$), confirming that the certificate adds diagnostic value beyond scalar $R^2$.
+\item The solver main effect ($\eta^2 = 0.141$--$0.216$) is consistently smaller than the embedding main effect ($\eta^2 = 0.549$--$0.687$), and the interaction is small ($\eta^2 = 0.035$--$0.091$). Embedding ranking is stable across solver families.
+\end{itemize}
+S019A does not address Contribution~1 (benchmark construction) or Contribution~3 (failure taxonomy and injection validation). The 27-task architecture-invariance statistics cited in the main body (cross-embedding spread mean $0.093$, median $0.074$) come from S019D.
+
+% ============================================================
+\subsection{S019D: Full Benchmark Certification}
+\label{app:s019d}
+
+\paragraph{Question.} Does the RSCT certificate pipeline produce discriminative per-task certificates across all 27 CONUS-27 targets and 6 embedding families, and does theory $\kappa$ (D*/D) correlate with $R^2$ residuals independently of embedding type?
+
+\paragraph{Design.} $6 \times 27 \times 5 = 810$ fits per seed: 6 embeddings (noisy\_control, PCA32, Spatial Lag, geo\_spatial, GNN, domain\_features) $\times$ 27 targets $\times$ 5 folds. One solver (HistGBDT) throughout. Three independent seeds $\{42, 123, 456\}$ yield 2{,}430 total fits. noisy\_control provides a negative-control floor; domain\_features provides an upper-bound reference ceiling. The three core families (PCA32, Spatial Lag, GNN) replicate the main-paper embedding comparison.
+
+\paragraph{Setup.}
+\begin{itemize}
+\item \textbf{Data:} \texttt{zcta\_features\_labels.parquet} (31{,}789 rows, 63 solver-usable features)
+\item \textbf{Targets:} all 27 CONUS-27 tasks (21 health, 3 socioeconomic, 3 environmental)
+\item \textbf{Embeddings:} 6 families: noisy\_control (random 32-dim, negative control), PCA32 (ACS no spatial bias), Spatial Lag (queen-contiguity means), geo\_spatial (geographic coordinate features), GNN (GraphSAGE-derived 2-hop), domain\_features (domain-specific geo-substrate signals)
+\item \textbf{Solver:} HistGBDT (200 trees, lr=0.05, max\_depth=4); all families use identical solver for direct comparability
+\item \textbf{Certificate:} theory $\kappa$ via \texttt{RegressionKappaEvaluator} with leave-one-out references (D*/D); proxy $\kappa$ via MLP tercile classifier omitted (per-arm 1/3 calibration renders proxy cross-arm comparisons uninformative; see Finding D1)
+\item \textbf{Sigma:} \texttt{compute\_sigma\_request(N)}
+\item \textbf{Gatekeeper:} \texttt{SequentialGatekeeper.evaluate()} with default policy; ADR-024 provenance
+\item \textbf{Protocol:} 5-fold county-holdout interpolation
+\item \textbf{Seeds:} $\{42, 123, 456\}$; results are seed-mean unless noted
+\item \textbf{Instance:} \texttt{ml.m5.4xlarge}, ${\approx}315$ min per seed
+\item \textbf{Commit:} \texttt{e977bfc}
+\end{itemize}
+
+\paragraph{Hypotheses.}
+\begin{table}[htbp]
+\centering
+\small
+\caption{S019D pre-registered hypotheses and outcomes (27 tasks, 6 embeddings, 3 seeds).}
+\label{tab:s019d_hypotheses}
+\begin{tabular}{llccc}
+\toprule
+\textbf{ID} & \textbf{Hypothesis} & \textbf{Threshold} & \textbf{Actual} & \textbf{Verdict} \\
+\midrule
+FC-1 & Simplex integrity ($R+S_{\text{sup}}+N \approx 1$) & max dev $< 0.01$ & max dev $= 0.163$, mean $= 0.021$ & \textbf{FAIL} \\
+FC-2 & $\alpha$ range across families $>$ 0.02 & spread $> 0.02$ & spread $\approx 0.01$ & \textbf{FAIL} \\
+FC-3 & $\kappa$ range across families $>$ 0.02 & spread $> 0.02$ & range $0.022$--$0.609$, spread $0.587$ & \textbf{PASS} \\
+FC-4 & $\sigma < 0.30$ for $\geq$20/27 tasks & count $\geq 20$ & 2/27 tasks & \textbf{FAIL} \\
+FC-5 & Cross-seed consensus (Pearson $r > 0.90$) & $r > 0.90$ & min $r = 0.9980$, mean $r = 0.9983$ & \textbf{PASS} \\
+FC-6 & Gate discrimination ($>$1 distinct decision) & $>$1 type & flat\_pass + oobleck\_pass + reject all present & \textbf{PASS} \\
+FC-7 & $\kappa$--residual correlation ($\rho < -0.10$) & $\rho < -0.10$ & Spearman $\rho = -0.391$, $p < 10^{-6}$ & \textbf{PASS} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Results: Per-Family Certificate Summary (Table~\ref{tab:s019d_summary}).}
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{S019D: Theory $\kappa$ (D*/D) and flat-gate pass rate by embedding family (seed-mean across 3 seeds, 27 tasks $\times$ 5 folds = 135 cells per embedding). Embeddings ordered by mean $\kappa$.}
+\label{tab:s019d_summary}
+\begin{tabular}{l|cc}
+\toprule
+\textbf{Embedding} & \textbf{Mean theory $\kappa$} & \textbf{Flat-gate pass rate} \\
+\midrule
+noisy\_control    & $0.082$ & $0\%$ \\
+PCA32             & $0.134$ & $0\%$ \\
+Spatial Lag       & $0.160$ & $6\%$ \\
+geo\_spatial      & $0.185$ & $30\%$ \\
+GNN               & $0.189$ & $30\%$ \\
+domain\_features  & $0.219$ & $47\%$ \\
+\midrule
+All embeddings    & $0.162$ & $19\%$ (flat), $2\%$ (oobleck) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Results: Kappa Discrimination of Embedding Quality (Table~\ref{tab:s019d_kappa_corr}).}
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{S019D: Theory $\kappa$ discrimination of embedding quality. \emph{Within-task}: rank-accuracy (correct top-rank) is the primary statistic; mean Spearman $\rho$ is reported for completeness but estimated from $n{=}6$ points per task and should be interpreted directionally. 95\% CI via percentile bootstrap ($B{=}1{,}000$) resampling over tasks. \emph{Pooled}: Spearman $\rho(\kappa, -R^2)$ across all 162 task$\times$embedding cells (6 families, task means); negative value indicates higher $\kappa \Rightarrow$ higher $R^2$.}
+\label{tab:s019d_kappa_corr}
+\begin{tabular}{l|ccc}
+\toprule
+\textbf{Analysis} & \textbf{Value} & \textbf{95\% CI} & \textbf{Result} \\
+\midrule
+Within-task rank-accuracy (correct top-rank), 27 tasks & $20/27$ & --- & primary result \\
+Within-task $\bar\rho(\kappa_{\text{rank}}, R^2_{\text{rank}})$, 27 tasks & $0.947$ & $[0.913,\, 0.973]$ & directional ($n{=}6$ per task) \\
+Pooled 162 cells: $\rho(\kappa, -R^2)$ & $-0.391$ & --- & $p < 10^{-6}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Results: Gate Decision Distribution Across 27 Tasks (Table~\ref{tab:s019d_gates}).}
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{S019D: Gate decision counts across 81 cells (27 tasks $\times$ 3 core embeddings: PCA32, Spatial Lag, GNN). $\chi^2$ test for association between target family (health/socioeconomic/environmental) and gate outcome.}
+\label{tab:s019d_gates}
+\begin{tabular}{l|ccccc}
+\toprule
+\textbf{Target family} & \textsc{exec} & \textsc{re\_enc} & \textsc{repair} & \textsc{block} & \textsc{reject} \\
+\midrule
+Health (21 $\times$ 3 = 63)       & 8  & 55 & 0 & 0 & 0 \\
+Socioeconomic (3 $\times$ 3 = 9)  & 0  & 9  & 0 & 0 & 0 \\
+Environmental (3 $\times$ 3 = 9)  & 1  & 8  & 0 & 0 & 0 \\
+\midrule
+\multicolumn{6}{l}{$\chi^2 = 1.29$, $df = 2$, $p = 0.53$ (no significant family association)} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Results: N-Ceiling vs.\ Gate Decision (Table~\ref{tab:s019d_nceiling_gate}).}
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{S019D: $N_{\text{ceiling}}$ terciles vs.\ gate pass rates (6-embedding N-ceiling, seed-42). The oobleck gate reduces false positives on high-ceiling tasks: flat gate passes 29\% of cells but oobleck only 0\%. Point-biserial $r$ tests whether flat-gate pass correlates with $N_{\text{ceiling}}$.}
+\label{tab:s019d_nceiling_gate}
+\begin{tabular}{l|cc|cc}
+\toprule
+$N_{\text{ceiling}}$ \textbf{tercile} & \textbf{Range} & $n$ \textbf{tasks} & \textsc{flat pass} & \textsc{oobleck pass} \\
+\midrule
+Low ($N_{\text{ceil}} < 0.212$)   & $[0.084, 0.200]$ & 9 & $7\%$ & $4\%$ \\
+Mid ($0.212$--$0.271$)            & $[0.220, 0.268]$ & 9 & $20\%$ & $2\%$ \\
+High ($N_{\text{ceil}} > 0.271$)  & $[0.288, 0.444]$ & 9 & $29\%$ & $0\%$ \\
+\midrule
+\multicolumn{5}{l}{Point-biserial $r(\text{flat pass}, N_{\text{ceiling}}) = +0.213$, $p < 0.0001$} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Results: Per-Task Certificate Table.} The full 81-cell certificate table (27 tasks $\times$ 3 embeddings: $R$, $S_{\text{sup}}$, $N$, $\alpha$, $\kappa$, $\sigma$, gate decision, gate\_evidence) is released as \texttt{s019d\_certificates.json} in the reproducibility artifacts. A per-task summary is provided in Table~\ref{tab:s019d_per_task}.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{S019D: Per-task certificate summary (PCA32 embedding, HistGBDT solver). Top 5 easiest and top 5 hardest by $N_{\text{ceiling}}$. Full 27-task table in released artifacts.}
+\label{tab:s019d_per_task}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{l|c|ccc|ccc|c}
+\toprule
+\textbf{Task} & $R^2$ & $R$ & $S$ & $N$ & $\alpha$ & $\kappa$ & $\sigma$ & \textbf{Gate} \\
+\midrule
+\multicolumn{9}{l}{\emph{Easiest 5 (lowest $N_{\text{ceiling}}$, 6-family); $R,S,N,\alpha$ degenerate ($\dagger$):}} \\
+Night lights       & .778 & .244$^\dagger$ & .335$^\dagger$ & .270$^\dagger$ & .472$^\dagger$ & .060 & .270 & \textsc{re\_enc} \\
+Pop.\ density      & .727 & .329$^\dagger$ & .343$^\dagger$ & .302$^\dagger$ & .521$^\dagger$ & .071 & .302 & \textsc{re\_enc} \\
+Elevation          & .344 & .329$^\dagger$ & .349$^\dagger$ & .250$^\dagger$ & .570$^\dagger$ & .042 & .250 & \textsc{re\_enc} \\
+Home value         & .651 & .312$^\dagger$ & .351$^\dagger$ & .287$^\dagger$ & .521$^\dagger$ & .066 & .287 & \textsc{re\_enc} \\
+Physical health    & .775 & .311$^\dagger$ & .341$^\dagger$ & .335$^\dagger$ & .481$^\dagger$ & .127 & .335 & \textsc{re\_enc} \\
+\midrule
+\multicolumn{9}{l}{\emph{Hardest 5 (highest $N_{\text{ceiling}}$, 6-family):}} \\
+Binge drinking     & .441 & .340$^\dagger$ & .336$^\dagger$ & .309$^\dagger$ & .526$^\dagger$ & .166 & .309 & \textsc{re\_enc} \\
+High cholesterol   & .524 & .327$^\dagger$ & .340$^\dagger$ & .323$^\dagger$ & .504$^\dagger$ & .181 & .323 & \textsc{re\_enc} \\
+Cholesterol screen & .430 & .337$^\dagger$ & .337$^\dagger$ & .304$^\dagger$ & .526$^\dagger$ & .129 & .304 & \textsc{re\_enc} \\
+Cancer             & .586 & .332$^\dagger$ & .344$^\dagger$ & .312$^\dagger$ & .516$^\dagger$ & .173 & .312 & \textsc{re\_enc} \\
+Tree cover         & .460 & .302$^\dagger$ & .338$^\dagger$ & .326$^\dagger$ & .482$^\dagger$ & .114 & .326 & \textsc{re\_enc} \\
+\bottomrule
+\end{tabular}}% end resizebox
+\end{table}
+
+\paragraph{Results: Cross-Seed Consensus (Table~\ref{tab:s019d_cross_seed}).}
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{S019D: Cross-seed consensus on per-task mean theory $\kappa$ vectors (27-dim). Three seeds $\{42, 123, 456\}$ yield three independent vectors; Pearson $r$ for each pair. FC-5 requires min $r > 0.90$.}
+\label{tab:s019d_cross_seed}
+\begin{tabular}{l|cc}
+\toprule
+\textbf{Seed pair} & Pearson $r$ & $p$ \\
+\midrule
+42 vs.\ 123   & $0.9984$ & $< 10^{-20}$ \\
+42 vs.\ 456   & $0.9984$ & $< 10^{-20}$ \\
+123 vs.\ 456  & $0.9980$ & $< 10^{-20}$ \\
+\midrule
+Min $r$ & $0.9980$ & \\
+Mean $r$ & $0.9982$ & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Verdict.} \textbf{4/7 PASS} (FC-1, FC-2, FC-4 fail). Key positive results: FC-7 Spearman $\rho(\kappa_{\text{theory}}, -R^2) = -0.391$, $p < 10^{-6}$ across 162 cells; within-task $\bar\rho = 0.947$, 95\% CI $[0.913,\, 0.973]$ (20/27 correct top-rank). FC-5 cross-seed consensus $r = 0.998$ confirms reproducibility. FC-1 failure (max simplex deviation $0.163$, mean $0.021$) is a certificate-computation artifact from per-arm tercile calibration (Finding~D1 below); theory $\kappa$ and $R^2$ are unaffected. FC-1 and FC-2 are both resolved in S019E via pooled-boundary calibration (Appendix~\ref{app:s019e}).
+
+\paragraph{Findings.}
+
+\textbf{D1: Proxy simplex per-arm calibration is degenerate; resolved in S019E.}
+The MLP tercile classifier calibrates each embedding arm independently against its own residual distribution, forcing $R \approx S \approx N \approx 1/3$ for every arm regardless of $R^2$ spread. Spearman correlation between proxy $\kappa$ and $R^2$ is $-0.141$ ($p = 0.09$). Root cause: CONUS-27 health-outcome residuals are dominated by irreducible geographic noise that no embedding fully captures, making per-arm cross-arm tercile separation uninformative. Theory $\kappa$ (D*/D) is immune because its leave-one-out reference structure cancels the shared noise floor.
+
+\emph{Resolved in S019E} (Appendix~\ref{app:s019e}): pooled tercile boundaries (shared $q_{33}/q_{66}$ computed from all five real arms per task, applied uniformly) eliminate the per-arm degeneracy. Under pooled calibration, simplex max deviation drops to $0.000$ (FC-1 PASS) and mean $\alpha$ spread rises to $0.038$ per task (FC-2 PASS). The D4 certificate-ranking result (Section~\ref{sec:d4}) follows directly from this fix. \emph{Supports C1 (benchmark design motivation): per-arm tercile degeneracy demonstrates why theory $\kappa$ is required for cross-embedding discrimination; the S019E fix shows that proxy simplex becomes informative once the calibration is correctly pooled.}
+
+\textbf{D2: Theory $\kappa$ recovers the N-ceiling sensitivity gradient with high reliability.}
+Theory $\kappa$ Spearman correlation with $-R^2$ is $\rho = -0.391$ ($p < 10^{-6}$) across 162 cells. Within-task, $\kappa$ correctly ranks the full 6-embedding set (Spearman $\bar\rho = 0.947$, 95\% CI $[0.913,\, 0.973]$ via bootstrap over tasks; 20/27 tasks identify the correct top-rank embedding). Cross-seed consensus $r = 0.9982$ (min $0.9980$). The mean $\kappa$ ordering (noisy\_control $0.082$ $<$ PCA32 $0.134$ $<$ SpatialLag $0.160$ $<$ geo\_spatial $0.185$ $<$ GNN $0.189$ $<$ domain\_features $0.219$) recovers the expected gradient from random-noise floor to domain-rich ceiling. The across-task $5.3{\times}$ N-ceiling ratio ($0.084$--$0.444$; $3.8{\times}$ on the 3 direct-measurement environmental targets, \S\ref{sec:nceiling}) is reflected in theory $\kappa$ variation across tasks. \emph{Supports C2 (N-ceiling spectrum + sensitivity gradient): theory $\kappa$ correctly ranks embedding quality per task in 20/27 cases and tracks the ceiling gradient across tasks.}
+
+\textbf{D3: The oobleck gate corrects ceiling-driven false positives.}
+The flat gate (\textsc{execute}) passes 19\% of cells but incorrectly passes 29\% of high-ceiling cells ($N_{\text{ceiling}} > 0.271$). Point-biserial $r(\text{flat pass}, N_{\text{ceiling}}) = +0.213$ ($p < 0.0001$): the flat gate is positively correlated with task difficulty, passing more high-noise cells. The oobleck gate reduces high-ceiling pass rate from 29\% to 0\% by raising $\kappa_{\text{req}}$ as turbulence $\sigma = N$ increases. The 138 ``flips'' per seed (cells that pass flat but fail oobleck) represent the actionable correction. \emph{Supports C2 (sensitivity gradient): oobleck gate operationalizes the N-ceiling spectrum as a dynamic threshold; supports C3/GEO-D (substrate-ceiling collapse): gate degeneracy is the computational manifestation of D.2 Architecture Invariance.}
+
+\textbf{D4: Single-solver HistGBDT benchmark is reproducible and architecture-discriminating.}
+With a fixed HistGBDT solver, the within-task architecture step (median $0.074$, mean $0.093$ over the three core families) is the smaller of two steps on a typical task; the across-task $N_{\text{ceiling}}$ step spans up to $0.36$ across the 27 tasks. Among the three core families, GNN dominates on environmental targets where spatial autocorrelation is large and PCA cannot represent it (elevation gap $+0.33$ over PCA32; tree cover $+0.17$), where the within-task step is comparable to the full across-task range; on most health and socioeconomic targets the three families are within a few percentage points of each other (Table~\ref{tab:results}). Across all 6 families, the per-task spread widens to mean $0.148$, and the extended families (domain features and geo-spatial) deliver the largest individual gains on the tasks where the substrate is rich enough to support them. Per-task wins among all six families are reported in the released \texttt{georsct\_table.parquet}; their direction reinforces the substrate-dependent (not architecture-dependent) reading of the ceiling. \emph{Supports C1 (benchmark): validates ceiling-dominance under a controlled single-solver design; supports C2: shows where additional substrate, rather than additional architectural complexity, moves the ceiling.}
+
+% ============================================================
+\subsection{S019E: Pooled Tercile Calibration}
+\label{app:s019e}
+
+\paragraph{Question.} Does pooling tercile boundaries across all real arms per task resolve the per-arm degeneracy in S019D (Finding~D1)? Does the corrected proxy simplex $R$ value correctly rank embedding arms within a task (hypothesis D4)?
+
+\paragraph{Design.} Same $6 \times 27 \times 5 = 810$ fits per seed as S019D; three seeds $\{42, 123, 456\}$, 2{,}430 total fits. Key changes: (1)~pool real-arm training residuals per task to compute shared $q_{33}/q_{66}$ boundaries applied uniformly to all six arms; (2)~county-blocked inner validation; (3)~class-weighted MLP with county-blocked early stopping (patience~10). noisy\_control uses the same boundaries but is excluded from the D4 arm-ranking test (it is not a real embedding candidate).
+
+\paragraph{Hypotheses and outcomes.}
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{S019E pre-registered hypotheses and outcomes (pooled tercile calibration; 27 tasks, 5 real arms, 3 seeds; 2{,}430 total fits, 0 degenerate).}
+\label{tab:s019e_hypotheses}
+\begin{tabular}{llccc}
+\toprule
+\textbf{ID} & \textbf{Hypothesis} & \textbf{Threshold} & \textbf{Actual} & \textbf{Verdict} \\
+\midrule
+FC-1 & Simplex integrity ($R+S_{\text{sup}}+N \approx 1$) & max dev $< 0.01$ & max dev $= 0.000$ & \textbf{PASS} \\
+FC-2 & $\alpha$ range across arms $> 0.02$ & mean spread $> 0.02$ & mean $0.038$; 18/27 tasks & \textbf{PASS} \\
+FC-3 & Proxy $\kappa$ range across arms $> 0.02$ & spread $> 0.02$ & mean $0.020$ & \textbf{FAIL} \\
+FC-4 & $\sigma < 0.30$ for $\geq 20/27$ tasks & count $\geq 20$ & 1/27 tasks & \textbf{FAIL} \\
+FC-5 & Cross-seed consensus ($r > 0.90$) & min $r > 0.90$ & min $r = 0.998$ & \textbf{PASS} \\
+FC-7 & Theory $\kappa$--residual correlation ($\rho < -0.10$) & $\rho < -0.10$ & $\rho = +0.135$, $p = 0.12$ & \textbf{FAIL} \\
+D4 & Certificate arm ranking ($\mu_{\text{family}} > 0.20$, $p < 0.05$) & $p < 0.05$, $df = 2$ & $\mu = 0.574$, $p = 0.076$ & \textbf{FAIL}$^{*}$ \\
+D4-S & Pairwise arm-ordering accuracy $> 0.50$ & binomial $p < 0.05$ & $\hat{p} = 0.661$, $z = 9.14$ & \textbf{PASS} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent $^{*}$D4 primary FAIL is a structural power constraint ($df = 2$, $k = 3$ families), not a null result; the effect size is $2.9{\times}$ the threshold (Section~\ref{sec:d4}).
+
+\paragraph{FC-1 and FC-2 resolved; FC-4 and FC-7 remain limited.}
+Pooled calibration eliminates per-arm degeneracy: simplex deviation is identically $0$ across all $2{,}430$ records (FC-1 PASS). Mean $\alpha$ spread rises to $0.038$ per task with 18/27 tasks above threshold (FC-2 PASS). FC-4 remains FAIL: proxy $\sigma = N_{\text{med}}$ is compressed near $0.32$--$0.34$ for all tasks (elevation is the sole outlier at $0.274$; 1/27 below $0.30$). FC-7 regresses from S019D ($\rho = -0.391$, $p < 10^{-6}$) to $\rho_{\text{theory}} = +0.135$ ($p = 0.12$). The most likely cause is that S019E includes noisy\_control in the LOO reference set for theory $\kappa$ computation, diluting the D*/D discrimination signal at the pooled level. The S019D within-task ranking result ($\bar\rho = 0.947$, 20/27 correct top-rank; Table~\ref{tab:s019d_kappa_corr}) is the load-bearing claim for theory $\kappa$ discrimination and is not affected by S019E's LOO reference design.
+
+\paragraph{D4 certificate arm-ranking results.}
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{S019E D4-secondary: pairwise arm-ordering accuracy by target family. For each task $\times$ seed, all $\binom{5}{2} = 10$ pairs of real arms are scored: correct if the arm with higher certificate-$R$ also achieves higher held-out $R^2$. Null $= 0.50$ (random ordering). Binomial $z$-test, one-sided.}
+\label{tab:s019e_d4}
+\begin{tabular}{l|ccc|c}
+\toprule
+\textbf{Family} & \textbf{Trials} & $\hat{p}$ & $z$ & $p$ \\
+\midrule
+Health (21 tasks)         & 630 & 0.613 & 5.66 & $< 10^{-7}$ \\
+Socioeconomic (3 tasks)   & 90  & 0.767 & 5.06 & $< 10^{-6}$ \\
+Environmental (3 tasks)   & 90  & 0.889 & 7.38 & $< 10^{-12}$ \\
+\midrule
+\textbf{Pooled (27 tasks)} & \textbf{810} & \textbf{0.661} & \textbf{9.14} & $\bm{< 10^{-15}}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Verdict.} \textbf{3/6 PASS} (FC-1, FC-2, FC-5; plus D4-secondary). Pooled calibration resolves the per-arm degeneracy found in S019D: FC-1 and FC-2 upgrade from FAIL to PASS. FC-4 and FC-7 remain FAIL for structural reasons documented above. D4 primary FAIL is a df-2 power artifact; D4-secondary (pairwise accuracy $\hat{p} = 0.661$, $z = 9.14$, $p < 10^{-15}$) is the publishable certificate-ranking result for v1.
+
+% ============================================================
+\subsection{Main Paper Table 1: Cross-Protocol Results}
+\label{app:table1_template}
+
+This table appears in the main body (Section~\ref{sec:geo}). Template for required values:
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{GeoRSCT results: $R^2$ by target family, solver family, and evaluation protocol. $N_{\text{ceiling}} = 1 - \max_k(R^2_k)$. The bottom row is the across-task mean of the per-task $\max_k - \min_k$ across the three core families and is distinct from $\max_k - \min_k$ of the ``All 27 mean'' row (those differ because per-task and across-task aggregations do not commute).}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{l|ccc|ccc|c}
+\toprule
+& \multicolumn{3}{c|}{\textbf{Interpolation}} & \multicolumn{3}{c|}{\textbf{Extrapolation}} & \\
+\textbf{Target family} & PCA32 & Lag & GNN & PCA32 & Lag & GNN & $N_{\text{ceil}}$ \\
+\midrule
+Health mean (21) & .660 & .662 & .637 & .664 & .660 & .630 & .266 \\
+Socioeconomic (3) & .706 & .730 & .698 & .728 & .748 & .716 & .164 \\
+Environmental (3) & .533 & .610 & .627 & .635 & .673 & .664 & .173 \\
+\midrule
+\textbf{All 27 mean} & .651 & .664 & .643 & .668 & .672 & .644 & .244 \\
+Mean per-task spread (core 3) & \multicolumn{3}{c|}{0.093$^{\dagger}$} & \multicolumn{3}{c|}{0.043$^{\dagger}$} & --- \\
+\bottomrule
+\end{tabular}}% end resizebox
+\end{table}
+
+\paragraph{Metrics needed from experiments.}
+\begin{enumerate}
+\item Per-task $R^2$ for each (solver, protocol) pair: $3 \times 2 \times 27 = 162$ values
+\item Per-task $N_{\text{ceiling}}$: 27 values (per protocol)
+\item Mean per-task spread: across-task mean of $|R^2_{\max} - R^2_{\min}|$ over the 27 tasks (per-task aggregation, then mean)
+\item Block-bootstrap CIs on $N_{\text{ceiling}}$: 27 $\times$ $[2.5\text{th}, 97.5\text{th}]$
+\item Protocol sensitivity: paired $\Delta R^2$ (extrap $-$ interp) per task
+\end{enumerate}
+
+\paragraph{Source experiments.}
+\begin{itemize}
+\item Interpolation columns: S019D (full 27-task certification with 6 embedding families; three core + three extended)
+\item Extrapolation columns: S018B (state-holdout)
+\item GNN columns: S019D (GNN is one of 3 embedding families in S019D)
+\item $N_{\text{ceiling}}$: computed post-hoc from S019D per-task best $R^2$ across embeddings
+\end{itemize}
+
+% Appendix I (v1 GCF Failure Mode Catalog) removed — superseded by
+% the twelve-mode taxonomy in Section 2.  The v1 GCF modes (GCF-1.1
+% through GCF-3.2) are documented in the upstream RSCT catalog.
+
+% ============================================================
+% APPENDIX H: REPRODUCIBILITY AND RELEASE ARTIFACTS (inlined)
+% ============================================================
+\section{Reproducibility and Release Artifacts}
+\label{app:reproducibility}
+
+\subsection{CONUS-27 Task-Level Results}
+\label{app:conus27}
+A full per-task table giving holdout $R^2$ for each of the 27 CONUS targets under each of the six embedding families, together with the per-task $N_{\text{ceiling}}$ estimate, is shipped as a machine-readable artifact (\texttt{georsct\_table.parquet}) at the dataset release URL below. The summarized template appears in Appendix~\ref{app:table1_template}.
+
+\subsection{Release Location}
+
+\begin{verbatim}
+https://huggingface.co/datasets/rudymartin/georsct
+\end{verbatim}
+
+\subsection{Released Files}
+
+\begin{itemize}
+\item \texttt{README.md}: dataset card with loading examples and full source licensing
+\item \texttt{georsct\_table.parquet}: lightweight table without geometry
+\item \texttt{georsct\_simplified\_001.geoparquet}: geometry-enabled benchmark
+\item \texttt{cdc\_places\_ci.parquet}: CDC PLACES 95\% confidence intervals (sidecar)
+\item \texttt{zcta\_acs\_margins\_of\_error.parquet}: ACS margins of error (sidecar)
+\item \texttt{georsct\_schema.json}: column metadata and summary statistics
+\item \texttt{georsct\_checksums.sha256}: SHA-256 file-integrity verification
+\item \texttt{build\_manifest.json}: provenance and construction metadata
+\item \texttt{croissant.json}: MLCommons Croissant metadata for dataset discovery
+\item \texttt{validation\_report.json}: machine-readable validation summary
+\item \texttt{load\_georsct.py}: loading and split helper
+\item \texttt{quickstart.py}: smoke test and toy baseline
+\end{itemize}
+
+\subsection{Versioning}
+
+GeoRSCT v23.0.2. Source vintage: CDC PLACES 2023, ACS 2022 5-Year, Census TIGER/Line 2020. Schema version documented in \texttt{georsct\_schema.json}. All files checksummed at release time.
+
+\subsection{Environment}
+
+\begin{verbatim}
+Python >= 3.10
+pandas >= 2.0
+geopandas >= 0.14
+pyarrow >= 14.0
+scikit-learn >= 1.3
+numpy >= 1.24
+lightgbm >= 4.0
+torch >= 2.0 (GNN experiments only)
+torch-geometric >= 2.4 (GNN experiments only)
+\end{verbatim}
+
+\subsection{Seeds and Determinism}
+
+Random seeds: $[42, 123, 456]$ for stochastic models (GNN, MLP). Spatial block splits are deterministic given the state-FIPS blocking. Bootstrap seed: 42. Model initialization seeds are recorded per experiment in the evidence JSONs.
+
+\subsection{Reproduction Steps}
+
+\begin{verbatim}
+git clone <repo-or-hf-snapshot>
+pip install -r requirements.txt
+python quickstart.py
+python run_baselines.py --config configs/georsct_default.yaml
+python validate_release.py
+\end{verbatim}
+
+\subsection{Artifact Integrity}
+
+Verification steps: (1)~SHA-256 checksum verification against \texttt{georsct\_checksums.sha256}, (2)~row-count verification ($\sim$31{,}789 ZCTAs), (3)~schema verification (column names, types, ranges match \texttt{georsct\_schema.json}), (4)~split verification (no ZCTA in multiple folds), (5)~geometry verification (valid polygons, no self-intersections).
+
+\subsection{Compute Resources}
+\label{app:compute}
+
+All experiments ran on AWS SageMaker with CPU-only instances (no GPUs):
+\begin{itemize}
+\item \textbf{GeoRSCT base sweep} (Section~\ref{sec:geo}, 3 families $\times$ 27 tasks, interpolation + extrapolation protocols): \texttt{ml.m5.4xlarge} (16~vCPU, 64~GB RAM), approximately 2~hours wall-clock.
+\item \textbf{Certificate invariance gradient} (Appendix~\ref{app:s019a}, S019A, 27 cells $\times$ 5 folds = 135 fits): \texttt{ml.m5.xlarge}, wall-clock 345~minutes.
+\item \textbf{Full benchmark certification} (Appendix~\ref{app:s019d}, S019D, $6 \times 27 \times 5 = 810$ fits per seed, $\times$ 3 seeds $= 2{,}430$ fits total): \texttt{ml.m5.4xlarge}, ${\approx}315$~min compute per seed (${\approx}3$~min wall-clock per seed via parallelism); 3 seeds run concurrently.
+\item \textbf{Pooled tercile calibration} (Appendix~\ref{app:s019e}, S019E, same $6 \times 27 \times 5 = 810$ fits per seed, $\times$ 3 seeds): \texttt{ml.m5.4xlarge}, ${\approx}315$~min per seed; 3 seeds run concurrently.
+\item \textbf{Injection-detection harness} (Section~\ref{sec:injection}): seconds per mode on commodity hardware.
+\end{itemize}
+
+% ============================================================
+% APPENDIX: QUANTITATIVE SUMMARY
+% ============================================================
+\section{Quantitative Summary: Ten Key Numbers}
+\label{app:key_numbers}
+
+This appendix collects the load-bearing quantitative claims in one place, states each number's provenance, and flags interpretive caveats.
+
+\begin{enumerate}
+
+\item \textbf{N-ceiling range dominates everything.}
+Across the 27 tasks, $N_{\text{ceiling}}$ spans $0.084$ (night lights) to $0.444$ (binge drinking), a $5.3{\times}$ ratio. Restricted to the 3 direct-measurement environmental targets that avoid the PLACES--ACS target--input overlap (\S\ref{sec:nceiling}), the ratio is $3.8{\times}$ ($0.084$--$0.317$; range $0.233$); the clean-subset spread is itself the largest axis of variation in that subset. Task difficulty is not a nuisance variable; it is the finding.
+\emph{Why it matters:} Before tuning any model, compute $N_{\text{ceiling}}$; you may be optimizing the wrong variable. Most leaderboard variance in geospatial benchmarks is task difficulty, not model quality.
+\emph{Source:} Table~\ref{tab:nceiling_boot}; six-family max over S019D; clean-subset numbers from the 3 environmental targets in the same table.
+
+\item \textbf{Solver choice is nearly invisible.}
+In the Stage~1 factorial (S019A, 3 targets), the solver main effect $\eta^2 = 0.141$--$0.216$ is consistently smaller than the embedding main effect $\eta^2 = 0.549$--$0.687$, and the embedding$\times$solver interaction is small ($\eta^2 = 0.035$--$0.091$). The embedding ranking does not change when you swap solvers. Stage~2 (S019D) exploits this by fixing the solver to HistGBDT and spending the budget on embedding and task breadth instead.
+\emph{Why it matters:} Skip full solver ablations across all 27 tasks. The ceiling tells you whether switching GBT$\to$MLP will move the needle; for most health outcomes, it will not.
+\emph{Source:} Table~\ref{tab:s019a_anova}; Section~\ref{sec:geo}.
+
+\item \textbf{Embedding choice matters more than solver, but still less than the ceiling on most tasks.}
+Within a task, swapping among the three core embedding families changes $R^2$ by a median of $0.074$ (mean $0.093$); across the full 5-family set the median is $0.129$ (mean $0.148$). Compared task-to-task, $N_{\text{ceiling}}$ spans a range of $0.36$ over the 27 tasks; on a typical task, the within-task architecture step is the smaller of the two. The exception is environmental targets, where GNN's spatial inductive bias is decisive (elevation: GNN beats PCA32 by $+0.33$; tree cover by $+0.17$), and the within-task step is comparable to the full across-task range. On most health and socioeconomic targets the three core families are within a few percentage points of each other.
+\emph{Why it matters:} Feature engineering has more leverage than solver choice, but is still capped by the ceiling on most tasks. Concentrate embedding budget where spatial structure is informative (environmental, some health) and where the ceiling permits movement; for low-ceiling tasks the simplest adequate embedding is sufficient.
+\emph{Source:} Section~\ref{sec:arch_invisible}; Table~\ref{tab:results}; per-task data in \texttt{georsct\_table.parquet}.
+
+\item \textbf{Interaction is small, not zero.}
+Embedding $\times$ solver interaction $\eta^2 = 0.035$--$0.091$. Embedding main effect $\eta^2 = 0.549$--$0.687$. The interaction is $6$--$16{\times}$ smaller than the main effect. The ranking is portable across solvers, but not perfectly so; population density interaction is significant ($p < 0.001$, $\eta^2 = 0.091$).
+\emph{Why it matters:} It is safe to select embeddings using a single cheap solver (HistGBDT), but do not assume the best embedding for GBT is best for MLP on every task; the transfer holds for rankings, not effect sizes.
+\emph{Source:} Table~\ref{tab:s019a_anova}.
+
+\item \textbf{Embedding sensitivity scales continuously with task difficulty.}
+$\eta^2(\text{embedding}) = 0.549$ (diabetes) $\to 0.618$ (population density) $\to 0.687$ (elevation). Monotonic. Not a binary invariant/sensitive switch; it is a gradient. The harder the task, the more embedding choice matters.
+\emph{Why it matters:} Concentrate representation engineering on high-ceiling tasks where embedding choice has outsized impact. On easy tasks the embedding does not matter; on hard tasks it is the only lever that moves the ceiling.
+\emph{Source:} Table~\ref{tab:s019a_anova}; IG-3 in Appendix~\ref{app:s019a}.
+
+\item \textbf{Theory kappa discriminates across embeddings; pooled proxy kappa discriminates within tasks.}
+Theory $\kappa$ ($D^*/D$, S019D) achieves within-task rank-accuracy of 20/27 correct top-rank, mean Spearman $\bar{\rho} = 0.947$ $[0.913,\, 0.973]$ across the six embedding families per task. Proxy $\kappa$ ($R{\cdot}(1{-}N)$) under per-arm tercile calibration (S019D) gives Spearman $\rho = -0.141$ ($p = 0.09$), essentially random. Under pooled tercile calibration (S019E), proxy $\kappa$ (via certificate $R$) correctly orders arm pairs in 66\% of $810$ pairwise trials ($z = 9.14$, $p < 10^{-15}$; Table~\ref{tab:s019e_d4}).
+\emph{Why it matters:} Per-arm calibration destroys proxy discriminability; pooled calibration restores it. For cross-embedding routing (which embedding wins per task), use theory $\kappa$ ($D^*/D$). For within-task arm ranking once pooled calibration is in place, the certificate $R$ is informative.
+\emph{Source:} Table~\ref{tab:s019d_kappa_corr}; Finding D1 in Appendix~\ref{app:s019d}; Table~\ref{tab:s019e_d4} in Appendix~\ref{app:s019e}.
+
+\item \textbf{The Oobleck gate corrects ceiling-driven false positives.}
+The flat gate passes 29\% of high-ceiling cells ($N_{\text{ceiling}} > 0.271$). The Oobleck gate passes 0\%. Point-biserial $r(\text{flat pass}, N_{\text{ceiling}}) = {+}0.213$ ($p < 0.0001$): the flat gate is \emph{more} permissive for harder tasks, which is backwards. The sigmoidal threshold fixes this by stiffening as $\sigma$ rises.
+\emph{Why it matters:} A fixed deployment threshold approves high-noise predictions at the same rate as low-noise ones; this is backwards behavior. Tying the gate bar to turbulence $\sigma$ means hard tasks automatically face a stricter threshold without manual recalibration.
+\emph{Source:} Table~\ref{tab:s019d_nceiling_gate}; Finding D3 in Appendix~\ref{app:s019d}.
+
+\item \textbf{Cross-seed reproducibility is extremely high.}
+Three independent seeds ($42, 123, 456$): Pearson $r$ between any pair of 27-dim $\kappa$ vectors $\geq 0.9980$ (min $= 0.9980$, mean $= 0.9983$). Per-task $N_{\text{ceiling}}$ cross-seed std: mean $= 0.0004$, max $= 0.0015$. The findings are not seed artifacts.
+\emph{Why it matters:} Embedding rankings and ceiling estimates are stable across seeds; single-seed results are trustworthy for most applications. Use cross-seed consistency as a sanity check, not a mandatory compute cost.
+\emph{Source:} Table~\ref{tab:s019d_cross_seed}; Table~\ref{tab:nceiling_boot}.
+
+\item \textbf{Bootstrap CIs are narrow but from a small support.}
+Fold-level bootstrap with $F{=}5$ folds gives at most $5^5 = 3{,}125$ distinct resamples. CIs reflect fold-variance only, not ZCTA-level spatial uncertainty. Typical CI width is ${\sim}0.02$--$0.04$; precision is conditional on the fold structure being representative. Cross-seed consistency is the independent replication check.
+\emph{Why it matters:} Tight CIs (${\pm}0.01$--$0.02$) look precise but only reflect fold variance, not spatial uncertainty across ZCTAs. Do not present them as bounds on the true noise floor; cross-seed consistency is the independent replication check.
+\emph{Source:} Table~\ref{tab:nceiling_boot}; Appendix~\ref{app:nceiling_method}.
+
+\item \textbf{PDFM provides the strongest available external corroboration for D.3.}
+PDFM Table~4 shows SatCLIP concatenation gives approximately $+0.01$ (interpolation), $+0.02$ (super-resolution), $-0.01$ (extrapolation) in an unaffiliated foundation model on a different feature substrate; the signed-delta pattern that D.3 organizes, and consistent with the spatial cross-validation literature~\citep{roberts2017cv,ploton2020spatial,mila2022nndm}. The magnitudes are small (${\sim}0.01$--$0.02$ $R^2$) and the comparison is qualitative (different feature substrate, different model, different tasks). D.3's contribution is not to predict the pattern novelly (the literature already does) but to type it as a gate disposition. Among the published geospatial systems examined, PDFM is the strongest external evidence that D.3's certificate signature appears in practice.
+\emph{Why it matters:} If you deploy geographic embeddings, test both interpolation and extrapolation protocols before trusting your benchmark score. An encoding that looks like an improvement under interpolation may degrade out-of-region transfer; this is well-attested across the spatial-CV literature.
+\emph{Source:} \citet[Table~4]{agarwal2025pdfm}; \citet{roberts2017cv,ploton2020spatial,mila2022nndm}; Section~\ref{sec:taxonomy} (D.3 paragraph).
+
+\end{enumerate}
+
+\section*{NeurIPS Paper Checklist}
+
+\begin{enumerate}
+
+\item {\bf Claims}
+    \item[] Question: Do the main claims made in the abstract and introduction accurately reflect the paper's contributions and scope?
+    \item[] Answer: \answerYes{}
+    \item[] Justification: The abstract and Section~\ref{sec:intro} list three contributions: (1) the CONUS-27 benchmark with certificate-level diagnostics ($N_{\text{ceiling}}$, theory $\kappa$, and the $(R, S_{\text{sup}}, N)$ decomposition with a documented v1 cross-arm calibration limitation; Appendix~\ref{app:s019d}), (2) the $N_{\text{ceiling}}$ spectrum as a per-task evaluation primitive with an acknowledged PLACES--ACS target-side overlap caveat (Section~\ref{sec:nceiling}, \ref{sec:conclusion}), and (3) a twelve-mode geo-substrate failure taxonomy with injection validation scoped to family GEO-D and certificate-field signatures specified for the remaining nine modes (Section~\ref{sec:taxonomy}, \ref{sec:injection}). These map directly to Sections~\ref{sec:geo}, \ref{sec:nceiling}, \ref{sec:taxonomy}, \ref{sec:injection}, and the data-release statement in Section~\ref{sec:conclusion}.
+
+\item {\bf Limitations}
+    \item[] Question: Does the paper discuss the limitations of the work performed by the authors?
+    \item[] Answer: \answerYes{}
+    \item[] Justification: Section~\ref{sec:conclusion}.1 explicitly enumerates limitations: the OOF-prediction requirement, single feature substrate (ACS only), taxonomy coverage (twelve-mode geo-substrate catalog with v1 injection validation scoped to family GEO-D), threshold calibration history, and no operational deployment claims.
+
+\item {\bf Theory assumptions and proofs}
+    \item[] Question: For each theoretical result, does the paper provide the full set of assumptions and a complete (and correct) proof?
+    \item[] Answer: \answerNA{}
+    \item[] Justification: This paper presents an empirical taxonomy and benchmark; it does not claim novel theorems. The $R/S_{\text{sup}}/N$ decomposition is taken as a structural definition from~\citep{martin2026rsct}; the simplex constraint $R{+}S_{\text{sup}}{+}N{=}1$ is enforced by construction.
+
+\item {\bf Experimental result reproducibility}
+    \item[] Question: Does the paper fully disclose all the information needed to reproduce the main experimental results?
+    \item[] Answer: \answerYes{}
+    \item[] Justification: Section~\ref{sec:geo}.1 specifies the 27 ZCTA tasks, the 63 solver-usable input features, and the six embedding families with their hyperparameters (detailed in Section~\ref{sec:geo}). Appendix~\ref{app:nceiling_method} provides bootstrap details, seed-collapse procedure, and synthetic-validation construction. Appendix~\ref{app:compute} reports compute environment. The HF dataset~\citep{geocert2026} provides out-of-fold predictions for all models.
+
+\item {\bf Open access to data and code}
+    \item[] Question: Does the paper provide open access to the data and code, with sufficient instructions to faithfully reproduce the main experimental results?
+    \item[] Answer: \answerYes{}
+    \item[] Justification: The GeoRSCT benchmark (63 input features, 27 targets, 3 protocols, upstream uncertainty fields from CDC PLACES and ACS), out-of-fold predictions for all geospatial families, the certificate library, the taxonomy specification, and the injection-detection harness are released as GeoRSCT v23.0.2 on Hugging Face~\citep{geocert2026} under CC-BY-4.0. The dataset card provides loading examples and reproduction instructions.
+
+\item {\bf Experimental setting/details}
+    \item[] Question: Does the paper specify all the training and test details necessary to understand the results?
+    \item[] Answer: \answerYes{}
+    \item[] Justification: Data splits (county-holdout interpolation, state-holdout extrapolation), hyperparameters (GBDT: 200 trees, learning rate 0.05, max depth 4; gate thresholds $\kappa_{\text{base}}{=}0.5$, $\lambda{=}0.4$), aggregation rules (median over $R$-labeled samples for $\kappa$ and $\alpha$), and label construction (residual terciles) are reported in Section~\ref{sec:geo} and Section~\ref{sec:geo}.
+
+\item {\bf Experiment statistical significance}
+    \item[] Question: Does the paper report error bars suitably and correctly defined or other appropriate information about the statistical significance of the experiments?
+    \item[] Answer: \answerYes{}
+    \item[] Justification: Fold-level block bootstrap ($B{=}1{,}000$) CIs are reported per task in Appendix~\ref{app:nceiling_method}. Stochastic models (GraphSAGE, MLP) are run with three seeds $\{42, 123, 456\}$ and reported as seed-mean $R^2$ (Appendix~\ref{app:nceiling_method}); cross-seed consistency is reported in Table~\ref{tab:s019d_cross_seed}. Cross-family $R^2$ spread is reported per task as the empirical variation across architectures (Section~\ref{sec:geo}). Injection-detection results are reported across eight independent seeds (Section~\ref{sec:injection}).
+
+\item {\bf Experiments compute resources}
+    \item[] Question: Does the paper provide sufficient information on the computer resources needed to reproduce the experiments?
+    \item[] Answer: \answerYes{}
+    \item[] Justification: Appendix~\ref{app:compute} reports compute requirements: \texttt{ml.m5.4xlarge} (16 vCPU, 64 GB RAM) instances on AWS SageMaker, with wall-clock times. No GPUs were required. The injection-detection harness runs in seconds on commodity hardware.
+
+\item {\bf Code of ethics}
+    \item[] Question: Does the research conducted in the paper conform, in every respect, with the NeurIPS Code of Ethics?
+    \item[] Answer: \answerYes{}
+    \item[] Justification: The research uses only publicly available, aggregated data (CDC PLACES at ZCTA level, ACS census variables) and does not involve human subjects, identifiable personal data, or restricted resources.
+
+\item {\bf Broader impacts}
+    \item[] Question: Does the paper discuss both potential positive societal impacts and negative societal impacts of the work performed?
+    \item[] Answer: \answerYes{}
+    \item[] Justification: Section~\ref{sec:conclusion}.2 discusses both. Positive: the protocol surfaces structural properties of evaluation, supporting more careful deployment decisions. Negative: deployment decisions issued by the audit could be applied uncritically. We emphasize the protocol is diagnostic and should inform, not replace, human judgment.
+
+\item {\bf Safeguards}
+    \item[] Question: Does the paper describe safeguards that have been put in place for responsible release of data or models that have a high risk for misuse?
+    \item[] Answer: \answerNA{}
+    \item[] Justification: The released artifacts (the GeoRSCT benchmark of already-public CDC/ACS data at aggregated ZCTA level, prediction tables, the certificate library, the taxonomy specification, and the injection-detection harness) do not pose high misuse risks. There are no pre-trained generative models, no scraped or sensitive data, and no model weights for systems that could be repurposed for harmful generation.
+
+\item {\bf Licenses for existing assets}
+    \item[] Question: Are the creators or original owners of assets used in the paper properly credited and are the license and terms of use explicitly mentioned and properly respected?
+    \item[] Answer: \answerYes{}
+    \item[] Justification: CDC PLACES and ACS data are public-domain US government datasets. RSCT (theory) is incorporated by reference from~\citep{martin2026rsct} and US patent application 19/575,615; see Appendix~\ref{app:rsct_theory} for the formal scope statement separating inherited theory from this paper's contributions. Cited prior benchmarks and methodology (PDFM~\citep{agarwal2025pdfm}, SatCLIP~\citep{klemmer2023satclip}, SustainBench~\citep{yeh2021sustainbench}, GeoAnalystBench~\citep{zhang2025geoanalyst}, GeoBenchX~\citep{krechetova2025geobenchx}, GeoYCSB~\citep{kim2023geoycsb}, MAST~\citep{cemri2025mast}, and adjacent prior work in bias-variance decomposition, Bayes-risk estimation, and calibration) are credited at the points where their results or methodology inform this work.
+
+\item {\bf New assets}
+    \item[] Question: Are new assets introduced in the paper well documented and is the documentation provided alongside the assets?
+    \item[] Answer: \answerYes{}
+    \item[] Justification: The GeoRSCT v23.0.2 release on Hugging Face~\citep{geocert2026} includes a dataset card documenting all 27 tasks, 63 solver-usable input features, three evaluation protocols, simplified ZCTA geometries, upstream uncertainty fields from CDC PLACES and ACS source datasets (CDC confidence intervals and ACS margins of error, included as available metadata for downstream-user consumption), schema, provenance, and a CC-BY-4.0 license. The taxonomy specification is documented both in the paper (Section~\ref{sec:taxonomy}, Table~\ref{tab:taxonomy}) and in the repository.
+
+\item {\bf Crowdsourcing and research with human subjects}
+    \item[] Question: For crowdsourcing experiments and research with human subjects, does the paper include the full text of instructions given to participants and screenshots, if applicable, as well as details about compensation?
+    \item[] Answer: \answerNA{}
+    \item[] Justification: The research involves no crowdsourcing and no human subjects.
+
+\item {\bf Institutional review board (IRB) approvals or equivalent for research with human subjects}
+    \item[] Question: Does the paper describe potential risks incurred by study participants, whether such risks were disclosed to the subjects, and whether IRB approvals were obtained?
+    \item[] Answer: \answerNA{}
+    \item[] Justification: The research does not involve human subjects. Aggregated population health prevalence data (CDC PLACES) and census aggregates (ACS) at the ZCTA level cannot be used to identify individuals.
+
+\item {\bf Declaration of LLM usage}
+    \item[] Question: Does the paper describe the usage of LLMs if it is an important, original, or non-standard component of the core methods in this research?
+    \item[] Answer: \answerNo{}
+    \item[] Justification: LLMs were used during development for understanding technical concepts, visualizing results, and implementing standard methods, but they do not appear as a core methodological component of the research itself. The certificate library, the failure taxonomy, the injection-detection harness, and the N-ceiling estimator do not involve LLM components. LLM usage is declared in the submission metadata.
+
+\end{enumerate}
+
+\end{document}

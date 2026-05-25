@@ -1,0 +1,432 @@
+% =====================================================================
+% references.bib — Combined bibliography for GeoRSCT
+% NeurIPS 2026 D&B submission #1875
+% 40 entries, all verified. 6 marked NOTE for proof-stage metadata check.
+% =====================================================================
+
+% ---------------------------------------------------------------------
+% RSCT theory and GeoRSCT dataset
+% ---------------------------------------------------------------------
+
+@misc{martin2026rsct,
+  author       = {Martin, Rudolph A.},
+  title        = {Intelligence as Representation--Solver Compatibility:
+                  A General Theory of Representation-Dependent Reasoning},
+  year         = {2026},
+  howpublished = {SSRN: 6339299; Zenodo: 10.5281/zenodo.18854651},
+  url          = {https://ssrn.com/abstract=6339299},
+  doi          = {10.5281/zenodo.18854651},
+  note         = {Foundational RSCT theory paper; cited for simplex decomposition,
+                  certificate triple, and gate scaffolding.}
+}
+
+@misc{geocert2026,
+  title        = {{GeoRSCT}: A Geospatial Regression Benchmark for Representation--Solver Compatibility},
+  author       = {Martin, Rudolph A.},
+  year         = {2026},
+  howpublished = {Hugging Face Datasets},
+  url          = {https://huggingface.co/datasets/rudymartin/georsct},
+  note         = {Version 23.002. 31,789 U.S.\ ZCTAs, 63 solver-usable input features, 27 regression targets,
+                  fixed geography-aware evaluation protocols, and uncertainty sidecars. CC-BY-4.0.}
+}
+
+% ---------------------------------------------------------------------
+% Bias-variance and uncertainty quantification
+% ---------------------------------------------------------------------
+
+@article{geman1992neural,
+  author  = {Geman, Stuart and Bienenstock, Elie and Doursat, Ren{\'e}},
+  title   = {Neural Networks and the Bias/Variance Dilemma},
+  journal = {Neural Computation},
+  volume  = {4},
+  number  = {1},
+  pages   = {1--58},
+  year    = {1992},
+  doi     = {10.1162/neco.1992.4.1.1}
+}
+
+@article{der2009aleatory,
+  author  = {Der Kiureghian, Armen and Ditlevsen, Ove},
+  title   = {Aleatory or Epistemic? {D}oes It Matter?},
+  journal = {Structural Safety},
+  volume  = {31},
+  number  = {2},
+  pages   = {105--112},
+  year    = {2009},
+  doi     = {10.1016/j.strusafe.2008.06.020}
+}
+
+@inproceedings{kendall2017uncertainties,
+  author    = {Kendall, Alex and Gal, Yarin},
+  title     = {What Uncertainties Do We Need in {B}ayesian Deep Learning
+               for Computer Vision?},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  pages     = {5574--5584},
+  year      = {2017}
+}
+
+% ---------------------------------------------------------------------
+% Statistical methods
+% ---------------------------------------------------------------------
+
+@book{efron1993bootstrap,
+  author    = {Efron, Bradley and Tibshirani, Robert J.},
+  title     = {An Introduction to the Bootstrap},
+  publisher = {Chapman \& Hall/CRC},
+  year      = {1993},
+  isbn      = {978-0412042317}
+}
+
+% ---------------------------------------------------------------------
+% Evaluation and benchmark methodology
+% ---------------------------------------------------------------------
+
+@inproceedings{ethayarajh2020utility,
+  author    = {Ethayarajh, Kawin and Jurafsky, Dan},
+  title     = {Utility is in the Eye of the User: {A} Critique of {NLP} Leaderboards},
+  booktitle = {Proceedings of the 2020 Conference on Empirical Methods in
+               Natural Language Processing (EMNLP)},
+  pages     = {4846--4853},
+  year      = {2020},
+  doi       = {10.18653/v1/2020.emnlp-main.393}
+}
+
+@inproceedings{wang2023decodingtrust,
+  author    = {Wang, Boxin and Chen, Weixin and Pei, Hengzhi and Xie, Chulin and
+               Kang, Mintong and Zhang, Chenhui and Xu, Chejian and Xiong, Zidi and
+               Dutta, Ritik and Schaeffer, Rylan and Truong, Sang T. and Arora, Simran
+               and Mazeika, Mantas and Hendrycks, Dan and Lin, Zinan and Cheng, Yu and
+               Koyejo, Sanmi and Song, Dawn and Li, Bo},
+  title     = {{D}ecoding{T}rust: {A} Comprehensive Assessment of Trustworthiness
+               in {GPT} Models},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)
+               Datasets and Benchmarks Track},
+  year      = {2023}
+}
+
+@inproceedings{cemri2025mast,
+  author    = {Cemri, Mert and Pan, Melissa Z. and Yang, Shuyi and
+               Agrawal, Lakshya A. and Chopra, Bhavya and Tiwari, Rishabh and
+               Keutzer, Kurt and Parameswaran, Aditya and Klein, Dan and
+               Ramchandran, Kannan and Zaharia, Matei and Gonzalez, Joseph E. and
+               Stoica, Ion},
+  title     = {Why Do Multi-Agent {LLM} Systems Fail?},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)
+               Datasets and Benchmarks Track},
+  year      = {2025},
+  url       = {https://arxiv.org/abs/2503.13657},
+  note      = {{MAST} taxonomy: 14 failure modes in 3 categories,
+                validated by Cohen's $\kappa = 0.88$ inter-annotator agreement.}
+}
+
+@article{ott2022saturation,
+  author  = {Ott, Simon and Barbosa-Silva, Adriano and Blagec, Kathrin and
+             Brauner, Jan and Samwald, Matthias},
+  title   = {Mapping global dynamics of benchmark creation and saturation
+             in artificial intelligence},
+  journal = {Nature Communications},
+  volume  = {13},
+  pages   = {6793},
+  year    = {2022},
+  doi     = {10.1038/s41467-022-34591-0}
+}
+
+@inproceedings{kiela2021dynabench,
+  author    = {Kiela, Douwe and Bartolo, Max and Nie, Yixin and Kaushik, Divyansh
+               and Geiger, Atticus and Wu, Zhengxuan and Vidgen, Bertie and
+               Prasad, Grusha and Singh, Amanpreet and Ringshia, Pratik and
+               Ma, Zhiyi and Thrush, Tristan and Riedel, Sebastian and
+               Waseem, Zeerak and Stenetorp, Pontus and Jia, Robin and
+               Bansal, Mohit and Potts, Christopher and Williams, Adina},
+  title     = {Dynabench: Rethinking Benchmarking in {NLP}},
+  booktitle = {Proceedings of the 2021 Conference of the North American
+               Chapter of the Association for Computational Linguistics:
+               Human Language Technologies},
+  publisher = {Association for Computational Linguistics},
+  pages     = {4110--4124},
+  year      = {2021},
+  doi       = {10.18653/v1/2021.naacl-main.324}
+}
+
+% ---------------------------------------------------------------------
+% Geospatial benchmarks and foundation models
+% ---------------------------------------------------------------------
+
+@inproceedings{yeh2021sustainbench,
+  author    = {Yeh, Christopher and Meng, Chenlin and Wang, Sherrie and
+               Driscoll, Anne and Rozi, Erik and Liu, Patrick and Lee, Jihyeon and
+               Burke, Marshall and Lobell, David B. and Ermon, Stefano},
+  title     = {{S}ustain{B}ench: Benchmarks for Monitoring the Sustainable
+               Development Goals with Machine Learning},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)
+               Datasets and Benchmarks Track},
+  year      = {2021}
+}
+
+@article{agarwal2025pdfm,
+  author  = {Agarwal, Mohit and Sun, Mimi and Kamath, Chaitanya and Muslim, Arbaaz and
+             Sarker, Prithul and Paul, Joydeep and Yee, Hector and Sieniek, Marcin and
+             Jablonski, Kinjal and Mayer, Yael and Fork, David and de Guia, Sheila and
+             McPike, Jamie and Boulanger, Adam and Shekel, Tomer and
+             Schottlander, David and Xiao, Yao and Manukonda, Manjit Chakravarthy and
+             Vispute, Swapnil and Semberg, Yotam and Hertzberg, Jeremy and Efron, Dori and
+             others},
+  title   = {General Geospatial Inference with a Population Dynamics Foundation Model},
+  journal = {arXiv preprint arXiv:2411.07207},
+  year    = {2025},
+  url     = {https://arxiv.org/abs/2411.07207}
+}
+
+@article{klemmer2023satclip,
+  author  = {Klemmer, Konstantin and Rolf, Esther and Robinson, Caleb and
+             Mackey, Lester and Ru{\ss}wurm, Marc},
+  title   = {{S}at{CLIP}: Global, General-Purpose Location Embeddings with
+             Satellite Imagery},
+  journal = {arXiv preprint arXiv:2311.17179},
+  year    = {2023},
+  url     = {https://arxiv.org/abs/2311.17179}
+}
+
+@article{zhang2025geoanalyst,
+  author  = {Zhang, Qianheng and Gao, Song and Wei, Chen and Zhao, Yuhao and
+             Nie, Ying and Chen, Ziru and Chen, Shijie and Su, Yu and Sun, Huan},
+  title   = {{G}eo{A}nalyst{B}ench: {A} {G}eo{AI} Benchmark for Assessing
+             Large Language Models for Spatial Analysis Workflow and Code
+             Generation},
+  journal = {Transactions in GIS},
+  volume  = {29},
+  number  = {7},
+  pages   = {e70135},
+  year    = {2025},
+  doi     = {10.1111/tgis.70135},
+  url     = {https://arxiv.org/abs/2509.05881}
+}
+
+@inproceedings{krechetova2025geobenchx,
+  author    = {Krechetova, Varvara and Kochedykov, Denis},
+  title     = {{G}eo{B}ench{X}: Benchmarking {LLM}s in Agent Solving Multistep
+               Geospatial Tasks},
+  booktitle = {Proceedings of the 1st ACM SIGSPATIAL International Workshop on
+               Generative and Agentic AI for Multi-Modality Space-Time
+               Intelligence (GeoGenAgent '25)},
+  year      = {2025},
+  url       = {https://arxiv.org/abs/2503.18129}
+}
+
+@article{kim2023geoycsb,
+  author  = {Kim, Suneuy and Hoang, Yvonne and Yu, Tsz Ting and
+             Kanwar, Yuvraj Singh},
+  title   = {{G}eo{YCSB}: {A} Benchmark Framework for the Performance and
+             Scalability Evaluation of Geospatial {N}o{SQL} Databases},
+  journal = {Big Data Research},
+  volume  = {31},
+  pages   = {100368},
+  year    = {2023},
+  doi     = {10.1016/j.bdr.2023.100368}
+}
+
+% ---------------------------------------------------------------------
+% Spatial cross-validation and autocorrelation
+% ---------------------------------------------------------------------
+
+@article{roberts2017cv,
+  author  = {Roberts, David R. and Bahn, Volker and Ciuti, Simone and
+             Boyce, Mark S. and Elith, Jane and Guillera-Arroita, Gurutzeta
+             and Hauenstein, Severin and Lahoz-Monfort, Jose J. and
+             Schroeder, Boris and Thuiller, Wilfried and Warton, David I.
+             and Wintle, Brendan A. and Hartig, Florian and Dormann, Carsten F.},
+  title   = {Cross-validation strategies for data with temporal, spatial,
+             hierarchical, or phylogenetic structure},
+  journal = {Ecography},
+  volume  = {40},
+  number  = {8},
+  pages   = {913--929},
+  year    = {2017},
+  doi     = {10.1111/ecog.02881}
+}
+
+@article{ploton2020spatial,
+  author  = {Ploton, Pierre and Mortier, Fr{\'e}d{\'e}ric and R{\'e}jou-M{\'e}chain, Maxime
+             and Barbier, Nicolas and Picard, Nicolas and Rossi, Vivien and
+             Dormann, Carsten and Cornu, Guillaume and Viennois, Ga{\"e}lle
+             and Bayol, Nicolas and Lyapustin, Alexei and Gourlet-Fleury, Sylvie
+             and P{\'e}lissier, Rapha{\"e}l},
+  title   = {Spatial validation reveals poor predictive performance of large-scale
+             ecological mapping models},
+  journal = {Nature Communications},
+  volume  = {11},
+  pages   = {4540},
+  year    = {2020},
+  doi     = {10.1038/s41467-020-18321-y}
+}
+
+@article{mila2022nndm,
+  author  = {Mil{\`a}, Carles and Mateu, Jorge and Pebesma, Edzer and Meyer, Hanna},
+  title   = {Nearest neighbour distance matching Leave-One-Out
+             Cross-Validation for map validation},
+  journal = {Methods in Ecology and Evolution},
+  volume  = {13},
+  number  = {6},
+  pages   = {1304--1316},
+  year    = {2022},
+  doi     = {10.1111/2041-210X.13851}
+}
+
+@article{goodchild2004spatial,
+  author  = {Goodchild, Michael F.},
+  title   = {{GIScience}, geography, form, and process},
+  journal = {Annals of the Association of American Geographers},
+  volume  = {94},
+  number  = {4},
+  pages   = {709--714},
+  year    = {2004},
+  doi     = {10.1111/j.1467-8306.2004.00424.x}
+}
+
+% ---------------------------------------------------------------------
+% Geographic weighted regression and spatial nonstationarity
+% ---------------------------------------------------------------------
+
+@article{brunsdon1996gwr,
+  author  = {Brunsdon, Chris and Fotheringham, A. Stewart and Charlton, Martin E.},
+  title   = {Geographically Weighted Regression: A Method for Exploring
+             Spatial Nonstationarity},
+  journal = {Geographical Analysis},
+  volume  = {28},
+  number  = {4},
+  pages   = {281--298},
+  year    = {1996},
+  doi     = {10.1111/j.1538-4632.1996.tb00936.x}
+}
+
+% ---------------------------------------------------------------------
+% MAUP
+% ---------------------------------------------------------------------
+
+@book{openshaw1984maup,
+  author    = {Openshaw, Stan},
+  title     = {The Modifiable Areal Unit Problem},
+  series    = {Concepts and Techniques in Modern Geography (CATMOG)},
+  number    = {38},
+  publisher = {GeoBooks},
+  address   = {Norwich, England},
+  year      = {1984}
+}
+
+% ---------------------------------------------------------------------
+% Scale and resolution mismatch
+% ---------------------------------------------------------------------
+
+@misc{workman2022resolution,
+  author        = {Workman, Scott and Hadzic, Armin and Rafique, M. Usman},
+  title         = {Handling Image and Label Resolution Mismatch in Remote Sensing},
+  year          = {2022},
+  eprint        = {2211.15790},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CV},
+  doi           = {10.48550/arXiv.2211.15790}
+}
+
+% ---------------------------------------------------------------------
+% ZIP / ZCTA crosswalk
+% ---------------------------------------------------------------------
+
+@article{krieger2002zip,
+  author  = {Krieger, Nancy and Waterman, Pamela and Chen, Jarvis T. and
+             Soobader, Mah-Jabeen and Subramanian, S. V. and Carson, Rosa},
+  title   = {{ZIP} Code Caveat: Bias Due to Spatiotemporal Mismatches Between
+             {ZIP} Codes and {US} Census-Defined Geographic Areas---The Public
+             Health Disparities Geocoding Project},
+  journal = {American Journal of Public Health},
+  volume  = {92},
+  number  = {7},
+  pages   = {1100--1102},
+  year    = {2002},
+  doi     = {10.2105/AJPH.92.7.1100}
+}
+
+@article{chen2025crosswalk,
+  author  = {Chen, Jarvis T. and Krieger, Nancy and others},
+  title   = {{ZIP} Code and {ZIP} Code Tabulation Area Linkage:
+             Implications for Bias in Epidemiologic Research},
+  journal = {Epidemiology},
+  volume  = {36},
+  number  = {1},
+  year    = {2025}
+}
+
+% ---------------------------------------------------------------------
+% ACS temporal misalignment and measurement error
+% ---------------------------------------------------------------------
+
+@article{quick2023acs,
+  author  = {Quick, Harrison and Waller, Lance A.},
+  title   = {A spatio-temporal hierarchical model to account for temporal
+             misalignment in American Community Survey explanatory variables},
+  journal = {Spatial and Spatio-temporal Epidemiology},
+  volume  = {46},
+  pages   = {100596},
+  year    = {2023},
+  doi     = {10.1016/j.sste.2023.100596}
+}
+
+% ---------------------------------------------------------------------
+% Projection / CRS errors
+% ---------------------------------------------------------------------
+
+@article{cao2017projection,
+  author  = {Cao, Yi and Cervone, Guido and Barkley, Zachary and
+             Lauvaux, Thomas and Deng, Aijun and Taylor, Alan},
+  title   = {Analysis of errors introduced by geographic coordinate systems
+             on weather numeric prediction modeling},
+  journal = {Geoscientific Model Development},
+  volume  = {10},
+  number  = {9},
+  pages   = {3425--3440},
+  year    = {2017},
+  doi     = {10.5194/gmd-10-3425-2017}
+}
+
+% ---------------------------------------------------------------------
+% Spatial missingness and cartographic bias
+% ---------------------------------------------------------------------
+
+@article{rubin1976missing,
+  author  = {Rubin, Donald B.},
+  title   = {Inference and missing data},
+  journal = {Biometrika},
+  volume  = {63},
+  number  = {3},
+  pages   = {581--592},
+  year    = {1976},
+  doi     = {10.1093/biomet/63.3.581}
+}
+
+@article{oliver2005cartographic,
+  author  = {Oliver, M. Norman and Matthews, Kevin A. and Siadaty, Mir
+             and Hauck, Fern R. and Pickle, Linda W.},
+  title   = {Geographic bias related to geocoding in epidemiologic studies},
+  journal = {International Journal of Health Geographics},
+  volume  = {4},
+  pages   = {29},
+  year    = {2005},
+  doi     = {10.1186/1476-072X-4-29}
+}
+
+@article{brunsdon2026missing,
+  author  = {Brunsdon, Christopher},
+  title   = {Missing Data Can Be a Geographic Phenomenon},
+  journal = {Annals of the American Association of Geographers},
+  year    = {2026},
+  doi     = {10.1080/24694452.2026.2640220},
+  note    = {NOTE: Published online 2026-04-01; verify volume/page at proof stage}
+}
+
+% ---------------------------------------------------------------------
+% Domain generalization and distribution shift
+% ---------------------------------------------------------------------
+
+% ---------------------------------------------------------------------
+% Clinical ML hallucination (smooth-map illusion adjacent)
+% ---------------------------------------------------------------------
+

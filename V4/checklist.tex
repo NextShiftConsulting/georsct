@@ -1,0 +1,85 @@
+\section*{NeurIPS Paper Checklist}
+
+\begin{enumerate}
+
+\item {\bf Claims}
+    \item[] Question: Do the main claims made in the abstract and introduction accurately reflect the paper's contributions and scope?
+    \item[] Answer: \answerYes{}
+    \item[] Justification: The abstract and Section~\ref{sec:intro} list four contributions (taxonomy, injection-detection validation, benchmark with empirical results, released artifacts) that map directly to Sections~\ref{sec:taxonomy}, \ref{sec:injection}, \ref{sec:geo}, and the data-release statement in Section~\ref{sec:conclusion}.
+
+\item {\bf Limitations}
+    \item[] Question: Does the paper discuss the limitations of the work performed by the authors?
+    \item[] Answer: \answerYes{}
+    \item[] Justification: Section~\ref{sec:conclusion}.1 explicitly enumerates limitations: the OOF-prediction requirement, single feature substrate (ACS only), taxonomy coverage (six modes is a v1 catalogue with two additional modes deferred), threshold calibration history, and no operational deployment claims.
+
+\item {\bf Theory assumptions and proofs}
+    \item[] Question: For each theoretical result, does the paper provide the full set of assumptions and a complete (and correct) proof?
+    \item[] Answer: \answerNA{}
+    \item[] Justification: This paper presents an empirical taxonomy and benchmark; it does not claim novel theorems. The $R/S_{\text{sup}}/N$ decomposition is taken as a structural definition from~\citep{martin2026rsct}; the simplex constraint $R{+}S_{\text{sup}}{+}N{=}1$ is enforced by construction.
+
+\item {\bf Experimental result reproducibility}
+    \item[] Question: Does the paper fully disclose all the information needed to reproduce the main experimental results?
+    \item[] Answer: \answerYes{}
+    \item[] Justification: Section~\ref{sec:geo}.1 specifies the 27 ZCTA tasks, the 33 ACS features, and the three model families with their hyperparameters (detailed in Appendix~\ref{app:solver_families}). Appendix~\ref{app:nceiling_method} provides bootstrap details, seed-collapse procedure, and synthetic-validation construction. Appendix~\ref{app:compute} reports compute environment. The HF dataset~\citep{geocert2026} provides out-of-fold predictions for all models.
+
+\item {\bf Open access to data and code}
+    \item[] Question: Does the paper provide open access to the data and code, with sufficient instructions to faithfully reproduce the main experimental results?
+    \item[] Answer: \answerYes{}
+    \item[] Justification: The GeoRSCT benchmark, out-of-fold predictions for all geospatial families, the certificate library, the taxonomy specification, and the injection-detection harness are released as GeoCert v23.001 on Hugging Face~\citep{geocert2026} under CC-BY-4.0. The dataset card provides loading examples and reproduction instructions.
+
+\item {\bf Experimental setting/details}
+    \item[] Question: Does the paper specify all the training and test details necessary to understand the results?
+    \item[] Answer: \answerYes{}
+    \item[] Justification: Data splits (county-holdout interpolation, state-holdout extrapolation), hyperparameters (GBDT: 200 trees, learning rate 0.05, max depth 4; gate thresholds $\kappa_{\text{base}}{=}0.5$, $\lambda{=}0.4$), aggregation rules (median over $R$-labeled samples for $\kappa$ and $\alpha$), and label construction (residual terciles) are reported in Section~\ref{sec:geo} and Appendix~\ref{app:solver_families}.
+
+\item {\bf Experiment statistical significance}
+    \item[] Question: Does the paper report error bars suitably and correctly defined or other appropriate information about the statistical significance of the experiments?
+    \item[] Answer: \answerYes{}
+    \item[] Justification: N-ceiling estimates use state-level block bootstrap with $B{=}1{,}000$ resamples to construct $[2.5\text{th}, 97.5\text{th}]$ percentile CIs (Section~\ref{sec:nceiling}, Appendix~\ref{app:nceiling_method}); these CIs are 15--40\% wider than naive bootstrap to account for spatial autocorrelation. Injection-detection results are reported across eight independent seeds (Section~\ref{sec:injection}).
+
+\item {\bf Experiments compute resources}
+    \item[] Question: Does the paper provide sufficient information on the computer resources needed to reproduce the experiments?
+    \item[] Answer: \answerYes{}
+    \item[] Justification: Appendix~\ref{app:compute} reports compute requirements: \texttt{ml.m5.4xlarge} (16 vCPU, 64 GB RAM) instances on AWS SageMaker, with wall-clock times. No GPUs were required. The injection-detection harness runs in seconds on commodity hardware.
+
+\item {\bf Code of ethics}
+    \item[] Question: Does the research conducted in the paper conform, in every respect, with the NeurIPS Code of Ethics?
+    \item[] Answer: \answerYes{}
+    \item[] Justification: The research uses only publicly available, aggregated data (CDC PLACES at ZCTA level, ACS census variables) and does not involve human subjects, identifiable personal data, or restricted resources.
+
+\item {\bf Broader impacts}
+    \item[] Question: Does the paper discuss both potential positive societal impacts and negative societal impacts of the work performed?
+    \item[] Answer: \answerYes{}
+    \item[] Justification: Section~\ref{sec:conclusion}.2 discusses both. Positive: the protocol surfaces structural properties of evaluation, supporting more careful deployment decisions. Negative: deployment decisions issued by the audit could be applied uncritically. We emphasize the protocol is diagnostic and should inform, not replace, human judgment.
+
+\item {\bf Safeguards}
+    \item[] Question: Does the paper describe safeguards that have been put in place for responsible release of data or models that have a high risk for misuse?
+    \item[] Answer: \answerNA{}
+    \item[] Justification: The released artifacts---the GeoRSCT benchmark (already-public CDC/ACS data at aggregated ZCTA level), prediction tables, the certificate library, the taxonomy specification, and the injection-detection harness---do not pose high misuse risks. There are no pre-trained generative models, no scraped or sensitive data, and no model weights for systems that could be repurposed for harmful generation.
+
+\item {\bf Licenses for existing assets}
+    \item[] Question: Are the creators or original owners of assets used in the paper properly credited and are the license and terms of use explicitly mentioned and properly respected?
+    \item[] Answer: \answerYes{}
+    \item[] Justification: CDC PLACES and ACS data are public-domain US government datasets. The $R/S_{\text{sup}}/N$ decomposition is cited to~\citep{martin2026rsct}. PDFM~\citep{agarwal2025pdfm} and SatCLIP~\citep{klemmer2023satclip} are cited where their results are discussed.
+
+\item {\bf New assets}
+    \item[] Question: Are new assets introduced in the paper well documented and is the documentation provided alongside the assets?
+    \item[] Answer: \answerYes{}
+    \item[] Justification: The GeoCert v23.001 release on Hugging Face~\citep{geocert2026} includes a dataset card documenting all 27 tasks, 33 ACS features, three evaluation protocols, simplified ZCTA geometries, schema, provenance, and a CC-BY-4.0 license. The taxonomy specification is documented both in the paper (Section~\ref{sec:taxonomy}, Table~\ref{tab:taxonomy}) and in the repository.
+
+\item {\bf Crowdsourcing and research with human subjects}
+    \item[] Question: For crowdsourcing experiments and research with human subjects, does the paper include the full text of instructions given to participants and screenshots, if applicable, as well as details about compensation?
+    \item[] Answer: \answerNA{}
+    \item[] Justification: The research involves no crowdsourcing and no human subjects.
+
+\item {\bf Institutional review board (IRB) approvals or equivalent for research with human subjects}
+    \item[] Question: Does the paper describe potential risks incurred by study participants, whether such risks were disclosed to the subjects, and whether IRB approvals were obtained?
+    \item[] Answer: \answerNA{}
+    \item[] Justification: The research does not involve human subjects. Aggregated population health prevalence data (CDC PLACES) and census aggregates (ACS) at the ZCTA level cannot be used to identify individuals.
+
+\item {\bf Declaration of LLM usage}
+    \item[] Question: Does the paper describe the usage of LLMs if it is an important, original, or non-standard component of the core methods in this research?
+    \item[] Answer: \answerNA{}
+    \item[] Justification: LLMs do not appear as a core methodological component. The certificate library, the failure taxonomy, the injection-detection harness, and the N-ceiling estimator do not involve LLM components.
+
+\end{enumerate}

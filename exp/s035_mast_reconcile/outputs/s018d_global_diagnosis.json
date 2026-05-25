@@ -1,0 +1,75 @@
+{
+  "diagnosis": {
+    "candidates": [
+      {
+        "category": "GC1",
+        "confidence": 1.0,
+        "mode": "GCF-1.2",
+        "name": "Label-Solver Coupling"
+      },
+      {
+        "category": "GC2",
+        "confidence": 1.0,
+        "mode": "GCF-2.1",
+        "name": "Scalar Projection"
+      },
+      {
+        "category": "GC2",
+        "confidence": 1.0,
+        "mode": "GCF-2.2",
+        "name": "Gate Compression"
+      },
+      {
+        "category": "GC2",
+        "confidence": 1.0,
+        "mode": "GCF-2.3",
+        "name": "Range Compression"
+      },
+      {
+        "category": "GC3",
+        "confidence": 1.0,
+        "mode": "GCF-3.1",
+        "name": "Target-Solver Conflation"
+      }
+    ],
+    "input_signals": {
+      "aggregate_separation": 0.55,
+      "all_execute_rate": 1.0,
+      "alpha_profile_corr": 0.214,
+      "alpha_rank_gap": 0.85,
+      "false_execute_risk": 0.72,
+      "fine_routing_accuracy": 0.3,
+      "gate_entropy": 0.0,
+      "kappa_compression": 0.6099999999999999,
+      "metric_range": 1.0,
+      "n_ceiling_correlation": 0.55,
+      "native_tightness": 0.86,
+      "noisy_control_similarity": 0.8,
+      "proxy_success_corr": 0.25,
+      "serious_solver_range": 0.30000000000000027,
+      "sigma_outlier": 0.95,
+      "solver_specificity": 0.75,
+      "target_variance": 0.7
+    },
+    "top1_mode": "GCF-1.2"
+  },
+  "signals": {
+    "aggregate_separation": 0.55,
+    "all_execute_rate": 1.0,
+    "alpha_profile_corr": 0.214,
+    "alpha_rank_gap": 0.85,
+    "false_execute_risk": 0.72,
+    "fine_routing_accuracy": 0.3,
+    "gate_entropy": 0.0,
+    "kappa_compression": 0.6099999999999999,
+    "metric_range": 1.0,
+    "n_ceiling_correlation": 0.55,
+    "native_tightness": 0.86,
+    "noisy_control_similarity": 0.8,
+    "proxy_success_corr": 0.25,
+    "serious_solver_range": 0.30000000000000027,
+    "sigma_outlier": 0.95,
+    "solver_specificity": 0.75,
+    "target_variance": 0.7
+  }
+}

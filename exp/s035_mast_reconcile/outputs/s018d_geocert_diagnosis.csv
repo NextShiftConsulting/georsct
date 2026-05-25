@@ -1,0 +1,13 @@
+solver,family,R,N,alpha,kappa,sigma,gate,top1_failure_mode,top1_confidence,top2_failure_mode,top2_confidence,top3_failure_mode,top3_confidence
+mean_baseline,trivial,0.29,0.222,0.571,0.219,0.254,EXECUTE,GCF-1.3,1.0,GCF-2.2,1.0,GCF-3.1,1.0
+noisy_solver,trivial,0.347,0.296,0.541,0.244,0.109,EXECUTE,GCF-2.1,1.0,GCF-2.2,1.0,GCF-3.1,1.0
+linear_ridge,linear,0.329,0.293,0.533,0.231,0.158,EXECUTE,GCF-1.2,1.0,GCF-1.3,1.0,GCF-2.1,1.0
+svr_rbf,kernel,0.326,0.3,0.524,0.226,0.145,EXECUTE,GCF-1.1,1.0,GCF-1.2,1.0,GCF-1.3,1.0
+knn,instance,0.325,0.315,0.508,0.222,0.126,EXECUTE,GCF-1.1,1.0,GCF-1.3,1.0,GCF-2.2,1.0
+lightgbm,tree,0.326,0.317,0.507,0.222,0.127,EXECUTE,GCF-1.1,1.0,GCF-1.3,1.0,GCF-2.2,1.0
+random_forest,tree,0.319,0.316,0.503,0.217,0.138,EXECUTE,GCF-1.1,1.0,GCF-1.3,1.0,GCF-2.2,1.0
+mlp_regressor,neural,0.304,0.301,0.503,0.205,0.136,EXECUTE,GCF-1.1,1.0,GCF-1.3,1.0,GCF-2.2,1.0
+hrm_regressor,hierarchical,0.321,0.296,0.525,0.223,0.153,EXECUTE,GCF-1.1,1.0,GCF-1.2,1.0,GCF-1.3,1.0
+pca_v1,spectral+tree,0.327,0.314,0.511,0.223,0.145,EXECUTE,GCF-1.1,1.0,GCF-1.3,1.0,GCF-2.2,1.0
+spatial_lag_v1,spatial,0.324,0.315,0.509,0.222,0.136,EXECUTE,GCF-1.1,1.0,GCF-1.3,1.0,GCF-2.2,1.0
+gnn_v2,graph,0.325,0.313,0.511,0.222,0.137,EXECUTE,GCF-1.1,1.0,GCF-1.3,1.0,GCF-2.2,1.0

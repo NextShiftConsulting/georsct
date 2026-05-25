@@ -1,0 +1,297 @@
+% GeoCert: A Taxonomy of Evaluation Failures When Compatibility Is Not Scalar
+% Evidence from Geospatial Solver Certification
+% Target: NeurIPS Evaluation & Datasets Track
+
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{xcolor}
+
+% Placeholder for NeurIPS style
+% \usepackage{neurips_2026}
+
+\title{GeoCert: A Taxonomy of Evaluation Failures\\When Compatibility Is Not Scalar}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+% ============================================================
+% ABSTRACT
+% ============================================================
+\begin{abstract}
+
+GeoCert introduces compatibility evaluation as a failure-taxonomy problem: rather than asking whether one scalar score ranks solvers correctly, we identify the distinct ways scalar evaluation loses structure across representation quality, solver response, gate calibration, proxy calibration, and label construction. Using 324 certificates generated across 12 solvers, 27 geospatial regression targets, and 10 solver families on CONUS-level data (31{,}789 spatial units), we demonstrate six evaluation failure modes that remain invisible under scalar leaderboard scoring. We show that certificate-metric space exhibits multi-dimensional unsupervised structure---three orthogonal pathology axes rather than a single quality axis---and that a degenerate noise-generating solver is indistinguishable from serious solvers under aggregate certificate metrics. These findings establish that evaluation failure is not absence of signal but loss of structure when multi-dimensional evidence is reduced to scalar decisions.
+
+\end{abstract}
+
+% ============================================================
+% 1. INTRODUCTION
+% ============================================================
+\section{Introduction}
+
+Standard evaluation practice reduces model performance to scalar leaderboard scores: accuracy, F1, R$^2$, or composite metrics that rank systems from best to worst. This scalar reduction is convenient but structurally lossy. When distinct failure modes---format mismatch, calibration drift, task-representation misalignment, and gate misconfiguration---all produce the same numerical decrease in a composite score, the evaluation cannot distinguish them and the practitioner cannot act on the result.
+
+We argue that this is not merely an imprecision but a systematic category of evaluation failure. When the compatibility between a representation and a solver depends on multiple structural dimensions---signal purity, execution readiness, and representational stability---collapsing those dimensions into a single number erases the information needed to diagnose, compare, or repair systems.
+
+GeoCert provides a taxonomy of these failures. Using structured certificates that decompose representation--solver compatibility into a simplex and derived diagnostic axes, we generate 324 evaluation certificates across a diverse solver panel on 27 geospatial regression targets. We then show, empirically, that six distinct failure modes emerge when the structured evidence is reduced to scalar decisions---and that these failures are invisible to conventional evaluation.
+
+\paragraph{Contributions.}
+\begin{enumerate}
+    \item We introduce GeoCert, a taxonomy of evaluation failures that arise when representation--solver compatibility is collapsed into scalar performance metrics.
+    \item We demonstrate six failure modes on CONUS-27 geospatial regression: scalar projection failure, label-construction failure, gate compression, fine-routing failure, target--solver conflation, and proxy calibration failure.
+    \item We show that certificate-metric space has multi-dimensional unsupervised structure: post-hoc analysis identifies distinct pathology axes rather than a single quality axis.
+    \item We show that proxy certificate calibration is itself an evaluation problem: compressed $\kappa$, gate collapse, and the noisy-solver paradox demonstrate that proxy certificates can reveal some failures while hiding others.
+    \item We outline a label-free recovery path that evaluates counterfactual ablation-response tensors directly rather than training on hand-derived labels.
+\end{enumerate}
+
+% ============================================================
+% 2. BACKGROUND
+% ============================================================
+\section{Background: Compatibility as Structured Evidence}
+
+GeoCert builds on the view that task difficulty is not intrinsic to a problem alone but depends on the tuple $(P, E, S)$: problem, encoding, and solver jointly. Under this view, an evaluation should not only ask which solver scores highest, but whether the representation exposes the structure needed by that solver.
+
+We adopt a lightweight certificate vocabulary. For a given representation--solver pair, the certificate decomposes evaluation evidence into a simplex $R + S_{\text{sup}} + N = 1$, where $R$ denotes relevant signal exploited by the solver, $S_{\text{sup}}$ denotes superfluous content neither helping nor hindering, and $N$ denotes adversarial or misleading noise. From this simplex, three diagnostic axes are derived: signal purity $\alpha = R/(R+N)$, execution compatibility $\kappa$, and representational turbulence $\sigma$ (the standard deviation of per-sample $\kappa$). These axes are treated as diagnostics, not as a single scalar score.
+
+The central question of GeoCert is what evaluation failures become visible when these axes are preserved rather than collapsed into a leaderboard metric. Prior evaluation frameworks typically measure solver performance under fixed representations. GeoCert instead treats the representation--solver interaction as the evaluation object, asking how certificate evidence changes across solver families, task regimes, and proxy calibrations.
+
+% ============================================================
+% 3. RELATED WORK
+% ============================================================
+\section{Related Work}
+
+\paragraph{Failure taxonomies.} Recent work on multi-agent LLM systems demonstrates that failure taxonomies can provide more useful diagnostic structure than aggregate task success rates. MAST~\cite{mast2025} identifies 14 multi-agent failure modes across specification issues, inter-agent misalignment, and task verification failures, using execution traces, expert annotation, inter-annotator agreement, and an LLM-as-judge pipeline for scalable detection. GeoCert follows the same failure-taxonomy motivation but shifts the object of study from agent execution traces to compatibility evaluation artifacts: certificate metrics, solver-response profiles, proxy calibration, and gate decisions. Whereas MAST taxonomizes failures in agent interaction, GeoCert taxonomizes failures in evaluation itself---cases where scalar metrics, proxy certificates, or gate decisions erase structure that is necessary for understanding representation--solver compatibility.
+
+\paragraph{Evaluation critique.} A growing literature questions whether scalar leaderboard metrics capture what practitioners need. Benchmark saturation effects, metric gaming, and the disconnect between held-out accuracy and deployment performance have been documented across NLP, vision, and reinforcement learning. GeoCert contributes a structural explanation for one class of these disconnects: when the evaluation object has multi-dimensional compatibility structure, any scalar projection creates specific, identifiable failure modes rather than generic ``noise.''
+
+\paragraph{Structured evaluation.} Prior work on multi-metric evaluation, radar charts, and disaggregated reporting addresses the symptom (scalar metrics are insufficient) but not the mechanism. GeoCert identifies the specific compression operations---projection, labeling, thresholding, averaging---that produce each failure mode, making the taxonomy actionable for evaluation design rather than merely cautionary.
+
+GeoCert is not an exhaustive taxonomy of all evaluation failures. It identifies six empirically observed failure modes that arise when compatibility evidence is compressed into scalar model-selection metrics.
+
+% ============================================================
+% 4. TAXONOMY
+% ============================================================
+\section{GeoCert Taxonomy of Evaluation Failures}
+
+Table~\ref{tab:taxonomy} presents the six failure modes. Each corresponds to a specific scalar shortcut that discards structured certificate evidence, and each is empirically demonstrated in Section~\ref{sec:results}.
+
+\begin{table}[t]
+\centering
+\caption{GeoCert failure taxonomy. Each mode identifies a scalar evaluation shortcut and its diagnostic consequence.}
+\label{tab:taxonomy}
+\small
+\begin{tabular}{@{}p{3.2cm}p{4.0cm}p{5.5cm}@{}}
+\toprule
+\textbf{Failure mode} & \textbf{Scalar shortcut} & \textbf{Diagnostic evidence} \\
+\midrule
+Scalar projection failure & Rank by one score such as $\alpha$ & A degenerate solver can look best on $\alpha$ while failing on $\sigma$ \\[4pt]
+Label-construction failure & Treat $R/S_{\text{sup}}/N$ as ordinary class labels & A noise-generating solver appears serious under aggregate metrics \\[4pt]
+Gate compression & Convert certificate to one typed decision & All solvers receive EXECUTE despite metric separation \\[4pt]
+Fine-routing failure & Assume serious solvers are separable & Serious solvers remain tightly clustered in certificate space \\[4pt]
+Target--solver conflation & Average across targets and solvers & Low inter-solver $\alpha$-profile correlation reveals solver-specific difficulty \\[4pt]
+Proxy calibration failure & Treat proxy $\kappa$ as true compatibility & $\kappa$ compression and noisy-solver invisibility expose proxy limits \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ============================================================
+% 5. EXPERIMENTAL SETTING
+% ============================================================
+\section{Experimental Setting}
+\label{sec:setting}
+
+\subsection{Data: CONUS-27}
+
+We evaluate on a geospatial regression benchmark spanning 31{,}789 ZIP Code Tabulation Areas (ZCTAs) across the contiguous United States. The representation consists of 32 PCA components derived from American Community Survey (ACS) features and spatial lag features, capturing both local socioeconomic characteristics and neighborhood-level spatial structure.
+
+The target panel comprises 27 regression tasks spanning three families:
+\begin{itemize}
+    \item \textbf{Health/behavioral} (20 targets): diabetes, obesity, smoking, chronic conditions, preventive care utilization.
+    \item \textbf{Socioeconomic} (4 targets): income, home value, population density, night lights.
+    \item \textbf{Environmental} (3 targets): elevation, tree cover, night-time luminosity.
+\end{itemize}
+
+\subsection{Solver Panel}
+
+We deploy 12 solvers across 10 families, organized into three roles:
+
+\begin{itemize}
+    \item \textbf{Controls} (2): \texttt{mean\_baseline} (predicts target mean), \texttt{noisy\_solver} (adds calibrated Gaussian noise to a real solver's predictions).
+    \item \textbf{Serious solvers} (7): linear ridge, SVR-RBF, KNN, LightGBM, random forest, MLP, hierarchical residual model (HRM).
+    \item \textbf{Native S018 solvers} (3): PCA-based, spatial-lag, and graph neural network (GNN) solvers developed as part of the geospatial pipeline.
+\end{itemize}
+
+\subsection{Certificate Generation}
+
+For each (solver, target) pair, we compute out-of-fold residuals via 3-fold cross-validation on the training partition, then train a 3-class MLP classifier on residual-derived tercile labels to produce per-sample simplex probabilities $(R, S_{\text{sup}}, N)$. From the simplex, we compute $\alpha$, $\kappa = R \cdot (1-N)$, and $\sigma = \text{std}(\kappa_{\text{per-sample}})$. A canonical gate evaluates each certificate against a fixed $\kappa$ threshold to produce a typed decision (EXECUTE or RE\_ENCODE). This generates $12 \times 27 = 324$ certificates.
+
+% ============================================================
+% 6. RESULTS
+% ============================================================
+\section{Results: Six Evaluation Failures}
+\label{sec:results}
+
+\subsection{Failure 1: Scalar Projection Failure}
+
+Ranking solvers by $\alpha$ alone produces an inverted quality ordering. The two control solvers---\texttt{mean\_baseline} ($\alpha = 0.571$) and \texttt{noisy\_solver} ($\alpha = 0.541$)---rank first and second, ahead of all serious solvers ($\alpha \in [0.503, 0.533]$). A Spearman correlation between $\alpha$-rank and a composite quality rank (incorporating $N$, $\sigma$, and collapse risk) yields $\rho = -0.190$ ($p = 0.55$): $\alpha$ is uncorrelated with actual solver quality.
+
+The mechanism is diagnostic: \texttt{mean\_baseline} achieves high $\alpha$ because constant predictions produce residuals that load predominantly onto the lowest tercile (low $N$), inflating the $R/(R+N)$ ratio. Simultaneously, it has the highest $\sigma$ (0.254), indicating that this high $\alpha$ is not uniformly distributed across samples. A scalar evaluation that reports only mean $\alpha$ would recommend the degenerate solver.
+
+\subsection{Failure 2: Label-Construction Failure}
+
+The \texttt{noisy\_solver} adds calibrated Gaussian noise to a real solver's predictions. Under residual-tercile labeling, random noise produces approximately uniform residual ranks, yielding balanced tercile labels. The resulting certificate has:
+\begin{itemize}
+    \item Highest $R$ among all solvers (0.347)
+    \item Lowest $\sigma$ (0.109)
+    \item Zero RE\_ENCODE gate decisions (0\%)
+    \item Lowest collapse risk (0.155)
+\end{itemize}
+
+Post-hoc clustering confirms the severity: \texttt{noisy\_solver}'s nearest neighbor in certificate-metric space is \texttt{svr\_rbf} (distance 1.788), a serious solver. Its distance to the other control (\texttt{mean\_baseline}) is 3.711---the largest pairwise distance in the dataset. The certificate cannot distinguish noise from structure because the label-construction step rewards distributional uniformity rather than predictive quality.
+
+\subsection{Failure 3: Gate Compression}
+
+The certificate gate operates as a hard $\kappa$ threshold at approximately 0.211 (GATE\_3\_ADMISSIBILITY). This produces a clean separation---no overlap in $\kappa$ ranges between EXECUTE and RE\_ENCODE decisions---with 96.3\% classification accuracy from a single scalar.
+
+However, despite metric-level separation between solvers ($\alpha$ range 0.068, $\sigma$ range 0.145), the gate collapses all structure above the threshold into a single EXECUTE decision. Of 324 certificates, 82\% receive EXECUTE regardless of solver quality, family, or stability characteristics. The gate is correct within its vocabulary (it identifies low-$\kappa$ certificates) but structurally incapable of utilizing the multi-dimensional evidence available.
+
+The \texttt{noisy\_solver} receives 0\% RE\_ENCODE decisions. The gate cannot detect the noisy-solver pathology because it presents with acceptable $\kappa$ values---the pathology is invisible to any single-threshold decision.
+
+\subsection{Failure 4: Fine-Routing Failure}
+
+Excluding the two controls, the remaining 10 serious solvers span:
+\begin{center}
+\small
+\begin{tabular}{lcc}
+\toprule
+Metric & Serious-only range & All-solver range \\
+\midrule
+$R$ & 0.025 & 0.057 (44\%) \\
+$N$ & 0.025 & 0.096 (26\%) \\
+$\alpha$ & 0.030 & 0.068 (44\%) \\
+$\kappa$ & 0.026 & 0.039 (65\%) \\
+$\sigma$ & 0.032 & 0.145 (22\%) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The serious-solver range is 22--65\% of the total range depending on metric. Certificate separation is primarily a control-vs-serious phenomenon, not a fine-grained solver discriminator. Native solvers (PCA, spatial-lag, GNN) cluster even tighter (within-group distance 1.002 vs.\ 1.710 for serious solvers), forming a genuine family despite different architectures.
+
+This confirms that fine-grained solver routing---selecting the best solver per target based on certificate evidence---is not supported by the current certificate resolution.
+
+\subsection{Failure 5: Target--Solver Conflation}
+
+The mean pairwise Spearman correlation of $\alpha$-profiles across targets is 0.214 (range $[-0.279, 0.775]$). What is difficult for one solver is not necessarily difficult for another. This means that averaging certificate metrics across targets erases solver-specific difficulty structure.
+
+Furthermore, the gate fires primarily on \emph{targets}, not solvers: \texttt{night\_lights} receives 91.7\% RE\_ENCODE across all solvers, while health targets receive $<$15\%. The gate is detecting task difficulty, not solver inadequacy---a conflation that scalar evaluation cannot expose without examining the full (solver $\times$ target) certificate matrix.
+
+\subsection{Failure 6: Proxy Calibration Failure}
+
+The proxy $\kappa = R \cdot (1-N)$ occupies a compressed range of $[0.099, 0.295]$ across all 324 certificates. Under the canonical oobleck threshold ($\kappa_{\text{req}} = 0.5 + 0.4\sigma$), 100\% of certificates would receive RE\_ENCODE---the proxy never reaches the theoretical operating range. The system instead uses a lower fixed threshold ($\approx$0.211), which functions as a gate but is not calibrated against actual solver success.
+
+The gap between proxy $\kappa$ and its theoretical definition (which requires access to the solver's true capacity) is not merely a technical limitation---it is itself an evaluation failure mode. The proxy certificate correctly reveals relative ordering (controls differ from serious solvers) but cannot be interpreted on an absolute scale. Any downstream system that consumes $\kappa$ as if it were calibrated compatibility will make systematically wrong decisions.
+
+% ============================================================
+% 7. UNSUPERVISED STRUCTURE
+% ============================================================
+\section{Certificate Space Has Multi-Dimensional Structure}
+
+Principal component analysis of solver profiles (12 solvers $\times$ 162-dimensional normalized certificate vectors) reveals that evaluation pathologies occupy orthogonal dimensions:
+
+\begin{itemize}
+    \item \textbf{PC1} (44\% variance): dominated by $\sigma$ and $N$ loadings. Separates the scale pathology (\texttt{mean\_baseline} at PC1 $= -3.09$) from all other solvers.
+    \item \textbf{PC2} (22\% variance): mixed $\kappa$/$\sigma$ loadings. Separates the instability pathology (\texttt{mlp\_regressor} at PC2 $= -1.93$) from the pack.
+    \item \textbf{PC3} (11\% variance): diverse loadings. Separates the uniformity pathology (\texttt{noisy\_solver} at PC3 $= +1.29$).
+\end{itemize}
+
+No single axis captures all three pathologies simultaneously. This is the structural proof that evaluation failure is not one-dimensional: each failure mode occupies a distinct direction in certificate space, and any scalar projection necessarily collapses at least two of the three.
+
+Hierarchical clustering confirms this structure: at 2 clusters, only \texttt{mean\_baseline} separates; at 3, \texttt{mlp\_regressor} separates; at 4, \texttt{noisy\_solver} finally separates. The ordering reveals a hierarchy of detectability---the uniformity pathology (label-construction failure) is the hardest to detect without additional machinery.
+
+\subsection{Taxonomy Validation}
+
+Following the standard established by failure-taxonomy work in multi-agent systems~\cite{mast2025}, we validate GeoCert along three axes:
+
+\paragraph{Coverage.} All six failure modes are empirically instantiated across the 324 certificates. No mode is hypothetical: scalar projection failure is demonstrated by the $\alpha$-rank inversion (Table~\ref{tab:taxonomy}); label-construction failure by the noisy-solver paradox; gate compression by the all-EXECUTE collapse; fine-routing failure by the serious-solver range compression; target--solver conflation by the low $\alpha$-profile correlation; and proxy calibration failure by the $\kappa$ compression and oobleck threshold mismatch.
+
+\paragraph{Distinctiveness.} PCA confirms that the failure modes occupy orthogonal dimensions (PC1/2/3 capture different pathologies with $<$0.1 cross-loading). Hierarchical clustering separates them at different cut levels, confirming they are not redundant descriptions of one underlying failure.
+
+\paragraph{Diagnostic utility.} Each failure mode implies a different intervention. Scalar projection failure requires multi-axis reporting; label-construction failure requires ablation-based labels; gate compression requires multi-threshold or multi-metric gates; fine-routing failure sets resolution limits on certificate-based routing; target--solver conflation requires per-target evaluation; proxy calibration failure requires calibration against ground-truth solver performance. The taxonomy is actionable, not merely descriptive.
+
+% ============================================================
+% 8. RECOVERY DIRECTION
+% ============================================================
+\section{Recovery: Label-Free Counterfactual Evaluation}
+
+The label-construction failure (Section 5.2) arises because residual-tercile labels reward distributional uniformity rather than predictive structure. We outline a recovery path that bypasses label construction entirely.
+
+\paragraph{S018Y-U: Ablation-response tensors.} Rather than constructing $R/S_{\text{sup}}/N$ labels and training a classifier, we propose evaluating solvers by their \emph{counterfactual response} to feature-group ablation. For each (solver, target, feature group) triple, we compute the normalized performance delta when that feature group is removed. The resulting tensor $\Delta[\text{solver} \times \text{target} \times \text{feature group}]$ is the certificate---no labels, no classifier, no uniformity reward.
+
+Under this formulation, the \texttt{noisy\_solver} is expected to show near-zero or random deltas (removing features does not change random noise), while serious solvers show structured, group-specific deltas. The ablation response directly measures feature dependency, which distributional uniformity cannot fake.
+
+\paragraph{Linear-Z: Intrinsic representation audit.} A complementary path replaces the supervised regression loss with a reconstruction objective, producing an intrinsic representation audit that characterizes feature-group structure without any target labels. This tests whether certificate structure is intrinsic to the representation or induced by the solver-task response.
+
+% ============================================================
+% 9. CROSS-DOMAIN EVIDENCE
+% ============================================================
+\section{Cross-Domain Evidence: Multi-Agent Failure Detection}
+
+To assess whether GeoCert's evaluation-failure taxonomy generalizes beyond geospatial regression, we compare directly against MAST~\cite{mast2025}, a behavioral failure taxonomy for multi-agent LLM systems. Both taxonomies organize failure into three categories but operate at fundamentally different levels of analysis.
+
+\paragraph{Taxonomic comparison.} MAST classifies 14 behavioral failure modes into three categories based on \emph{what agents do wrong}: specification failures (FC1: task misunderstanding), inter-agent misalignment (FC2: coordination breakdown), and verification failures (FC3: inadequate checking). GeoCert classifies 6 evaluation failure modes into three categories based on \emph{what measurement misses}: label-construction failures (GC1: evaluation labels lose structure), decomposition-reduction failures (GC2: certificate dimensionality collapses), and deployment-translation failures (GC3: proxy metrics diverge from true compatibility).
+
+The key structural difference is dimensionality. MAST annotations are 22 binary attributes per trace (present/absent), while GeoCert certificates provide continuous $n$-attribute measurements per (solver $\times$ target) pair: simplex coordinates $(R, S_{\text{sup}}, N)$, derived diagnostics $(\alpha, \kappa, \sigma, \omega, \tau)$, and per-sample distributions over $\sim$31K spatial units. The certificate space is thus fundamentally higher-dimensional than a binary labeling scheme---and S018D-posthoc PCA confirms that at least three orthogonal pathology axes exist in this space (Section~7).
+
+\paragraph{Empirical mapping.} We applied certificate-style signal extraction to 61 MAST-annotated multi-agent traces (31 AG2, 30 HyperAgent) and computed proxy structural signals. Results confirm a many-to-many relationship between behavioral and evaluative taxonomies:
+
+\begin{itemize}
+    \item \textbf{FC1 (Specification) $\rightarrow$ GCF-1, GCF-6}: Agents that misunderstand tasks produce output that \emph{looks correct} to scalar metrics---high $\alpha$ (0.73), low error density, high verification language---triggering scalar projection and proxy calibration failures. Evaluation cannot distinguish ``correct for wrong reasons'' from ``genuinely correct.''
+    \item \textbf{FC2 (Misalignment) $\rightarrow$ GCF-2, GCF-4}: Conflicting agents produce ambiguous behavior---high repetition (0.60), low handoff rate (0.21)---that is difficult to decompose into clean $R/S/N$ labels and causes agents to cluster indistinguishably in metric space (fine-routing failure).
+    \item \textbf{FC3 (Verification) $\rightarrow$ GCF-3, GCF-6}: Agents that skip verification still produce surface-level ``completion'' signals, causing gate compression (all pass) and proxy calibration divergence (metric says ``done,'' outcome is wrong).
+\end{itemize}
+
+Signal profiles separate MAST categories with mean centroid distance 1.01 in 8-dimensional feature space. The most discriminative pair (FC1 vs FC2: distance 1.00) confirms that specification and misalignment failures occupy distinct regions, while FC3 overlaps both (distance 0.46 to FC1, 0.56 to FC2), consistent with verification being a cross-cutting concern.
+
+\paragraph{The dimensionality argument.} MAST requires human annotators assigning binary labels. GeoCert's certificate structure \emph{contains} the failure signal geometrically: the three PCA axes from Section~7 (sigma/scale, instability, uniformity) were discovered without labels, from the continuous certificate space alone. This suggests that structured certificates can provide diagnostic power equivalent to---or exceeding---expert behavioral annotation, without requiring per-trace human labeling. The failure modes are properties of evaluation architecture, not of task content, and thus transfer across domains.
+
+% ============================================================
+% 10. LIMITATIONS
+% ============================================================
+\section{Limitations and Future Work}
+
+\paragraph{Proxy certificates.} GeoCert evaluates proxy certificates, not production-calibrated compatibility. The gap between proxy $\kappa$ and true compatibility is itself documented as Failure 6, but it means our results should be interpreted as ``what proxy evaluation reveals and conceals,'' not ``what optimal evaluation would show.''
+
+\paragraph{Domain coverage.} The primary quantitative results are on CONUS-27 geospatial regression. Cross-domain evidence from multi-agent systems (Section~9) and preliminary text-retrieval results (MIRACL, $\rho = 0.31$ between accuracy and $\alpha$) suggest generality, but comprehensive cross-domain replication remains future work.
+
+\paragraph{No production deployment claim.} GeoCert is a diagnostic taxonomy, not a deployment system. The gate analysis reveals decision-compression failures but does not propose corrected gate calibration for production use.
+
+\paragraph{Future work.} The S018Y-U ablation-response path and Linear-Z reconstruction audit are outlined but not yet validated. Cross-domain replication (particularly against the MIRACL text-retrieval certification gap, where accuracy--$\alpha$ correlation is only $\rho = 0.31$) would strengthen the generality claim.
+
+% ============================================================
+% 11. CONCLUSION
+% ============================================================
+\section{Conclusion}
+
+GeoCert demonstrates that evaluation failure is not absence of signal but loss of structure. Structured certificates contain multi-dimensional evidence that separates solver regimes, identifies distinct pathology types, and reveals calibration gaps. When this evidence is reduced to scalar scores or single-threshold gates, six specific failure modes emerge---each invisible to conventional leaderboard evaluation, each requiring different remediation.
+
+The taxonomy reframes evaluation research: rather than asking ``which metric is best,'' we should ask ``which structural information does each evaluation shortcut discard, and what failures does that create?'' GeoCert provides both the taxonomy and the empirical evidence that this question has concrete, measurable answers.
+
+% ============================================================
+% REFERENCES
+% ============================================================
+\begin{thebibliography}{9}
+
+\bibitem{mast2025}
+MAST: Multi-Agent System Failure Taxonomy.
+\textit{arXiv preprint}, 2025.
+Why do multi-agent LLM systems fail? A taxonomy of 14 failure modes across specification, inter-agent misalignment, and task verification.
+
+\end{thebibliography}
+
+\end{document}

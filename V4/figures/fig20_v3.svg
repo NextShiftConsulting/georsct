@@ -1,0 +1,130 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 960">
+  <rect width="100%" height="100%" fill="white"/>
+
+  <!-- 2000: outer boundary -->
+  <text x="22" y="16" font-family="Arial" font-size="14" font-weight="bold">2000</text>
+  <rect x="20" y="20" width="740" height="830" fill="none" stroke="black" stroke-width="2"/>
+
+  <!-- 2002: Group 1 — ENCODING COLLAPSE (y = 20..186) -->
+  <rect x="20" y="20" width="740" height="36" fill="none" stroke="black" stroke-width="2"/>
+  <text x="390" y="45" font-family="Arial" font-size="16" font-weight="bold" text-anchor="middle">GROUP 1 &#8212; ENCODING COLLAPSE</text>
+  <rect x="20" y="56" width="740" height="18" fill="none" stroke="black" stroke-width="1"/>
+  <text x="22" y="69" font-family="Arial" font-size="14" font-weight="bold">2002</text>
+  <text x="390" y="69" font-family="Arial" font-size="14" text-anchor="middle">Trigger family: N high, S_sup dominant, truncation, or alignment break</text>
+  <rect x="20"  y="74" width="185" height="112" fill="none" stroke="black" stroke-width="1"/>
+  <rect x="205" y="74" width="185" height="112" fill="none" stroke="black" stroke-width="1"/>
+  <rect x="390" y="74" width="185" height="112" fill="none" stroke="black" stroke-width="1"/>
+  <rect x="575" y="74" width="185" height="112" fill="none" stroke="black" stroke-width="1"/>
+  <text x="113" y="100" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">1.1  Noise Saturation</text>
+  <text x="113" y="118" font-family="Arial" font-size="14" text-anchor="middle">N &#8805; 0.50</text>
+  <text x="113" y="168" font-family="Arial" font-size="15" font-weight="bold" text-anchor="middle">&#8594; REJECT</text>
+  <text x="298" y="100" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">1.2  Superfluous Drowning</text>
+  <text x="298" y="118" font-family="Arial" font-size="14" text-anchor="middle">S_sup &gt;&gt; R</text>
+  <text x="298" y="168" font-family="Arial" font-size="15" font-weight="bold" text-anchor="middle">&#8594; RE_ENCODE</text>
+  <text x="483" y="100" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">1.3  Dimensional Fracture</text>
+  <text x="483" y="118" font-family="Arial" font-size="14" text-anchor="middle">rank(E) &lt; rank_min</text>
+  <text x="483" y="168" font-family="Arial" font-size="15" font-weight="bold" text-anchor="middle">&#8594; RE_ENCODE</text>
+  <text x="668" y="100" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">1.4  Format Mismatch</text>
+  <text x="668" y="118" font-family="Arial" font-size="14" text-anchor="middle">&#954;_interface &#8594; 0</text>
+  <text x="668" y="168" font-family="Arial" font-size="15" font-weight="bold" text-anchor="middle">&#8594; RE_ENCODE</text>
+
+  <!-- 2004: Group 2 — SOLVER DYNAMICS COLLAPSE (y = 186..352) -->
+  <rect x="20" y="186" width="740" height="36" fill="none" stroke="black" stroke-width="2"/>
+  <text x="390" y="211" font-family="Arial" font-size="16" font-weight="bold" text-anchor="middle">GROUP 2 &#8212; SOLVER DYNAMICS COLLAPSE</text>
+  <rect x="20" y="222" width="740" height="18" fill="none" stroke="black" stroke-width="1"/>
+  <text x="22" y="235" font-family="Arial" font-size="14" font-weight="bold">2004</text>
+  <text x="390" y="235" font-family="Arial" font-size="14" text-anchor="middle">Trigger family: &#963; instability, &#916;V stalls, or substrate wear</text>
+  <rect x="20"  y="240" width="185" height="112" fill="none" stroke="black" stroke-width="1"/>
+  <rect x="205" y="240" width="185" height="112" fill="none" stroke="black" stroke-width="1"/>
+  <rect x="390" y="240" width="185" height="112" fill="none" stroke="black" stroke-width="1"/>
+  <rect x="575" y="240" width="185" height="112" fill="none" stroke="black" stroke-width="1"/>
+  <text x="113" y="266" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">2.1  Trajectory Divergence</text>
+  <text x="113" y="284" font-family="Arial" font-size="14" text-anchor="middle">&#963; &gt;&gt; &#963;_thr</text>
+  <text x="113" y="334" font-family="Arial" font-size="15" font-weight="bold" text-anchor="middle">&#8594; BLOCK</text>
+  <text x="298" y="266" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">2.2  Gradient Starvation</text>
+  <text x="298" y="284" font-family="Arial" font-size="14" text-anchor="middle">&#916;V &#8594; 0</text>
+  <text x="298" y="334" font-family="Arial" font-size="15" font-weight="bold" text-anchor="middle">&#8594; RE_ENCODE</text>
+  <text x="483" y="266" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">2.3  Oobleck Jamming</text>
+  <text x="483" y="284" font-family="Arial" font-size="14" text-anchor="middle">&#963; spikes, &#954;_req balloons</text>
+  <text x="483" y="334" font-family="Arial" font-size="15" font-weight="bold" text-anchor="middle">&#8594; RE_ENCODE</text>
+  <text x="668" y="266" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">2.4  Substrate Degradation</text>
+  <text x="668" y="284" font-family="Arial" font-size="14" text-anchor="middle">physical wear</text>
+  <text x="668" y="334" font-family="Arial" font-size="15" font-weight="bold" text-anchor="middle">&#8594; REJECT</text>
+
+  <!-- 2006: Group 3 — SEMANTIC COLLAPSE (y = 352..518) -->
+  <rect x="20" y="352" width="740" height="36" fill="none" stroke="black" stroke-width="2"/>
+  <text x="390" y="377" font-family="Arial" font-size="16" font-weight="bold" text-anchor="middle">GROUP 3 &#8212; SEMANTIC COLLAPSE</text>
+  <rect x="20" y="388" width="740" height="18" fill="none" stroke="black" stroke-width="1"/>
+  <text x="22" y="401" font-family="Arial" font-size="14" font-weight="bold">2006</text>
+  <text x="390" y="401" font-family="Arial" font-size="14" text-anchor="middle">Trigger family: low consensus, grounding loss, or OOD</text>
+  <rect x="20"  y="406" width="185" height="112" fill="none" stroke="black" stroke-width="1"/>
+  <rect x="205" y="406" width="185" height="112" fill="none" stroke="black" stroke-width="1"/>
+  <rect x="390" y="406" width="185" height="112" fill="none" stroke="black" stroke-width="1"/>
+  <rect x="575" y="406" width="185" height="112" fill="none" stroke="black" stroke-width="1"/>
+  <text x="113" y="432" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">3.1  Fluent Hallucination</text>
+  <text x="113" y="450" font-family="Arial" font-size="14" text-anchor="middle">&#954;_gate high, &#945; low</text>
+  <text x="113" y="500" font-family="Arial" font-size="15" font-weight="bold" text-anchor="middle">&#8594; REPAIR</text>
+  <text x="298" y="432" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">3.2  Phasor Conflict</text>
+  <text x="298" y="450" font-family="Arial" font-size="14" text-anchor="middle">c &lt; c_min</text>
+  <text x="298" y="500" font-family="Arial" font-size="15" font-weight="bold" text-anchor="middle">&#8594; BLOCK</text>
+  <text x="483" y="432" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">3.3  Reward Hacking</text>
+  <text x="483" y="450" font-family="Arial" font-size="14" text-anchor="middle">&#954;_L &#8594; 0, &#954;_compat hi</text>
+  <text x="483" y="500" font-family="Arial" font-size="15" font-weight="bold" text-anchor="middle">&#8594; REPAIR</text>
+  <text x="668" y="432" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">3.4  OOD Fabrication</text>
+  <text x="668" y="450" font-family="Arial" font-size="14" text-anchor="middle">&#969; low, &#954;_compat hi</text>
+  <text x="668" y="500" font-family="Arial" font-size="15" font-weight="bold" text-anchor="middle">&#8594; RE_ENCODE</text>
+
+  <!-- 2008: Group 4 — EXECUTION COLLAPSE (y = 518..684) -->
+  <rect x="20" y="518" width="740" height="36" fill="none" stroke="black" stroke-width="2"/>
+  <text x="390" y="543" font-family="Arial" font-size="16" font-weight="bold" text-anchor="middle">GROUP 4 &#8212; EXECUTION COLLAPSE</text>
+  <rect x="20" y="554" width="740" height="18" fill="none" stroke="black" stroke-width="1"/>
+  <text x="22" y="567" font-family="Arial" font-size="14" font-weight="bold">2008</text>
+  <text x="390" y="567" font-family="Arial" font-size="14" text-anchor="middle">Trigger family: stage composition fails &#8212; weakest link, sync, calibration</text>
+  <rect x="20"  y="572" width="185" height="112" fill="none" stroke="black" stroke-width="1"/>
+  <rect x="205" y="572" width="185" height="112" fill="none" stroke="black" stroke-width="1"/>
+  <rect x="390" y="572" width="185" height="112" fill="none" stroke="black" stroke-width="1"/>
+  <rect x="575" y="572" width="185" height="112" fill="none" stroke="black" stroke-width="1"/>
+  <text x="113" y="598" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">4.1  Weakest-Link Cascade</text>
+  <text x="113" y="616" font-family="Arial" font-size="14" text-anchor="middle">&#954;_gate &lt; &#954;_req(&#963;)</text>
+  <text x="113" y="666" font-family="Arial" font-size="15" font-weight="bold" text-anchor="middle">&#8594; RE_ENCODE</text>
+  <text x="298" y="598" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">4.2  Cross-Modal Desync</text>
+  <text x="298" y="616" font-family="Arial" font-size="14" text-anchor="middle">&#954;_interface low across modes</text>
+  <text x="298" y="666" font-family="Arial" font-size="15" font-weight="bold" text-anchor="middle">&#8594; RE_ENCODE</text>
+  <text x="483" y="598" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">4.3  Stalled Navigation</text>
+  <text x="483" y="616" font-family="Arial" font-size="14" text-anchor="middle">&#916;E &#8594; 0</text>
+  <text x="483" y="666" font-family="Arial" font-size="15" font-weight="bold" text-anchor="middle">&#8594; REPAIR</text>
+  <text x="668" y="598" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">4.4  Gatekeeper Bypass</text>
+  <text x="668" y="616" font-family="Arial" font-size="14" text-anchor="middle">calibration loss</text>
+  <text x="668" y="666" font-family="Arial" font-size="15" font-weight="bold" text-anchor="middle">&#8594; REJECT</text>
+
+  <!-- 2010: Group 5 — SUBSTRATE / EVALUATION DIAGNOSTICS (GeoRSCT extension) -->
+  <rect x="20" y="684" width="740" height="36" fill="none" stroke="black" stroke-width="2"/>
+  <text x="390" y="709" font-family="Arial" font-size="16" font-weight="bold" text-anchor="middle">GROUP 5 &#8212; SUBSTRATE / EVALUATION DIAGNOSTICS (GeoRSCT extension)</text>
+  <rect x="20" y="720" width="740" height="18" fill="none" stroke="black" stroke-width="1"/>
+  <text x="22" y="733" font-family="Arial" font-size="14" font-weight="bold">2010</text>
+  <text x="390" y="733" font-family="Arial" font-size="14" text-anchor="middle">Trigger family: ceiling saturation, spatial leakage, invariance, or partition drift &#8212; pre-certification diagnostics</text>
+  <rect x="20"  y="738" width="185" height="112" fill="none" stroke="black" stroke-width="1"/>
+  <rect x="205" y="738" width="185" height="112" fill="none" stroke="black" stroke-width="1"/>
+  <rect x="390" y="738" width="185" height="112" fill="none" stroke="black" stroke-width="1"/>
+  <rect x="575" y="738" width="185" height="112" fill="none" stroke="black" stroke-width="1"/>
+  <text x="113" y="764" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">5.1  Ceiling Saturation</text>
+  <text x="113" y="782" font-family="Arial" font-size="14" text-anchor="middle">achieved &#8594; R_max(N_ceil)</text>
+  <text x="113" y="832" font-family="Arial" font-size="15" font-weight="bold" text-anchor="middle">&#8594; BLOCK</text>
+  <text x="298" y="764" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">5.2  Spatial Leakage</text>
+  <text x="298" y="782" font-family="Arial" font-size="14" text-anchor="middle">I_blk &lt;&lt; I_row</text>
+  <text x="298" y="832" font-family="Arial" font-size="15" font-weight="bold" text-anchor="middle">&#8594; RE_ENCODE</text>
+  <text x="483" y="764" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">5.3  Architecture Invariance</text>
+  <text x="483" y="782" font-family="Arial" font-size="14" text-anchor="middle">Var_E[R] &#8594; 0 at N hi</text>
+  <text x="483" y="832" font-family="Arial" font-size="15" font-weight="bold" text-anchor="middle">&#8594; BLOCK</text>
+  <text x="668" y="764" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">5.4  Partition Drift (MAUP)</text>
+  <text x="668" y="782" font-family="Arial" font-size="14" text-anchor="middle">&#928;(Z) &#8800; &#928;(Z&#8242;)</text>
+  <text x="668" y="832" font-family="Arial" font-size="15" font-weight="bold" text-anchor="middle">&#8594; RE_ENCODE</text>
+
+  <!-- Bottom annotations — corrected per ADR-021 and 7-fix review -->
+  <text x="390" y="872" font-family="Arial" font-size="14" font-style="italic" text-anchor="middle">Classifies the structured compatibility certificate into typed collapse domains.</text>
+  <text x="390" y="890" font-family="Arial" font-size="14" font-style="italic" text-anchor="middle">Groups 1&#8211;4 align to canonical certificate/gate failure families.</text>
+  <text x="390" y="908" font-family="Arial" font-size="14" font-style="italic" text-anchor="middle">Group 5 is a GeoRSCT substrate/evaluation diagnostic extension, not a fifth runtime gate.</text>
+  <text x="390" y="926" font-family="Arial" font-size="14" font-style="italic" text-anchor="middle">Canonical gate lock: Integrity &#8594; REJECT &#183; Consensus &#8594; BLOCK &#183; Admissibility &#8594; RE_ENCODE &#183; Grounding &#8594; REPAIR</text>
+  <text x="390" y="944" font-family="Arial" font-size="14" font-style="italic" text-anchor="middle">&#916;V, &#916;E are diagnostic extension quantities, not gate enforcement metrics. Read by Interpretation Role.</text>
+
+</svg>
