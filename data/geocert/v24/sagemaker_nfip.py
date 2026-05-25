@@ -153,7 +153,7 @@ def main():
             {
                 "InputName": "data",
                 "S3Input": {
-                    "S3Uri": f"s3://{BUCKET}/{DATA_PREFIX}/",
+                    "S3Uri": f"s3://{BUCKET}/{DATA_PREFIX}/zcta_county_crosswalk.parquet",
                     "LocalPath": "/opt/ml/processing/input/data",
                     "S3DataType": "S3Prefix",
                     "S3InputMode": "File",
