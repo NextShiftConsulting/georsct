@@ -50,6 +50,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import boto3
+from swarm_auth import get_aws_credentials
 import pandas as pd
 
 logging.basicConfig(
@@ -63,8 +64,6 @@ log = logging.getLogger(__name__)
 BUCKET = "swarm-yrsn-datasets"
 PREFIX = "rsct_curriculum/series_018/processed"
 REGION = "us-east-1"
-AWS_PROFILE = "nsc-swarm"
-
 # S3 keys — input is v23.001, output overwrites as v23.002 / v24.001
 BASE_KEY = f"{PREFIX}/zcta_features_labels.parquet"
 SVI_KEY = f"{PREFIX}/svi_zcta.parquet"
@@ -127,8 +126,8 @@ def main():
         local_dir = Path(args.local_dir)
         s3 = None
     else:
-        session = boto3.Session(profile_name=AWS_PROFILE, region_name=REGION)
-        s3 = session.client("s3")
+        _aws = get_aws_credentials()
+        s3 = boto3.client("s3", region_name=REGION, **_aws)
         local_dir = Path("/tmp/geo_build")
         local_dir.mkdir(parents=True, exist_ok=True)
 

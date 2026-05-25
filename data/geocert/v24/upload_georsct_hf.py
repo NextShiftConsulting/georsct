@@ -27,11 +27,10 @@ from pathlib import Path
 import boto3
 import pandas as pd
 from huggingface_hub import HfApi
-from swarm_auth import get_credential
+from swarm_auth import get_aws_credentials, get_credential
 
 BUCKET = "swarm-yrsn-datasets"
 PREFIX = "rsct_curriculum/series_018/processed"
-AWS_PROFILE = "nsc-swarm"
 REGION = "us-east-1"
 HF_REPO_ID = "rudymartin/georsct"
 
@@ -41,8 +40,8 @@ SCRIPT_DIR = Path(__file__).parent
 
 def wait_for_jobs(job_names: list[str], poll_interval: int = 30):
     """Poll SageMaker job statuses until all complete or one fails."""
-    session = boto3.Session(profile_name=AWS_PROFILE, region_name=REGION)
-    sm = session.client("sagemaker")
+    _aws = get_aws_credentials()
+    sm = boto3.client("sagemaker", region_name=REGION, **_aws)
 
     pending = set(job_names)
     print(f"Waiting for {len(pending)} SageMaker jobs...")

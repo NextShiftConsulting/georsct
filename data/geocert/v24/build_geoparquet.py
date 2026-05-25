@@ -39,6 +39,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import boto3
+from swarm_auth import get_aws_credentials
 import geopandas as gpd
 import pandas as pd
 import requests
@@ -148,11 +149,11 @@ def main():
 
     # On SageMaker, IAM role provides credentials (no profile needed)
     try:
-        session = boto3.Session(profile_name="nsc-swarm", region_name=REGION)
-        session.client("sts").get_caller_identity()
+        _aws = get_aws_credentials()
+        boto3.client("sts", region_name=REGION, **_aws).get_caller_identity()
     except Exception:
         session = boto3.Session(region_name=REGION)
-    s3 = session.client("s3")
+    s3 = boto3.client("s3", region_name=REGION, **_aws)
     timestamp = datetime.now(timezone.utc).isoformat()
 
     # -- 1. Download TIGER boundaries --

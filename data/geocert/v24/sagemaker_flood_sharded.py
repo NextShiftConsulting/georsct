@@ -24,9 +24,9 @@ from pathlib import Path
 from typing import Any
 
 import boto3
+from swarm_auth import get_aws_credentials
 
 REGION = "us-east-1"
-AWS_PROFILE = "nsc-swarm"
 BUCKET = "swarm-yrsn-datasets"
 CODE_PREFIX = "rsct_code/geocert_v24/flood_shard"
 DATA_PREFIX = "rsct_curriculum/series_018/processed"
@@ -320,9 +320,9 @@ def main() -> None:
                         help="Only process counties with FIPS <= this value")
     args = parser.parse_args()
 
-    session = boto3.Session(profile_name=AWS_PROFILE, region_name=REGION)
+    _aws = get_aws_credentials()
     role_arn = "arn:aws:iam::865679935554:role/SageMakerExecutionRole"
-    s3 = session.client("s3")
+    s3 = boto3.client("s3", region_name=REGION, **_aws)
 
     # --- Scan S3 for state ---
     print("=== SCANNING S3 ===")
@@ -399,7 +399,7 @@ def main() -> None:
         county_keys.append(key)
 
     print("\n=== LAUNCHING JOBS ===")
-    sm = session.client("sagemaker")
+    sm = boto3.client("sagemaker", region_name=REGION, **_aws)
     for i, key in enumerate(county_keys):
         print(f"\n  Shard {i} ({len(shards[i])} counties):")
         name = launch_shard(sm, key, i, timestamp, args.instance_type, role_arn)

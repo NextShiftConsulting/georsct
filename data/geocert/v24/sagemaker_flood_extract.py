@@ -14,9 +14,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import boto3
+from swarm_auth import get_aws_credentials
 
 REGION = "us-east-1"
-AWS_PROFILE = "nsc-swarm"
 BUCKET = "swarm-yrsn-datasets"
 CODE_PREFIX = "rsct_code/geocert_v24/flood_extract"
 DATA_PREFIX = "rsct_curriculum/series_018/processed"
@@ -62,9 +62,9 @@ def main():
     parser.add_argument("--instance-type", default="ml.m5.12xlarge")
     args = parser.parse_args()
 
-    session = boto3.Session(profile_name=AWS_PROFILE, region_name=REGION)
+    _aws = get_aws_credentials()
     role_arn = "arn:aws:iam::865679935554:role/SageMakerExecutionRole"
-    s3 = session.client("s3")
+    s3 = boto3.client("s3", region_name=REGION, **_aws)
 
     print("=== DEPLOYING CODE ===")
     deploy_code(s3)
@@ -95,7 +95,7 @@ def main():
         print(f"\n[DRY RUN] Would launch with above config.")
         return
 
-    sm = session.client("sagemaker")
+    sm = boto3.client("sagemaker", region_name=REGION, **_aws)
 
     config = {
         "ProcessingJobName": job_name,

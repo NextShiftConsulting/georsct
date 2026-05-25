@@ -31,6 +31,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import boto3
+from swarm_auth import get_aws_credentials
 
 REGION = "us-east-1"
 AWS_PROFILE = "nsc-swarm"  # 865679935554 -- bucket + SageMaker role live here
@@ -102,10 +103,10 @@ def main():
     parser.add_argument("--instance-type", default="ml.m5.2xlarge")
     args = parser.parse_args()
 
-    session = boto3.Session(profile_name=AWS_PROFILE, region_name=REGION)
+    _aws = get_aws_credentials()
     role_arn = "arn:aws:iam::865679935554:role/SageMakerExecutionRole"
 
-    s3 = session.client("s3")
+    s3 = boto3.client("s3", region_name=REGION, **_aws)
 
     # Deploy code
     print("=== DEPLOYING CODE ===")
@@ -140,7 +141,7 @@ def main():
         print(f"[DRY RUN] Estimated cost: ~$0.75 ({args.instance_type} @ $0.46/hr)")
         return
 
-    sm = session.client("sagemaker")
+    sm = boto3.client("sagemaker", region_name=REGION, **_aws)
 
     config = {
         "ProcessingJobName": job_name,

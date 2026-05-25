@@ -1,18 +1,31 @@
 #!/usr/bin/env python3
 """
-SageMaker Launcher: FEMA NFHL Fetch-Only (Lane 2)
+SageMaker Launcher: Drive-Time Feature Build
 
-Pure download job — 16 threads, no overlay, dumps county JSONs to S3.
-Skips counties already on S3. Companion to run_flood_zones.py which
-reads the cached fetch files on startup.
+Launches a processing job to compute per-ZCTA drive-time features using
+HIFLD 2022 hospital locations and ZCTA centroids.
 
-Instance: ml.m5.large (2 vCPU, 8 GB — fetch is I/O-bound, not memory)
-Runtime:  ~6-10 hours estimated (FEMA API is the bottleneck)
-Cost:     ~$0.60-1.00
+Two features:
+  - drive_min_to_nearest_hospital: haversine-estimated drive time (min)
+  - drive_min_to_county_centroid: haversine-estimated drive time (min)
+
+Instance: ml.m5.xlarge (4 vCPU, 16 GB RAM, $0.23/hr)
+Runtime:  25-35 min estimated (OSRM table API: ~1,300 batched calls x 2 features)
+Cost:     ~$0.13 estimated
+
+Mounts:
+  Code:   s3://swarm-yrsn-datasets/rsct_code/geocert_v24/drive_times/
+  HIFLD:  s3://swarm-yrsn-datasets/rsct_curriculum/series_018/source/
+  Data:   s3://swarm-yrsn-datasets/rsct_curriculum/series_018/processed/
+
+Output: uploaded directly to S3 by the run script.
+
+Usage:
+  python sagemaker_drive_times.py --dry-run
+  python sagemaker_drive_times.py
 """
 
 import argparse
-import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,19 +35,21 @@ from swarm_auth import get_aws_credentials
 
 REGION = "us-east-1"
 BUCKET = "swarm-yrsn-datasets"
-CODE_PREFIX = "rsct_code/geocert_v24/flood_fetch"
+CODE_PREFIX = "rsct_code/geocert_v24/drive_times"
+SOURCE_PREFIX = "rsct_curriculum/series_018/source"
 DATA_PREFIX = "rsct_curriculum/series_018/processed"
-TIGER_PREFIX = "rsct_curriculum/series_018/tiger_zcta"
 OUTPUT_PREFIX = "rsct_curriculum/series_018/processed"
 
 CODE_DIR = Path(__file__).parent
 CODE_FILES = [
-    "run_flood_fetch_only.py",
-    "entrypoint_flood_fetch.sh",
+    "build_drive_times.py",
+    "build_hifld_features.py",  # imported by build_drive_times for load_hifld_hospitals()
+    "entrypoint_drive_times.sh",
 ]
 
 
 def get_image_uri(region="us-east-1"):
+    """PyTorch 2.5 CPU image (Python 3.11)."""
     return (
         f"763104351884.dkr.ecr.{region}.amazonaws.com/"
         "pytorch-training:2.5-cpu-py311"
@@ -42,6 +57,7 @@ def get_image_uri(region="us-east-1"):
 
 
 def deploy_code(s3):
+    """Upload code files to S3."""
     for fname in CODE_FILES:
         local = CODE_DIR / fname
         if not local.exists():
@@ -53,35 +69,59 @@ def deploy_code(s3):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Launch flood fetch-only SageMaker job")
+    parser = argparse.ArgumentParser(description="Launch drive-time SageMaker job")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--instance-type", default="ml.m5.xlarge")
-    parser.add_argument("--threads", type=int, default=16)
     args = parser.parse_args()
 
     _aws = get_aws_credentials()
     role_arn = "arn:aws:iam::865679935554:role/SageMakerExecutionRole"
+
     s3 = boto3.client("s3", region_name=REGION, **_aws)
 
+    # Deploy code
     print("=== DEPLOYING CODE ===")
     deploy_code(s3)
 
+    # Verify HIFLD CSV is on S3
+    hifld_key = f"{SOURCE_PREFIX}/HIFLD_2022_Hospitals.csv"
+    try:
+        s3.head_object(Bucket=BUCKET, Key=hifld_key)
+        print(f"  HIFLD CSV verified: s3://{BUCKET}/{hifld_key}")
+    except Exception:
+        print(f"  ERROR: HIFLD CSV not found at s3://{BUCKET}/{hifld_key}")
+        print("  Upload with: aws s3 cp V3/data/HIFLD_2022_Hospitals.csv s3://...")
+        sys.exit(1)
+
+    # Verify ZCTA data
+    zcta_key = f"{DATA_PREFIX}/zcta_features_labels.parquet"
+    try:
+        s3.head_object(Bucket=BUCKET, Key=zcta_key)
+        print(f"  ZCTA data verified: s3://{BUCKET}/{zcta_key}")
+    except Exception:
+        print(f"  ERROR: ZCTA data not found at s3://{BUCKET}/{zcta_key}")
+        sys.exit(1)
+
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    job_name = f"geocert-flood-fetch-{timestamp}"
+    job_name = f"geocert-drive-times-{timestamp}"
     image_uri = get_image_uri(REGION)
 
     print("\n" + "=" * 60)
-    print("FEMA NFHL Fetch-Only (Lane 2)")
+    print("Drive-Time Feature Build")
     print("=" * 60)
     print(f"Job:      {job_name}")
     print(f"Instance: {args.instance_type}")
-    print(f"Threads:  {args.threads}")
     print(f"Image:    {image_uri}")
-    print(f"Output:   s3://{BUCKET}/{DATA_PREFIX}/flood_fetch/")
+    print(f"Code:     s3://{BUCKET}/{CODE_PREFIX}/")
+    print(f"HIFLD:    s3://{BUCKET}/{SOURCE_PREFIX}/")
+    print(f"Data:     s3://{BUCKET}/{DATA_PREFIX}/")
+    print(f"Output:   direct S3 upload + EndOfJob backup")
     print("=" * 60)
 
     if args.dry_run:
-        print(f"\n[DRY RUN] Would launch with above config.")
+        print("\n[DRY RUN] Would launch with above config.")
+        print(f"[DRY RUN] Estimated runtime: 25-35 min (OSRM table API)")
+        print(f"[DRY RUN] Estimated cost: ~$0.13 ({args.instance_type} @ $0.23/hr)")
         return
 
     sm = boto3.client("sagemaker", region_name=REGION, **_aws)
@@ -99,7 +139,7 @@ def main():
             "ImageUri": image_uri,
             "ContainerEntrypoint": [
                 "bash",
-                "/opt/ml/processing/input/code/entrypoint_flood_fetch.sh",
+                "/opt/ml/processing/input/code/entrypoint_drive_times.sh",
             ],
         },
         "RoleArn": role_arn,
@@ -114,19 +154,19 @@ def main():
                 },
             },
             {
-                "InputName": "crosswalk",
+                "InputName": "hifld",
                 "S3Input": {
-                    "S3Uri": f"s3://{BUCKET}/{DATA_PREFIX}/",
-                    "LocalPath": "/opt/ml/processing/input/data",
+                    "S3Uri": f"s3://{BUCKET}/{SOURCE_PREFIX}/",
+                    "LocalPath": "/opt/ml/processing/input/hifld",
                     "S3DataType": "S3Prefix",
                     "S3InputMode": "File",
                 },
             },
             {
-                "InputName": "tiger",
+                "InputName": "data",
                 "S3Input": {
-                    "S3Uri": f"s3://{BUCKET}/{TIGER_PREFIX}/",
-                    "LocalPath": "/opt/ml/processing/input/tiger",
+                    "S3Uri": f"s3://{BUCKET}/rsct_code/geocert_v24/inputs/",
+                    "LocalPath": "/opt/ml/processing/input/data",
                     "S3DataType": "S3Prefix",
                     "S3InputMode": "File",
                 },
@@ -144,23 +184,15 @@ def main():
                 },
             ],
         },
-        "StoppingCondition": {"MaxRuntimeInSeconds": 43200},  # 12 hours max
-        "Environment": {
-            "PYTHONUNBUFFERED": "1",
+        "StoppingCondition": {
+            "MaxRuntimeInSeconds": 7200,
         },
     }
 
-    response = sm.create_processing_job(**config)
-
-    print(f"\nJob launched: {response['ProcessingJobArn']}")
-    print(f"\nMonitor:")
-    print(f"  MSYS_NO_PATHCONV=1 aws sagemaker describe-processing-job "
-          f"--processing-job-name {job_name} --region {REGION} --profile nsc-swarm "
-          f"--query 'ProcessingJobStatus'")
-    print(f"\nLive logs:")
-    print(f"  MSYS_NO_PATHCONV=1 aws logs tail /aws/sagemaker/ProcessingJobs "
-          f"--log-stream-name-prefix {job_name} --follow "
-          f"--profile nsc-swarm --region {REGION}")
+    print(f"\nLaunching: {job_name}")
+    sm.create_processing_job(**config)
+    print(f"Job created: {job_name}")
+    print(f"Monitor: aws sagemaker describe-processing-job --processing-job-name {job_name} --profile {AWS_PROFILE} --region {REGION}")
 
 
 if __name__ == "__main__":
