@@ -82,7 +82,8 @@ def get_huc8_bboxes(huc2_codes: list[str]) -> list[dict]:
 
     for huc2 in huc2_codes:
         try:
-            gdf = wd.byid("huc2", [huc2])
+            # Filter by huc8 prefix — "huc2" is not a valid field in wbd08
+            gdf = wd.byfilter(f"huc8 LIKE '{huc2}%'")
             if gdf is None or gdf.empty:
                 log.warning("  HUC2 %s returned no HUC8s", huc2)
                 continue
