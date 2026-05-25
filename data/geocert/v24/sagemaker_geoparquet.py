@@ -82,7 +82,7 @@ def main():
     _aws = get_aws_credentials()
     role_arn = "arn:aws:iam::865679935554:role/SageMakerExecutionRole"
 
-    s3 = boto3.client("s3", region_name=REGION, **_aws)
+    s3 = boto3.client("s3", **_aws)
 
     # Deploy code
     print("=== DEPLOYING CODE ===")
@@ -109,7 +109,7 @@ def main():
         print(f"[DRY RUN] Estimated cost: ~$0.08 ({args.instance_type} @ $0.23/hr)")
         return
 
-    sm = boto3.client("sagemaker", region_name=REGION, **_aws)
+    sm = boto3.client("sagemaker", **_aws)
 
     config = {
         "ProcessingJobName": job_name,
@@ -159,7 +159,7 @@ def main():
     print(f"\nLaunching: {job_name}")
     sm.create_processing_job(**config)
     print(f"Job created: {job_name}")
-    print(f"Monitor: aws sagemaker describe-processing-job --processing-job-name {job_name} --profile {AWS_PROFILE} --region {REGION}")
+    print(f"Monitor: aws sagemaker describe-processing-job --processing-job-name {job_name} --region {REGION}")
 
 
 if __name__ == "__main__":
