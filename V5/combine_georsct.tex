@@ -469,9 +469,9 @@ where $D^*(\mathcal{P},\mathcal{S})$ is the best achievable difficulty for solve
 
 The third certificate signal captures \emph{stability}: a model can have good average quality and compatibility while behaving erratically across samples, regions, or protocols. Turbulence measures the scatter of per-sample compatibility:
 \begin{equation}
-\sigma = \operatorname{std}(\{\kappa_i\}_{i=1}^M)
+\sigma = \operatorname{std}(\{\kappa_i\}_{i=1}^m)
 \end{equation}
-where $M$ is the number of modal sources or samples. A stable representation yields similar $\kappa_i$ across the evaluation population; a turbulent one shows high dispersion: some regions score well, others collapse, and the mean hides the heterogeneity.
+where $m$ is the number of modal sources or samples. A stable representation yields similar $\kappa_i$ across the evaluation population; a turbulent one shows high dispersion: some regions score well, others collapse, and the mean hides the heterogeneity.
 
 \paragraph{Why turbulence is load-bearing.} Without $\sigma$, a representation with $\bar{\kappa} = 0.7$ looks admissible. But if that mean comes from half the ZCTAs at $\kappa = 0.95$ and half at $\kappa = 0.45$, the representation is operationally unreliable: a decision-maker cannot know which half they are in. Turbulence makes this distinction. The hard boundary is $\sigma_{\text{thr}} = 0.5$; encodings above this threshold are outside the admissible region regardless of $\kappa_{\text{gate}}$.
 
@@ -538,7 +538,7 @@ The four-gate sequential gatekeeper is the enforcement consequence of the three 
 \caption{RSCT Pre-Execution Gatekeeper~\citep{martin2026rsct}}
 \label{alg:gatekeeper}
 \begin{algorithmic}[1]
-\Require Certificate $(R, S_{\text{sup}}, N)$; modal health $\{\kappa_1,\ldots,\kappa_M\}$; coherence $c$; turbulence $\sigma$
+\Require Certificate $(R, S_{\text{sup}}, N)$; modal health $\{\kappa_1,\ldots,\kappa_m\}$; coherence $c$; turbulence $\sigma$
 \Require Thresholds: $\kappa_{\text{base}} = 0.5$, $\Delta\kappa = 0.4$, $s = 10.0$, $\sigma_c = 0.35$, $\varepsilon_L = 0.05$, $c_{\min} = 0.4$, $\kappa_L^{\min} = 0.3$, $\sigma_{\text{thr}} = 0.5$
 \Ensure Decision $\in\{\textsc{Execute}, \textsc{Reject}, \textsc{Block}, \textsc{Re\_encode}, \textsc{Repair}\}$
 
