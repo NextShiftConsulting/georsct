@@ -2,32 +2,32 @@
 """
 run_comid_zcta.py -- SageMaker run script: COMID-to-ZCTA spatial crosswalk.
 
-Builds comid_zcta_crosswalk.parquet — spatial join between NHDPlus V2
-catchment polygons (COMID) and Census 2020 ZCTAs with area fraction weights.
+Builds comid_zcta_crosswalk.parquet via pynhd WaterData WFS (USGS api.water.usgs.gov).
+EDCINTL (original NHDPlus V2 host) is defunct as of 2025 — this uses the USGS
+WaterData WFS endpoint instead.
 
 Strategy:
-  1. Load TIGER ZCTAs, reproject to EPSG:5070, save as parquet for workers
-  2. ProcessPoolExecutor: all 21 VPUs in parallel (one worker per VPU)
-     Each worker: download 7zip from EDCINTL → extract → overlay → parquet
-     VPU parquets cached to S3 so reruns skip download entirely
-  3. Concatenate, deduplicate, validate, upload
+  1. Load TIGER ZCTAs, reproject to EPSG:5070, save for workers
+  2. Get all HUC8 bounding boxes via WaterData("wbd08") for CONUS HUC2 01-18
+  3. ProcessPoolExecutor: each worker queries WaterData("catchmentsp").bybox()
+     for one HUC8, gets NHDPlus V2 catchment polygons with COMID (FEATUREID)
+  4. For each HUC8 batch: spatial overlay with ZCTAs, compute area fractions
+  5. Concatenate, deduplicate, validate, upload
 
-Instance: ml.m5.8xlarge (32 vCPU, 128 GB RAM, $1.845/hr)
-Runtime:  ~20-30 min (all 21 VPUs parallel, bounded by slowest VPU)
-Cost:     ~$0.90
+Instance: ml.m5.12xlarge (48 vCPU, 192 GB RAM)
+Runtime:  ~30-50 min (HUC8-tiled WFS queries + parallel overlays)
+Cost:     ~$1.20
 
 Output: s3://swarm-yrsn-datasets/rsct_curriculum/geo/comid_zcta_crosswalk.parquet
   - COMID         (str)
   - zcta_id       (str, 5-digit)
-  - area_fraction (float, fraction of COMID area inside ZCTA)
+  - area_fraction (float)
 """
 
-import io
 import json
 import logging
 import multiprocessing
 import os
-import shutil
 import sys
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -37,8 +37,6 @@ from pathlib import Path
 import boto3
 import geopandas as gpd
 import pandas as pd
-import py7zr
-import requests
 from shapely.validation import make_valid
 
 logging.basicConfig(
@@ -54,41 +52,12 @@ log = logging.getLogger(__name__)
 S3_BUCKET = "swarm-yrsn-datasets"
 S3_OUTPUT_KEY = "rsct_curriculum/geo/comid_zcta_crosswalk.parquet"
 S3_PROVENANCE_KEY = "rsct_curriculum/geo/comid_zcta_crosswalk_provenance.json"
-S3_VPU_CACHE_PREFIX = "rsct_curriculum/geo/nhdplus_vpu_cache"
 TARGET_CRS = "EPSG:5070"
 
-EDCINTL_BASE = (
-    "https://edcintl.cr.usgs.gov/downloads/sciweb1/shared/NHDPlusV21/Data/"
-)
-
-VPU_MAP = {
-    "01":  ("NHDPlusNE", "NE"),
-    "02":  ("NHDPlusMA", "MA"),
-    "03N": ("NHDPlusSA", "SA"),
-    "03S": ("NHDPlusSA", "SA"),
-    "03W": ("NHDPlusSA", "SA"),
-    "04":  ("NHDPlusGL", "GL"),
-    "05":  ("NHDPlusMS", "MS"),
-    "06":  ("NHDPlusMS", "MS"),
-    "07":  ("NHDPlusMS", "MS"),
-    "08":  ("NHDPlusMS", "MS"),
-    "09":  ("NHDPlusMS", "MS"),
-    "10L": ("NHDPlusMO", "MO"),
-    "10U": ("NHDPlusMO", "MO"),
-    "11":  ("NHDPlusAR", "AR"),
-    "12":  ("NHDPlusTX", "TX"),
-    "13":  ("NHDPlusRG", "RG"),
-    "14":  ("NHDPlusRG", "RG"),
-    "15":  ("NHDPlusRG", "RG"),
-    "16":  ("NHDPlusPN", "PN"),
-    "17":  ("NHDPlusPN", "PN"),
-    "18":  ("NHDPlusCA", "CA"),
-}
+# CONUS HUC2 regions (01-18)
+CONUS_HUC2 = [f"{i:02d}" for i in range(1, 19)]
 
 
-# ---------------------------------------------------------------------------
-# S3 helpers (no profile — uses IAM role inside SageMaker)
-# ---------------------------------------------------------------------------
 def _s3():
     return boto3.client("s3")
 
@@ -99,132 +68,94 @@ def _s3_upload(local_path: str, key: str):
     except Exception as e:
         log.warning("  S3 upload failed for %s: %s", key, e)
 
-def _s3_exists(key: str) -> bool:
-    try:
-        _s3().head_object(Bucket=S3_BUCKET, Key=key)
-        return True
-    except Exception:
-        return False
 
-def _s3_download_to(key: str, local_path: Path) -> bool:
-    try:
-        _s3().download_file(S3_BUCKET, key, str(local_path))
-        return True
-    except Exception:
-        return False
+# ---------------------------------------------------------------------------
+# Fetch HUC8 bounding boxes (runs in main process)
+# ---------------------------------------------------------------------------
+def get_huc8_bboxes(huc2_codes: list[str]) -> list[dict]:
+    """Return list of {huc8, minx, miny, maxx, maxy} for all HUC8s in given HUC2s."""
+    from pynhd import WaterData
+
+    log.info("Fetching HUC8 boundaries for %d HUC2 regions...", len(huc2_codes))
+    wd = WaterData("wbd08")
+    all_huc8 = []
+
+    for huc2 in huc2_codes:
+        try:
+            gdf = wd.byid("huc2", [huc2])
+            if gdf is None or gdf.empty:
+                log.warning("  HUC2 %s returned no HUC8s", huc2)
+                continue
+            for _, row in gdf.iterrows():
+                bbox = row.geometry.bounds  # (minx, miny, maxx, maxy)
+                all_huc8.append({
+                    "huc2": huc2,
+                    "huc8": str(row.get("huc8", row.get("HUC8", ""))),
+                    "minx": bbox[0], "miny": bbox[1],
+                    "maxx": bbox[2], "maxy": bbox[3],
+                })
+            log.info("  HUC2 %s: %d HUC8s", huc2, len(gdf))
+        except Exception as exc:
+            log.warning("  HUC2 %s failed: %s", huc2, exc)
+
+    log.info("Total HUC8s to query: %d", len(all_huc8))
+    return all_huc8
 
 
 # ---------------------------------------------------------------------------
-# Per-VPU worker function (runs in subprocess)
+# Per-HUC8 worker: fetch catchments + overlay with ZCTAs
 # ---------------------------------------------------------------------------
-def process_vpu(args: tuple) -> tuple[str, str | None]:
-    """Download, extract, overlay one VPU. Returns (vpu, output_parquet_path | None)."""
-    vpu, zctas_parquet_path, work_dir_str, cache_dir_str = args
-    work_dir = Path(work_dir_str) / f"vpu{vpu}"
+def process_huc8(args: tuple) -> tuple[str, str | None]:
+    """Fetch catchment polygons for one HUC8, overlay with ZCTAs, return pairs parquet path."""
+    huc8, bbox_dict, zctas_parquet, work_dir_str, attempt_n = args
+    work_dir = Path(work_dir_str)
     work_dir.mkdir(parents=True, exist_ok=True)
-    cache_dir = Path(cache_dir_str)
 
-    # Subprocess gets its own logger
-    logger = logging.getLogger(f"vpu{vpu}")
+    from pynhd import WaterData
+    from shapely.validation import make_valid as _make_valid
 
-    # --- Load TIGER ZCTAs (pre-saved as parquet by main process) ---
-    zctas = gpd.read_parquet(zctas_parquet_path)
+    logger = logging.getLogger(f"huc8.{huc8}")
 
-    # --- Get catchments (S3 cache or EDCINTL download) ---
-    dir_name, reg_code = VPU_MAP[vpu]
-    cache_key = f"{S3_VPU_CACHE_PREFIX}/catchments_vpu{vpu}.parquet"
-    cache_local = cache_dir / f"catchments_vpu{vpu}.parquet"
+    # --- Fetch catchments from WFS ---
+    bbox = (bbox_dict["minx"], bbox_dict["miny"], bbox_dict["maxx"], bbox_dict["maxy"])
+    try:
+        wd = WaterData("catchmentsp")
+        catchments = wd.bybox(bbox)
+    except Exception as exc:
+        logger.warning("[%s] WFS query failed: %s", huc8, exc)
+        if attempt_n < 2:
+            time.sleep(10 * (attempt_n + 1))
+            return process_huc8((huc8, bbox_dict, zctas_parquet, work_dir_str, attempt_n + 1))
+        return huc8, None
 
-    catchments = None
+    if catchments is None or catchments.empty:
+        return huc8, None
 
-    if _s3_exists(cache_key):
-        logger.info("[%s] Loading catchments from S3 cache", vpu)
-        if _s3_download_to(cache_key, cache_local):
-            catchments = gpd.read_parquet(cache_local)
-            logger.info("[%s] %d catchments from cache", vpu, len(catchments))
+    # Normalize COMID column
+    for col in catchments.columns:
+        if col.lower() in ("featureid", "comid"):
+            catchments = catchments.rename(columns={col: "COMID"})
+            break
 
-    if catchments is None:
-        candidate_urls = [
-            f"{EDCINTL_BASE}{dir_name}/NHDPlusV21_{reg_code}_{vpu}_NHDPlusCatchment.7z",
-            f"{EDCINTL_BASE}{dir_name}/NHDPlusV21_{reg_code}NHDPlusCatchment.7z",
-            f"{EDCINTL_BASE}{dir_name}/NHDPlusV21_{vpu}_NHDPlusCatchment.7z",
-        ]
-        archive = work_dir / f"vpu{vpu}.7z"
-        shp_dir = work_dir / "shp"
-        shp_dir.mkdir(exist_ok=True)
+    if "COMID" not in catchments.columns:
+        logger.warning("[%s] No COMID column — columns: %s", huc8, list(catchments.columns))
+        return huc8, None
 
-        downloaded = False
-        for url in candidate_urls:
-            for attempt in range(3):
-                try:
-                    resp = requests.get(url, timeout=300, stream=True)
-                    if resp.status_code == 404:
-                        break
-                    resp.raise_for_status()
-                    with open(archive, "wb") as f:
-                        for chunk in resp.iter_content(1024 * 1024):
-                            f.write(chunk)
-                    downloaded = True
-                    break
-                except Exception as exc:
-                    if attempt == 2:
-                        pass
-                    else:
-                        time.sleep(5 * (attempt + 1))
-            if downloaded:
-                break
+    catchments = catchments[["COMID", "geometry"]].copy()
+    catchments["COMID"] = catchments["COMID"].astype(str).str.strip()
+    catchments = catchments[catchments.geometry.notna()]
+    catchments["geometry"] = catchments["geometry"].apply(_make_valid)
 
-        if not downloaded:
-            logger.warning("[%s] All download URLs failed — skipping", vpu)
-            return vpu, None
-
-        try:
-            with py7zr.SevenZipFile(archive, mode="r") as z:
-                z.extractall(path=shp_dir)
-            archive.unlink()
-        except Exception as exc:
-            logger.warning("[%s] 7zip extraction failed: %s", vpu, exc)
-            return vpu, None
-
-        shp_files = list(shp_dir.rglob("*.shp"))
-        shp_files = [f for f in shp_files
-                     if "catchment" in f.name.lower()] or shp_files
-        if not shp_files:
-            logger.warning("[%s] No shapefile found", vpu)
-            return vpu, None
-
-        try:
-            gdf = gpd.read_file(shp_files[0], engine="pyogrio")
-        except Exception as exc:
-            logger.warning("[%s] Shapefile read failed: %s", vpu, exc)
-            return vpu, None
-
-        comid_col = next(
-            (c for c in gdf.columns if c.upper() in ("FEATUREID", "COMID")), None
-        )
-        if comid_col is None:
-            logger.warning("[%s] No COMID column", vpu)
-            return vpu, None
-
-        catchments = gdf[[comid_col, "geometry"]].rename(columns={comid_col: "COMID"})
-        catchments["COMID"] = catchments["COMID"].astype(str).str.strip()
-        catchments = catchments[catchments.geometry.notna()].copy()
-        catchments["geometry"] = catchments["geometry"].apply(make_valid)
-
-        # Cache to S3
-        catchments.to_parquet(cache_local)
-        _s3_upload(str(cache_local), cache_key)
-        shutil.rmtree(shp_dir, ignore_errors=True)
-
-    # --- Reproject both to equal-area CRS ---
+    # --- Reproject ---
     catchments = catchments.to_crs(TARGET_CRS)
 
-    # Clip ZCTAs to VPU extent
-    bbox = catchments.total_bounds
-    zctas_clip = zctas.cx[bbox[0]:bbox[2], bbox[1]:bbox[3]]
+    # --- Load TIGER ZCTAs (pre-saved parquet) and clip to HUC8 extent ---
+    zctas = gpd.read_parquet(zctas_parquet)
+    bbox_albers = catchments.total_bounds
+    zctas_clip = zctas.cx[bbox_albers[0]:bbox_albers[2], bbox_albers[1]:bbox_albers[3]]
+
     if zctas_clip.empty:
-        logger.info("[%s] No ZCTAs in extent — skipping", vpu)
-        return vpu, None
+        return huc8, None
 
     # --- Spatial overlay ---
     catchments["catchment_area"] = catchments.geometry.area
@@ -237,18 +168,21 @@ def process_vpu(args: tuple) -> tuple[str, str | None]:
         catchments["geometry"] = catchments.geometry.buffer(0)
         zctas_clip = zctas_clip.copy()
         zctas_clip["geometry"] = zctas_clip.geometry.buffer(0)
-        inter = gpd.overlay(
-            catchments, zctas_clip[["zcta_id", "geometry"]],
-            how="intersection", keep_geom_type=False,
-        )
+        try:
+            inter = gpd.overlay(
+                catchments, zctas_clip[["zcta_id", "geometry"]],
+                how="intersection", keep_geom_type=False,
+            )
+        except Exception as exc2:
+            logger.warning("[%s] Overlay failed: %s", huc8, exc2)
+            return huc8, None
 
     if inter.empty:
-        return vpu, None
+        return huc8, None
 
-    inter["area_fraction"] = inter.geometry.area / inter["catchment_area"]
+    inter["area_fraction"] = (inter.geometry.area / inter["catchment_area"]).clip(0, 1)
     inter = inter[inter["area_fraction"] > 0.001].copy()
 
-    # Normalize per COMID
     af_sum = inter.groupby("COMID")["area_fraction"].sum()
     inter = inter.join(af_sum.rename("af_sum"), on="COMID")
     inter["area_fraction"] = (inter["area_fraction"] / inter["af_sum"]).clip(0, 1).round(6)
@@ -256,8 +190,9 @@ def process_vpu(args: tuple) -> tuple[str, str | None]:
     result = inter[["COMID", "zcta_id", "area_fraction"]].copy()
     out_path = work_dir / "pairs.parquet"
     result.to_parquet(out_path, index=False)
-    logger.info("[%s] Done: %d pairs", vpu, len(result))
-    return vpu, str(out_path)
+
+    logger.info("[%s] %d catchments → %d COMID-ZCTA pairs", huc8, len(catchments), len(result))
+    return huc8, str(out_path)
 
 
 # ---------------------------------------------------------------------------
@@ -269,9 +204,9 @@ def main():
     parser.add_argument("--tiger-dir", default="/opt/ml/processing/input/tiger")
     parser.add_argument("--output-dir", default="/opt/ml/processing/output")
     parser.add_argument("--cache-dir", default="/tmp/nhdplus_cache")
-    parser.add_argument("--vpus", nargs="+", default=None)
-    parser.add_argument("--workers", type=int, default=None,
-                        help="Parallel workers (default: min(cpu_count, n_vpus))")
+    parser.add_argument("--huc2", nargs="+", default=None,
+                        help="Subset of HUC2 codes (default: all 18 CONUS)")
+    parser.add_argument("--workers", type=int, default=None)
     args = parser.parse_args()
 
     timestamp = datetime.now(timezone.utc).isoformat()
@@ -279,15 +214,15 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
     cache_dir = Path(args.cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
-    work_dir = Path("/tmp/vpu_work")
-    work_dir.mkdir(parents=True, exist_ok=True)
+    work_base = Path("/tmp/huc8_work")
+    work_base.mkdir(parents=True, exist_ok=True)
 
-    vpus = args.vpus or list(VPU_MAP.keys())
-    n_cpu = os.cpu_count() or 8
-    n_workers = args.workers or min(n_cpu, len(vpus))
-    log.info("VPUs: %d | Workers: %d | CPUs: %d", len(vpus), n_workers, n_cpu)
+    huc2_codes = args.huc2 or CONUS_HUC2
+    n_cpu = os.cpu_count() or 16
+    n_workers = args.workers or min(n_cpu, 48)
+    log.info("HUC2 regions: %s | Workers: %d | CPUs: %d", huc2_codes, n_workers, n_cpu)
 
-    # --- Load TIGER ZCTAs once, reproject, save as parquet for workers ---
+    # --- Load and reproject TIGER ZCTAs ---
     log.info("=== LOADING TIGER ZCTAs ===")
     tiger_dir = Path(args.tiger_dir)
     shp_files = list(tiger_dir.glob("*.shp"))
@@ -302,55 +237,65 @@ def main():
     if zcta_col:
         zctas = zctas.rename(columns={zcta_col: "zcta_id"})
     zctas["zcta_id"] = zctas["zcta_id"].astype(str).str.zfill(5)
-    zctas = zctas[["zcta_id", "geometry"]].copy()
-    zctas = zctas[zctas.geometry.notna()]
+    zctas = zctas[["zcta_id", "geometry"]][zctas.geometry.notna()].copy()
     zctas["geometry"] = zctas["geometry"].apply(make_valid)
     zctas = zctas.to_crs(TARGET_CRS)
-    log.info("ZCTAs: %d rows, reprojected to %s", len(zctas), TARGET_CRS)
+    log.info("ZCTAs: %d rows in %s", len(zctas), TARGET_CRS)
 
     zctas_parquet = cache_dir / "zctas_albers.parquet"
     zctas.to_parquet(zctas_parquet)
-    log.info("TIGER parquet saved for workers: %s", zctas_parquet)
+    log.info("TIGER parquet saved: %s", zctas_parquet)
 
-    # --- Parallel VPU processing ---
-    log.info("=== PARALLEL VPU PROCESSING (%d workers) ===", n_workers)
+    # --- Get HUC8 bboxes ---
+    log.info("=== FETCHING HUC8 BOUNDARIES ===")
+    huc8_list = get_huc8_bboxes(huc2_codes)
+    if not huc8_list:
+        log.error("No HUC8s retrieved")
+        sys.exit(1)
+    log.info("Total HUC8 work units: %d", len(huc8_list))
+
+    # --- Parallel HUC8 processing ---
+    log.info("=== PARALLEL HUC8 PROCESSING (%d workers) ===", n_workers)
     worker_args = [
-        (vpu, str(zctas_parquet), str(work_dir), str(cache_dir))
-        for vpu in vpus
+        (
+            item["huc8"],
+            item,
+            str(zctas_parquet),
+            str(work_base / f"huc8_{item['huc8']}"),
+            0,
+        )
+        for item in huc8_list
     ]
 
     results = {}
     t0 = time.time()
-
-    # Use spawn to avoid geopandas fork issues
     ctx = multiprocessing.get_context("spawn")
+
     with ProcessPoolExecutor(max_workers=n_workers, mp_context=ctx) as pool:
-        futures = {pool.submit(process_vpu, wargs): wargs[0] for wargs in worker_args}
+        futures = {pool.submit(process_huc8, wa): wa[0] for wa in worker_args}
         for future in as_completed(futures):
-            vpu = futures[future]
+            huc8 = futures[future]
             try:
-                vpu_out, path = future.result()
-                results[vpu_out] = path
-                done = sum(1 for v in results if results[v] is not None)
-                failed = sum(1 for v in results if results[v] is None)
-                log.info("VPU %s complete | done=%d failed=%d remaining=%d",
-                         vpu_out, done, failed, len(vpus) - len(results))
+                huc8_out, path = future.result()
+                results[huc8_out] = path
+                n_done = sum(1 for p in results.values() if p)
+                n_fail = sum(1 for p in results.values() if p is None)
+                remaining = len(huc8_list) - len(results)
+                if len(results) % 50 == 0:
+                    log.info("Progress: done=%d failed=%d remaining=%d", n_done, n_fail, remaining)
             except Exception as exc:
-                log.warning("VPU %s raised exception: %s", vpu, exc)
-                results[vpu] = None
+                log.warning("HUC8 %s exception: %s", huc8, exc)
+                results[huc8] = None
 
     elapsed = time.time() - t0
-    log.info("All VPUs finished in %.1f min", elapsed / 60)
+    log.info("All HUC8s finished in %.1f min", elapsed / 60)
 
     # --- Assemble ---
     log.info("=== ASSEMBLING CROSSWALK ===")
-    parts = []
-    for vpu, path in results.items():
-        if path and Path(path).exists():
-            parts.append(pd.read_parquet(path))
+    parts = [pd.read_parquet(p) for p in results.values() if p and Path(p).exists()]
 
     if not parts:
-        log.error("No VPU pairs produced — all workers failed")
+        log.error("No HUC8 pairs produced")
         sys.exit(1)
 
     result = pd.concat(parts, ignore_index=True)
@@ -358,11 +303,10 @@ def main():
     log.info("Total: %d pairs | %d COMIDs | %d ZCTAs",
              len(result), result["COMID"].nunique(), result["zcta_id"].nunique())
 
-    # Validation
     af_sum = result.groupby("COMID")["area_fraction"].sum()
     pct_ok = (af_sum > 0.5).mean() * 100
-    log.info("COMIDs with af_sum > 0.5: %.1f%%", pct_ok)
-    log.info("VPUs succeeded: %d / %d", sum(1 for p in results.values() if p), len(vpus))
+    log.info("COMIDs af_sum > 0.5: %.1f%% | HUC8s succeeded: %d/%d",
+             pct_ok, sum(1 for p in results.values() if p), len(huc8_list))
 
     # --- Save and upload ---
     out_path = output_dir / "comid_zcta_crosswalk.parquet"
@@ -374,11 +318,12 @@ def main():
     provenance = {
         "operation": "build_comid_zcta_crosswalk",
         "timestamp": timestamp,
+        "source": "USGS WaterData WFS (pynhd WaterData catchmentsp)",
         "tiger_source": shp_files[0].name,
-        "nhdplus_source": EDCINTL_BASE,
         "crs": TARGET_CRS,
-        "vpus_attempted": len(vpus),
-        "vpus_succeeded": sum(1 for p in results.values() if p),
+        "huc2_regions": huc2_codes,
+        "huc8_attempted": len(huc8_list),
+        "huc8_succeeded": sum(1 for p in results.values() if p),
         "n_pairs": len(result),
         "n_comids": int(result["COMID"].nunique()),
         "n_zctas": int(result["zcta_id"].nunique()),
