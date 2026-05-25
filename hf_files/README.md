@@ -14,7 +14,6 @@ tags:
   - environmental
   - regression
   - benchmark
-  - geoparquet
   - evaluation
   - representation-learning
   - model-evaluation
@@ -34,10 +33,6 @@ configs:
     data_files:
       - split: benchmark
         path: georsct_table.parquet
-  - config_name: geometry
-    data_files:
-      - split: benchmark
-        path: georsct_simplified_001.geoparquet
   - config_name: cdc_ci
     data_files:
       - split: benchmark
@@ -46,6 +41,10 @@ configs:
     data_files:
       - split: benchmark
         path: zcta_acs_margins_of_error.parquet
+  - config_name: noaa_long
+    data_files:
+      - split: benchmark
+        path: noaa_storm_events_long.parquet
 ---
 
 # GeoRSCT
@@ -54,13 +53,14 @@ configs:
 
 GeoRSCT is a benchmark and evaluation framework for studying when geospatial model performance reflects solver quality versus target difficulty, spatial leakage, aggregation effects, scale sensitivity, or representation–solver mismatch.
 
-This initial public release (version **23.0.2**) includes 31,789 U.S. ZIP Code Tabulation Areas (ZCTAs), 63 solver-usable input features, 27 regression targets spanning health, socioeconomic, and environmental domains, simplified ZCTA geometries, coverage flags, uncertainty sidecars, and three geography-aware evaluation protocols.
+This release (version **24.0.1**) includes 31,789 U.S. ZIP Code Tabulation Areas (ZCTAs), 106 columns spanning 33 ACS features, 37 geospatial enrichment features, 27 regression targets, metadata, split assignments, and optional geometry. Three geography-aware evaluation protocols are included.
 
-The 63 solver-usable features include:
+The solver-usable features include:
 
 1. **33 ACS 2022 5-Year features** describing demographic, economic, housing, and social characteristics.
-2. **14 spatial-lag ACS features** computed as queen-contiguity weighted neighbor means.
-3. **16 geospatial enrichment features** covering social vulnerability, flood exposure, hospital/pharmacy access, and drive-time context.
+2. **37 geospatial enrichment features** covering social vulnerability (SVI), flood zones (FEMA), flood history (NOAA/NFIP), terrain hydrology (TWI), hospital/pharmacy access (HIFLD), and drive-time context.
+
+Spatial-lag features are computed at runtime from the adjacency matrix and are not stored in the parquet.
 
 The GeoRSCT data pipeline, build scripts, and validation notebooks are maintained in the companion GitHub repository at [https://github.com/NextShiftConsulting/georsct](https://github.com/NextShiftConsulting/georsct).
 
@@ -70,8 +70,7 @@ GeoRSCT is the geospatial benchmark artifact for **Representation–Solver Compa
 
 The underlying RSCT theory is introduced in:
 
-> Rudolph A. Martin. **Intelligence as Representation-Solver Compatibility: A General Theory of Representation-Dependent Reasoning.** Preprint, March 3, 2026. [Zenodo](https://doi.org/10.5281/zenodo.18854651) | [SSRN](https://ssrn.com/abstract=6339299)
-
+> Rudolph A. Martin. **Intelligence as Representation-Solver Compatibility: A General Theory of Representation-Dependent Reasoning.** Preprint, March 3, 2026. [Zenodo](https://doi.org/10.5281/zenodo.18854651) 
 RSCT argues that problem difficulty is not intrinsic to the problem alone. Instead, observed performance depends on the relationship among the problem, the encoding, and the solver:
 
 ```text
@@ -82,26 +81,9 @@ GeoRSCT applies that theory to geospatial regression. The benchmark is designed 
 
 ## Dataset Summary
 
-GeoRSCT is an evaluation-ready ZCTA-level benchmark derived from public geospatial, public-health, socioeconomic, infrastructure, and environmental data sources. It is not a mirror of CDC PLACES. Instead, it curates 27 regression targets from multiple sources, 63 solver-usable input features, ZCTA boundary geometries, coverage flags, uncertainty sidecars, and three fixed evaluation split protocols for studying spatial generalization, target recoverability, and representation–solver compatibility.
+GeoRSCT is an evaluation-ready ZCTA-level benchmark derived from public geospatial, public-health, socioeconomic, infrastructure, and environmental data sources. It is not a mirror of CDC PLACES. Instead, it curates 27 regression targets from multiple sources, 70 solver-usable input features (33 ACS + 37 enrichment), ZCTA boundary geometries, coverage flags, uncertainty sidecars, and three fixed evaluation split protocols for studying spatial generalization, target recoverability, and representation–solver compatibility.
 
 GeoRSCT is designed for **evaluation diagnosis**, not only model ranking. A model score on this benchmark should be interpreted in relation to the target, the representation, the spatial split, and the solver family.
-
-| Property | Value |
-|---|---:|
-| Version | 23.0.2 |
-| ZCTAs | 31,789 |
-| Main table columns | 106 analytic columns without geometry; 107 with geometry |
-| Solver-usable input features | 63 |
-| ACS features | 33 ACS 2022 5-Year features |
-| Spatial-lag features | 14 queen-contiguity ACS neighbor-mean features |
-| Geospatial enrichment features | 16 SVI, flood, healthcare-access, and drive-time context features |
-| Target tasks | 27 |
-| Health targets | 21 CDC PLACES 2023 estimates |
-| Socioeconomic targets | 3 ACS-derived targets (income, home value, population density) |
-| Environmental targets | 3 physical/remote-sensing targets (night lights, elevation, tree cover) |
-| Evaluation protocols | 3 geography-aware protocols |
-| Sidecar uncertainty files | CDC PLACES confidence intervals; ACS margins of error |
-| CRS | EPSG:4326 / WGS 84 |
 
 ## What GeoRSCT Is For
 
@@ -140,41 +122,15 @@ GeoRSCT uses fixed geography-aware protocols because the central question is not
 ## Files
 
 | File | Size | Description |
-|---|---:|---|
-| `georsct_simplified_001.geoparquet` | — | Full v23.0.2 dataset with simplified ZCTA boundary polygons |
-| `georsct_table.parquet` | — | Same data without geometry for lightweight tabular use |
-| `cdc_places_ci.parquet` | — | CDC PLACES 95% confidence intervals for 21 health targets; joins on `zcta_id` |
-| `zcta_acs_margins_of_error.parquet` | — | ACS margins of error for ACS features; joins on `zcta_id` |
-| `georsct_schema.json` | — | Column metadata, data types, missing-value counts, and summary statistics |
-| `build_manifest.json` | — | Build provenance and dataset statistics, generated by the GeoRSCT pipeline |
-| `georsct_checksums.sha256` | — | SHA-256 checksums for all files |
-| `croissant.json` | — | MLCommons Croissant metadata for dataset discovery and machine-readable schema |
-| `load_georsct.py` | — | Helper functions for loading, splitting, validating, and filtering by coverage |
-| `quickstart.py` | — | Download verification and toy baseline |
-| GitHub repository | — | Source code, pipeline, and validation notebooks at [https://github.com/NextShiftConsulting/georsct](https://github.com/NextShiftConsulting/georsct) |
-
-Replace the size placeholders after the final v23.0.2 files are uploaded.
+| `georsct_table.parquet` | 17.8 MB | Main table: 31,789 ZCTAs x 106 columns (no geometry) |
+| `georsct_simplified_001.geoparquet` | ~66 MB | Same + ZCTA boundary polygons (EPSG:4326, 0.001 deg simplified) |
+| `cdc_places_ci.parquet` | 1.8 MB | CDC PLACES 95% CI sidecar: 44 fields |
+| `zcta_acs_margins_of_error.parquet` | 7.9 MB | ACS 5-year MOE sidecar: 33 fields |
+| `noaa_storm_events_long.parquet` | 1.1 MB | NOAA flood history 1996-2024: year-level rows for temporal experiments |
 
 ## Field Schema Overview
 
-GeoRSCT is distributed as a row-per-ZCTA tabular benchmark (31,789 rows, one per 2020-vintage ZCTA in CONUS). ZCTAs are Census Bureau statistical areas that approximate USPS ZIP code service areas; multiple ZIP codes can map to the same ZCTA, and the mapping is not one-to-one. Each row includes identifiers, centroid coordinates, ACS input features, spatial-lag features, geospatial enrichment features, target labels, coverage flags, geography-aware split assignments, and optional geometry.
-
-| Field group | Example columns | Type | Description |
-|---|---|---|---|
-| Identifier fields | `zcta_id`, `state_fips`, `county_fips` | string | Geographic identifiers used for joining, grouping, and split construction |
-| Location fields | `latitude`, `longitude` | numeric | ZCTA centroid coordinates in EPSG:4326 |
-| ACS input features | `acs_total_pop`, `acs_median_age`, `acs_pct_below_poverty`, ... | numeric | 33 American Community Survey 2022 5-Year features |
-| Spatial-lag features | `lag_acs_total_pop`, `lag_acs_median_age`, `lag_acs_median_home_value`, ... | numeric | 14 queen-contiguity weighted neighbor means computed from ACS features |
-| SVI enrichment features | `svi_socioeconomic`, `svi_household_disability`, `svi_minority_language`, `svi_housing_transport`, `svi_overall` | numeric | CDC/ATSDR Social Vulnerability Index context features |
-| Flood enrichment features | `flood_pct_zone_a`, `flood_pct_zone_x500`, `flood_pct_zone_x` | numeric | FEMA NFHL flood-zone area percentages |
-| Access enrichment features | `hifld_n_hospitals`, `hifld_nearest_hospital_km`, `hifld_n_pharmacies`, ... | numeric | HIFLD 2022 hospital, pharmacy, bed-count, and trauma-center access features |
-| Drive-time enrichment features | `drive_min_to_nearest_hospital`, `drive_min_to_county_centroid` | numeric | OSRM road-network travel-time context |
-| Health targets | `target_diabetes`, `target_obesity`, `target_smoking`, ... | numeric | 21 CDC PLACES 2023 model-based ZCTA health estimates |
-| Socioeconomic targets | `target_income`, `target_home_value`, `target_population_density` | numeric | ACS-derived socioeconomic regression targets |
-| Environmental targets | `target_night_lights`, `target_elevation`, `target_tree_cover` | numeric | Remote-sensing and physical-environment regression targets |
-| Coverage flags | `has_cdc_places`, `has_income`, `has_home_value`, `has_cdc_ci` | boolean | Flags indicating whether target families and CDC confidence intervals are available |
-| Evaluation splits | `split_imputation`, `split_extrapolation`, `split_superres` | categorical | Fixed geography-aware split assignments |
-| Geometry | `geometry` | polygon | Simplified ZCTA boundary geometry, included only in the GeoParquet file |
+GeoRSCT is distributed as a row-per-ZCTA tabular benchmark (31,789 rows, one per 2020-vintage ZCTA in CONUS). ZCTAs are Census Bureau statistical areas that approximate USPS ZIP code service areas; multiple ZIP codes can map to the same ZCTA, and the mapping is not one-to-one. Each row includes identifiers, centroid coordinates, 33 ACS features, 37 geospatial enrichment features, 27 target labels, coverage flags, and geography-aware split assignments. Spatial-lag features are computed at runtime and are not stored in the parquet.
 
 For complete column names, data types, missing-value counts, and summary statistics, see `georsct_schema.json`.
 
@@ -216,12 +172,13 @@ X_train = train[feature_columns(df)]
 y_train = train["target_diabetes"]
 ```
 
-By default, `feature_columns(df)` should return the 63 solver-usable v23.0.2 features: 33 ACS features, 14 spatial-lag features, and 16 enrichment features. To reproduce the original v23.001 ACS-only baseline, use only columns beginning with `acs_`.
+By default, `feature_columns(df)` returns the 70 solver-usable v24.0.1 features: 33 ACS + 37 enrichment. For an ACS-only baseline, filter to columns beginning with `acs_`.
 
 ### 4. Load with geometry
 
 ```python
-geo = load_georsct("georsct_simplified_001.geoparquet")
+import geopandas as gpd
+geo = gpd.read_parquet("georsct_simplified_001.geoparquet")
 geo.plot(column="target_obesity", legend=True)
 ```
 
@@ -236,6 +193,11 @@ acs_moe = pd.read_parquet("zcta_acs_margins_of_error.parquet")
 
 main_with_ci = main.merge(cdc_ci, on="zcta_id", how="left")
 main_with_moe = main.merge(acs_moe, on="zcta_id", how="left")
+
+# NOAA flood history sidecar (1996-2024, year-level rows for Experiment 1)
+noaa_long = pd.read_parquet("noaa_storm_events_long.parquet")
+# filter to temporal snapshots: 2018 (pre-Florence), 2019 (recovery), 2020 (pre-Isaias)
+noaa_snap = noaa_long[noaa_long["year"].isin([2018, 2019, 2020])]
 ```
 
 The sidecars are optional. They are provided for uncertainty-aware analysis and do not need to be loaded for standard benchmark baselines.
@@ -258,13 +220,6 @@ train = train.dropna(subset=["target_diabetes"])
 ```
 
 Coverage flags tell you which targets are affected:
-
-| Flag | Targets affected when False |
-|---|---|
-| `has_cdc_places` | All 21 `target_*` health columns |
-| `has_income` | `target_income` |
-| `has_home_value` | `target_home_value` |
-| `has_cdc_ci` | CDC PLACES confidence interval columns in `cdc_places_ci.parquet` |
 
 Environmental and physical-context targets (`target_elevation`, `target_tree_cover`, `target_night_lights`, `target_population_density`) have no missing values.
 
@@ -292,9 +247,11 @@ test = df_clean[df_clean["split_imputation"] == "test"]
 feature_cols = [
     c for c in df_clean.columns
     if c.startswith("acs_")
-    or c.startswith("lag_acs_")
     or c.startswith("svi_")
     or c.startswith("flood_")
+    or c.startswith("nfip_")
+    or c.startswith("twi_")
+    or c.startswith("slope_")
     or c.startswith("hifld_")
     or c.startswith("drive_min_")
 ]
@@ -312,49 +269,13 @@ acs_only_cols = [c for c in df_clean.columns if c.startswith("acs_")]
 
 The 21 health targets are CDC PLACES model-based small-area estimates derived from BRFSS survey data using multilevel regression and poststratification. These are **modeled estimates, not direct measurements**.
 
-| Target | Description |
-|---|---|
-| `target_annual_checkup` | Adults with annual checkup (%) |
-| `target_arthritis` | Adults with arthritis (%) |
-| `target_asthma` | Adults with current asthma (%) |
-| `target_binge_drinking` | Adults who binge drink (%) |
-| `target_bp_medicated` | Adults taking blood pressure medication (%) |
-| `target_cancer` | Adults ever told they had cancer (%) |
-| `target_cholesterol_screening` | Adults with cholesterol screening (%) |
-| `target_chronic_kidney_disease` | Adults with chronic kidney disease (%) |
-| `target_copd` | Adults with COPD (%) |
-| `target_coronary_heart_disease` | Adults with coronary heart disease (%) |
-| `target_dental_visit` | Adults with dental visit (%) |
-| `target_diabetes` | Adults with diabetes (%) |
-| `target_high_blood_pressure` | Adults with high blood pressure (%) |
-| `target_high_cholesterol` | Adults with high cholesterol (%) |
-| `target_mental_health_not_good` | Adults with frequent mental distress (%) |
-| `target_obesity` | Adults with obesity (%) |
-| `target_physical_health_not_good` | Adults with frequent physical distress (%) |
-| `target_physical_inactivity` | Adults with no leisure-time physical activity (%) |
-| `target_sleep_less_7hr` | Adults sleeping less than 7 hours (%) |
-| `target_smoking` | Adults who currently smoke (%) |
-| `target_stroke` | Adults ever had stroke (%) |
-
 ### Socioeconomic Targets
-
-| Target | Source | Description |
-|---|---|---|
-| `target_income` | ACS 2022 | Median household income ($) |
-| `target_home_value` | ACS 2022 | Median home value ($) |
-| `target_population_density` | Census 2020 | Population per square kilometer |
 
 ### Environmental Targets
 
-| Target | Source | Description |
-|---|---|---|
-| `target_night_lights` | VIIRS NASA/NOAA | Mean nighttime radiance, log10 nW/cm²/sr |
-| `target_elevation` | USGS NED | Mean elevation, meters |
-| `target_tree_cover` | Hansen GFC | Mean tree canopy cover (%) |
-
 ## Input Features
 
-GeoRSCT v23.0.2 includes 63 solver-usable input features.
+GeoRSCT v24.0.1 includes 70 solver-usable input features: 33 ACS and 37 geospatial enrichment.
 
 ### 1. ACS Features
 
@@ -364,22 +285,13 @@ These features are the default ACS-only encoder/input representation and remain 
 
 ### 2. Spatial-Lag Features
 
-The 14 spatial-lag features are prefixed with `lag_acs_`. They are computed as queen-contiguity weighted neighbor means over selected ACS fields.
-
-These are **spatial lags, not time lags**. They encode neighboring-area context, not temporal history.
+Spatial-lag features (`lag_acs_*`) are **not stored in the parquet**. They are computed at runtime from `zcta_adjacency.parquet` using queen-contiguity weighted neighbor means. To include them in training, call `compute_spatial_lags(df, acs_cols, adjacency)` from the build pipeline.
 
 ### 3. Geospatial Enrichment Features
 
-The 16 enrichment features include:
+The 37 enrichment features include (prefixes: `svi_`, `flood_`, `nfip_`, `twi_`, `slope_`, `hifld_`, `drive_`):
 
-| Feature family | Example columns | Interpretation |
-|---|---|---|
-| SVI | `svi_socioeconomic`, `svi_overall` | Social vulnerability context |
-| Flood | `flood_pct_zone_a`, `flood_pct_zone_x500`, `flood_pct_zone_x` | FEMA flood-zone exposure |
-| HIFLD access | `hifld_n_hospitals`, `hifld_nearest_hospital_km`, `hifld_n_pharmacies` | HIFLD 2022 healthcare infrastructure and access |
-| Drive time | `drive_min_to_nearest_hospital`, `drive_min_to_county_centroid` | Road-network access context |
-
-The expanded v23.0.2 feature set is intended for stronger geospatial solver evaluation and representation–solver compatibility experiments. Reported benchmark comparisons should document whether they use ACS-only features or the full 63-feature representation.
+The expanded v24.0.1 feature set is intended for stronger geospatial solver evaluation and representation–solver compatibility experiments. Reported benchmark comparisons should document whether they use ACS-only (33) or full (70) features.
 
 ## Evaluation Protocols
 
@@ -430,20 +342,7 @@ train, val = train_test_split(train, test_size=0.1, random_state=42)
 
 Not all ZCTAs have all 27 targets. Coverage flags indicate availability:
 
-| Flag | Meaning |
-|---|---|
-| `has_cdc_places` | CDC PLACES target values are available |
-| `has_income` | ACS income target is available |
-| `has_home_value` | ACS home-value target is available |
-| `has_cdc_ci` | CDC PLACES confidence intervals are available in the sidecar file |
-
-Known target coverage from the initial release remains:
-
-| Flag | True | False | Reason for missing |
-|---|---:|---:|---|
-| `has_cdc_places` | 31,529 (99.2%) | 260 (0.8%) | CDC PLACES does not model these ZCTAs |
-| `has_income` | 31,471 (99.0%) | 318 (1.0%) | ACS suppression or missing estimate |
-| `has_home_value` | 31,244 (98.3%) | 545 (1.7%) | ACS suppression or few owner-occupied units |
+Target coverage:
 
 Environmental and physical-context targets (`target_elevation`, `target_tree_cover`, `target_night_lights`, `target_population_density`) have 100% coverage.
 
@@ -459,25 +358,11 @@ Use the original Census TIGER/Line files for high-precision cartographic or lega
 
 All source data is public domain or open license:
 
-| Source | License | URL |
-|---|---|---|
-| CDC PLACES 2023 | Public domain | https://www.cdc.gov/places/ |
-| ACS 2022 5-Year | Public domain | https://data.census.gov/ |
-| CDC/ATSDR SVI 2022 | Public domain | https://www.atsdr.cdc.gov/placeandhealth/svi/ |
-| FEMA NFHL | Public domain | https://www.fema.gov/flood-maps/national-flood-hazard-layer |
-| DHS HIFLD 2022 | Public domain | https://hifld-geoplatform.hub.arcgis.com/ |
-| VIIRS Nighttime Lights | Public domain | https://eogdata.mines.edu/products/vnl/ |
-| USGS National Elevation Dataset | Public domain | https://www.usgs.gov/the-national-map-data-delivery |
-| Hansen Global Forest Change | CC-BY-4.0 | https://glad.earthengine.app/view/global-forest-change |
-| Census TIGER/Line 2022 | Public domain | https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-line-file.html |
-| OpenStreetMap / OSRM-derived drive-time context | ODbL data / OSRM software license | https://www.openstreetmap.org/ and https://project-osrm.org/ |
-
 If using or redistributing the OSRM-derived drive-time features, preserve appropriate OpenStreetMap attribution and verify that downstream use complies with OpenStreetMap data licensing requirements.
 
 ## Related Resources
 
-- **RSCT theory preprint:** Rudolph A. Martin, *Intelligence as Representation-Solver Compatibility: A General Theory of Representation-Dependent Reasoning* (2026). [Zenodo](https://doi.org/10.5281/zenodo.18854651) | [SSRN](https://ssrn.com/abstract=6339299)
-- **HHS/CDC PLACES ZCTA GIS-friendly datasets:** official source releases for CDC PLACES ZCTA estimates.
+- **RSCT theory preprint:** Rudolph A. Martin, *Intelligence as Representation-Solver Compatibility: A General Theory of Representation-Dependent Reasoning* (2026). [Zenodo](https://doi.org/10.5281/zenodo.18854651) - **HHS/CDC PLACES ZCTA GIS-friendly datasets:** official source releases for CDC PLACES ZCTA estimates.
 - **PLACES on Data.gov:** official CDC/HHS PLACES ZCTA data release.
 
 GeoRSCT differs from these source releases by packaging a curated multi-target regression benchmark with fixed split assignments, ACS encoder features, spatial-lag context, geospatial enrichment features, environmental and socioeconomic targets beyond PLACES, simplified ZCTA geometries, coverage flags, uncertainty sidecars, and evaluation metadata designed for representation–solver compatibility experiments.
@@ -485,12 +370,6 @@ GeoRSCT differs from these source releases by packaging a curated multi-target r
 ## Data Integrity Validation
 
 The 21 CDC PLACES health targets were cross-validated against the official HHS/CDC PLACES ZCTA release.
-
-| Check | Result |
-|---|---|
-| Value match: 21 columns over 31,529 common ZCTAs | **100% exact match, rho = 1.0, max_diff = 0.0** |
-| 260 missing-CDC ZCTAs where `has_cdc_places=False` | All absent from HHS release |
-| ZCTA ID validity | All GeoRSCT ZCTAs appear in HHS or are documented missing-CDC |
 
 Full methodology and results are provided in `VALIDATION_CROSS_CHECK.md` and `validation_report.json` when included in the repository.
 
@@ -502,7 +381,7 @@ GeoRSCT was created to provide a standardized evaluation benchmark for geospatia
 
 GeoRSCT packages this pipeline into a single reproducible artifact with fixed geography-aware evaluation protocols, expanded geospatial context features, and optional uncertainty sidecars.
 
-All build steps, joins, and validation checks for this initial public release are specified in the open-source pipeline in the GeoRSCT GitHub repository ([https://github.com/NextShiftConsulting/georsct](https://github.com/NextShiftConsulting/georsct)), so the benchmark can be regenerated and audited end to end.
+All build steps, joins, and validation checks are specified in the open-source pipeline in the GeoRSCT GitHub repository ([https://github.com/NextShiftConsulting/georsct](https://github.com/NextShiftConsulting/georsct)), so the benchmark can be regenerated and audited end to end.
 
 ### Source Data
 
@@ -572,35 +451,18 @@ GeoRSCT was curated by Next Shift Consulting as part of the RSCT (**Representati
 
 GeoRSCT is released under **CC-BY-4.0**.
 
-| Source | License | Notes |
-|---|---|---|
-| CDC PLACES 2023 | Public domain under 17 USC 105 | U.S. government work. Data.gov may list ODbL as a platform default. |
-| ACS 2022 5-Year | Public domain under 17 USC 105 | U.S. Census Bureau, U.S. government work. |
-| CDC/ATSDR SVI 2022 | Public domain under 17 USC 105 | U.S. government work. |
-| FEMA NFHL | Public domain under 17 USC 105 | U.S. government work. |
-| DHS HIFLD 2022 | Public domain under 17 USC 105 | U.S. government work. HIFLD Open Data 2022 snapshot. |
-| VIIRS Nighttime Lights | Public domain under 17 USC 105 | NASA/NOAA, U.S. government work. |
-| USGS National Elevation Dataset | Public domain under 17 USC 105 | U.S. Geological Survey, U.S. government work. |
-| Census TIGER/Line 2022 | Public domain under 17 USC 105 | U.S. Census Bureau, U.S. government work. |
-| Hansen Global Forest Change | CC-BY-4.0 | University of Maryland. Most restrictive source license. |
-| OpenStreetMap-derived routing features | ODbL attribution may apply | Preserve appropriate OSM attribution for derived routing context. |
-
 **Why CC-BY-4.0:** Most source data are U.S. federal government works, which are public domain under 17 USC 105. The Hansen Global Forest Change dataset requires CC-BY-4.0, making it the binding minimum for this derivative benchmark. GeoRSCT adopts CC-BY-4.0 as the most restrictive source license.
 
 ### Changelog
 
-| Version | Date | Changes |
-|---|---|---|
-| 23.0.2 | 2026-05-03 | Initial public release. 31,789 ZCTAs, 27 targets, 63 solver-usable input features (33 ACS, 14 spatial-lag, 16 geospatial enrichment), 3 geography-aware evaluation protocols, simplified ZCTA geometries, CDC PLACES confidence-interval sidecar, ACS margin-of-error sidecar, updated schema metadata, and expanded Croissant metadata. |
-
-Version scheme: `{PLACES_vintage}.{release}`. For example, `23.0.2` means PLACES 2023, second internal build and first public release.
+Version scheme: `{major}.{minor}.{patch}`. v24.0.1 = first public release with v24 enrichment layers (NOAA, NFIP, TWI).
 
 To pin a specific version in code:
 
 ```python
 from datasets import load_dataset
 
-ds = load_dataset("rudymartin/georsct", revision="v23.0.2")
+ds = load_dataset("rudymartin/georsct", revision="v24.0.1")
 ```
 
 ### Citation
@@ -619,13 +481,13 @@ If you use the RSCT framing or representation–solver compatibility terminology
 If you use the GeoRSCT dataset, please cite:
 
 ```bibtex
-@dataset{georsct2026v23002,
+@dataset{georsct2026v24001,
   title        = {GeoRSCT: A Geospatial Regression Benchmark for Representation--Solver Compatibility},
   author       = {Martin, Rudolph A.},
   year         = {2026},
   publisher    = {Hugging Face},
   url          = {https://huggingface.co/datasets/rudymartin/georsct},
-  version      = {23.0.2},
-  note         = {31,789 U.S. ZCTAs, 63 solver-usable input features, 27 regression targets, fixed geography-aware evaluation protocols, and uncertainty sidecars}
+  version      = {24.0.1},
+  note         = {31,789 U.S. ZCTAs, 70 solver-usable input features (33 ACS + 37 enrichment), 27 regression targets, NOAA/NFIP/TWI flood layers, fixed geography-aware evaluation protocols, and uncertainty sidecars}
 }
 ```

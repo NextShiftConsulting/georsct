@@ -49,7 +49,7 @@
     "http://mlcommons.org/croissant/RAI/1.0"
   ],
   "name": "GeoRSCT",
-  "description": "A geospatial regression benchmark for evaluating representation-solver compatibility. Contains 31,789 U.S. ZIP Code Tabulation Areas (ZCTAs) across the contiguous United States (lower 48 + DC) with 63 solver-usable features (33 ACS + 14 spatial lags + 16 enrichment) and 27 regression targets spanning health, socioeconomic, and environmental domains. Includes three spatially-blocked evaluation protocols (imputation, extrapolation, super-resolution) with fixed splits stratified by SVI quartile, urban/rural density, and hospital access. Published schema: GeoRSCT v23.0.2.",
+  "description": "A geospatial regression benchmark for evaluating representation-solver compatibility. Contains 31,789 U.S. ZIP Code Tabulation Areas (ZCTAs) across the contiguous United States (lower 48 + DC) with 33 ACS socioeconomic features, 46 enrichment features (SVI, HIFLD, FEMA flood zones, drive times, NOAA storm events, NFIP claims, TWI watershed), and 27 regression targets spanning health, socioeconomic, and environmental domains. Includes three spatially-blocked evaluation protocols (imputation, extrapolation, super-resolution) with fixed splits stratified by SVI quartile, urban/rural density, and hospital access. vv24.002.",
   "url": "https://huggingface.co/datasets/rudymartin/georsct",
   "license": "https://creativecommons.org/licenses/by/4.0/",
   "creator": {
@@ -58,8 +58,8 @@
     "url": "https://huggingface.co/rudymartin"
   },
   "datePublished": "2026-05-01",
-  "dateModified": "2026-05-05",
-  "version": "23.0.2",
+  "dateModified": "2026-05-25",
+  "version": "v24.002",
   "keywords": [
     "geospatial machine learning",
     "model evaluation",
@@ -75,16 +75,6 @@
   "citeAs": "Rudolph A. Martin. GeoRSCT: A Geospatial Regression Benchmark for Representation-Solver Compatibility. Version 23.0.2, Hugging Face Datasets, 2026. Theory reference: Intelligence as Representation-Solver Compatibility, Zenodo: 10.5281/zenodo.18854651; SSRN: 6339299.",
   "isLiveDataset": false,
   "distribution": [
-    {
-      "@type": "cr:FileObject",
-      "@id": "main-geoparquet",
-      "name": "georsct_simplified_001.geoparquet",
-      "description": "Primary GeoParquet table: 31,789 ZCTAs x 105 columns (7 metadata + 3 splits + 4 coverage + 33 ACS + 14 spatial lags + 16 enrichment + 27 targets + 1 geometry). Single row per ZCTA. CRS: EPSG:4326.",
-      "contentUrl": "https://huggingface.co/datasets/rudymartin/georsct/resolve/main/georsct_simplified_001.geoparquet",
-      "encodingFormat": "application/x-parquet",
-      "contentSize": "56.3 MB",
-      "sha256": "6a65d990984e16ff10ec6eb9c9a6f9c4660db9ec441806b367ad54280c3c66ff"
-    },
     {
       "@type": "cr:FileObject",
       "@id": "table-parquet",
@@ -134,6 +124,14 @@
       "encodingFormat": "application/json",
       "sha256": "7d951f25dcc35e0f03b1888728aa77de94613dd7e549d67d08b11d8c75175f9b",
       "contentSize": "2.7 KB"
+    },
+    {
+      "@type": "cr:FileObject",
+      "@id": "noaa-storm-events-long",
+      "name": "noaa-storm-events-long",
+      "description": "NOAA Storm Events flood history by ZCTA and year (1996-2024). Sidecar for Version C Experiment 1 (Invariance Test): use year=2018 (pre-Florence), 2019 (recovery), 2020 (pre-Isaias) for temporal certificate trajectories. Joins on zcta_id.",
+      "contentUrl": "noaa_storm_events_long.parquet",
+      "encodingFormat": "application/x-parquet"
     }
   ],
   "recordSet": [
@@ -160,21 +158,6 @@
         },
         {
           "@type": "cr:Field",
-          "@id": "f/county_fips",
-          "name": "county_fips",
-          "description": "5-digit county FIPS code",
-          "dataType": "sc:Text",
-          "source": {
-            "fileObject": {
-              "@id": "main-geoparquet"
-            },
-            "extract": {
-              "column": "county_fips"
-            }
-          }
-        },
-        {
-          "@type": "cr:Field",
           "@id": "f/county_name",
           "name": "county_name",
           "description": "County name",
@@ -185,21 +168,6 @@
             },
             "extract": {
               "column": "county_name"
-            }
-          }
-        },
-        {
-          "@type": "cr:Field",
-          "@id": "f/state_fips",
-          "name": "state_fips",
-          "description": "2-digit state FIPS code",
-          "dataType": "sc:Text",
-          "source": {
-            "fileObject": {
-              "@id": "main-geoparquet"
-            },
-            "extract": {
-              "column": "state_fips"
             }
           }
         },
@@ -265,21 +233,6 @@
         },
         {
           "@type": "cr:Field",
-          "@id": "f/split_extrapolation",
-          "name": "split_extrapolation",
-          "description": "State-blocked 4-fold CV split (valid1-valid4, test). Tests distribution shift across unseen states.",
-          "dataType": "sc:Text",
-          "source": {
-            "fileObject": {
-              "@id": "main-geoparquet"
-            },
-            "extract": {
-              "column": "split_extrapolation"
-            }
-          }
-        },
-        {
-          "@type": "cr:Field",
           "@id": "f/split_superres",
           "name": "split_superres",
           "description": "County-to-ZCTA super-resolution split (train, test). 20% of counties held out.",
@@ -290,66 +243,6 @@
             },
             "extract": {
               "column": "split_superres"
-            }
-          }
-        },
-        {
-          "@type": "cr:Field",
-          "@id": "f/has_cdc_places",
-          "name": "has_cdc_places",
-          "description": "CDC PLACES data available (99.2% coverage)",
-          "dataType": "sc:Boolean",
-          "source": {
-            "fileObject": {
-              "@id": "main-geoparquet"
-            },
-            "extract": {
-              "column": "has_cdc_places"
-            }
-          }
-        },
-        {
-          "@type": "cr:Field",
-          "@id": "f/has_income",
-          "name": "has_income",
-          "description": "ACS income data available (99.0% coverage)",
-          "dataType": "sc:Boolean",
-          "source": {
-            "fileObject": {
-              "@id": "main-geoparquet"
-            },
-            "extract": {
-              "column": "has_income"
-            }
-          }
-        },
-        {
-          "@type": "cr:Field",
-          "@id": "f/has_home_value",
-          "name": "has_home_value",
-          "description": "ACS home value data available (98.3% coverage)",
-          "dataType": "sc:Boolean",
-          "source": {
-            "fileObject": {
-              "@id": "main-geoparquet"
-            },
-            "extract": {
-              "column": "has_home_value"
-            }
-          }
-        },
-        {
-          "@type": "cr:Field",
-          "@id": "f/has_cdc_ci",
-          "name": "has_cdc_ci",
-          "description": "CDC confidence intervals available",
-          "dataType": "sc:Boolean",
-          "source": {
-            "fileObject": {
-              "@id": "main-geoparquet"
-            },
-            "extract": {
-              "column": "has_cdc_ci"
             }
           }
         },
@@ -845,216 +738,6 @@
             },
             "extract": {
               "column": "acs_gini_index"
-            }
-          }
-        },
-        {
-          "@type": "cr:Field",
-          "@id": "f/lag_acs_total_pop",
-          "name": "lag_acs_total_pop",
-          "description": "Neighborhood population density context (Queen-contiguity weighted neighbor mean)",
-          "dataType": "sc:Float",
-          "source": {
-            "fileObject": {
-              "@id": "main-geoparquet"
-            },
-            "extract": {
-              "column": "lag_acs_total_pop"
-            }
-          }
-        },
-        {
-          "@type": "cr:Field",
-          "@id": "f/lag_acs_median_age",
-          "name": "lag_acs_median_age",
-          "description": "Neighborhood age structure",
-          "dataType": "sc:Float",
-          "source": {
-            "fileObject": {
-              "@id": "main-geoparquet"
-            },
-            "extract": {
-              "column": "lag_acs_median_age"
-            }
-          }
-        },
-        {
-          "@type": "cr:Field",
-          "@id": "f/lag_acs_median_home_value",
-          "name": "lag_acs_median_home_value",
-          "description": "Neighborhood housing wealth (not in SVI)",
-          "dataType": "sc:Float",
-          "source": {
-            "fileObject": {
-              "@id": "main-geoparquet"
-            },
-            "extract": {
-              "column": "lag_acs_median_home_value"
-            }
-          }
-        },
-        {
-          "@type": "cr:Field",
-          "@id": "f/lag_acs_median_rent",
-          "name": "lag_acs_median_rent",
-          "description": "Neighborhood rental market pressure",
-          "dataType": "sc:Float",
-          "source": {
-            "fileObject": {
-              "@id": "main-geoparquet"
-            },
-            "extract": {
-              "column": "lag_acs_median_rent"
-            }
-          }
-        },
-        {
-          "@type": "cr:Field",
-          "@id": "f/lag_acs_median_year_built",
-          "name": "lag_acs_median_year_built",
-          "description": "Neighborhood housing stock age",
-          "dataType": "sc:Float",
-          "source": {
-            "fileObject": {
-              "@id": "main-geoparquet"
-            },
-            "extract": {
-              "column": "lag_acs_median_year_built"
-            }
-          }
-        },
-        {
-          "@type": "cr:Field",
-          "@id": "f/lag_acs_gini_index",
-          "name": "lag_acs_gini_index",
-          "description": "Neighborhood inequality (SVI uses absolute, not relative)",
-          "dataType": "sc:Float",
-          "source": {
-            "fileObject": {
-              "@id": "main-geoparquet"
-            },
-            "extract": {
-              "column": "lag_acs_gini_index"
-            }
-          }
-        },
-        {
-          "@type": "cr:Field",
-          "@id": "f/lag_acs_mean_commute_min",
-          "name": "lag_acs_mean_commute_min",
-          "description": "Neighborhood commute time (not mode)",
-          "dataType": "sc:Float",
-          "source": {
-            "fileObject": {
-              "@id": "main-geoparquet"
-            },
-            "extract": {
-              "column": "lag_acs_mean_commute_min"
-            }
-          }
-        },
-        {
-          "@type": "cr:Field",
-          "@id": "f/lag_acs_pct_bachelors",
-          "name": "lag_acs_pct_bachelors",
-          "description": "Neighborhood education beyond no-HS",
-          "dataType": "sc:Float",
-          "source": {
-            "fileObject": {
-              "@id": "main-geoparquet"
-            },
-            "extract": {
-              "column": "lag_acs_pct_bachelors"
-            }
-          }
-        },
-        {
-          "@type": "cr:Field",
-          "@id": "f/lag_acs_pct_vacant",
-          "name": "lag_acs_pct_vacant",
-          "description": "Neighborhood abandonment signal",
-          "dataType": "sc:Float",
-          "source": {
-            "fileObject": {
-              "@id": "main-geoparquet"
-            },
-            "extract": {
-              "column": "lag_acs_pct_vacant"
-            }
-          }
-        },
-        {
-          "@type": "cr:Field",
-          "@id": "f/lag_acs_pct_food_stamps",
-          "name": "lag_acs_pct_food_stamps",
-          "description": "Neighborhood transfer dependency",
-          "dataType": "sc:Float",
-          "source": {
-            "fileObject": {
-              "@id": "main-geoparquet"
-            },
-            "extract": {
-              "column": "lag_acs_pct_food_stamps"
-            }
-          }
-        },
-        {
-          "@type": "cr:Field",
-          "@id": "f/lag_acs_pct_no_insurance",
-          "name": "lag_acs_pct_no_insurance",
-          "description": "Neighborhood healthcare access gap",
-          "dataType": "sc:Float",
-          "source": {
-            "fileObject": {
-              "@id": "main-geoparquet"
-            },
-            "extract": {
-              "column": "lag_acs_pct_no_insurance"
-            }
-          }
-        },
-        {
-          "@type": "cr:Field",
-          "@id": "f/lag_acs_pct_veterans",
-          "name": "lag_acs_pct_veterans",
-          "description": "Neighborhood veteran population",
-          "dataType": "sc:Float",
-          "source": {
-            "fileObject": {
-              "@id": "main-geoparquet"
-            },
-            "extract": {
-              "column": "lag_acs_pct_veterans"
-            }
-          }
-        },
-        {
-          "@type": "cr:Field",
-          "@id": "f/lag_acs_pct_female",
-          "name": "lag_acs_pct_female",
-          "description": "Neighborhood sex ratio",
-          "dataType": "sc:Float",
-          "source": {
-            "fileObject": {
-              "@id": "main-geoparquet"
-            },
-            "extract": {
-              "column": "lag_acs_pct_female"
-            }
-          }
-        },
-        {
-          "@type": "cr:Field",
-          "@id": "f/lag_acs_pct_wfh",
-          "name": "lag_acs_pct_wfh",
-          "description": "Neighborhood commute mode representative",
-          "dataType": "sc:Float",
-          "source": {
-            "fileObject": {
-              "@id": "main-geoparquet"
-            },
-            "extract": {
-              "column": "lag_acs_pct_wfh"
             }
           }
         },
@@ -1705,64 +1388,773 @@
         },
         {
           "@type": "cr:Field",
-          "@id": "f/geometry",
-          "name": "geometry",
-          "description": "Simplified ZCTA polygon geometry, CRS EPSG:4326. Included in the GeoParquet file.",
+          "@id": "georsct-main/population",
+          "name": "population",
+          "dataType": "sc:Integer",
+          "description": "Total population (ACS 5-year estimate)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "georsct-main/split_extrap",
+          "name": "split_extrap",
           "dataType": "sc:Text",
-          "source": {
-            "fileObject": {
-              "@id": "main-geoparquet"
-            },
-            "extract": {
-              "column": "geometry"
-            }
-          }
+          "description": "Extrapolation split assignment (train/val/test)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "georsct-main/flood_crop_damage_k",
+          "name": "flood_crop_damage_k",
+          "dataType": "sc:Float",
+          "description": "Flood crop damage in $1000s 1996-2024"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "georsct-main/flood_deaths",
+          "name": "flood_deaths",
+          "dataType": "sc:Integer",
+          "description": "Flood-related deaths (direct + indirect) 1996-2024"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "georsct-main/flood_event_count",
+          "name": "flood_event_count",
+          "dataType": "sc:Integer",
+          "description": "Total NOAA flood events 1996-2024"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "georsct-main/flood_event_count_5y",
+          "name": "flood_event_count_5y",
+          "dataType": "sc:Integer",
+          "description": "Flood events 2019-2024 (recent 5-year window)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "georsct-main/flood_events_per_year",
+          "name": "flood_events_per_year",
+          "dataType": "sc:Float",
+          "description": "Annualized flood event rate 1996-2024"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "georsct-main/flood_injuries",
+          "name": "flood_injuries",
+          "dataType": "sc:Integer",
+          "description": "Flood-related injuries 1996-2024"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "georsct-main/flood_property_damage_k",
+          "name": "flood_property_damage_k",
+          "dataType": "sc:Float",
+          "description": "Flood property damage in $1000s 1996-2024"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "georsct-main/flood_sfha",
+          "name": "flood_sfha",
+          "dataType": "sc:Boolean",
+          "description": "Fraction of ZCTA land area in FEMA Special Flood Hazard Area (Zone A/AE/AH/AO/V/VE)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "georsct-main/nfip_claim_count",
+          "name": "nfip_claim_count",
+          "dataType": "sc:Integer",
+          "description": "Total paid NFIP flood insurance claims (1978-present)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "georsct-main/nfip_total_building_loss",
+          "name": "nfip_total_building_loss",
+          "dataType": "sc:Float",
+          "description": "Total building payout USD"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "georsct-main/nfip_total_contents_loss",
+          "name": "nfip_total_contents_loss",
+          "dataType": "sc:Float",
+          "description": "Total contents payout USD"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "georsct-main/nfip_total_loss",
+          "name": "nfip_total_loss",
+          "dataType": "sc:Float",
+          "description": "Total combined payout USD"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "georsct-main/nfip_mean_loss_per_claim",
+          "name": "nfip_mean_loss_per_claim",
+          "dataType": "sc:Float",
+          "description": "Average payout per paid claim USD"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "georsct-main/nfip_has_claims",
+          "name": "nfip_has_claims",
+          "dataType": "sc:Boolean",
+          "description": "Any historical paid NFIP claim in this ZCTA"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "georsct-main/drive_min_to_county_centroid",
+          "name": "drive_min_to_county_centroid",
+          "dataType": "sc:Float",
+          "description": "Estimated drive time in minutes to county population centroid"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "georsct-main/twi_twi",
+          "name": "twi_twi",
+          "dataType": "sc:Float",
+          "description": "Topographic Wetness Index \u2014 catchment-level mean (CAT_TWI from StreamCat)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "georsct-main/twi_acc_twi",
+          "name": "twi_acc_twi",
+          "dataType": "sc:Float",
+          "description": "Topographic Wetness Index \u2014 accumulated upstream mean (ACC_TWI from StreamCat)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "georsct-main/twi_tot_twi",
+          "name": "twi_tot_twi",
+          "dataType": "sc:Float",
+          "description": "Topographic Wetness Index \u2014 total watershed mean (TOT_TWI from StreamCat)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "georsct-main/slope_basin_slope",
+          "name": "slope_basin_slope",
+          "dataType": "sc:Float",
+          "description": "Mean catchment basin slope in percent (CAT_BASIN_SLOPE from StreamCat)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "georsct-main/slope_stream_slope",
+          "name": "slope_stream_slope",
+          "dataType": "sc:Float",
+          "description": "Mean stream slope in percent (CAT_STREAM_SLOPE from StreamCat)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "georsct-main/slope_mean_pct",
+          "name": "slope_mean_pct",
+          "dataType": "sc:Float",
+          "description": "Alias for slope_basin_slope \u2014 mean catchment slope percent"
         }
       ]
     },
     {
-      "@type": "cr:RecordSet",
-      "@id": "cdc-places-ci",
       "name": "cdc-places-ci",
-      "description": "CDC PLACES 95% confidence intervals for the 21 health targets. Joins to georsct-main on zcta_id.",
+      "@type": "cr:RecordSet",
+      "description": "CDC PLACES 95% CIs for 21 health targets (42 float cols + has_cdc_ci). 32,409 ZCTAs. Joins to georsct-main on zcta_id.",
       "field": [
         {
           "@type": "cr:Field",
-          "@id": "f/cdc_ci/zcta_id",
+          "@id": "cdc-places-ci/zcta_id",
           "name": "zcta_id",
-          "description": "5-digit ZCTA identifier used to join to georsct-main.",
           "dataType": "sc:Text",
-          "source": {
-            "fileObject": {
-              "@id": "cdc-ci-parquet"
-            },
-            "extract": {
-              "column": "zcta_id"
-            }
-          }
+          "description": "5-digit ZCTA identifier (join key)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_arthritis_ci_low",
+          "name": "target_arthritis_ci_low",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI lower bound for target_arthritis (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_arthritis_ci_high",
+          "name": "target_arthritis_ci_high",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI higher bound for target_arthritis (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_binge_drinking_ci_low",
+          "name": "target_binge_drinking_ci_low",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI lower bound for target_binge_drinking (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_binge_drinking_ci_high",
+          "name": "target_binge_drinking_ci_high",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI higher bound for target_binge_drinking (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_high_blood_pressure_ci_low",
+          "name": "target_high_blood_pressure_ci_low",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI lower bound for target_high_blood_pressure (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_high_blood_pressure_ci_high",
+          "name": "target_high_blood_pressure_ci_high",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI higher bound for target_high_blood_pressure (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_bp_medicated_ci_low",
+          "name": "target_bp_medicated_ci_low",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI lower bound for target_bp_medicated (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_bp_medicated_ci_high",
+          "name": "target_bp_medicated_ci_high",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI higher bound for target_bp_medicated (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_cancer_ci_low",
+          "name": "target_cancer_ci_low",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI lower bound for target_cancer (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_cancer_ci_high",
+          "name": "target_cancer_ci_high",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI higher bound for target_cancer (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_asthma_ci_low",
+          "name": "target_asthma_ci_low",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI lower bound for target_asthma (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_asthma_ci_high",
+          "name": "target_asthma_ci_high",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI higher bound for target_asthma (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_coronary_heart_disease_ci_low",
+          "name": "target_coronary_heart_disease_ci_low",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI lower bound for target_coronary_heart_disease (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_coronary_heart_disease_ci_high",
+          "name": "target_coronary_heart_disease_ci_high",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI higher bound for target_coronary_heart_disease (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_annual_checkup_ci_low",
+          "name": "target_annual_checkup_ci_low",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI lower bound for target_annual_checkup (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_annual_checkup_ci_high",
+          "name": "target_annual_checkup_ci_high",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI higher bound for target_annual_checkup (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_cholesterol_screening_ci_low",
+          "name": "target_cholesterol_screening_ci_low",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI lower bound for target_cholesterol_screening (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_cholesterol_screening_ci_high",
+          "name": "target_cholesterol_screening_ci_high",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI higher bound for target_cholesterol_screening (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_copd_ci_low",
+          "name": "target_copd_ci_low",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI lower bound for target_copd (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_copd_ci_high",
+          "name": "target_copd_ci_high",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI higher bound for target_copd (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_smoking_ci_low",
+          "name": "target_smoking_ci_low",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI lower bound for target_smoking (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_smoking_ci_high",
+          "name": "target_smoking_ci_high",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI higher bound for target_smoking (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_dental_visit_ci_low",
+          "name": "target_dental_visit_ci_low",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI lower bound for target_dental_visit (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_dental_visit_ci_high",
+          "name": "target_dental_visit_ci_high",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI higher bound for target_dental_visit (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_diabetes_ci_low",
+          "name": "target_diabetes_ci_low",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI lower bound for target_diabetes (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_diabetes_ci_high",
+          "name": "target_diabetes_ci_high",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI higher bound for target_diabetes (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_high_cholesterol_ci_low",
+          "name": "target_high_cholesterol_ci_low",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI lower bound for target_high_cholesterol (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_high_cholesterol_ci_high",
+          "name": "target_high_cholesterol_ci_high",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI higher bound for target_high_cholesterol (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_chronic_kidney_disease_ci_low",
+          "name": "target_chronic_kidney_disease_ci_low",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI lower bound for target_chronic_kidney_disease (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_chronic_kidney_disease_ci_high",
+          "name": "target_chronic_kidney_disease_ci_high",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI higher bound for target_chronic_kidney_disease (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_physical_inactivity_ci_low",
+          "name": "target_physical_inactivity_ci_low",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI lower bound for target_physical_inactivity (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_physical_inactivity_ci_high",
+          "name": "target_physical_inactivity_ci_high",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI higher bound for target_physical_inactivity (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_mental_health_not_good_ci_low",
+          "name": "target_mental_health_not_good_ci_low",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI lower bound for target_mental_health_not_good (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_mental_health_not_good_ci_high",
+          "name": "target_mental_health_not_good_ci_high",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI higher bound for target_mental_health_not_good (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_obesity_ci_low",
+          "name": "target_obesity_ci_low",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI lower bound for target_obesity (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_obesity_ci_high",
+          "name": "target_obesity_ci_high",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI higher bound for target_obesity (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_physical_health_not_good_ci_low",
+          "name": "target_physical_health_not_good_ci_low",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI lower bound for target_physical_health_not_good (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_physical_health_not_good_ci_high",
+          "name": "target_physical_health_not_good_ci_high",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI higher bound for target_physical_health_not_good (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_sleep_less_7hr_ci_low",
+          "name": "target_sleep_less_7hr_ci_low",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI lower bound for target_sleep_less_7hr (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_sleep_less_7hr_ci_high",
+          "name": "target_sleep_less_7hr_ci_high",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI higher bound for target_sleep_less_7hr (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_stroke_ci_low",
+          "name": "target_stroke_ci_low",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI lower bound for target_stroke (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/target_stroke_ci_high",
+          "name": "target_stroke_ci_high",
+          "dataType": "sc:Float",
+          "description": "CDC PLACES 95% CI higher bound for target_stroke (prevalence %)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "cdc-places-ci/has_cdc_ci",
+          "name": "has_cdc_ci",
+          "dataType": "sc:Boolean",
+          "description": "True if CDC PLACES CI data is available for this ZCTA"
         }
       ]
     },
     {
-      "@type": "cr:RecordSet",
-      "@id": "acs-moe",
       "name": "acs-moe",
-      "description": "ACS margins of error for 31 ACS features. Joins to georsct-main on zcta_id.",
+      "@type": "cr:RecordSet",
+      "description": "ACS 5-year margins of error (90% CI) for 31 ACS features (32 float cols + has_acs_moe). 33,774 ZCTAs. Joins to georsct-main on zcta_id.",
       "field": [
         {
           "@type": "cr:Field",
-          "@id": "f/acs_moe/zcta_id",
+          "@id": "acs-moe/zcta_id",
           "name": "zcta_id",
-          "description": "5-digit ZCTA identifier used to join to georsct-main.",
           "dataType": "sc:Text",
-          "source": {
-            "fileObject": {
-              "@id": "acs-moe-parquet"
-            },
-            "extract": {
-              "column": "zcta_id"
-            }
-          }
+          "description": "5-digit ZCTA identifier (join key)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "acs-moe/acs_total_pop_moe",
+          "name": "acs_total_pop_moe",
+          "dataType": "sc:Float",
+          "description": "ACS 5-year margin of error (90% CI) for acs_total_pop"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "acs-moe/acs_median_age_moe",
+          "name": "acs_median_age_moe",
+          "dataType": "sc:Float",
+          "description": "ACS 5-year margin of error (90% CI) for acs_median_age"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "acs-moe/acs_median_home_value_moe",
+          "name": "acs_median_home_value_moe",
+          "dataType": "sc:Float",
+          "description": "ACS 5-year margin of error (90% CI) for acs_median_home_value"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "acs-moe/acs_median_rent_moe",
+          "name": "acs_median_rent_moe",
+          "dataType": "sc:Float",
+          "description": "ACS 5-year margin of error (90% CI) for acs_median_rent"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "acs-moe/acs_median_year_built_moe",
+          "name": "acs_median_year_built_moe",
+          "dataType": "sc:Float",
+          "description": "ACS 5-year margin of error (90% CI) for acs_median_year_built"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "acs-moe/acs_median_hh_income_moe",
+          "name": "acs_median_hh_income_moe",
+          "dataType": "sc:Float",
+          "description": "ACS 5-year margin of error (90% CI) for acs_median_hh_income"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "acs-moe/acs_gini_index_moe",
+          "name": "acs_gini_index_moe",
+          "dataType": "sc:Float",
+          "description": "ACS 5-year margin of error (90% CI) for acs_gini_index"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "acs-moe/acs_mean_commute_min_moe",
+          "name": "acs_mean_commute_min_moe",
+          "dataType": "sc:Float",
+          "description": "ACS 5-year margin of error (90% CI) for acs_mean_commute_min"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "acs-moe/acs_pct_white_moe",
+          "name": "acs_pct_white_moe",
+          "dataType": "sc:Float",
+          "description": "ACS 5-year margin of error (90% CI) for acs_pct_white"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "acs-moe/acs_pct_black_moe",
+          "name": "acs_pct_black_moe",
+          "dataType": "sc:Float",
+          "description": "ACS 5-year margin of error (90% CI) for acs_pct_black"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "acs-moe/acs_pct_asian_moe",
+          "name": "acs_pct_asian_moe",
+          "dataType": "sc:Float",
+          "description": "ACS 5-year margin of error (90% CI) for acs_pct_asian"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "acs-moe/acs_pct_hispanic_moe",
+          "name": "acs_pct_hispanic_moe",
+          "dataType": "sc:Float",
+          "description": "ACS 5-year margin of error (90% CI) for acs_pct_hispanic"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "acs-moe/acs_pct_bachelors_moe",
+          "name": "acs_pct_bachelors_moe",
+          "dataType": "sc:Float",
+          "description": "ACS 5-year margin of error (90% CI) for acs_pct_bachelors"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "acs-moe/acs_pct_under_18_moe",
+          "name": "acs_pct_under_18_moe",
+          "dataType": "sc:Float",
+          "description": "ACS 5-year margin of error (90% CI) for acs_pct_under_18"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "acs-moe/acs_pct_female_moe",
+          "name": "acs_pct_female_moe",
+          "dataType": "sc:Float",
+          "description": "ACS 5-year margin of error (90% CI) for acs_pct_female"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "acs-moe/acs_pct_veterans_moe",
+          "name": "acs_pct_veterans_moe",
+          "dataType": "sc:Float",
+          "description": "ACS 5-year margin of error (90% CI) for acs_pct_veterans"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "acs-moe/acs_pct_foreign_born_moe",
+          "name": "acs_pct_foreign_born_moe",
+          "dataType": "sc:Float",
+          "description": "ACS 5-year margin of error (90% CI) for acs_pct_foreign_born"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "acs-moe/acs_pct_english_only_moe",
+          "name": "acs_pct_english_only_moe",
+          "dataType": "sc:Float",
+          "description": "ACS 5-year margin of error (90% CI) for acs_pct_english_only"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "acs-moe/acs_pct_drive_alone_moe",
+          "name": "acs_pct_drive_alone_moe",
+          "dataType": "sc:Float",
+          "description": "ACS 5-year margin of error (90% CI) for acs_pct_drive_alone"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "acs-moe/acs_pct_transit_moe",
+          "name": "acs_pct_transit_moe",
+          "dataType": "sc:Float",
+          "description": "ACS 5-year margin of error (90% CI) for acs_pct_transit"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "acs-moe/acs_pct_wfh_moe",
+          "name": "acs_pct_wfh_moe",
+          "dataType": "sc:Float",
+          "description": "ACS 5-year margin of error (90% CI) for acs_pct_wfh"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "acs-moe/acs_pct_owner_occupied_moe",
+          "name": "acs_pct_owner_occupied_moe",
+          "dataType": "sc:Float",
+          "description": "ACS 5-year margin of error (90% CI) for acs_pct_owner_occupied"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "acs-moe/acs_pct_renter_occupied_moe",
+          "name": "acs_pct_renter_occupied_moe",
+          "dataType": "sc:Float",
+          "description": "ACS 5-year margin of error (90% CI) for acs_pct_renter_occupied"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "acs-moe/acs_pct_vacant_moe",
+          "name": "acs_pct_vacant_moe",
+          "dataType": "sc:Float",
+          "description": "ACS 5-year margin of error (90% CI) for acs_pct_vacant"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "acs-moe/acs_pct_below_poverty_moe",
+          "name": "acs_pct_below_poverty_moe",
+          "dataType": "sc:Float",
+          "description": "ACS 5-year margin of error (90% CI) for acs_pct_below_poverty"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "acs-moe/acs_pct_food_stamps_moe",
+          "name": "acs_pct_food_stamps_moe",
+          "dataType": "sc:Float",
+          "description": "ACS 5-year margin of error (90% CI) for acs_pct_food_stamps"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "acs-moe/acs_unemployment_rate_moe",
+          "name": "acs_unemployment_rate_moe",
+          "dataType": "sc:Float",
+          "description": "ACS 5-year margin of error (90% CI) for acs_unemployment_rate"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "acs-moe/acs_pct_graduate_moe",
+          "name": "acs_pct_graduate_moe",
+          "dataType": "sc:Float",
+          "description": "ACS 5-year margin of error (90% CI) for acs_pct_graduate"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "acs-moe/acs_pct_walk_bike_moe",
+          "name": "acs_pct_walk_bike_moe",
+          "dataType": "sc:Float",
+          "description": "ACS 5-year margin of error (90% CI) for acs_pct_walk_bike"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "acs-moe/acs_pct_no_vehicle_moe",
+          "name": "acs_pct_no_vehicle_moe",
+          "dataType": "sc:Float",
+          "description": "ACS 5-year margin of error (90% CI) for acs_pct_no_vehicle"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "acs-moe/acs_pct_no_insurance_moe",
+          "name": "acs_pct_no_insurance_moe",
+          "dataType": "sc:Float",
+          "description": "ACS 5-year margin of error (90% CI) for acs_pct_no_insurance"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "acs-moe/has_acs_moe",
+          "name": "has_acs_moe",
+          "dataType": "sc:Boolean",
+          "description": "True if ACS MOE data is available for this ZCTA"
+        }
+      ]
+    },
+    {
+      "name": "noaa-storm-events-long",
+      "@type": "cr:RecordSet",
+      "description": "NOAA flood events per ZCTA per year (1996-2024). 979,939 rows. Version C Experiment 1: filter year in [2018, 2019, 2020] for Florence/recovery/Isaias temporal snapshots. Joins on zcta_id.",
+      "field": [
+        {
+          "@type": "cr:Field",
+          "@id": "noaa-long/zcta_id",
+          "name": "zcta_id",
+          "dataType": "sc:Text",
+          "description": "5-digit ZCTA identifier (join key)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "noaa-long/year",
+          "name": "year",
+          "dataType": "sc:Integer",
+          "description": "Event year (1996-2024). Key years: 2018 Florence, 2019 recovery, 2020 Isaias"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "noaa-long/flood_events",
+          "name": "flood_events",
+          "dataType": "sc:Integer",
+          "description": "NOAA flood event count (Flash Flood + Flood + Coastal Flood + Lakeshore Flood)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "noaa-long/deaths",
+          "name": "deaths",
+          "dataType": "sc:Integer",
+          "description": "Flood-related deaths (direct + indirect)"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "noaa-long/injuries",
+          "name": "injuries",
+          "dataType": "sc:Integer",
+          "description": "Flood-related injuries"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "noaa-long/property_damage_k",
+          "name": "property_damage_k",
+          "dataType": "sc:Float",
+          "description": "Property damage in $1000s"
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "noaa-long/crop_damage_k",
+          "name": "crop_damage_k",
+          "dataType": "sc:Float",
+          "description": "Crop damage in $1000s"
         }
       ]
     }
