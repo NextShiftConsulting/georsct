@@ -6,26 +6,35 @@ This is the SINGLE SOURCE parquet for all downstream consumers:
   - Solver training (PCA32, Spatial Lag, GNN)
   - OOF prediction generation
   - N-ceiling estimation
-  - Spatial lag computation (build_spatial_lags.py)
   - Allocator inference
   - GeoParquet assembly (build_geoparquet.py adds geometry + splits on top)
 
 Merges:
-  Base (69 cols):  33 ACS features + 27 targets + metadata
-  + SVI:           5 columns  (svi_socioeconomic, svi_household_disability, ...)
-  + HIFLD:         6 columns  (hifld_n_hospitals, hifld_nearest_hospital_km, ...)
-  + Flood:         3-4 columns (flood_pct_zone_a, flood_pct_zone_x500, flood_pct_zone_x, flood_sfha)
-  + Drive times:   2 columns  (drive_min_to_nearest_hospital, drive_min_to_county_centroid)
+  Base (~69 cols):  33 ACS features + 27 targets + metadata
+  + SVI:            5 columns  (svi_socioeconomic, svi_household_disability, ...)
+  + HIFLD:          6 columns  (hifld_n_hospitals, hifld_nearest_hospital_km, ...)
+  + Flood zones:    4 columns  (flood_pct_zone_a, flood_pct_zone_x500, flood_pct_zone_x, flood_sfha)
+  + Drive times:    3 columns  (drive_min_to_nearest_hospital, drive_min_to_county_centroid, ...)
+  + NOAA events:    7 columns  (flood_event_count, flood_deaths, flood_property_damage_k, ...)
+  + NFIP claims:    6 columns  (nfip_claim_count, nfip_total_loss, nfip_has_claims, ...)
+  + TWI watershed:  6 columns  (twi_twi, slope_basin_slope, slope_mean_pct, ...)
 
-Output: zcta_features_labels.parquet (~85 cols, 31,789 rows)
+Output: zcta_features_labels.parquet (~106 cols, 31,789 rows)
+
+NOTE: Spatial lags (lag_acs_*) are intentionally NOT included here.
+Experiment solvers (train_and_export_v2.py) compute lags at runtime from
+zcta_adjacency.parquet using compute_spatial_lags(). Baking pre-computed lags
+into this file would silently conflict with the runtime computation and risk
+changing experiment results. The pre-built lag version is kept separately as
+zcta_features_labels_with_lags.parquet for reference only.
 
 v23.001 = original 69-col (33 ACS + 27 targets + metadata)
 v23.002 = enriched (v23.001 + SVI + HIFLD + flood + drive times)
+v24.001 = + NOAA storm events + NFIP claims + TWI watershed
 
 S3 paths (all under s3://swarm-yrsn-datasets/rsct_curriculum/series_018/processed/):
-  Input:   zcta_features_labels.parquet  (v23.001, 69 cols)
-  Enrich:  svi_zcta.parquet, hifld_zcta.parquet, flood_zones_zcta.parquet, drive_times_zcta.parquet
-  Output:  zcta_features_labels.parquet  (v23.002, ~85 cols — overwrites v23.001)
+  Input:   zcta_features_labels.parquet  (base)
+  Output:  zcta_features_labels.parquet  (overwrites — all enrichment layers merged)
 
 Usage:
     python build_zcta_features_labels.py --dry-run    # local build, no upload
@@ -65,7 +74,7 @@ DRIVE_KEY = f"{PREFIX}/drive_times_zcta.parquet"
 # v24 flood modal sources (pre-flood certificate experiment)
 NOAA_KEY = f"{PREFIX}/noaa_storm_events_zcta.parquet"
 NFIP_KEY = f"{PREFIX}/nfip_claims_zcta.parquet"
-TWI_KEY = f"{PREFIX}/twi_features_zcta.parquet"
+TWI_KEY  = f"{PREFIX}/twi_features_zcta.parquet"
 OUTPUT_KEY = f"{PREFIX}/zcta_features_labels.parquet"
 PROVENANCE_KEY = f"{PREFIX}/zcta_features_labels_provenance.json"
 

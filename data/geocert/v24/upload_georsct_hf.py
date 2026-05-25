@@ -99,6 +99,7 @@ def summarize_parquet(path: Path) -> dict:
         "noaa": [c for c in cols if c.startswith("flood_event") or c.startswith("flood_death")
                  or c.startswith("flood_injury") or c.startswith("flood_property")
                  or c.startswith("flood_crop") or c.startswith("flood_events_per")],
+        "twi": [c for c in cols if c.startswith("twi_") or c.startswith("slope_")],
         "target": [c for c in cols if c.startswith("target_")],
     }
     return {
@@ -122,14 +123,29 @@ DTYPE_MAP = {
 }
 
 FIELD_DESCRIPTIONS = {
+    # Metadata
+    "population": "Total population (ACS 5-year estimate)",
+    # Splits
+    "split_extrap": "Extrapolation split assignment (train/val/test)",
+    # Flood zones
+    "flood_sfha": "Fraction of ZCTA land area in FEMA Special Flood Hazard Area (Zone A/AE/AH/AO/V/VE)",
+    # Drive times
+    "drive_min_to_county_centroid": "Estimated drive time in minutes to county population centroid",
+    # TWI / watershed (StreamCat via USGS ScienceBase, area-weighted from NHDPlus COMIDs)
+    "twi_twi": "Topographic Wetness Index — catchment-level mean (CAT_TWI from StreamCat)",
+    "twi_acc_twi": "Topographic Wetness Index — accumulated upstream mean (ACC_TWI from StreamCat)",
+    "twi_tot_twi": "Topographic Wetness Index — total watershed mean (TOT_TWI from StreamCat)",
+    "slope_basin_slope": "Mean catchment basin slope in percent (CAT_BASIN_SLOPE from StreamCat)",
+    "slope_stream_slope": "Mean stream slope in percent (CAT_STREAM_SLOPE from StreamCat)",
+    "slope_mean_pct": "Alias for slope_basin_slope — mean catchment slope percent",
     # NFIP
     "nfip_claim_count": "Total paid NFIP flood insurance claims (1978-present)",
-    "nfip_total_building_loss": "Total building payout USD",
-    "nfip_total_contents_loss": "Total contents payout USD",
-    "nfip_total_loss": "Total combined payout USD",
+    "nfip_total_building_loss": "Total building loss payout USD (1978-present)",
+    "nfip_total_contents_loss": "Total contents loss payout USD (1978-present)",
+    "nfip_total_loss": "Total combined building + contents payout USD (1978-present)",
     "nfip_mean_loss_per_claim": "Average payout per paid claim USD",
-    "nfip_has_claims": "Any historical paid NFIP claim in this ZCTA",
-    # NOAA
+    "nfip_has_claims": "Any historical paid NFIP claim in this ZCTA (1978-present)",
+    # NOAA storm events
     "flood_event_count": "Total NOAA flood events 1996-2024",
     "flood_event_count_5y": "Flood events 2019-2024 (recent 5-year window)",
     "flood_deaths": "Flood-related deaths (direct + indirect) 1996-2024",
@@ -140,20 +156,43 @@ FIELD_DESCRIPTIONS = {
 }
 
 
-def update_croissant(existing: dict, df_cols: list[str], df_dtypes: dict,
-                     timestamp: str, version: str) -> dict:
-    """Add new columns to the georsct-main recordSet and bump version/date."""
+def reconcile_croissant(existing: dict, df_cols: list[str], df_dtypes: dict,
+                        timestamp: str, version: str) -> tuple[dict, dict]:
+    """
+    Reconcile georsct-main recordSet to exactly match df_cols:
+      - Remove fields not in df_cols (ghost fields from prior dataset versions)
+      - Add fields in df_cols not already in Croissant
+      - Backfill descriptions on existing fields that lack them
+      - Bump version and dateModified
+      - Update dataset description to reflect current column counts
+
+    Returns (updated_croissant, stats_dict).
+    """
     import copy
     updated = copy.deepcopy(existing)
     updated["dateModified"] = timestamp[:10]
     updated["version"] = version
 
+    col_set = set(df_cols)
     main_rs = next(r for r in updated["recordSet"] if r["name"] == "georsct-main")
-    existing_field_names = {f["name"] for f in main_rs["field"]}
 
-    new_fields = []
+    # 1. Prune ghost fields (in Croissant but not in parquet)
+    before = len(main_rs["field"])
+    main_rs["field"] = [f for f in main_rs["field"] if f["name"] in col_set]
+    n_pruned = before - len(main_rs["field"])
+
+    # 2. Backfill missing descriptions on surviving fields
+    n_desc_added = 0
+    for f in main_rs["field"]:
+        if not f.get("description") and f["name"] in FIELD_DESCRIPTIONS:
+            f["description"] = FIELD_DESCRIPTIONS[f["name"]]
+            n_desc_added += 1
+
+    # 3. Add fields in parquet not yet in Croissant
+    existing_names = {f["name"] for f in main_rs["field"]}
+    n_added = 0
     for col in df_cols:
-        if col in existing_field_names:
+        if col in existing_names:
             continue
         dtype_str = str(df_dtypes.get(col, "object"))
         sc_type = DTYPE_MAP.get(dtype_str, "sc:Text")
@@ -166,15 +205,32 @@ def update_croissant(existing: dict, df_cols: list[str], df_dtypes: dict,
         desc = FIELD_DESCRIPTIONS.get(col)
         if desc:
             field["description"] = desc
-        new_fields.append(field)
+        main_rs["field"].append(field)
+        n_added += 1
 
-    main_rs["field"].extend(new_fields)
-    return updated, len(new_fields)
+    # 4. Update dataset-level description
+    n_acs    = sum(1 for c in df_cols if c.startswith("acs_"))
+    n_target = sum(1 for c in df_cols if c.startswith("target_"))
+    n_enrich = len(df_cols) - n_acs - n_target
+    updated["description"] = (
+        f"A geospatial regression benchmark for evaluating representation-solver compatibility. "
+        f"Contains 31,789 U.S. ZIP Code Tabulation Areas (ZCTAs) across the contiguous United States "
+        f"(lower 48 + DC) with {n_acs} ACS socioeconomic features, {n_enrich} enrichment features "
+        f"(SVI, HIFLD, FEMA flood zones, drive times, NOAA storm events, NFIP claims, TWI watershed), "
+        f"and {n_target} regression targets spanning health, socioeconomic, and environmental domains. "
+        f"Includes three spatially-blocked evaluation protocols (imputation, extrapolation, "
+        f"super-resolution) with fixed splits stratified by SVI quartile, urban/rural density, "
+        f"and hospital access. v{version}."
+    )
+
+    stats = {"n_pruned": n_pruned, "n_added": n_added, "n_desc_backfilled": n_desc_added,
+             "total_fields": len(main_rs["field"])}
+    return updated, stats
 
 
 def build_manifest(summary: dict, timestamp: str) -> dict:
     return {
-        "version": "v24.001",
+        "version": "v24.002",
         "timestamp": timestamp,
         "n_rows": summary["n_rows"],
         "n_columns": summary["n_cols"],
@@ -186,16 +242,58 @@ def build_manifest(summary: dict, timestamp: str) -> dict:
             "drive_times": summary["enrichment_counts"]["drive"],
             "fema_nfip_claims": summary["enrichment_counts"]["nfip"],
             "noaa_storm_events": summary["enrichment_counts"]["noaa"],
+            "twi_watershed": summary["enrichment_counts"]["twi"],
         },
         "columns": summary["columns"],
         "file_size_mb": summary["size_mb"],
         "description": (
             "GeoRSCT ZCTA-level features and labels. "
-            "v24.001 adds FEMA NFIP flood insurance claims (1978-present) "
-            "and NOAA Storm Events flood history (1996-2024) as independent "
-            "modal sources for flood certificate experiments."
+            "v24.002 fixes Croissant schema drift: prunes ghost fields from prior dataset "
+            "versions, adds field descriptions for all columns, and adds TWI watershed "
+            "features (topographic wetness index + slope from USGS ScienceBase StreamCat). "
+            "NOTE: spatial lags (lag_acs_*) are intentionally excluded — solvers compute "
+            "them at runtime from zcta_adjacency.parquet to ensure reproducibility."
         ),
     }
+
+
+def verify_sync(api: HfApi, local_path: Path, repo_id: str) -> None:
+    """
+    Download the just-uploaded parquet and Croissant from HF and verify they agree.
+    Fails loudly if any column is missing from Croissant or any ghost field remains.
+    """
+    print("\n=== SYNC VERIFICATION ===")
+    croissant_path = api.hf_hub_download(repo_id, "croissant.json",
+                                         repo_type="dataset", force_download=True)
+    with open(croissant_path) as f:
+        cr = json.load(f)
+    main_rs = next(r for r in cr["recordSet"] if r["name"] == "georsct-main")
+    hf_fields = {f["name"] for f in main_rs["field"]}
+
+    hf_parquet = api.hf_hub_download(repo_id, "georsct_table.parquet",
+                                     repo_type="dataset", force_download=True)
+    hf_cols = set(pd.read_parquet(hf_parquet).columns)
+
+    missing_from_croissant = hf_cols - hf_fields
+    ghost_in_croissant     = hf_fields - hf_cols
+
+    ok = True
+    if missing_from_croissant:
+        print(f"  FAIL: {len(missing_from_croissant)} parquet cols missing from Croissant:")
+        for c in sorted(missing_from_croissant):
+            print(f"    - {c}")
+        ok = False
+    if ghost_in_croissant:
+        print(f"  FAIL: {len(ghost_in_croissant)} ghost fields in Croissant (not in parquet):")
+        for c in sorted(ghost_in_croissant):
+            print(f"    - {c}")
+        ok = False
+
+    if ok:
+        print(f"  OK — HF parquet ({len(hf_cols)} cols) and Croissant ({len(hf_fields)} fields) are in sync.")
+    else:
+        print("  SYNC FAILED — investigate before next release.")
+        sys.exit(1)
 
 
 def main():
@@ -260,8 +358,8 @@ def main():
     hf_token = get_credential("HF_TOKEN")
     api = HfApi(token=hf_token)
 
-    # Fetch and update Croissant
-    print("  Updating croissant.json...")
+    # Fetch and reconcile Croissant (prune ghosts + add new + backfill descriptions)
+    print("  Reconciling croissant.json...")
     try:
         croissant_path = api.hf_hub_download(HF_REPO_ID, "croissant.json",
                                               repo_type="dataset")
@@ -269,22 +367,25 @@ def main():
             existing_croissant = json.load(f)
         df_tmp = pd.read_parquet(output_path)
         df_dtypes = {c: str(df_tmp[c].dtype) for c in df_tmp.columns}
-        updated_croissant, n_new = update_croissant(
+        updated_croissant, stats = reconcile_croissant(
             existing_croissant, list(df_tmp.columns), df_dtypes,
-            timestamp, "v24.001"
+            timestamp, "v24.002"
         )
-        print(f"  Croissant: {n_new} new fields added")
+        print(f"  Croissant: {stats['n_pruned']} pruned | {stats['n_added']} added | "
+              f"{stats['n_desc_backfilled']} descriptions backfilled | "
+              f"{stats['total_fields']} total fields")
         croissant_bytes = json.dumps(updated_croissant, indent=2).encode()
         api.upload_file(
             path_or_fileobj=croissant_bytes,
             path_in_repo="croissant.json",
             repo_id=HF_REPO_ID,
             repo_type="dataset",
-            commit_message="chore(croissant): add NFIP + NOAA fields, bump to v24.001",
+            commit_message="fix(croissant): reconcile schema to parquet — prune ghosts, add TWI descriptions, v24.002",
         )
         print(f"  -> {HF_REPO_ID}/croissant.json")
     except Exception as exc:
-        print(f"  WARNING: Croissant update failed: {exc}")
+        print(f"  ERROR: Croissant reconciliation failed: {exc}")
+        raise
 
     # Main table parquet
     print(f"  Uploading georsct_table.parquet ({summary['size_mb']} MB)...")
@@ -293,7 +394,7 @@ def main():
         path_in_repo="georsct_table.parquet",
         repo_id=HF_REPO_ID,
         repo_type="dataset",
-        commit_message="feat(v24.001): add NFIP + NOAA flood enrichment layers",
+        commit_message="feat(v24.002): TWI watershed features + Croissant schema reconciliation",
     )
     print(f"  -> {HF_REPO_ID}/georsct_table.parquet")
 
@@ -304,9 +405,12 @@ def main():
         path_in_repo="build_manifest.json",
         repo_id=HF_REPO_ID,
         repo_type="dataset",
-        commit_message="chore(manifest): update v24.001 column list and enrichment layers",
+        commit_message="chore(manifest): update v24.002 column list and enrichment layers",
     )
     print(f"  -> {HF_REPO_ID}/build_manifest.json")
+
+    # Post-upload sync verification
+    verify_sync(api, output_path, HF_REPO_ID)
 
     print(f"\nDone. Dataset: https://huggingface.co/datasets/{HF_REPO_ID}")
 
