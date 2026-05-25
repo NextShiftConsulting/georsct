@@ -56,7 +56,7 @@ def _make_s3_client(local: bool):
 from swarm_auth import get_aws_credentials
     if local:
         _aws = get_aws_credentials()
-        return boto3.client("s3", region_name=REGION, **_aws)
+        return boto3.client("s3", **_aws)
     return boto3.client("s3")
 
 

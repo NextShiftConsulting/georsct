@@ -312,7 +312,7 @@ def main():
 from swarm_auth import get_aws_credentials
         key = f"{PREFIX}/noaa_storm_events_zcta.parquet"
         _aws = get_aws_credentials()
-        s3 = boto3.client("s3", region_name=REGION, **_aws)
+        s3 = boto3.client("s3", **_aws)
         s3.upload_file(args.output, BUCKET, key)
         log.info("Uploaded to s3://%s/%s", BUCKET, key)
 

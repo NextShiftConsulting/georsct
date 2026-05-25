@@ -150,10 +150,10 @@ def main():
     # On SageMaker, IAM role provides credentials (no profile needed)
     try:
         _aws = get_aws_credentials()
-        boto3.client("sts", region_name=REGION, **_aws).get_caller_identity()
+        boto3.client("sts", **_aws).get_caller_identity()
     except Exception:
         session = boto3.Session(region_name=REGION)
-    s3 = boto3.client("s3", region_name=REGION, **_aws)
+    s3 = boto3.client("s3", **_aws)
     timestamp = datetime.now(timezone.utc).isoformat()
 
     # -- 1. Download TIGER boundaries --

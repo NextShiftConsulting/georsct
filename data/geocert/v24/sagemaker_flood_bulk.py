@@ -59,7 +59,7 @@ def main():
 
     _aws = get_aws_credentials()
     role_arn = "arn:aws:iam::865679935554:role/SageMakerExecutionRole"
-    s3 = boto3.client("s3", region_name=REGION, **_aws)
+    s3 = boto3.client("s3", **_aws)
 
     print("=== DEPLOYING CODE ===")
     deploy_code(s3)
@@ -83,7 +83,7 @@ def main():
         print(f"[DRY RUN] Estimated: 1.5-3 hours, ~$1.50")
         return
 
-    sm = boto3.client("sagemaker", region_name=REGION, **_aws)
+    sm = boto3.client("sagemaker", **_aws)
 
     config = {
         "ProcessingJobName": job_name,

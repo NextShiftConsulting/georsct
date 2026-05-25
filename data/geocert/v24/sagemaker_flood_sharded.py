@@ -322,7 +322,7 @@ def main() -> None:
 
     _aws = get_aws_credentials()
     role_arn = "arn:aws:iam::865679935554:role/SageMakerExecutionRole"
-    s3 = boto3.client("s3", region_name=REGION, **_aws)
+    s3 = boto3.client("s3", **_aws)
 
     # --- Scan S3 for state ---
     print("=== SCANNING S3 ===")
@@ -399,7 +399,7 @@ def main() -> None:
         county_keys.append(key)
 
     print("\n=== LAUNCHING JOBS ===")
-    sm = boto3.client("sagemaker", region_name=REGION, **_aws)
+    sm = boto3.client("sagemaker", **_aws)
     for i, key in enumerate(county_keys):
         print(f"\n  Shard {i} ({len(shards[i])} counties):")
         name = launch_shard(sm, key, i, timestamp, args.instance_type, role_arn)

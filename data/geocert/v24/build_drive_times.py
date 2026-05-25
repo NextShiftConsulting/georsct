@@ -285,7 +285,7 @@ def main():
         import boto3
 from swarm_auth import get_aws_credentials
         try:
-            _s3 = boto3.client("s3", region_name=REGION, **_aws)
+            _s3 = boto3.client("s3", **_aws)
         except Exception:
             _s3 = boto3.client("s3", region_name=REGION)
 
@@ -385,7 +385,7 @@ from swarm_auth import get_aws_credentials
     if args.upload:
         import boto3
         try:
-            s3 = boto3.client("s3", region_name=REGION, **_aws)
+            s3 = boto3.client("s3", **_aws)
         except Exception:
             s3 = boto3.client("s3", region_name=REGION)
 

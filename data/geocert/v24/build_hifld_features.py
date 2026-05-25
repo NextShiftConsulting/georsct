@@ -106,7 +106,7 @@ def load_hifld_hospitals() -> pd.DataFrame:
             import boto3
 from swarm_auth import get_aws_credentials
             try:
-                s3 = boto3.client("s3", region_name=REGION, **_aws)
+                s3 = boto3.client("s3", **_aws)
             except Exception:
                 s3 = boto3.client("s3", region_name=REGION)
             s3.download_file(BUCKET, HIFLD_HOSPITALS_S3_KEY, str(local_path))
@@ -377,7 +377,7 @@ def main():
     if args.upload:
         import boto3
         try:
-            s3 = boto3.client("s3", region_name=REGION, **_aws)
+            s3 = boto3.client("s3", **_aws)
         except Exception:
             s3 = boto3.client("s3", region_name=REGION)
         s3.upload_file(args.output, BUCKET, HIFLD_OUTPUT_KEY)

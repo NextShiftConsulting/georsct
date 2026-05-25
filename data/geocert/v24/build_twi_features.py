@@ -305,7 +305,7 @@ def main():
         import boto3
 from swarm_auth import get_aws_credentials
         _aws = get_aws_credentials()
-        s3 = boto3.client("s3", region_name=REGION, **_aws)
+        s3 = boto3.client("s3", **_aws)
 
     # Fetch StreamCat metrics
     twi_df = fetch_streamcat_national("WetIndx", regions)
