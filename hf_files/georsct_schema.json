@@ -1,736 +1,548 @@
 {
-  "dataset": "georsct",
-  "version": "23.0.2",
-  "crs": "EPSG:4326",
+  "version": "v24.002",
+  "generated_at": "2026-05-25T21:40:51Z",
   "n_rows": 31789,
-  "n_columns": 89,
-  "geometry_simplification_tolerance_degrees": 0.001,
+  "n_columns": 106,
   "enrichment_layers": {
-    "svi": {
-      "columns": 5,
-      "source": "CDC/ATSDR SVI 2022"
-    },
-    "flood": {
-      "columns": 4,
-      "source": "FEMA NFHL 2024 (bulk county shapefiles)"
-    },
-    "hifld": {
-      "columns": 6,
-      "source": "DHS HIFLD Open Data"
-    },
-    "drive_times": {
-      "columns": 2,
-      "source": "OSRM routing engine"
-    }
-  },
-  "uncertainty_layers": {
-    "cdc_places_ci": "cdc_places_ci.parquet (42 cols, separate file)",
-    "acs_moe": "zcta_acs_margins_of_error.parquet (31 cols, separate file)"
+    "acs_features": 33,
+    "cdc_svi": 5,
+    "fema_flood_zones": 11,
+    "hifld_facilities": 6,
+    "drive_times": 3,
+    "fema_nfip_claims": 6,
+    "noaa_storm_events": 6,
+    "twi_watershed": 6
   },
   "columns": [
     {
       "name": "zcta_id",
-      "dtype": "object",
-      "group": "metadata",
-      "source": "Census / computed",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "dtype": "string",
+      "group": "metadata"
     },
     {
       "name": "latitude",
       "dtype": "float64",
-      "group": "metadata",
-      "source": "Census / computed",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "metadata"
     },
     {
       "name": "longitude",
       "dtype": "float64",
-      "group": "metadata",
-      "source": "Census / computed",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
-    },
-    {
-      "name": "county_fips",
-      "dtype": "object",
-      "group": "metadata",
-      "source": "Census / computed",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "metadata"
     },
     {
       "name": "county_name",
-      "dtype": "object",
-      "group": "metadata",
-      "source": "Census / computed",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
-    },
-    {
-      "name": "state_fips",
-      "dtype": "object",
-      "group": "metadata",
-      "source": "Census / computed",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "dtype": "string",
+      "group": "metadata"
     },
     {
       "name": "state",
-      "dtype": "object",
-      "group": "metadata",
-      "source": "Census / computed",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "dtype": "string",
+      "group": "metadata"
     },
     {
       "name": "population",
-      "dtype": "int64",
-      "group": "metadata",
-      "source": "Census / computed",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
-    },
-    {
-      "name": "split_extrap",
-      "dtype": "object",
-      "group": "split",
-      "source": "computed (spatial stratified)",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "dtype": "float64",
+      "group": "metadata"
     },
     {
       "name": "split_imputation",
-      "dtype": "object",
-      "group": "split",
-      "source": "computed (spatial stratified)",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "dtype": "float64",
+      "group": "splits"
     },
     {
       "name": "split_superres",
-      "dtype": "object",
-      "group": "split",
-      "source": "computed (spatial stratified)",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "dtype": "float64",
+      "group": "splits"
+    },
+    {
+      "name": "split_extrap",
+      "dtype": "float64",
+      "group": "splits"
     },
     {
       "name": "acs_gini_index",
       "dtype": "float64",
-      "group": "feature",
-      "source": "ACS 5-Year 2022",
-      "n_non_null": 31357,
-      "coverage_pct": 98.6
+      "group": "acs_features"
     },
     {
       "name": "acs_mean_commute_min",
       "dtype": "float64",
-      "group": "feature",
-      "source": "ACS 5-Year 2022",
-      "n_non_null": 31783,
-      "coverage_pct": 100.0
+      "group": "acs_features"
     },
     {
       "name": "acs_median_age",
       "dtype": "float64",
-      "group": "feature",
-      "source": "ACS 5-Year 2022",
-      "n_non_null": 31708,
-      "coverage_pct": 99.7
+      "group": "acs_features"
     },
     {
       "name": "acs_median_hh_income",
       "dtype": "float64",
-      "group": "feature",
-      "source": "ACS 5-Year 2022",
-      "n_non_null": 30882,
-      "coverage_pct": 97.1
+      "group": "acs_features"
     },
     {
       "name": "acs_median_home_value",
       "dtype": "float64",
-      "group": "feature",
-      "source": "ACS 5-Year 2022",
-      "n_non_null": 29649,
-      "coverage_pct": 93.3
+      "group": "acs_features"
     },
     {
       "name": "acs_median_rent",
       "dtype": "float64",
-      "group": "feature",
-      "source": "ACS 5-Year 2022",
-      "n_non_null": 25942,
-      "coverage_pct": 81.6
+      "group": "acs_features"
     },
     {
       "name": "acs_median_year_built",
       "dtype": "float64",
-      "group": "feature",
-      "source": "ACS 5-Year 2022",
-      "n_non_null": 31007,
-      "coverage_pct": 97.5
+      "group": "acs_features"
     },
     {
       "name": "acs_pct_asian",
       "dtype": "float64",
-      "group": "feature",
-      "source": "ACS 5-Year 2022",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "acs_features"
     },
     {
       "name": "acs_pct_bachelors",
       "dtype": "float64",
-      "group": "feature",
-      "source": "ACS 5-Year 2022",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "acs_features"
     },
     {
       "name": "acs_pct_below_poverty",
       "dtype": "float64",
-      "group": "feature",
-      "source": "ACS 5-Year 2022",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "acs_features"
     },
     {
       "name": "acs_pct_black",
       "dtype": "float64",
-      "group": "feature",
-      "source": "ACS 5-Year 2022",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "acs_features"
     },
     {
       "name": "acs_pct_drive_alone",
       "dtype": "float64",
-      "group": "feature",
-      "source": "ACS 5-Year 2022",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "acs_features"
     },
     {
       "name": "acs_pct_english_only",
       "dtype": "float64",
-      "group": "feature",
-      "source": "ACS 5-Year 2022",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "acs_features"
     },
     {
       "name": "acs_pct_female",
       "dtype": "float64",
-      "group": "feature",
-      "source": "ACS 5-Year 2022",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "acs_features"
     },
     {
       "name": "acs_pct_food_stamps",
       "dtype": "float64",
-      "group": "feature",
-      "source": "ACS 5-Year 2022",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "acs_features"
     },
     {
       "name": "acs_pct_foreign_born",
       "dtype": "float64",
-      "group": "feature",
-      "source": "ACS 5-Year 2022",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "acs_features"
     },
     {
       "name": "acs_pct_graduate",
       "dtype": "float64",
-      "group": "feature",
-      "source": "ACS 5-Year 2022",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "acs_features"
     },
     {
       "name": "acs_pct_hispanic",
       "dtype": "float64",
-      "group": "feature",
-      "source": "ACS 5-Year 2022",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "acs_features"
     },
     {
       "name": "acs_pct_no_hs",
       "dtype": "float64",
-      "group": "feature",
-      "source": "ACS 5-Year 2022",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "acs_features"
     },
     {
       "name": "acs_pct_no_insurance",
       "dtype": "float64",
-      "group": "feature",
-      "source": "ACS 5-Year 2022",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "acs_features"
     },
     {
       "name": "acs_pct_no_vehicle",
       "dtype": "float64",
-      "group": "feature",
-      "source": "ACS 5-Year 2022",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "acs_features"
     },
     {
       "name": "acs_pct_over_65",
       "dtype": "float64",
-      "group": "feature",
-      "source": "ACS 5-Year 2022",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "acs_features"
     },
     {
       "name": "acs_pct_owner_occupied",
       "dtype": "float64",
-      "group": "feature",
-      "source": "ACS 5-Year 2022",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "acs_features"
     },
     {
       "name": "acs_pct_renter_occupied",
       "dtype": "float64",
-      "group": "feature",
-      "source": "ACS 5-Year 2022",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "acs_features"
     },
     {
       "name": "acs_pct_transit",
       "dtype": "float64",
-      "group": "feature",
-      "source": "ACS 5-Year 2022",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "acs_features"
     },
     {
       "name": "acs_pct_under_18",
       "dtype": "float64",
-      "group": "feature",
-      "source": "ACS 5-Year 2022",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "acs_features"
     },
     {
       "name": "acs_pct_vacant",
       "dtype": "float64",
-      "group": "feature",
-      "source": "ACS 5-Year 2022",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "acs_features"
     },
     {
       "name": "acs_pct_veterans",
       "dtype": "float64",
-      "group": "feature",
-      "source": "ACS 5-Year 2022",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "acs_features"
     },
     {
       "name": "acs_pct_walk_bike",
       "dtype": "float64",
-      "group": "feature",
-      "source": "ACS 5-Year 2022",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "acs_features"
     },
     {
       "name": "acs_pct_wfh",
       "dtype": "float64",
-      "group": "feature",
-      "source": "ACS 5-Year 2022",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "acs_features"
     },
     {
       "name": "acs_pct_white",
       "dtype": "float64",
-      "group": "feature",
-      "source": "ACS 5-Year 2022",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "acs_features"
     },
     {
       "name": "acs_total_pop",
       "dtype": "float64",
-      "group": "feature",
-      "source": "ACS 5-Year 2022",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "acs_features"
     },
     {
       "name": "acs_unemployment_rate",
       "dtype": "float64",
-      "group": "feature",
-      "source": "ACS 5-Year 2022",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "acs_features"
     },
     {
       "name": "svi_household_disability",
       "dtype": "float64",
-      "group": "feature",
-      "source": "CDC/ATSDR SVI 2022",
-      "n_non_null": 31776,
-      "coverage_pct": 100.0
+      "group": "svi"
     },
     {
       "name": "svi_housing_transport",
       "dtype": "float64",
-      "group": "feature",
-      "source": "CDC/ATSDR SVI 2022",
-      "n_non_null": 31776,
-      "coverage_pct": 100.0
+      "group": "svi"
     },
     {
       "name": "svi_minority_language",
       "dtype": "float64",
-      "group": "feature",
-      "source": "CDC/ATSDR SVI 2022",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "svi"
     },
     {
       "name": "svi_overall",
       "dtype": "float64",
-      "group": "feature",
-      "source": "CDC/ATSDR SVI 2022",
-      "n_non_null": 31776,
-      "coverage_pct": 100.0
+      "group": "svi"
     },
     {
       "name": "svi_socioeconomic",
       "dtype": "float64",
-      "group": "feature",
-      "source": "CDC/ATSDR SVI 2022",
-      "n_non_null": 31776,
-      "coverage_pct": 100.0
+      "group": "svi"
+    },
+    {
+      "name": "flood_crop_damage_k",
+      "dtype": "float64",
+      "group": "flood"
+    },
+    {
+      "name": "flood_deaths",
+      "dtype": "float64",
+      "group": "flood"
+    },
+    {
+      "name": "flood_event_count",
+      "dtype": "float64",
+      "group": "flood"
+    },
+    {
+      "name": "flood_event_count_5y",
+      "dtype": "float64",
+      "group": "flood"
+    },
+    {
+      "name": "flood_events_per_year",
+      "dtype": "float64",
+      "group": "flood"
+    },
+    {
+      "name": "flood_injuries",
+      "dtype": "float64",
+      "group": "flood"
     },
     {
       "name": "flood_pct_zone_a",
       "dtype": "float64",
-      "group": "feature",
-      "source": "FEMA NFHL 2024",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "flood"
     },
     {
       "name": "flood_pct_zone_x",
       "dtype": "float64",
-      "group": "feature",
-      "source": "FEMA NFHL 2024",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "flood"
     },
     {
       "name": "flood_pct_zone_x500",
       "dtype": "float64",
-      "group": "feature",
-      "source": "FEMA NFHL 2024",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "flood"
+    },
+    {
+      "name": "flood_property_damage_k",
+      "dtype": "float64",
+      "group": "flood"
     },
     {
       "name": "flood_sfha",
-      "dtype": "bool",
-      "group": "feature",
-      "source": "FEMA NFHL 2024",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "dtype": "float64",
+      "group": "flood"
     },
     {
       "name": "hifld_n_hospital_beds",
       "dtype": "float64",
-      "group": "feature",
-      "source": "DHS HIFLD Open Data",
-      "n_non_null": 0,
-      "coverage_pct": 0.0
+      "group": "hifld"
     },
     {
       "name": "hifld_n_hospitals",
-      "dtype": "int64",
-      "group": "feature",
-      "source": "DHS HIFLD Open Data",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "dtype": "float64",
+      "group": "hifld"
     },
     {
       "name": "hifld_n_pharmacies",
       "dtype": "float64",
-      "group": "feature",
-      "source": "DHS HIFLD Open Data",
-      "n_non_null": 0,
-      "coverage_pct": 0.0
+      "group": "hifld"
     },
     {
       "name": "hifld_nearest_hospital_km",
       "dtype": "float64",
-      "group": "feature",
-      "source": "DHS HIFLD Open Data",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "hifld"
     },
     {
       "name": "hifld_nearest_pharmacy_km",
       "dtype": "float64",
-      "group": "feature",
-      "source": "DHS HIFLD Open Data",
-      "n_non_null": 0,
-      "coverage_pct": 0.0
+      "group": "hifld"
     },
     {
       "name": "hifld_nearest_trauma_center_km",
       "dtype": "float64",
-      "group": "feature",
-      "source": "DHS HIFLD Open Data",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "hifld"
+    },
+    {
+      "name": "drive_min_to_county_centroid",
+      "dtype": "float64",
+      "group": "drive_times"
     },
     {
       "name": "drive_min_to_county_seat",
       "dtype": "float64",
-      "group": "feature",
-      "source": "OSRM routing engine",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "drive_times"
     },
     {
       "name": "drive_min_to_nearest_hospital",
       "dtype": "float64",
-      "group": "feature",
-      "source": "OSRM routing engine",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "drive_times"
     },
     {
       "name": "target_annual_checkup",
       "dtype": "float64",
-      "group": "target",
-      "source": "CDC PLACES 2023 / derived",
-      "n_non_null": 31529,
-      "coverage_pct": 99.2
+      "group": "targets"
     },
     {
       "name": "target_arthritis",
       "dtype": "float64",
-      "group": "target",
-      "source": "CDC PLACES 2023 / derived",
-      "n_non_null": 31529,
-      "coverage_pct": 99.2
+      "group": "targets"
     },
     {
       "name": "target_asthma",
       "dtype": "float64",
-      "group": "target",
-      "source": "CDC PLACES 2023 / derived",
-      "n_non_null": 31529,
-      "coverage_pct": 99.2
+      "group": "targets"
     },
     {
       "name": "target_binge_drinking",
       "dtype": "float64",
-      "group": "target",
-      "source": "CDC PLACES 2023 / derived",
-      "n_non_null": 31529,
-      "coverage_pct": 99.2
+      "group": "targets"
     },
     {
       "name": "target_bp_medicated",
       "dtype": "float64",
-      "group": "target",
-      "source": "CDC PLACES 2023 / derived",
-      "n_non_null": 31529,
-      "coverage_pct": 99.2
+      "group": "targets"
     },
     {
       "name": "target_cancer",
       "dtype": "float64",
-      "group": "target",
-      "source": "CDC PLACES 2023 / derived",
-      "n_non_null": 31529,
-      "coverage_pct": 99.2
+      "group": "targets"
     },
     {
       "name": "target_cholesterol_screening",
       "dtype": "float64",
-      "group": "target",
-      "source": "CDC PLACES 2023 / derived",
-      "n_non_null": 31529,
-      "coverage_pct": 99.2
+      "group": "targets"
     },
     {
       "name": "target_chronic_kidney_disease",
       "dtype": "float64",
-      "group": "target",
-      "source": "CDC PLACES 2023 / derived",
-      "n_non_null": 31529,
-      "coverage_pct": 99.2
+      "group": "targets"
     },
     {
       "name": "target_copd",
       "dtype": "float64",
-      "group": "target",
-      "source": "CDC PLACES 2023 / derived",
-      "n_non_null": 31529,
-      "coverage_pct": 99.2
+      "group": "targets"
     },
     {
       "name": "target_coronary_heart_disease",
       "dtype": "float64",
-      "group": "target",
-      "source": "CDC PLACES 2023 / derived",
-      "n_non_null": 31529,
-      "coverage_pct": 99.2
+      "group": "targets"
     },
     {
       "name": "target_dental_visit",
       "dtype": "float64",
-      "group": "target",
-      "source": "CDC PLACES 2023 / derived",
-      "n_non_null": 31529,
-      "coverage_pct": 99.2
+      "group": "targets"
     },
     {
       "name": "target_diabetes",
       "dtype": "float64",
-      "group": "target",
-      "source": "CDC PLACES 2023 / derived",
-      "n_non_null": 31529,
-      "coverage_pct": 99.2
+      "group": "targets"
     },
     {
       "name": "target_elevation",
       "dtype": "float64",
-      "group": "target",
-      "source": "CDC PLACES 2023 / derived",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "targets"
     },
     {
       "name": "target_high_blood_pressure",
       "dtype": "float64",
-      "group": "target",
-      "source": "CDC PLACES 2023 / derived",
-      "n_non_null": 31529,
-      "coverage_pct": 99.2
+      "group": "targets"
     },
     {
       "name": "target_high_cholesterol",
       "dtype": "float64",
-      "group": "target",
-      "source": "CDC PLACES 2023 / derived",
-      "n_non_null": 31529,
-      "coverage_pct": 99.2
+      "group": "targets"
     },
     {
       "name": "target_home_value",
       "dtype": "float64",
-      "group": "target",
-      "source": "CDC PLACES 2023 / derived",
-      "n_non_null": 31244,
-      "coverage_pct": 98.3
+      "group": "targets"
     },
     {
       "name": "target_income",
       "dtype": "float64",
-      "group": "target",
-      "source": "CDC PLACES 2023 / derived",
-      "n_non_null": 31471,
-      "coverage_pct": 99.0
+      "group": "targets"
     },
     {
       "name": "target_mental_health_not_good",
       "dtype": "float64",
-      "group": "target",
-      "source": "CDC PLACES 2023 / derived",
-      "n_non_null": 31529,
-      "coverage_pct": 99.2
+      "group": "targets"
     },
     {
       "name": "target_night_lights",
       "dtype": "float64",
-      "group": "target",
-      "source": "CDC PLACES 2023 / derived",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "targets"
     },
     {
       "name": "target_obesity",
       "dtype": "float64",
-      "group": "target",
-      "source": "CDC PLACES 2023 / derived",
-      "n_non_null": 31529,
-      "coverage_pct": 99.2
+      "group": "targets"
     },
     {
       "name": "target_physical_health_not_good",
       "dtype": "float64",
-      "group": "target",
-      "source": "CDC PLACES 2023 / derived",
-      "n_non_null": 31529,
-      "coverage_pct": 99.2
+      "group": "targets"
     },
     {
       "name": "target_physical_inactivity",
       "dtype": "float64",
-      "group": "target",
-      "source": "CDC PLACES 2023 / derived",
-      "n_non_null": 31529,
-      "coverage_pct": 99.2
+      "group": "targets"
     },
     {
       "name": "target_population_density",
       "dtype": "float64",
-      "group": "target",
-      "source": "CDC PLACES 2023 / derived",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "targets"
     },
     {
       "name": "target_sleep_less_7hr",
       "dtype": "float64",
-      "group": "target",
-      "source": "CDC PLACES 2023 / derived",
-      "n_non_null": 31529,
-      "coverage_pct": 99.2
+      "group": "targets"
     },
     {
       "name": "target_smoking",
       "dtype": "float64",
-      "group": "target",
-      "source": "CDC PLACES 2023 / derived",
-      "n_non_null": 31529,
-      "coverage_pct": 99.2
+      "group": "targets"
     },
     {
       "name": "target_stroke",
       "dtype": "float64",
-      "group": "target",
-      "source": "CDC PLACES 2023 / derived",
-      "n_non_null": 31529,
-      "coverage_pct": 99.2
+      "group": "targets"
     },
     {
       "name": "target_tree_cover",
       "dtype": "float64",
-      "group": "target",
-      "source": "CDC PLACES 2023 / derived",
-      "n_non_null": 31789,
-      "coverage_pct": 100.0
+      "group": "targets"
+    },
+    {
+      "name": "nfip_claim_count",
+      "dtype": "float64",
+      "group": "nfip"
+    },
+    {
+      "name": "nfip_total_building_loss",
+      "dtype": "float64",
+      "group": "nfip"
+    },
+    {
+      "name": "nfip_total_contents_loss",
+      "dtype": "float64",
+      "group": "nfip"
+    },
+    {
+      "name": "nfip_total_loss",
+      "dtype": "float64",
+      "group": "nfip"
+    },
+    {
+      "name": "nfip_mean_loss_per_claim",
+      "dtype": "float64",
+      "group": "nfip"
+    },
+    {
+      "name": "nfip_has_claims",
+      "dtype": "boolean",
+      "group": "nfip"
+    },
+    {
+      "name": "twi_twi",
+      "dtype": "float64",
+      "group": "twi_watershed"
+    },
+    {
+      "name": "twi_acc_twi",
+      "dtype": "float64",
+      "group": "twi_watershed"
+    },
+    {
+      "name": "twi_tot_twi",
+      "dtype": "float64",
+      "group": "twi_watershed"
+    },
+    {
+      "name": "slope_basin_slope",
+      "dtype": "float64",
+      "group": "twi_watershed"
+    },
+    {
+      "name": "slope_stream_slope",
+      "dtype": "float64",
+      "group": "twi_watershed"
+    },
+    {
+      "name": "slope_mean_pct",
+      "dtype": "float64",
+      "group": "twi_watershed"
     }
   ]
 }
