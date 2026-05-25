@@ -41,7 +41,7 @@ SCRIPT_DIR = Path(__file__).parent
 def wait_for_jobs(job_names: list[str], poll_interval: int = 30):
     """Poll SageMaker job statuses until all complete or one fails."""
     _aws = get_aws_credentials()
-    sm = boto3.client("sagemaker", region_name=REGION, **_aws)
+    sm = boto3.client("sagemaker", **_aws)
 
     pending = set(job_names)
     print(f"Waiting for {len(pending)} SageMaker jobs...")

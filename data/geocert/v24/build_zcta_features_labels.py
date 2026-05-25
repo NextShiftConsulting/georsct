@@ -127,7 +127,7 @@ def main():
         s3 = None
     else:
         _aws = get_aws_credentials()
-        s3 = boto3.client("s3", region_name=REGION, **_aws)
+        s3 = boto3.client("s3", **_aws)
         local_dir = Path("/tmp/geo_build")
         local_dir.mkdir(parents=True, exist_ok=True)
 
