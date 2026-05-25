@@ -54,7 +54,16 @@ S3_BUCKET = "swarm-yrsn-datasets"
 S3_OUTPUT_KEY = "rsct_curriculum/series_018/processed/nfip_claims_zcta.parquet"
 S3_PROVENANCE_KEY = "rsct_curriculum/series_018/processed/nfip_claims_provenance.json"
 S3_CHECKPOINT_KEY = "rsct_curriculum/series_018/processed/nfip_checkpoint.json"
+S3_LONG_KEY = "rsct_curriculum/series_018/processed/nfip_claims_long.parquet"
+S3_WIDE_KEY = "rsct_curriculum/series_018/processed/nfip_claims_wide.parquet"
 DATA_PREFIX = "rsct_curriculum/series_018/processed"
+
+# Temporal epochs — must match NOAA epochs for cross-source joins
+EPOCHS = {
+    "e1": (1996, 2004),   # pre-Katrina baseline
+    "e2": (2005, 2011),   # post-Katrina / pre-Sandy
+    "e3": (2012, 2024),   # Sandy onward
+}
 
 OPENFEMA_URL = "https://www.fema.gov/api/open/v2/FimaNfipClaims"  # case-sensitive
 PAGE_SIZE = 10_000
@@ -147,11 +156,10 @@ def fetch_page(offset: int) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 def accumulate_page(
     page: pd.DataFrame,
-    agg: dict,          # {zip5: {count, building, contents}}
+    agg: dict,                  # {zip5: {count, building, contents}}
+    temporal_agg: dict | None,  # {zip5: {year: {count, building, contents}}} or None
 ) -> int:
-    """Parse one page and roll into running aggregation dict. Returns paid count."""
-    paid = 0
-
+    """Parse one page and roll into running aggregation dicts. Returns paid count."""
     # Normalize ZIP to 5 digits
     page["zip5"] = (
         page["reportedZipCode"]
@@ -169,18 +177,146 @@ def accumulate_page(
     page["total_loss"] = (
         page["amountPaidOnBuildingClaim"] + page["amountPaidOnContentsClaim"]
     )
-    page_paid = page[page["total_loss"] > 0]
+    page_paid = page[page["total_loss"] > 0].copy()
     paid = len(page_paid)
+
+    if temporal_agg is not None:
+        page_paid["year"] = pd.to_numeric(
+            page_paid.get("yearOfLoss", None), errors="coerce"
+        ).fillna(0).astype(int)
 
     for _, row in page_paid.iterrows():
         z = row["zip5"]
+        b = float(row["amountPaidOnBuildingClaim"])
+        c = float(row["amountPaidOnContentsClaim"])
+
+        # Standard aggregation (unchanged)
         if z not in agg:
             agg[z] = {"count": 0, "building": 0.0, "contents": 0.0}
         agg[z]["count"] += 1
-        agg[z]["building"] += float(row["amountPaidOnBuildingClaim"])
-        agg[z]["contents"] += float(row["amountPaidOnContentsClaim"])
+        agg[z]["building"] += b
+        agg[z]["contents"] += c
+
+        # Temporal aggregation
+        if temporal_agg is not None:
+            yr = int(row["year"])
+            if yr < 1970 or yr > 2030:
+                yr = 0  # sentinel for unknown/bad year
+            if z not in temporal_agg:
+                temporal_agg[z] = {}
+            if yr not in temporal_agg[z]:
+                temporal_agg[z][yr] = {"count": 0, "building": 0.0, "contents": 0.0}
+            temporal_agg[z][yr]["count"] += 1
+            temporal_agg[z][yr]["building"] += b
+            temporal_agg[z][yr]["contents"] += c
 
     return paid
+
+
+# ---------------------------------------------------------------------------
+# Temporal pipeline
+# ---------------------------------------------------------------------------
+def make_long_zcta_nfip(
+    temporal_agg: dict, xwalk: pd.DataFrame
+) -> pd.DataFrame:
+    """Convert temporal_agg to long format (zcta_id x year), zero-filled.
+
+    temporal_agg: {zip5: {year: {count, building, contents}}}
+    xwalk: DataFrame with zcta_id column (canonical ZCTA list)
+    """
+    import numpy as np
+
+    log.info("Building NFIP long format...")
+
+    # Flatten dict to rows
+    rows = []
+    for zip5, year_data in temporal_agg.items():
+        for yr, vals in year_data.items():
+            if yr == 0:
+                continue  # skip unknown year sentinel
+            rows.append({
+                "zcta_id": zip5,
+                "year": yr,
+                "nfip_claim_count": vals["count"],
+                "nfip_building_loss": round(vals["building"], 2),
+                "nfip_contents_loss": round(vals["contents"], 2),
+                "nfip_total_loss": round(vals["building"] + vals["contents"], 2),
+            })
+
+    if not rows:
+        log.warning("No temporal rows — returning empty long DataFrame")
+        return pd.DataFrame(columns=["zcta_id", "year", "nfip_claim_count",
+                                     "nfip_building_loss", "nfip_contents_loss",
+                                     "nfip_total_loss"])
+
+    flat = pd.DataFrame(rows)
+    flat["zcta_id"] = flat["zcta_id"].astype(str).str.zfill(5)
+
+    # Year range from data (NFIP goes back to ~1978)
+    year_min = int(flat["year"].min())
+    year_max = int(flat["year"].max())
+    log.info("  Year range in data: %d-%d", year_min, year_max)
+
+    # Complete zcta x year index for canonical ZCTAs only
+    all_zctas = xwalk["zcta_id"].unique()
+    all_years = np.arange(year_min, year_max + 1)
+    idx = pd.MultiIndex.from_product([all_zctas, all_years], names=["zcta_id", "year"])
+    template = pd.DataFrame(index=idx).reset_index()
+
+    long = template.merge(flat, on=["zcta_id", "year"], how="left")
+    long["nfip_claim_count"] = long["nfip_claim_count"].fillna(0).astype(int)
+    for col in ("nfip_building_loss", "nfip_contents_loss", "nfip_total_loss"):
+        long[col] = long[col].fillna(0.0)
+
+    long = long.sort_values(["zcta_id", "year"]).reset_index(drop=True)
+    log.info("  Long format: %d rows (%d ZCTAs x %d years)",
+             len(long), len(all_zctas), len(all_years))
+    return long
+
+
+def make_wide_epochs_nfip(long: pd.DataFrame) -> pd.DataFrame:
+    """Pivot NFIP long format to epoch-aggregated wide format."""
+    log.info("Building NFIP wide epoch format...")
+    metrics = ["nfip_claim_count", "nfip_building_loss",
+               "nfip_contents_loss", "nfip_total_loss"]
+
+    result = long[["zcta_id"]].drop_duplicates().copy()
+
+    for epoch, (y0, y1) in EPOCHS.items():
+        mask = long["year"].between(y0, y1)
+        epoch_agg = (
+            long[mask]
+            .groupby("zcta_id")[metrics]
+            .sum()
+            .reset_index()
+            .rename(columns={m: f"{m}_{epoch}" for m in metrics})
+        )
+        result = result.merge(epoch_agg, on="zcta_id", how="left")
+
+    # Rolling totals (all years, not just epoch range)
+    totals = long.groupby("zcta_id")[metrics].sum().reset_index()
+    totals = totals.rename(columns={m: f"{m}_total" for m in metrics})
+    result = result.merge(totals, on="zcta_id", how="left")
+
+    # Peak single-year loss
+    peak = (
+        long.groupby("zcta_id")["nfip_total_loss"]
+        .max()
+        .reset_index(name="nfip_total_loss_peak_yr")
+    )
+    result = result.merge(peak, on="zcta_id", how="left")
+
+    # Zero-fill
+    for col in result.columns:
+        if col != "zcta_id":
+            result[col] = result[col].fillna(0)
+
+    int_cols = [c for c in result.columns if "claim_count" in c]
+    for col in int_cols:
+        result[col] = result[col].astype(int)
+
+    log.info("  Wide format: %d rows, %d columns", len(result), len(result.columns))
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -212,6 +348,8 @@ def main():
     parser.add_argument("--output-dir", default="/opt/ml/processing/output")
     parser.add_argument("--max-pages", type=int, default=None,
                         help="Limit pages for testing (None = all)")
+    parser.add_argument("--temporal", action="store_true",
+                        help="Also produce long (zcta x year) and wide (epoch) Parquet outputs")
     args = parser.parse_args()
 
     timestamp = datetime.now(timezone.utc).isoformat()
@@ -230,6 +368,7 @@ def main():
 
     # --- Crash recovery ---
     agg: dict = {}
+    temporal_agg: dict | None = {} if args.temporal else None
     start_offset = 0
     pages_done = 0
     total_paid = 0
@@ -244,11 +383,19 @@ def main():
             start_offset = ckpt.get("next_offset", 0)
             pages_done = ckpt.get("pages_done", 0)
             total_paid = ckpt.get("total_paid", 0)
+            if args.temporal and "temporal_agg" in ckpt:
+                # Restore nested dict; JSON keys are strings so cast year keys to int
+                raw = ckpt["temporal_agg"]
+                temporal_agg = {
+                    z: {int(yr): vals for yr, vals in yr_data.items()}
+                    for z, yr_data in raw.items()
+                }
             log.info("Resuming from checkpoint: offset=%d, pages=%d, paid=%d",
                      start_offset, pages_done, total_paid)
         except Exception as exc:
             log.warning("Checkpoint corrupt, starting fresh: %s", exc)
             agg, start_offset, pages_done, total_paid = {}, 0, 0, 0
+            temporal_agg = {} if args.temporal else None
 
     # --- Stream and accumulate ---
     log.info("=== STREAMING OPENFEMA NFIP CLAIMS ===")
@@ -271,7 +418,7 @@ def main():
             log.info("  Empty page at offset=%d — done.", offset)
             break
 
-        paid_this_page = accumulate_page(page, agg)
+        paid_this_page = accumulate_page(page, agg, temporal_agg)
         total_paid += paid_this_page
         pages_done += 1
         offset += len(page)
@@ -288,6 +435,8 @@ def main():
                 "total_paid": total_paid,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
+            if temporal_agg is not None:
+                ckpt_data["temporal_agg"] = temporal_agg
             checkpoint_path.write_text(json.dumps(ckpt_data))
             _s3_upload(str(checkpoint_path), S3_CHECKPOINT_KEY, quiet=True)
             log.info("  Checkpoint saved (page %d)", pages_done)
@@ -383,6 +532,33 @@ def main():
     prov_path = output_dir / "nfip_claims_provenance.json"
     prov_path.write_text(json.dumps(provenance, indent=2))
     _s3_upload(str(prov_path), S3_PROVENANCE_KEY)
+
+    # --- Temporal outputs (--temporal flag) ---
+    if args.temporal and temporal_agg:
+        log.info("=== TEMPORAL PIPELINE ===")
+        long = make_long_zcta_nfip(temporal_agg, xwalk)
+
+        long_path = output_dir / "nfip_claims_long.parquet"
+        long.to_parquet(long_path, index=False)
+        log.info("Saved: %s (%.1f KB)", long_path, long_path.stat().st_size / 1024)
+        _s3_upload(str(long_path), S3_LONG_KEY)
+
+        wide = make_wide_epochs_nfip(long)
+        wide_path = output_dir / "nfip_claims_wide.parquet"
+        wide.to_parquet(wide_path, index=False)
+        log.info("Saved: %s (%.1f KB)", wide_path, wide_path.stat().st_size / 1024)
+        _s3_upload(str(wide_path), S3_WIDE_KEY)
+
+        # Epoch summary
+        for epoch, (y0, y1) in EPOCHS.items():
+            mask = long["year"].between(y0, y1)
+            active = long[mask & (long["nfip_claim_count"] > 0)]["zcta_id"].nunique()
+            log.info("  %s (%d-%d): %d ZCTAs with claims", epoch, y0, y1, active)
+        peak_zcta = wide.loc[wide["nfip_total_loss_peak_yr"].idxmax(), "zcta_id"]
+        peak_val = wide["nfip_total_loss_peak_yr"].max()
+        log.info("  Peak single-year loss ZCTA: %s ($%.1fM)", peak_zcta, peak_val / 1e6)
+    elif args.temporal:
+        log.warning("--temporal requested but temporal_agg is empty — skipping long/wide outputs")
 
     # Clean up checkpoint
     if checkpoint_path.exists():

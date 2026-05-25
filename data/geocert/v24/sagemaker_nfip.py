@@ -6,7 +6,7 @@ Launches a processing job to stream all ~2.4M NFIP claims from OpenFEMA,
 aggregate to ZCTA level, and upload nfip_claims_zcta.parquet to S3.
 
 Instance: ml.m5.xlarge (4 vCPU, 16 GB RAM, $0.23/hr)
-Runtime:  25-40 min estimated (~240 pages × 10K records)
+Runtime:  25-40 min (standard), 30-50 min (--temporal)
 Cost:     ~$0.20 estimated
 Image:    PyTorch 2.5 CPU (pip installs pyarrow at startup)
 
@@ -20,10 +20,11 @@ Output: uploaded directly to S3 by the run script (not EndOfJob-dependent).
   EndOfJob output kept as backup to /processed/ prefix.
 
 Usage:
-  python sagemaker_nfip.py --dry-run       # validate config
-  python sagemaker_nfip.py                  # launch
-  python sagemaker_nfip.py --deploy-only    # upload code to S3, no launch
-  python sagemaker_nfip.py --max-pages 5   # quick test (50K records)
+  python sagemaker_nfip.py --dry-run            # validate config
+  python sagemaker_nfip.py                       # launch
+  python sagemaker_nfip.py --deploy-only         # upload code to S3, no launch
+  python sagemaker_nfip.py --max-pages 5        # quick test (50K records)
+  python sagemaker_nfip.py --temporal           # also produce long + wide epoch outputs
 """
 
 import argparse
@@ -76,6 +77,8 @@ def main():
     parser.add_argument("--instance-type", default="ml.m5.xlarge")
     parser.add_argument("--max-pages", type=int, default=None,
                         help="Limit pages for testing (None = all ~240 pages)")
+    parser.add_argument("--temporal", action="store_true",
+                        help="Also produce long (zcta x year) and wide (epoch) Parquet outputs")
     args = parser.parse_args()
 
     session = boto3.Session(profile_name=AWS_PROFILE, region_name=REGION)
@@ -94,16 +97,12 @@ def main():
     job_name = f"geocert-nfip-{timestamp}"
     image_uri = get_image_uri(REGION)
 
-    # Build entrypoint args
-    entrypoint_args = [
-        "bash",
-        "/opt/ml/processing/input/code/entrypoint_nfip.sh",
-    ]
-
-    # Pass --max-pages via environment if set (entrypoint calls run_nfip.py directly)
-    env = {"PYTHONUNBUFFERED": "1"}
+    # Build ContainerArguments
+    container_args = []
     if args.max_pages:
-        env["NFIP_MAX_PAGES"] = str(args.max_pages)
+        container_args += ["--max-pages", str(args.max_pages)]
+    if args.temporal:
+        container_args.append("--temporal")
 
     print("\n" + "=" * 60)
     print("FEMA NFIP Claims Enrichment")
@@ -114,14 +113,20 @@ def main():
     print(f"Code:      s3://{BUCKET}/{CODE_PREFIX}/")
     print(f"Crosswalk: s3://{BUCKET}/{DATA_PREFIX}/")
     print(f"Output:    direct S3 upload to s3://{BUCKET}/{OUTPUT_PREFIX}/")
+    print(f"Temporal:  {'yes (long + wide epoch outputs)' if args.temporal else 'no (aggregated only)'}")
     if args.max_pages:
         print(f"TEST MODE: --max-pages {args.max_pages} (~{args.max_pages * 10_000:,} records)")
     print("=" * 60)
 
     if args.dry_run:
         print("\n[DRY RUN] Would launch with above config.")
-        print("[DRY RUN] Estimated runtime: 25-40 min")
+        runtime = "30-50 min" if args.temporal else "25-40 min"
+        print(f"[DRY RUN] Estimated runtime: {runtime}")
         print(f"[DRY RUN] Estimated cost: ~$0.20 ({args.instance_type} @ $0.23/hr)")
+        if args.temporal:
+            print("[DRY RUN] Temporal outputs:")
+            print(f"[DRY RUN]   s3://{BUCKET}/{OUTPUT_PREFIX}/nfip_claims_long.parquet")
+            print(f"[DRY RUN]   s3://{BUCKET}/{OUTPUT_PREFIX}/nfip_claims_wide.parquet")
         return
 
     sm = session.client("sagemaker")
@@ -137,7 +142,11 @@ def main():
         },
         "AppSpecification": {
             "ImageUri": image_uri,
-            "ContainerEntrypoint": entrypoint_args,
+            "ContainerEntrypoint": [
+                "bash",
+                "/opt/ml/processing/input/code/entrypoint_nfip.sh",
+            ],
+            **({"ContainerArguments": container_args} if container_args else {}),
         },
         "RoleArn": role_arn,
         "ProcessingInputs": [
@@ -173,7 +182,7 @@ def main():
             ],
         },
         "StoppingCondition": {"MaxRuntimeInSeconds": 7200},  # 2 hours max
-        "Environment": env,
+        "Environment": {"PYTHONUNBUFFERED": "1"},
     }
 
     response = sm.create_processing_job(**config)
