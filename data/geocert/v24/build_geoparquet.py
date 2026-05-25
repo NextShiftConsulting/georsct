@@ -39,7 +39,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import boto3
-from swarm_auth import get_aws_credentials
 import geopandas as gpd
 import pandas as pd
 import requests
@@ -147,13 +146,8 @@ def main():
                         help="HuggingFace dataset repo")
     args = parser.parse_args()
 
-    # On SageMaker, IAM role provides credentials (no profile needed)
-    try:
-        _aws = get_aws_credentials()
-        boto3.client("sts", **_aws).get_caller_identity()
-    except Exception:
-        session = boto3.Session(region_name=REGION)
-    s3 = boto3.client("s3", **_aws)
+    # On SageMaker, IAM role provides credentials automatically
+    s3 = boto3.client("s3")
     timestamp = datetime.now(timezone.utc).isoformat()
 
     # -- 1. Download TIGER boundaries --
