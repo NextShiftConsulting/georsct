@@ -82,7 +82,7 @@ def main():
     image_uri = get_image_uri(REGION)
 
     print("\n" + "=" * 60)
-    print("TWI + Watershed Features (StreamCat → ZCTA)")
+    print("TWI + Watershed Features (StreamCat to ZCTA)")
     print("=" * 60)
     print(f"Job:      {job_name}")
     print(f"Instance: {args.instance_type}")
@@ -138,7 +138,7 @@ def main():
                 "InputName": "county_xwalk",
                 "S3Input": {
                     "S3Uri": f"s3://{BUCKET}/{DATA_PREFIX}/zcta_county_crosswalk.parquet",
-                    "LocalPath": "/opt/ml/processing/input/data",
+                    "LocalPath": "/opt/ml/processing/input/county",
                     "S3DataType": "S3Prefix",
                     "S3InputMode": "File",
                 },

@@ -162,6 +162,7 @@ def main():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", default="/opt/ml/processing/input/data")
+    parser.add_argument("--county-dir", default="/opt/ml/processing/input/county")
     parser.add_argument("--output-dir", default="/opt/ml/processing/output")
     parser.add_argument("--regions", nargs="+", default=None)
     args = parser.parse_args()
@@ -169,6 +170,7 @@ def main():
     timestamp = datetime.now(timezone.utc).isoformat()
     regions = args.regions or CONUS_HUC2
     data_dir = Path(args.data_dir)
+    county_dir = Path(args.county_dir)
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -200,7 +202,7 @@ def main():
     result = derive_composite(result)
 
     # --- Zero-fill all ZCTAs from county crosswalk ---
-    county_xwalk_path = data_dir / "zcta_county_crosswalk.parquet"
+    county_xwalk_path = county_dir / "zcta_county_crosswalk.parquet"
     if county_xwalk_path.exists():
         all_zctas = pd.read_parquet(county_xwalk_path)[["zcta_id"]].drop_duplicates()
         all_zctas["zcta_id"] = all_zctas["zcta_id"].astype(str).str.zfill(5)
