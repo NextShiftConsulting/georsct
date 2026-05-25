@@ -1,0 +1,6 @@
+ID,Hypothesis,Threshold,Actual,Verdict
+IG-1,Diabetes embedding effect non-significant,p > 0.05,p = 2.4e-50,FAIL
+IG-2,Elevation embedding effect significant,p < 0.05,p = 3.3e-15,PASS
+IG-3,Elevation eta2(embedding) > 0.20,eta2 > 0.20,eta2 = 0.796,PASS
+IG-4,Gate decisions diverge across targets,not identical,Diabetes: ['re_encode']; Pop. density: ['re_encode']; Elevation: ['re_encode'],FAIL
+IG-5,Simplex integrity (R+S+N ~ 1),|sum - 1| < 0.01,max dev = 0.1802,FAIL

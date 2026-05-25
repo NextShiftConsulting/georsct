@@ -1,0 +1,31 @@
+{
+  "experiment": "s019a",
+  "target": "population_density",
+  "embedding": "spatial_lag_v1",
+  "solver": "ridge",
+  "n_folds": 5,
+  "certificate": {
+    "R": 0.3368,
+    "S_sup": 0.348,
+    "N": 0.2906,
+    "alpha": 0.5378,
+    "kappa": 0.1746,
+    "kappa_std": 0.0048,
+    "sigma": 0.2906,
+    "simplex_sum": 0.9753
+  },
+  "performance": {
+    "r2_mean": 0.7184,
+    "r2_std": 0.0175
+  },
+  "gate_flat": {
+    "decision": "re_encode",
+    "kappa_req": 0.22,
+    "margin": -0.0454
+  },
+  "gate_oobleck": {
+    "decision": "re_encode",
+    "kappa_req": 0.3628,
+    "margin": -0.1882
+  }
+}

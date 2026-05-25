@@ -1,0 +1,31 @@
+{
+  "experiment": "s019a",
+  "target": "population_density",
+  "embedding": "geo_spatial",
+  "solver": "histgbdt",
+  "n_folds": 5,
+  "certificate": {
+    "R": 0.3373,
+    "S_sup": 0.3314,
+    "N": 0.3178,
+    "alpha": 0.516,
+    "kappa": 0.1314,
+    "kappa_std": 0.0052,
+    "sigma": 0.3178,
+    "simplex_sum": 0.9865
+  },
+  "performance": {
+    "r2_mean": 0.8409,
+    "r2_std": 0.0132
+  },
+  "gate_flat": {
+    "decision": "re_encode",
+    "kappa_req": 0.22,
+    "margin": -0.0886
+  },
+  "gate_oobleck": {
+    "decision": "re_encode",
+    "kappa_req": 0.3881,
+    "margin": -0.2567
+  }
+}

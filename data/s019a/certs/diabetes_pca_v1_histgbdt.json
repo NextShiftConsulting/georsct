@@ -1,0 +1,31 @@
+{
+  "experiment": "s019a",
+  "target": "diabetes",
+  "embedding": "pca_v1",
+  "solver": "histgbdt",
+  "n_folds": 5,
+  "certificate": {
+    "R": 0.3293,
+    "S_sup": 0.3369,
+    "N": 0.3282,
+    "alpha": 0.5018,
+    "kappa": 0.1395,
+    "kappa_std": 0.0076,
+    "sigma": 0.3282,
+    "simplex_sum": 0.9944
+  },
+  "performance": {
+    "r2_mean": 0.7238,
+    "r2_std": 0.0191
+  },
+  "gate_flat": {
+    "decision": "re_encode",
+    "kappa_req": 0.22,
+    "margin": -0.0805
+  },
+  "gate_oobleck": {
+    "decision": "re_encode",
+    "kappa_req": 0.3984,
+    "margin": -0.2589
+  }
+}

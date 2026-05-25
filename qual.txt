@@ -1,0 +1,144 @@
+  Key results from the (embedding × task) quality surface:
+
+  Source: s019e (pooled calibration). Per-arm calibration (s019d) breaks
+  the simplex — R+S+N sums to 0.837–1.002 instead of exactly 1.000.
+  s019e pooled calibration enforces exact simplex closure (sum=1.000 for
+  all 810 records). Quality analysis must use s019e, not s019d.
+
+  FIELD NOTE: The `sigma` record field = N exactly (degenerate per-request
+  proxy, documented in NOTATION_DEFINITIVE.md). It is NOT the canonical
+  turbulence measure. Canonical sigma = std({kappa_i}) = `theory_sigma`
+  field. All orthogonality checks below use theory_sigma.
+
+  [1] η² pattern is task-driven — opposite of compat and turbulence
+
+  For r2:     task dominates embedding (0.466 vs 0.379, ratio 1.2x)
+  For qual:   task dominates embedding (0.408 vs 0.122, ratio 3.3x)
+  For compat: embedding dominates task (0.534 vs 0.095, ratio 0.2x)
+  For turb:   embedding dominates task (turbulence.txt)
+
+  Quality (alpha) is primarily a property of the target, not the embedding.
+  Compat and turbulence are primarily properties of the embedding.
+  R² sits between: roughly equal task vs embedding variance.
+
+  ┌────────────────────┬───────────┬─────────────┐
+  │       Source       │ η² for r2 │ η² for qual │
+  ├────────────────────┼───────────┼─────────────┤
+  │ Embedding          │ 0.379     │ 0.122       │
+  │ Task               │ 0.466     │ 0.408       │
+  └────────────────────┴───────────┴─────────────┘
+
+  Cross-seed stable: eta2(task, qual) = 0.408 / 0.419 / 0.418 across
+  seeds 42/123/456. eta2(emb, qual) = 0.122 / 0.195 / 0.126 — less stable
+  but consistently much smaller than eta2(task).
+
+  [2] Embedding quality profile (alpha, s019e pooled)
+
+  ┌────────────────────┬───────────┬───────┐
+  │ Embedding          │   alpha   │  r2   │
+  ├────────────────────┼───────────┼───────┤
+  │ noisy_control      │  0.4893   │ 0.483 │
+  │ pca_v1             │  0.4942   │ 0.636 │
+  │ spatial_lag_v1     │  0.5106   │ 0.681 │
+  │ gnn_v2             │  0.5160   │ 0.725 │
+  │ geo_spatial        │  0.5184   │ 0.671 │
+  │ domain_features    │  0.5147   │ 0.733 │
+  └────────────────────┴───────────┴───────┘
+
+  rho(embedding-mean alpha, r2) = 0.600. Embeddings rank similarly on
+  alpha and r2, but the spread in alpha is narrow (0.489–0.518 = 0.029)
+  compared to r2 spread (0.483–0.733 = 0.250). Alpha discriminates
+  embeddings weakly; r2 discriminates them strongly.
+
+  [3] Family-conditional quality spread
+
+  Environmental tasks dominate — elevation alone drives the pattern.
+
+  ┌────────────────────┬───────────────────────┬──────────────────────┐
+  │ Family             │ winner embedding      │ emb spread (max-min) │
+  ├────────────────────┼───────────────────────┼──────────────────────┤
+  │ Environmental      │ geo_spatial (0.5798)  │ 0.1349               │
+  │ Socioeconomic      │ domain_features(0.537)│ 0.0448               │
+  │ Health             │ gnn_v2 (0.5167)       │ 0.0215               │
+  └────────────────────┴───────────────────────┴──────────────────────┘
+
+  The environmental spread (0.135) is 6x the health spread (0.022).
+  On the quality axis, geo_spatial wins on environmental — same winner as
+  on the compat axis. GNN wins on r2 for environmental but NOT on either
+  certificate axis.
+
+  [4] rho(rsct_qual, r2) — quality does not predict r2 uniformly
+
+  All cells (n=162): rho = 0.097  (near zero)
+  By family:
+    Environmental:  rho = -0.088  (p=0.73, non-significant)
+    Socioeconomic:  rho = +0.769  (p=0.0002, strong)
+    Health:         rho = -0.020  (p=0.82, non-significant)
+
+  Alpha predicts r2 only for socioeconomic tasks. For environmental and
+  health, there is no quality→performance relationship. This is the
+  sharpest family-conditional split across all three certificate axes.
+
+  Cross-seed stable: rho(alpha, r2) = 0.097 / 0.110 / 0.111.
+
+  [5] Certificate axis independence
+
+  rho(qual, theory_sigma) = +0.395  (cross-seed range: 0.395–0.457)
+  rho(qual, kappa_mean)   = +0.496  (cross-seed range: 0.448–0.541)
+  rho(qual, r2)           = +0.097
+
+  Quality is weakly positively correlated with both turbulence and
+  compat — they are not fully orthogonal but are not redundant either.
+  The three axes each carry independent variance; none is derivable
+  from the others.
+
+  [6] Tasks ranked by embedding quality spread (s019e)
+
+  Most embedding-sensitive on quality axis:
+    elevation              environmental  mean=0.568  spread=0.329
+    night_lights           environmental  mean=0.440  spread=0.093
+    home_value             socioeconomic  mean=0.527  spread=0.082
+    population_density     socioeconomic  mean=0.516  spread=0.061
+    annual_checkup         health         mean=0.520  spread=0.052
+
+  Most embedding-invariant on quality axis:
+    high_cholesterol       health         mean=0.514  spread=0.022
+    smoking                health         mean=0.496  spread=0.018
+    sleep_less_7hr         health         mean=0.505  spread=0.017
+    obesity                health         mean=0.507  spread=0.016
+    dental_visit           health         mean=0.494  spread=0.010
+
+  Elevation is a structural outlier: spread 0.329 vs next-largest 0.093.
+  All five most-sensitive tasks are environmental or socioeconomic.
+  All five least-sensitive are health — consistent across all three axes.
+
+  [7] Summary: where each certificate axis lives
+
+  ┌──────────────────┬─────────────────────┬──────────────────────────────┐
+  │ Axis             │ Driven by           │ Predicts r2?                 │
+  ├──────────────────┼─────────────────────┼──────────────────────────────┤
+  │ alpha  (qual)    │ Task  (eta2=0.41)   │ Only socioeconomic (rho=0.77)│
+  │ kappa  (compat)  │ Embed (eta2=0.53)   │ All families (rho=0.44–0.67) │
+  │ theory_sigma(turb│ Embed (eta2=0.64)   │ Positive (rho=+0.62)         │
+  │ r2               │ Both  (~equal)      │ Is r2                        │
+  └──────────────────┴─────────────────────┴──────────────────────────────┘
+
+  Alpha is a task property; kappa and theory_sigma are trajectory
+  properties; r2 mixes both.
+
+  Axis independence structure:
+    alpha vs kappa:        rho=+0.496 (moderate — different drivers)
+    alpha vs theory_sigma: rho=+0.395 (weak   — different drivers)
+    kappa vs theory_sigma: rho=+0.875 (strong  — same driver: embedding)
+
+  Structural vs empirical independence: Theorem 4 proves all three axes are
+  structurally independent (any combination is constructible). The +0.875
+  rho(kappa, sigma) is an empirical property of these 6 embeddings — better
+  embeddings score higher on both simultaneously. Patent claims are intact.
+
+  Empirical structure on this distribution: alpha is task-driven and
+  relatively independent from both kappa and sigma (+0.496, +0.395);
+  kappa and sigma are co-ordered (+0.875, both embedding-driven).
+
+  Data: data/s019e/seed_{42,123,456}/s019e_results.json
+  Script: exp/s019d_posthoc/analyze_compat.py (adapt for s019e + alpha)

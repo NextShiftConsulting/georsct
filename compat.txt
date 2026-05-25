@@ -1,0 +1,155 @@
+  Key results from the (embedding × task) compatibility surface:
+
+  [1] Inversion of the η² pattern — the headline result
+
+  For R², task dominates embedding (ratio 1.2×).
+  For rsct_compat, embedding dominates task (ratio 0.2× — inverted).
+
+  ┌────────────────────┬───────────┬──────────────────┐
+  │       Source       │ η² for r2 │ η² for rsct_compat│
+  ├────────────────────┼───────────┼──────────────────┤
+  │ Embedding          │ 0.379     │ 0.534            │
+  ├────────────────────┼───────────┼──────────────────┤
+  │ Task               │ 0.466     │ 0.095            │
+  └────────────────────┴───────────┴──────────────────┘
+
+  Kappa is primarily a property of the trajectory (embedding), not the
+  target. This mirrors turbulence (also embedding-driven). Both certificate
+  axes measure representation geometry; R² mixes both geometry and
+  problem difficulty.
+
+  [2] Compatibility orders embeddings correctly
+
+  ┌────────────────────┬─────────────┬───────┐
+  │ Embedding          │ rsct_compat │  r2   │
+  ├────────────────────┼─────────────┼───────┤
+  │ noisy_control      │  0.2572     │ 0.483 │
+  │ pca_v1             │  0.2947     │ 0.636 │
+  │ spatial_lag_v1     │  0.3162     │ 0.681 │
+  │ gnn_v2             │  0.3624     │ 0.725 │
+  │ geo_spatial        │  0.3739     │ 0.671 │
+  │ domain_features    │  0.3737     │ 0.733 │
+  └────────────────────┴─────────────┴───────┘
+
+  rho(embedding-mean compat, r2) = 0.657. Better trajectories are more
+  compatible. noisy_control is worst on both axes. domain_features leads r2;
+  geo_spatial and domain_features tie on compat.
+
+  [3] Family-conditional compatibility spread
+
+  Environmental and socioeconomic both show large embedding-kappa spread
+  (~0.26). Health is compressed (0.10).
+
+  On environmental: geo_spatial wins (0.451), not GNN (0.339). This differs
+  from the r2 surface where GNN was decisive on environmental. geo_spatial's
+  lat/lon/geographic-context encoding is more compatible with the D*/D
+  structure on spatial targets than GNN's graph message-passing.
+
+  On socioeconomic: domain_features dominates (0.488 vs next-best 0.315).
+
+  On health: embeddings cluster tightly (0.271–0.374); the family is nearly
+  embedding-invariant on the compatibility axis.
+
+  ┌────────────────────┬───────────────┬──────────────────────┐
+  │ Family             │ n tasks       │ emb spread (max-min) │
+  ├────────────────────┼───────────────┼──────────────────────┤
+  │ Environmental      │ 3             │ 0.2611               │
+  │ Socioeconomic      │ 3             │ 0.2659               │
+  │ Health             │ 21            │ 0.1023               │
+  └────────────────────┴───────────────┴──────────────────────┘
+
+  [4] rho(rsct_compat, r2) = 0.443 overall
+
+  By family:
+    Environmental:  rho = 0.670  (p = 0.0024)
+    Socioeconomic:  rho = 0.595  (p = 0.0091)
+    Health:         rho = 0.421  (p < 0.0001)
+
+  Kappa predicts r2 meaningfully across all families. Strongest signal on
+  environmental tasks — the same substrate where the r2 spread is largest.
+
+  [5] Compat and turbulence are co-linear: rho(rsct_compat, theory_sigma) = +0.875
+
+  FIELD NOTE: Prior value rho=-0.007 used sigma field (=N, degenerate per-request
+  proxy). Correct field is theory_sigma = std({kappa_i}) = canonical turbulence.
+
+  Kappa and theory_sigma are strongly positively correlated. Both are embedding-
+  driven (eta2(emb,compat)=0.534; eta2(emb,turb)=0.634). Better embeddings score
+  higher on BOTH level (kappa) and spread (theory_sigma) — they are geometrically
+  selective in both senses simultaneously.
+
+  Structural vs empirical independence (IMPORTANT DISTINCTION):
+  Theorem 4 (FANO_EXPLAINS_QUALITY.md) proves kappa and sigma are STRUCTURALLY
+  independent — any (kappa, sigma) combination is constructible. That claim is
+  not violated. The +0.875 is an EMPIRICAL property of these 6 embeddings:
+  better embeddings score higher on both simultaneously. A purpose-built embedding
+  with high mean compatibility + low spread (laminar high-kappa) would break this
+  correlation. The patent's Gate 3 explicitly couples them (kappa_req stiffens
+  with sigma), so positive correlation is architecturally expected.
+
+  Empirical takeaway for GeoRSCT: on this 6-embedding distribution, kappa and
+  sigma are co-ordered, so alpha is the primary independent axis (task-driven)
+  and kappa/sigma together characterize embedding quality.
+
+  Per-embedding (mean compat vs mean theory_sigma, seed_42):
+    noisy_control        compat=0.2572  theory_sigma=0.3444
+    pca_v1               compat=0.2947  theory_sigma=0.3463
+    spatial_lag_v1       compat=0.3162  theory_sigma=0.3520
+    gnn_v2               compat=0.3624  theory_sigma=0.3817
+    domain_features      compat=0.3737  theory_sigma=0.3787
+    geo_spatial          compat=0.3739  theory_sigma=0.3988
+
+  [6] Tasks ranked by embedding compatibility spread
+
+  Most embedding-sensitive (kappa varies most across embeddings):
+    elevation          environmental  mean=0.282  spread=0.362
+    home_value         socioeconomic  mean=0.303  spread=0.325
+    population_density socioeconomic  mean=0.299  spread=0.252
+    night_lights       environmental  mean=0.296  spread=0.248
+    tree_cover         environmental  mean=0.325  spread=0.237
+
+  Most embedding-invariant (kappa barely moves across embeddings):
+    coronary_heart_disease  health   mean=0.339  spread=0.107
+    stroke                  health   mean=0.336  spread=0.104
+    high_cholesterol        health   mean=0.360  spread=0.104
+    obesity                 health   mean=0.360  spread=0.089
+    arthritis               health   mean=0.350  spread=0.079
+
+  All five most-sensitive tasks are environmental or socioeconomic.
+  All five least-sensitive are health. Consistent with the r2 spread story
+  but operating on the certificate axis, not the performance axis.
+
+  [7] Cross-seed stability (seeds 42, 123, 456)
+
+  All key metrics are stable across seeds. Cross-seed range per embedding
+  is 0.0002–0.0008 — effectively zero variance.
+
+  Metric                         seed_42  seed_123  seed_456
+  ------------------------------------------------------------
+  eta2(emb, compat)              0.534    0.531     0.533
+  eta2(task, compat)             0.095    0.096     0.097
+  eta2(emb, r2)                  0.379    0.380     0.380
+  eta2(task, r2)                 0.466    0.466     0.465
+  rho(compat, r2)                0.443    0.441     0.443
+  rho(compat, theory_sigma)      0.875    ~0.875    ~0.875  [rerun needed for s123/s456]
+
+  Per-embedding compat (mean across tasks):
+  Embedding              s42     s123    s456    range
+  -------------------------------------------------------
+  noisy_control          0.2572  0.2575  0.2573  0.0003
+  pca_v1                 0.2947  0.2945  0.2947  0.0002
+  spatial_lag_v1         0.3162  0.3168  0.3166  0.0006
+  gnn_v2                 0.3624  0.3621  0.3620  0.0004
+  domain_features        0.3737  0.3729  0.3736  0.0008
+  geo_spatial            0.3739  0.3742  0.3739  0.0003
+
+  Pooled 3-seed rho(compat, r2) by family:
+    Environmental:  rho = 0.668  (n=54)
+    Socioeconomic:  rho = 0.602  (n=54)
+    Health:         rho = 0.422  (n=378)
+
+  The compat surface is not a seed artifact. Single-seed results
+  are trustworthy; cross-seed verification is a sanity check.
+
+  Data: data/s019d/seed_{42,123,456}/s019d_results.json
+  Script: exp/s019d_posthoc/analyze_compat.py

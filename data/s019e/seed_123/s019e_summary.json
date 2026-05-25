@@ -1,0 +1,689 @@
+{
+  "experiment": "S019E",
+  "description": "Pooled tercile calibration (27 tasks x 6 arms x 5 folds x 1 seed = 810 cells)",
+  "seed": 123,
+  "git_hash": "unknown",
+  "n_results": 810,
+  "n_failed_targets": 0,
+  "failed_targets": [],
+  "frac_cells_degenerate": 0.0,
+  "elapsed_seconds": 576.1,
+  "d4": {
+    "verdict": "FAIL",
+    "mu_hat": 0.7333333333333333,
+    "mu_hat_task": 0.4888888888888889,
+    "se_mu": 0.1835856849095367,
+    "threshold": 0.2,
+    "t_stat": 2.9050921568102517,
+    "df_primary": 2.0,
+    "p_one_sided": 0.05043881044078691,
+    "p_invert": 0.9713323909580349,
+    "p_naive_task_level": 0.00019175804422455478,
+    "tau2": 0.09574911759990722,
+    "sigma2": 0.08757120739800207,
+    "icc": 0.5223049740992942,
+    "design_effect": 5.178439792794354,
+    "effective_N": 5.213925637905398,
+    "k_families": 3,
+    "n_tasks": 27,
+    "mm_converged": true,
+    "family_means": {
+      "environmental": 0.9333333333333331,
+      "health": 0.36666666666666664,
+      "socioeconomic": 0.8999999999999999
+    },
+    "frac_rho_positive": 0.8888888888888888
+  },
+  "d4_per_task": {
+    "annual_checkup": {
+      "rho_t": 0.7,
+      "rho_t_per_seed": [
+        0.7
+      ],
+      "n_degenerate_folds": 0,
+      "n_excluded_arms": 0,
+      "family": "health"
+    },
+    "arthritis": {
+      "rho_t": 0.49999999999999994,
+      "rho_t_per_seed": [
+        0.49999999999999994
+      ],
+      "n_degenerate_folds": 0,
+      "n_excluded_arms": 0,
+      "family": "health"
+    },
+    "asthma": {
+      "rho_t": 0.19999999999999998,
+      "rho_t_per_seed": [
+        0.19999999999999998
+      ],
+      "n_degenerate_folds": 0,
+      "n_excluded_arms": 0,
+      "family": "health"
+    },
+    "binge_drinking": {
+      "rho_t": 0.6,
+      "rho_t_per_seed": [
+        0.6
+      ],
+      "n_degenerate_folds": 0,
+      "n_excluded_arms": 0,
+      "family": "health"
+    },
+    "bp_medicated": {
+      "rho_t": 0.7999999999999999,
+      "rho_t_per_seed": [
+        0.7999999999999999
+      ],
+      "n_degenerate_folds": 0,
+      "n_excluded_arms": 0,
+      "family": "health"
+    },
+    "cancer": {
+      "rho_t": 0.6,
+      "rho_t_per_seed": [
+        0.6
+      ],
+      "n_degenerate_folds": 0,
+      "n_excluded_arms": 0,
+      "family": "health"
+    },
+    "cholesterol_screening": {
+      "rho_t": 0.19999999999999998,
+      "rho_t_per_seed": [
+        0.19999999999999998
+      ],
+      "n_degenerate_folds": 0,
+      "n_excluded_arms": 0,
+      "family": "health"
+    },
+    "chronic_kidney_disease": {
+      "rho_t": 0.39999999999999997,
+      "rho_t_per_seed": [
+        0.39999999999999997
+      ],
+      "n_degenerate_folds": 0,
+      "n_excluded_arms": 0,
+      "family": "health"
+    },
+    "copd": {
+      "rho_t": -0.09999999999999999,
+      "rho_t_per_seed": [
+        -0.09999999999999999
+      ],
+      "n_degenerate_folds": 0,
+      "n_excluded_arms": 0,
+      "family": "health"
+    },
+    "coronary_heart_disease": {
+      "rho_t": 0.9999999999999999,
+      "rho_t_per_seed": [
+        0.9999999999999999
+      ],
+      "n_degenerate_folds": 0,
+      "n_excluded_arms": 0,
+      "family": "health"
+    },
+    "dental_visit": {
+      "rho_t": 0.3,
+      "rho_t_per_seed": [
+        0.3
+      ],
+      "n_degenerate_folds": 0,
+      "n_excluded_arms": 0,
+      "family": "health"
+    },
+    "diabetes": {
+      "rho_t": 0.7,
+      "rho_t_per_seed": [
+        0.7
+      ],
+      "n_degenerate_folds": 0,
+      "n_excluded_arms": 0,
+      "family": "health"
+    },
+    "elevation": {
+      "rho_t": 0.9999999999999999,
+      "rho_t_per_seed": [
+        0.9999999999999999
+      ],
+      "n_degenerate_folds": 0,
+      "n_excluded_arms": 0,
+      "family": "environmental"
+    },
+    "high_blood_pressure": {
+      "rho_t": 0.3,
+      "rho_t_per_seed": [
+        0.3
+      ],
+      "n_degenerate_folds": 0,
+      "n_excluded_arms": 0,
+      "family": "health"
+    },
+    "high_cholesterol": {
+      "rho_t": 0.39999999999999997,
+      "rho_t_per_seed": [
+        0.39999999999999997
+      ],
+      "n_degenerate_folds": 0,
+      "n_excluded_arms": 0,
+      "family": "health"
+    },
+    "home_value": {
+      "rho_t": 0.9999999999999999,
+      "rho_t_per_seed": [
+        0.9999999999999999
+      ],
+      "n_degenerate_folds": 0,
+      "n_excluded_arms": 0,
+      "family": "socioeconomic"
+    },
+    "income": {
+      "rho_t": 0.7999999999999999,
+      "rho_t_per_seed": [
+        0.7999999999999999
+      ],
+      "n_degenerate_folds": 0,
+      "n_excluded_arms": 0,
+      "family": "socioeconomic"
+    },
+    "mental_health_not_good": {
+      "rho_t": -0.19999999999999998,
+      "rho_t_per_seed": [
+        -0.19999999999999998
+      ],
+      "n_degenerate_folds": 0,
+      "n_excluded_arms": 0,
+      "family": "health"
+    },
+    "night_lights": {
+      "rho_t": 0.8999999999999998,
+      "rho_t_per_seed": [
+        0.8999999999999998
+      ],
+      "n_degenerate_folds": 0,
+      "n_excluded_arms": 0,
+      "family": "environmental"
+    },
+    "obesity": {
+      "rho_t": -0.09999999999999999,
+      "rho_t_per_seed": [
+        -0.09999999999999999
+      ],
+      "n_degenerate_folds": 0,
+      "n_excluded_arms": 0,
+      "family": "health"
+    },
+    "physical_health_not_good": {
+      "rho_t": 0.09999999999999999,
+      "rho_t_per_seed": [
+        0.09999999999999999
+      ],
+      "n_degenerate_folds": 0,
+      "n_excluded_arms": 0,
+      "family": "health"
+    },
+    "physical_inactivity": {
+      "rho_t": 0.09999999999999999,
+      "rho_t_per_seed": [
+        0.09999999999999999
+      ],
+      "n_degenerate_folds": 0,
+      "n_excluded_arms": 0,
+      "family": "health"
+    },
+    "population_density": {
+      "rho_t": 0.8999999999999998,
+      "rho_t_per_seed": [
+        0.8999999999999998
+      ],
+      "n_degenerate_folds": 0,
+      "n_excluded_arms": 0,
+      "family": "socioeconomic"
+    },
+    "sleep_less_7hr": {
+      "rho_t": 0.09999999999999999,
+      "rho_t_per_seed": [
+        0.09999999999999999
+      ],
+      "n_degenerate_folds": 0,
+      "n_excluded_arms": 0,
+      "family": "health"
+    },
+    "smoking": {
+      "rho_t": 0.39999999999999997,
+      "rho_t_per_seed": [
+        0.39999999999999997
+      ],
+      "n_degenerate_folds": 0,
+      "n_excluded_arms": 0,
+      "family": "health"
+    },
+    "stroke": {
+      "rho_t": 0.7,
+      "rho_t_per_seed": [
+        0.7
+      ],
+      "n_degenerate_folds": 0,
+      "n_excluded_arms": 0,
+      "family": "health"
+    },
+    "tree_cover": {
+      "rho_t": 0.8999999999999998,
+      "rho_t_per_seed": [
+        0.8999999999999998
+      ],
+      "n_degenerate_folds": 0,
+      "n_excluded_arms": 0,
+      "family": "environmental"
+    }
+  },
+  "per_task": [
+    {
+      "target": "annual_checkup",
+      "family": "health",
+      "n_cells": 30,
+      "n_degenerate": 0,
+      "frac_degenerate": 0.0,
+      "mean_r2": 0.5963,
+      "mean_R_clean": 0.3381,
+      "mean_proxy_kappa_clean": 0.2264,
+      "mean_theory_kappa": 0.1714,
+      "rho_t": 0.7,
+      "rho_t_per_seed": [
+        0.7
+      ]
+    },
+    {
+      "target": "arthritis",
+      "family": "health",
+      "n_cells": 30,
+      "n_degenerate": 0,
+      "frac_degenerate": 0.0,
+      "mean_r2": 0.6686,
+      "mean_R_clean": 0.3396,
+      "mean_proxy_kappa_clean": 0.228,
+      "mean_theory_kappa": 0.1842,
+      "rho_t": 0.5,
+      "rho_t_per_seed": [
+        0.49999999999999994
+      ]
+    },
+    {
+      "target": "asthma",
+      "family": "health",
+      "n_cells": 30,
+      "n_degenerate": 0,
+      "frac_degenerate": 0.0,
+      "mean_r2": 0.6067,
+      "mean_R_clean": 0.3396,
+      "mean_proxy_kappa_clean": 0.2271,
+      "mean_theory_kappa": 0.155,
+      "rho_t": 0.2,
+      "rho_t_per_seed": [
+        0.19999999999999998
+      ]
+    },
+    {
+      "target": "binge_drinking",
+      "family": "health",
+      "n_cells": 30,
+      "n_degenerate": 0,
+      "frac_degenerate": 0.0,
+      "mean_r2": 0.4687,
+      "mean_R_clean": 0.336,
+      "mean_proxy_kappa_clean": 0.2245,
+      "mean_theory_kappa": 0.1896,
+      "rho_t": 0.6,
+      "rho_t_per_seed": [
+        0.6
+      ]
+    },
+    {
+      "target": "bp_medicated",
+      "family": "health",
+      "n_cells": 30,
+      "n_degenerate": 0,
+      "frac_degenerate": 0.0,
+      "mean_r2": 0.6231,
+      "mean_R_clean": 0.3425,
+      "mean_proxy_kappa_clean": 0.2329,
+      "mean_theory_kappa": 0.1771,
+      "rho_t": 0.8,
+      "rho_t_per_seed": [
+        0.7999999999999999
+      ]
+    },
+    {
+      "target": "cancer",
+      "family": "health",
+      "n_cells": 30,
+      "n_degenerate": 0,
+      "frac_degenerate": 0.0,
+      "mean_r2": 0.5817,
+      "mean_R_clean": 0.3363,
+      "mean_proxy_kappa_clean": 0.2257,
+      "mean_theory_kappa": 0.1889,
+      "rho_t": 0.6,
+      "rho_t_per_seed": [
+        0.6
+      ]
+    },
+    {
+      "target": "cholesterol_screening",
+      "family": "health",
+      "n_cells": 30,
+      "n_degenerate": 0,
+      "frac_degenerate": 0.0,
+      "mean_r2": 0.4987,
+      "mean_R_clean": 0.3457,
+      "mean_proxy_kappa_clean": 0.2354,
+      "mean_theory_kappa": 0.1493,
+      "rho_t": 0.2,
+      "rho_t_per_seed": [
+        0.19999999999999998
+      ]
+    },
+    {
+      "target": "chronic_kidney_disease",
+      "family": "health",
+      "n_cells": 30,
+      "n_degenerate": 0,
+      "frac_degenerate": 0.0,
+      "mean_r2": 0.6013,
+      "mean_R_clean": 0.3329,
+      "mean_proxy_kappa_clean": 0.2214,
+      "mean_theory_kappa": 0.1726,
+      "rho_t": 0.4,
+      "rho_t_per_seed": [
+        0.39999999999999997
+      ]
+    },
+    {
+      "target": "copd",
+      "family": "health",
+      "n_cells": 30,
+      "n_degenerate": 0,
+      "frac_degenerate": 0.0,
+      "mean_r2": 0.7285,
+      "mean_R_clean": 0.3204,
+      "mean_proxy_kappa_clean": 0.2099,
+      "mean_theory_kappa": 0.1414,
+      "rho_t": -0.1,
+      "rho_t_per_seed": [
+        -0.09999999999999999
+      ]
+    },
+    {
+      "target": "coronary_heart_disease",
+      "family": "health",
+      "n_cells": 30,
+      "n_degenerate": 0,
+      "frac_degenerate": 0.0,
+      "mean_r2": 0.6283,
+      "mean_R_clean": 0.3323,
+      "mean_proxy_kappa_clean": 0.2216,
+      "mean_theory_kappa": 0.1639,
+      "rho_t": 1.0,
+      "rho_t_per_seed": [
+        0.9999999999999999
+      ]
+    },
+    {
+      "target": "dental_visit",
+      "family": "health",
+      "n_cells": 30,
+      "n_degenerate": 0,
+      "frac_degenerate": 0.0,
+      "mean_r2": 0.7649,
+      "mean_R_clean": 0.3229,
+      "mean_proxy_kappa_clean": 0.2109,
+      "mean_theory_kappa": 0.1512,
+      "rho_t": 0.3,
+      "rho_t_per_seed": [
+        0.3
+      ]
+    },
+    {
+      "target": "diabetes",
+      "family": "health",
+      "n_cells": 30,
+      "n_degenerate": 0,
+      "frac_degenerate": 0.0,
+      "mean_r2": 0.711,
+      "mean_R_clean": 0.3294,
+      "mean_proxy_kappa_clean": 0.2185,
+      "mean_theory_kappa": 0.1566,
+      "rho_t": 0.7,
+      "rho_t_per_seed": [
+        0.7
+      ]
+    },
+    {
+      "target": "elevation",
+      "family": "environmental",
+      "n_cells": 30,
+      "n_degenerate": 0,
+      "frac_degenerate": 0.0,
+      "mean_r2": 0.5124,
+      "mean_R_clean": 0.3511,
+      "mean_proxy_kappa_clean": 0.2397,
+      "mean_theory_kappa": 0.1354,
+      "rho_t": 1.0,
+      "rho_t_per_seed": [
+        0.9999999999999999
+      ]
+    },
+    {
+      "target": "high_blood_pressure",
+      "family": "health",
+      "n_cells": 30,
+      "n_degenerate": 0,
+      "frac_degenerate": 0.0,
+      "mean_r2": 0.6839,
+      "mean_R_clean": 0.3345,
+      "mean_proxy_kappa_clean": 0.2223,
+      "mean_theory_kappa": 0.1538,
+      "rho_t": 0.3,
+      "rho_t_per_seed": [
+        0.3
+      ]
+    },
+    {
+      "target": "high_cholesterol",
+      "family": "health",
+      "n_cells": 30,
+      "n_degenerate": 0,
+      "frac_degenerate": 0.0,
+      "mean_r2": 0.5445,
+      "mean_R_clean": 0.3311,
+      "mean_proxy_kappa_clean": 0.2199,
+      "mean_theory_kappa": 0.2115,
+      "rho_t": 0.4,
+      "rho_t_per_seed": [
+        0.39999999999999997
+      ]
+    },
+    {
+      "target": "home_value",
+      "family": "socioeconomic",
+      "n_cells": 30,
+      "n_degenerate": 0,
+      "frac_degenerate": 0.0,
+      "mean_r2": 0.7254,
+      "mean_R_clean": 0.3459,
+      "mean_proxy_kappa_clean": 0.2364,
+      "mean_theory_kappa": 0.1528,
+      "rho_t": 1.0,
+      "rho_t_per_seed": [
+        0.9999999999999999
+      ]
+    },
+    {
+      "target": "income",
+      "family": "socioeconomic",
+      "n_cells": 30,
+      "n_degenerate": 0,
+      "frac_degenerate": 0.0,
+      "mean_r2": 0.6432,
+      "mean_R_clean": 0.3273,
+      "mean_proxy_kappa_clean": 0.2155,
+      "mean_theory_kappa": 0.1969,
+      "rho_t": 0.8,
+      "rho_t_per_seed": [
+        0.7999999999999999
+      ]
+    },
+    {
+      "target": "mental_health_not_good",
+      "family": "health",
+      "n_cells": 30,
+      "n_degenerate": 0,
+      "frac_degenerate": 0.0,
+      "mean_r2": 0.6933,
+      "mean_R_clean": 0.3303,
+      "mean_proxy_kappa_clean": 0.2189,
+      "mean_theory_kappa": 0.1407,
+      "rho_t": -0.2,
+      "rho_t_per_seed": [
+        -0.19999999999999998
+      ]
+    },
+    {
+      "target": "night_lights",
+      "family": "environmental",
+      "n_cells": 30,
+      "n_degenerate": 0,
+      "frac_degenerate": 0.0,
+      "mean_r2": 0.8198,
+      "mean_R_clean": 0.2861,
+      "mean_proxy_kappa_clean": 0.1708,
+      "mean_theory_kappa": 0.1149,
+      "rho_t": 0.9,
+      "rho_t_per_seed": [
+        0.8999999999999998
+      ]
+    },
+    {
+      "target": "obesity",
+      "family": "health",
+      "n_cells": 30,
+      "n_degenerate": 0,
+      "frac_degenerate": 0.0,
+      "mean_r2": 0.6987,
+      "mean_R_clean": 0.3316,
+      "mean_proxy_kappa_clean": 0.2199,
+      "mean_theory_kappa": 0.207,
+      "rho_t": -0.1,
+      "rho_t_per_seed": [
+        -0.09999999999999999
+      ]
+    },
+    {
+      "target": "physical_health_not_good",
+      "family": "health",
+      "n_cells": 30,
+      "n_degenerate": 0,
+      "frac_degenerate": 0.0,
+      "mean_r2": 0.768,
+      "mean_R_clean": 0.322,
+      "mean_proxy_kappa_clean": 0.2093,
+      "mean_theory_kappa": 0.1353,
+      "rho_t": 0.1,
+      "rho_t_per_seed": [
+        0.09999999999999999
+      ]
+    },
+    {
+      "target": "physical_inactivity",
+      "family": "health",
+      "n_cells": 30,
+      "n_degenerate": 0,
+      "frac_degenerate": 0.0,
+      "mean_r2": 0.7591,
+      "mean_R_clean": 0.3226,
+      "mean_proxy_kappa_clean": 0.2114,
+      "mean_theory_kappa": 0.1438,
+      "rho_t": 0.1,
+      "rho_t_per_seed": [
+        0.09999999999999999
+      ]
+    },
+    {
+      "target": "population_density",
+      "family": "socioeconomic",
+      "n_cells": 30,
+      "n_degenerate": 0,
+      "frac_degenerate": 0.0,
+      "mean_r2": 0.7675,
+      "mean_R_clean": 0.3332,
+      "mean_proxy_kappa_clean": 0.2219,
+      "mean_theory_kappa": 0.1228,
+      "rho_t": 0.9,
+      "rho_t_per_seed": [
+        0.8999999999999998
+      ]
+    },
+    {
+      "target": "sleep_less_7hr",
+      "family": "health",
+      "n_cells": 30,
+      "n_degenerate": 0,
+      "frac_degenerate": 0.0,
+      "mean_r2": 0.6411,
+      "mean_R_clean": 0.3232,
+      "mean_proxy_kappa_clean": 0.2116,
+      "mean_theory_kappa": 0.1715,
+      "rho_t": 0.1,
+      "rho_t_per_seed": [
+        0.09999999999999999
+      ]
+    },
+    {
+      "target": "smoking",
+      "family": "health",
+      "n_cells": 30,
+      "n_degenerate": 0,
+      "frac_degenerate": 0.0,
+      "mean_r2": 0.7633,
+      "mean_R_clean": 0.3301,
+      "mean_proxy_kappa_clean": 0.2185,
+      "mean_theory_kappa": 0.1449,
+      "rho_t": 0.4,
+      "rho_t_per_seed": [
+        0.39999999999999997
+      ]
+    },
+    {
+      "target": "stroke",
+      "family": "health",
+      "n_cells": 30,
+      "n_degenerate": 0,
+      "frac_degenerate": 0.0,
+      "mean_r2": 0.6615,
+      "mean_R_clean": 0.3332,
+      "mean_proxy_kappa_clean": 0.2222,
+      "mean_theory_kappa": 0.1595,
+      "rho_t": 0.7,
+      "rho_t_per_seed": [
+        0.7
+      ]
+    },
+    {
+      "target": "tree_cover",
+      "family": "environmental",
+      "n_cells": 30,
+      "n_degenerate": 0,
+      "frac_degenerate": 0.0,
+      "mean_r2": 0.5188,
+      "mean_R_clean": 0.3172,
+      "mean_proxy_kappa_clean": 0.205,
+      "mean_theory_kappa": 0.17,
+      "rho_t": 0.9,
+      "rho_t_per_seed": [
+        0.8999999999999998
+      ]
+    }
+  ]
+}

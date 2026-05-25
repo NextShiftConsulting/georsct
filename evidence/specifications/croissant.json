@@ -1,0 +1,1783 @@
+{
+  "@context": {
+    "@language": "en",
+    "@vocab": "https://schema.org/",
+    "citeAs": "cr:citeAs",
+    "column": "cr:column",
+    "conformsTo": "dct:conformsTo",
+    "cr": "http://mlcommons.org/croissant/",
+    "data": {
+      "@id": "cr:data",
+      "@type": "@json"
+    },
+    "dataType": {
+      "@id": "cr:dataType",
+      "@type": "@vocab"
+    },
+    "dct": "http://purl.org/dc/terms/",
+    "extract": "cr:extract",
+    "field": "cr:field",
+    "fileObject": "cr:fileObject",
+    "fileProperty": "cr:fileProperty",
+    "fileSet": "cr:fileSet",
+    "format": "cr:format",
+    "includes": "cr:includes",
+    "isLiveDataset": "cr:isLiveDataset",
+    "jsonPath": "cr:jsonPath",
+    "key": "cr:key",
+    "md5": "cr:md5",
+    "parentField": "cr:parentField",
+    "path": "cr:path",
+    "recordSet": "cr:recordSet",
+    "references": "cr:references",
+    "regex": "cr:regex",
+    "repeated": "cr:repeated",
+    "replace": "cr:replace",
+    "sc": "https://schema.org/",
+    "separator": "cr:separator",
+    "source": "cr:source",
+    "subField": "cr:subField",
+    "transform": "cr:transform"
+  },
+  "@type": "sc:Dataset",
+  "conformsTo": "http://mlcommons.org/croissant/1.0",
+  "name": "GeoRSCT",
+  "description": "A geospatial regression benchmark for evaluating representation-solver compatibility. Contains 31,789 U.S. ZIP Code Tabulation Areas (ZCTAs) across the contiguous United States (lower 48 + DC) with 63 solver-usable features (33 ACS + 14 spatial lags + 16 enrichment) and 27 regression targets spanning health, socioeconomic, built-environment, and environmental domains. Includes three spatially-blocked evaluation protocols (imputation, extrapolation, super-resolution) with fixed splits stratified by SVI quartile, urban/rural density, and hospital access. Published schema: GeoRSCT v23.0.2.",
+  "url": "https://huggingface.co/datasets/rudymartin/georsct",
+  "license": "https://creativecommons.org/licenses/by/4.0/",
+  "creator": {
+    "@type": "Person",
+    "name": "Rudy Martin",
+    "url": "https://huggingface.co/rudymartin"
+  },
+  "datePublished": "2026-05-01",
+  "dateModified": "2026-05-03",
+  "version": "23.0.2",
+  "keywords": [
+    "geospatial machine learning",
+    "model evaluation",
+    "failure taxonomy",
+    "certification",
+    "N-ceiling estimation",
+    "representation-solver compatibility",
+    "diagnostic evaluation",
+    "benchmark datasets",
+    "signal-noise decomposition",
+    "regression benchmarks"
+  ],
+  "citeAs": "Rudolph A. Martin. GeoRSCT: A Geospatial Regression Benchmark for Representation-Solver Compatibility. Version 23.0.2, Hugging Face Datasets, 2026. Theory reference: Intelligence as Representation-Solver Compatibility, Zenodo: 10.5281/zenodo.18854651; SSRN: 6339299.",
+  "isLiveDataset": false,
+  "distribution": [
+    {
+      "@type": "cr:FileObject",
+      "@id": "main-geoparquet",
+      "name": "georsct_simplified_001.geoparquet",
+      "description": "Primary GeoParquet table: 31,789 ZCTAs x 105 columns (7 metadata + 3 splits + 4 coverage + 33 ACS + 14 spatial lags + 16 enrichment + 27 targets + 1 geometry). Single row per ZCTA. CRS: EPSG:4326.",
+      "contentUrl": "https://huggingface.co/datasets/rudymartin/georsct/resolve/main/georsct_simplified_001.geoparquet",
+      "encodingFormat": "application/x-parquet",
+      "contentSize": "56.3 MB"
+    },
+    {
+      "@type": "cr:FileObject",
+      "@id": "table-parquet",
+      "name": "georsct_table.parquet",
+      "description": "Same as main GeoParquet but without geometry column. Lightweight for tabular-only workflows.",
+      "contentUrl": "https://huggingface.co/datasets/rudymartin/georsct/resolve/main/georsct_table.parquet",
+      "encodingFormat": "application/x-parquet",
+      "contentSize": "12.1 MB"
+    },
+    {
+      "@type": "cr:FileObject",
+      "@id": "cdc-ci-parquet",
+      "name": "cdc_places_ci.parquet",
+      "description": "Companion sidecar: CDC PLACES 95% confidence intervals for 21 health targets (42 columns: *_ci_low + *_ci_high). Joins on zcta_id.",
+      "contentUrl": "https://huggingface.co/datasets/rudymartin/georsct/resolve/main/cdc_places_ci.parquet",
+      "encodingFormat": "application/x-parquet"
+    },
+    {
+      "@type": "cr:FileObject",
+      "@id": "acs-moe-parquet",
+      "name": "zcta_acs_margins_of_error.parquet",
+      "description": "Companion sidecar: ACS margins of error for 31 features. Joins on zcta_id.",
+      "contentUrl": "https://huggingface.co/datasets/rudymartin/georsct/resolve/main/zcta_acs_margins_of_error.parquet",
+      "encodingFormat": "application/x-parquet"
+    },
+    {
+      "@type": "cr:FileObject",
+      "@id": "schema-json",
+      "name": "georsct_schema.json",
+      "description": "Column metadata, types, and summary statistics.",
+      "contentUrl": "https://huggingface.co/datasets/rudymartin/georsct/resolve/main/georsct_schema.json",
+      "encodingFormat": "application/json"
+    },
+    {
+      "@type": "cr:FileObject",
+      "@id": "build-manifest",
+      "name": "build_manifest.json",
+      "description": "Build provenance and data lineage.",
+      "contentUrl": "https://huggingface.co/datasets/rudymartin/georsct/resolve/main/build_manifest.json",
+      "encodingFormat": "application/json"
+    }
+  ],
+  "recordSet": [
+    {
+      "@type": "cr:RecordSet",
+      "@id": "georsct-main",
+      "name": "georsct-main",
+      "description": "Primary benchmark table: 31,789 ZCTAs (lower 48 + DC), 104 analytic columns plus geometry in the GeoParquet. One row per ZCTA. 63 features usable by solvers (33 ACS + 14 spatial lags + 16 enrichment).",
+      "field": [
+        {
+          "@type": "cr:Field",
+          "@id": "f/zcta_id",
+          "name": "zcta_id",
+          "description": "5-digit ZCTA identifier",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "zcta_id"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/county_fips",
+          "name": "county_fips",
+          "description": "5-digit county FIPS code",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "county_fips"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/county_name",
+          "name": "county_name",
+          "description": "County name",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "county_name"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/state_fips",
+          "name": "state_fips",
+          "description": "2-digit state FIPS code",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "state_fips"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/state",
+          "name": "state",
+          "description": "State abbreviation",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "state"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/latitude",
+          "name": "latitude",
+          "description": "ZCTA centroid latitude (EPSG:4326)",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "latitude"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/longitude",
+          "name": "longitude",
+          "description": "ZCTA centroid longitude (EPSG:4326)",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "longitude"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/population",
+          "name": "population",
+          "description": "Total population (Census 2020 decennial count)",
+          "dataType": "sc:Integer",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "population"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/split_imputation",
+          "name": "split_imputation",
+          "description": "County-blocked 5-fold CV split (valid1-valid5, test). Tests geographic interpolation.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "split_imputation"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/split_extrapolation",
+          "name": "split_extrapolation",
+          "description": "State-blocked 4-fold CV split (valid1-valid4, test). Tests distribution shift across unseen states.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "split_extrapolation"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/split_superres",
+          "name": "split_superres",
+          "description": "County-to-ZCTA super-resolution split (train, test). 20% of counties held out.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "split_superres"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/has_cdc_places",
+          "name": "has_cdc_places",
+          "description": "CDC PLACES data available (99.2% coverage)",
+          "dataType": "sc:Boolean",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "has_cdc_places"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/has_income",
+          "name": "has_income",
+          "description": "ACS income data available (99.0% coverage)",
+          "dataType": "sc:Boolean",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "has_income"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/has_home_value",
+          "name": "has_home_value",
+          "description": "ACS home value data available (98.3% coverage)",
+          "dataType": "sc:Boolean",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "has_home_value"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/has_cdc_ci",
+          "name": "has_cdc_ci",
+          "description": "CDC confidence intervals available",
+          "dataType": "sc:Boolean",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "has_cdc_ci"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_total_pop",
+          "name": "acs_total_pop",
+          "description": "Total population, ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "acs_total_pop"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_median_age",
+          "name": "acs_median_age",
+          "description": "Median age, ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "acs_median_age"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_pct_white",
+          "name": "acs_pct_white",
+          "description": "% White alone, ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "acs_pct_white"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_pct_black",
+          "name": "acs_pct_black",
+          "description": "% Black alone, ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "acs_pct_black"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_pct_hispanic",
+          "name": "acs_pct_hispanic",
+          "description": "% Hispanic/Latino, ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "acs_pct_hispanic"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_pct_asian",
+          "name": "acs_pct_asian",
+          "description": "% Asian alone, ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "acs_pct_asian"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_pct_bachelors",
+          "name": "acs_pct_bachelors",
+          "description": "% with bachelor's degree+, ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "acs_pct_bachelors"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_pct_graduate",
+          "name": "acs_pct_graduate",
+          "description": "% with graduate degree, ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "acs_pct_graduate"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_pct_no_hs",
+          "name": "acs_pct_no_hs",
+          "description": "% without high school diploma, ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "acs_pct_no_hs"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_pct_under_18",
+          "name": "acs_pct_under_18",
+          "description": "% under 18, ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "acs_pct_under_18"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_pct_over_65",
+          "name": "acs_pct_over_65",
+          "description": "% over 65, ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "acs_pct_over_65"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_pct_female",
+          "name": "acs_pct_female",
+          "description": "% female, ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "acs_pct_female"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_pct_veterans",
+          "name": "acs_pct_veterans",
+          "description": "% veterans, ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "acs_pct_veterans"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_pct_foreign_born",
+          "name": "acs_pct_foreign_born",
+          "description": "% foreign born, ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "acs_pct_foreign_born"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_pct_english_only",
+          "name": "acs_pct_english_only",
+          "description": "% English only speakers, ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "acs_pct_english_only"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_pct_drive_alone",
+          "name": "acs_pct_drive_alone",
+          "description": "% drive alone to work, ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "acs_pct_drive_alone"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_pct_transit",
+          "name": "acs_pct_transit",
+          "description": "% public transit commuters, ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "acs_pct_transit"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_pct_wfh",
+          "name": "acs_pct_wfh",
+          "description": "% work from home, ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "acs_pct_wfh"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_pct_walk_bike",
+          "name": "acs_pct_walk_bike",
+          "description": "% walk or bike to work, ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "acs_pct_walk_bike"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_mean_commute_min",
+          "name": "acs_mean_commute_min",
+          "description": "Mean commute time (minutes), ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "acs_mean_commute_min"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_median_home_value",
+          "name": "acs_median_home_value",
+          "description": "Median home value ($), ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "acs_median_home_value"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_median_rent",
+          "name": "acs_median_rent",
+          "description": "Median gross rent ($), ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "acs_median_rent"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_pct_owner_occupied",
+          "name": "acs_pct_owner_occupied",
+          "description": "% owner-occupied units, ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "acs_pct_owner_occupied"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_pct_renter_occupied",
+          "name": "acs_pct_renter_occupied",
+          "description": "% renter-occupied units, ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "acs_pct_renter_occupied"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_pct_vacant",
+          "name": "acs_pct_vacant",
+          "description": "% vacant units, ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "acs_pct_vacant"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_median_year_built",
+          "name": "acs_median_year_built",
+          "description": "Median year structure built, ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "acs_median_year_built"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_pct_no_vehicle",
+          "name": "acs_pct_no_vehicle",
+          "description": "% households with no vehicle, ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "acs_pct_no_vehicle"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_median_hh_income",
+          "name": "acs_median_hh_income",
+          "description": "Median household income ($), ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "acs_median_hh_income"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_pct_below_poverty",
+          "name": "acs_pct_below_poverty",
+          "description": "% below poverty line, ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "acs_pct_below_poverty"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_pct_food_stamps",
+          "name": "acs_pct_food_stamps",
+          "description": "% receiving SNAP/food stamps, ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "acs_pct_food_stamps"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_pct_no_insurance",
+          "name": "acs_pct_no_insurance",
+          "description": "% without health insurance, ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "acs_pct_no_insurance"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_unemployment_rate",
+          "name": "acs_unemployment_rate",
+          "description": "Unemployment rate (%), ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "acs_unemployment_rate"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_gini_index",
+          "name": "acs_gini_index",
+          "description": "Gini index of income inequality, ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "acs_gini_index"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/lag_acs_total_pop",
+          "name": "lag_acs_total_pop",
+          "description": "Neighborhood population density context (Queen-contiguity weighted neighbor mean)",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "lag_acs_total_pop"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/lag_acs_median_age",
+          "name": "lag_acs_median_age",
+          "description": "Neighborhood age structure",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "lag_acs_median_age"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/lag_acs_median_home_value",
+          "name": "lag_acs_median_home_value",
+          "description": "Neighborhood housing wealth (not in SVI)",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "lag_acs_median_home_value"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/lag_acs_median_rent",
+          "name": "lag_acs_median_rent",
+          "description": "Neighborhood rental market pressure",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "lag_acs_median_rent"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/lag_acs_median_year_built",
+          "name": "lag_acs_median_year_built",
+          "description": "Neighborhood housing stock age",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "lag_acs_median_year_built"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/lag_acs_gini_index",
+          "name": "lag_acs_gini_index",
+          "description": "Neighborhood inequality (SVI uses absolute, not relative)",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "lag_acs_gini_index"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/lag_acs_mean_commute_min",
+          "name": "lag_acs_mean_commute_min",
+          "description": "Neighborhood commute time (not mode)",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "lag_acs_mean_commute_min"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/lag_acs_pct_bachelors",
+          "name": "lag_acs_pct_bachelors",
+          "description": "Neighborhood education beyond no-HS",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "lag_acs_pct_bachelors"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/lag_acs_pct_vacant",
+          "name": "lag_acs_pct_vacant",
+          "description": "Neighborhood abandonment signal",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "lag_acs_pct_vacant"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/lag_acs_pct_food_stamps",
+          "name": "lag_acs_pct_food_stamps",
+          "description": "Neighborhood transfer dependency",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "lag_acs_pct_food_stamps"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/lag_acs_pct_no_insurance",
+          "name": "lag_acs_pct_no_insurance",
+          "description": "Neighborhood healthcare access gap",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "lag_acs_pct_no_insurance"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/lag_acs_pct_veterans",
+          "name": "lag_acs_pct_veterans",
+          "description": "Neighborhood veteran population",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "lag_acs_pct_veterans"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/lag_acs_pct_female",
+          "name": "lag_acs_pct_female",
+          "description": "Neighborhood sex ratio",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "lag_acs_pct_female"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/lag_acs_pct_wfh",
+          "name": "lag_acs_pct_wfh",
+          "description": "Neighborhood commute mode representative",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "lag_acs_pct_wfh"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/svi_socioeconomic",
+          "name": "svi_socioeconomic",
+          "description": "SVI Theme 1: Socioeconomic status percentile [0-1], CDC/ATSDR 2022",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "svi_socioeconomic"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/svi_household_disability",
+          "name": "svi_household_disability",
+          "description": "SVI Theme 2: Household/disability percentile [0-1]",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "svi_household_disability"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/svi_minority_language",
+          "name": "svi_minority_language",
+          "description": "SVI Theme 3: Racial & ethnic minority percentile [0-1]",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "svi_minority_language"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/svi_housing_transport",
+          "name": "svi_housing_transport",
+          "description": "SVI Theme 4: Housing type/transport percentile [0-1]",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "svi_housing_transport"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/svi_overall",
+          "name": "svi_overall",
+          "description": "Overall SVI percentile [0-1]",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "svi_overall"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/flood_pct_zone_a",
+          "name": "flood_pct_zone_a",
+          "description": "% ZCTA area in 100-year flood zone (SFHA) [0-100], FEMA NFHL polygon overlay in EPSG:5070",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "flood_pct_zone_a"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/flood_pct_zone_x500",
+          "name": "flood_pct_zone_x500",
+          "description": "% ZCTA area in 500-year flood zone [0-100]",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "flood_pct_zone_x500"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/flood_pct_zone_x",
+          "name": "flood_pct_zone_x",
+          "description": "% ZCTA area in minimal risk zone [0-100]",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "flood_pct_zone_x"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/flood_sfha",
+          "name": "flood_sfha",
+          "description": "Boolean: any Special Flood Hazard Area coverage (flood_pct_zone_a > 0 or flood_pct_zone_x500 > 0)",
+          "dataType": "sc:Boolean",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "flood_sfha"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/hifld_n_hospitals",
+          "name": "hifld_n_hospitals",
+          "description": "Number of hospitals in ZCTA, DHS HIFLD",
+          "dataType": "sc:Integer",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "hifld_n_hospitals"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/hifld_n_hospital_beds",
+          "name": "hifld_n_hospital_beds",
+          "description": "Total hospital beds in ZCTA",
+          "dataType": "sc:Integer",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "hifld_n_hospital_beds"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/hifld_nearest_hospital_km",
+          "name": "hifld_nearest_hospital_km",
+          "description": "Haversine distance to nearest hospital (km)",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "hifld_nearest_hospital_km"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/hifld_n_pharmacies",
+          "name": "hifld_n_pharmacies",
+          "description": "Number of pharmacies in ZCTA",
+          "dataType": "sc:Integer",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "hifld_n_pharmacies"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/hifld_nearest_pharmacy_km",
+          "name": "hifld_nearest_pharmacy_km",
+          "description": "Haversine distance to nearest pharmacy (km)",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "hifld_nearest_pharmacy_km"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/hifld_nearest_trauma_center_km",
+          "name": "hifld_nearest_trauma_center_km",
+          "description": "Haversine distance to nearest trauma center (km)",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "hifld_nearest_trauma_center_km"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/drive_min_to_nearest_hospital",
+          "name": "drive_min_to_nearest_hospital",
+          "description": "OSRM road-network drive time to nearest HIFLD 2022 hospital (minutes)",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "drive_min_to_nearest_hospital"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/drive_min_to_county_centroid",
+          "name": "drive_min_to_county_centroid",
+          "description": "OSRM road-network drive time to county geographic centroid (minutes); centroid is mean of ZCTA centroids sharing same county_fips",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "drive_min_to_county_centroid"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/target_annual_checkup",
+          "name": "target_annual_checkup",
+          "description": "% adults with annual checkup, CDC PLACES 2023",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "target_annual_checkup"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/target_arthritis",
+          "name": "target_arthritis",
+          "description": "% adults with arthritis, CDC PLACES 2023",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "target_arthritis"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/target_asthma",
+          "name": "target_asthma",
+          "description": "% adults with asthma, CDC PLACES 2023",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "target_asthma"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/target_binge_drinking",
+          "name": "target_binge_drinking",
+          "description": "% adults binge drinking, CDC PLACES 2023",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "target_binge_drinking"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/target_bp_medicated",
+          "name": "target_bp_medicated",
+          "description": "% with BP on medication, CDC PLACES 2023",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "target_bp_medicated"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/target_cancer",
+          "name": "target_cancer",
+          "description": "% adults with cancer, CDC PLACES 2023",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "target_cancer"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/target_cholesterol_screening",
+          "name": "target_cholesterol_screening",
+          "description": "% adults cholesterol screened, CDC PLACES 2023",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "target_cholesterol_screening"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/target_chronic_kidney_disease",
+          "name": "target_chronic_kidney_disease",
+          "description": "% adults with CKD, CDC PLACES 2023",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "target_chronic_kidney_disease"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/target_copd",
+          "name": "target_copd",
+          "description": "% adults with COPD, CDC PLACES 2023",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "target_copd"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/target_coronary_heart_disease",
+          "name": "target_coronary_heart_disease",
+          "description": "% adults with CHD, CDC PLACES 2023",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "target_coronary_heart_disease"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/target_dental_visit",
+          "name": "target_dental_visit",
+          "description": "% adults with dental visit, CDC PLACES 2023",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "target_dental_visit"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/target_diabetes",
+          "name": "target_diabetes",
+          "description": "% adults with diabetes, CDC PLACES 2023",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "target_diabetes"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/target_elevation",
+          "name": "target_elevation",
+          "description": "Mean elevation (meters), USGS NED",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "target_elevation"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/target_high_blood_pressure",
+          "name": "target_high_blood_pressure",
+          "description": "% adults with high BP, CDC PLACES 2023",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "target_high_blood_pressure"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/target_high_cholesterol",
+          "name": "target_high_cholesterol",
+          "description": "% adults with high cholesterol, CDC PLACES 2023",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "target_high_cholesterol"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/target_home_value",
+          "name": "target_home_value",
+          "description": "Median home value ($), ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "target_home_value"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/target_income",
+          "name": "target_income",
+          "description": "Median household income ($), ACS 2022 5-Year",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "target_income"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/target_mental_health_not_good",
+          "name": "target_mental_health_not_good",
+          "description": "% adults poor mental health days, CDC PLACES 2023",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "target_mental_health_not_good"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/target_night_lights",
+          "name": "target_night_lights",
+          "description": "Mean nighttime radiance (log10 nW/cm2/sr), VIIRS NASA/NOAA",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "target_night_lights"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/target_obesity",
+          "name": "target_obesity",
+          "description": "% adults with obesity, CDC PLACES 2023",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "target_obesity"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/target_physical_health_not_good",
+          "name": "target_physical_health_not_good",
+          "description": "% adults poor physical health days, CDC PLACES 2023",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "target_physical_health_not_good"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/target_physical_inactivity",
+          "name": "target_physical_inactivity",
+          "description": "% adults physically inactive, CDC PLACES 2023",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "target_physical_inactivity"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/target_population_density",
+          "name": "target_population_density",
+          "description": "Population per sq km, Census 2020",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "target_population_density"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/target_sleep_less_7hr",
+          "name": "target_sleep_less_7hr",
+          "description": "% adults sleeping <7 hours, CDC PLACES 2023",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "target_sleep_less_7hr"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/target_smoking",
+          "name": "target_smoking",
+          "description": "% adults currently smoking, CDC PLACES 2023",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "target_smoking"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/target_stroke",
+          "name": "target_stroke",
+          "description": "% adults with stroke, CDC PLACES 2023",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "target_stroke"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/target_tree_cover",
+          "name": "target_tree_cover",
+          "description": "% tree canopy cover, Hansen Global Forest Change",
+          "dataType": "sc:Float",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "target_tree_cover"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "f/geometry",
+          "name": "geometry",
+          "description": "Simplified ZCTA polygon geometry, CRS EPSG:4326. Included in the GeoParquet file.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "main-geoparquet"
+            },
+            "extract": {
+              "column": "geometry"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "@type": "cr:RecordSet",
+      "@id": "cdc-places-ci",
+      "name": "cdc-places-ci",
+      "description": "CDC PLACES 95% confidence intervals for the 21 health targets. Joins to georsct-main on zcta_id.",
+      "field": [
+        {
+          "@type": "cr:Field",
+          "@id": "f/cdc_ci/zcta_id",
+          "name": "zcta_id",
+          "description": "5-digit ZCTA identifier used to join to georsct-main.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "cdc-ci-parquet"
+            },
+            "extract": {
+              "column": "zcta_id"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "@type": "cr:RecordSet",
+      "@id": "acs-moe",
+      "name": "acs-moe",
+      "description": "ACS margins of error for 31 ACS features. Joins to georsct-main on zcta_id.",
+      "field": [
+        {
+          "@type": "cr:Field",
+          "@id": "f/acs_moe/zcta_id",
+          "name": "zcta_id",
+          "description": "5-digit ZCTA identifier used to join to georsct-main.",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "acs-moe-parquet"
+            },
+            "extract": {
+              "column": "zcta_id"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

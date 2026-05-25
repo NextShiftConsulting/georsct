@@ -1,0 +1,31 @@
+{
+  "experiment_id": "s018d_posthoc",
+  "name": "S018D Post-Hoc Certificate Structure Analysis",
+  "purpose": "Show that aggregate certificate metrics contain partial structure but fail to detect the noisy-solver pathology",
+  "data_source": {
+    "path": "../../data/s018d/",
+    "origin": "yrsn-experiments/exp/series_018/s018d_solver_diversity/results/",
+    "files": [
+      "certificate_rsn.parquet",
+      "solver_metrics.parquet",
+      "target_family_metrics.parquet",
+      "summary.json"
+    ]
+  },
+  "analyses": [
+    "pca_certificate_metrics",
+    "hierarchical_clustering",
+    "pairwise_solver_distances",
+    "noisy_solver_nearest_neighbor",
+    "native_solver_cluster_tightness"
+  ],
+  "parameters": {
+    "n_solvers": 12,
+    "n_targets": 27,
+    "n_certificates": 324,
+    "n_families": 10,
+    "pca_n_components": 5,
+    "clustering_method": "ward",
+    "distance_metric": "euclidean"
+  }
+}

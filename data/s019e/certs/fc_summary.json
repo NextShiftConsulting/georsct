@@ -1,0 +1,335 @@
+{
+  "experiment": "S019E",
+  "description": "Pooled tercile calibration \u2014 FC checks + D4 inference",
+  "seeds": [
+    42,
+    123,
+    456
+  ],
+  "n_records_total": 2430,
+  "n_degenerate": 0,
+  "fc_checks": [
+    {
+      "id": "FC-1",
+      "name": "Simplex integrity",
+      "threshold": "max_dev < 0.01",
+      "max_dev": 0.0,
+      "mean_dev": 0.0,
+      "n_records": 2430,
+      "status": "PASS"
+    },
+    {
+      "id": "FC-2",
+      "name": "Alpha range across arms",
+      "threshold": "mean_spread > 0.02",
+      "mean_spread": 0.0377,
+      "min_spread": 0.0074,
+      "n_tasks_above_threshold": 18,
+      "n_tasks_total": 27,
+      "status": "PASS"
+    },
+    {
+      "id": "FC-3",
+      "name": "Kappa range across arms",
+      "threshold": "mean_spread > 0.02",
+      "mean_spread": 0.02,
+      "status": "FAIL"
+    },
+    {
+      "id": "FC-4",
+      "name": "Sigma stability",
+      "threshold": "n_tasks_with_sigma < 0.3 >= 20",
+      "n_tasks_below_threshold": 1,
+      "n_tasks_total": 27,
+      "mean_sigma": 0.3245,
+      "per_task": {
+        "annual_checkup": 0.3224,
+        "arthritis": 0.3203,
+        "asthma": 0.3236,
+        "binge_drinking": 0.3211,
+        "bp_medicated": 0.3123,
+        "cancer": 0.318,
+        "cholesterol_screening": 0.3146,
+        "chronic_kidney_disease": 0.322,
+        "copd": 0.3359,
+        "coronary_heart_disease": 0.3228,
+        "dental_visit": 0.3378,
+        "diabetes": 0.3221,
+        "elevation": 0.2743,
+        "high_blood_pressure": 0.3233,
+        "high_cholesterol": 0.3245,
+        "home_value": 0.3006,
+        "income": 0.3351,
+        "mental_health_not_good": 0.3311,
+        "night_lights": 0.3557,
+        "obesity": 0.3311,
+        "physical_health_not_good": 0.3354,
+        "physical_inactivity": 0.3329,
+        "population_density": 0.3211,
+        "sleep_less_7hr": 0.3338,
+        "smoking": 0.3304,
+        "stroke": 0.3222,
+        "tree_cover": 0.3382
+      },
+      "status": "FAIL"
+    },
+    {
+      "id": "FC-5",
+      "name": "Cross-seed consensus",
+      "threshold": "min Pearson r >= 0.9",
+      "min_r": 0.998,
+      "pairs": {
+        "42_vs_123": {
+          "r": 0.9984,
+          "p": 1.418056866085644e-32,
+          "n": 27
+        },
+        "42_vs_456": {
+          "r": 0.9984,
+          "p": 1.335961395001115e-32,
+          "n": 27
+        },
+        "123_vs_456": {
+          "r": 0.998,
+          "p": 1.4894179069632628e-31,
+          "n": 27
+        }
+      },
+      "status": "PASS"
+    },
+    {
+      "id": "FC-7",
+      "name": "Kappa\u2013r2 Spearman correlation (theory kappa)",
+      "threshold": "rho < -0.1",
+      "rho_theory_kappa": 0.1349,
+      "p_theory": 0.11874492590262352,
+      "rho_proxy_kappa": -0.1058,
+      "p_proxy": 0.2218949689577326,
+      "n_cells": 135,
+      "status": "FAIL",
+      "note": "FC-7 regression from S019D (rho=-0.391) likely caused by noisy_control in LOO reference set diluting theory_kappa. D2 within-task ranking (rho_t=0.947 in S019D) is the load-bearing result; FC-7 pooled is secondary."
+    }
+  ],
+  "d4_primary": {
+    "id": "D4-primary",
+    "name": "Family-mean Spearman rho t-test (pre-registered)",
+    "threshold": "mu > 0.2, p < 0.05 one-sided, df=2",
+    "mu_hat": 0.5735,
+    "se": 0.1646,
+    "t_stat": 2.2698,
+    "df": 2,
+    "p_one_sided": 0.0756,
+    "p_invert": 0.9633,
+    "family_means": {
+      "health": 0.2762,
+      "socioeconomic": 0.6,
+      "environmental": 0.8444
+    },
+    "rho_per_task": {
+      "annual_checkup": 0.7,
+      "arthritis": 0.0667,
+      "asthma": 0.2333,
+      "binge_drinking": 0.7,
+      "bp_medicated": 0.5,
+      "cancer": 0.5333,
+      "cholesterol_screening": 0.4667,
+      "chronic_kidney_disease": 0.3667,
+      "copd": -0.1333,
+      "coronary_heart_disease": 0.6667,
+      "dental_visit": -0.2333,
+      "diabetes": 0.3,
+      "elevation": 0.9333,
+      "high_blood_pressure": 0.3667,
+      "high_cholesterol": 0.2333,
+      "home_value": 0.9667,
+      "income": 0.2333,
+      "mental_health_not_good": -0.0333,
+      "night_lights": 0.8333,
+      "obesity": -0.1667,
+      "physical_health_not_good": 0.4667,
+      "physical_inactivity": 0.1,
+      "population_density": 0.6,
+      "sleep_less_7hr": 0.1667,
+      "smoking": -0.1333,
+      "stroke": 0.6333,
+      "tree_cover": 0.7667
+    },
+    "n_tasks_above_threshold": 19,
+    "n_tasks_inverted": 5,
+    "verdict": "FAIL",
+    "note": "FAIL is a df=2 power constraint, not a null result. See D4-secondary for resolution-aware inference."
+  },
+  "d4_secondary": {
+    "id": "D4-secondary",
+    "name": "Pairwise arm-ordering accuracy (pre-specified secondary)",
+    "description": "For each pair of real arms within a task \u00d7 seed, correct if higher certificate-R arm also has higher R\u00b2. Null = 0.5 (random ordering). Binomial test.",
+    "pooled": {
+      "accuracy": 0.6605,
+      "correct": 535,
+      "total": 810,
+      "z": 9.135,
+      "p_one_sided": 0.0
+    },
+    "by_family": {
+      "health": {
+        "accuracy": 0.6127,
+        "correct": 386,
+        "total": 630,
+        "z": 5.657,
+        "p_one_sided": 0.0
+      },
+      "socioeconomic": {
+        "accuracy": 0.7667,
+        "correct": 69,
+        "total": 90,
+        "z": 5.06,
+        "p_one_sided": 0.0
+      },
+      "environmental": {
+        "accuracy": 0.8889,
+        "correct": 80,
+        "total": 90,
+        "z": 7.379,
+        "p_one_sided": 0.0
+      }
+    },
+    "by_task": {
+      "annual_checkup": {
+        "accuracy": 0.7667,
+        "correct": 23,
+        "total": 30
+      },
+      "arthritis": {
+        "accuracy": 0.4667,
+        "correct": 14,
+        "total": 30
+      },
+      "asthma": {
+        "accuracy": 0.6,
+        "correct": 18,
+        "total": 30
+      },
+      "binge_drinking": {
+        "accuracy": 0.8,
+        "correct": 24,
+        "total": 30
+      },
+      "bp_medicated": {
+        "accuracy": 0.7,
+        "correct": 21,
+        "total": 30
+      },
+      "cancer": {
+        "accuracy": 0.7,
+        "correct": 21,
+        "total": 30
+      },
+      "cholesterol_screening": {
+        "accuracy": 0.7333,
+        "correct": 22,
+        "total": 30
+      },
+      "chronic_kidney_disease": {
+        "accuracy": 0.6333,
+        "correct": 19,
+        "total": 30
+      },
+      "copd": {
+        "accuracy": 0.4667,
+        "correct": 14,
+        "total": 30
+      },
+      "coronary_heart_disease": {
+        "accuracy": 0.8,
+        "correct": 24,
+        "total": 30
+      },
+      "dental_visit": {
+        "accuracy": 0.4,
+        "correct": 12,
+        "total": 30
+      },
+      "diabetes": {
+        "accuracy": 0.6,
+        "correct": 18,
+        "total": 30
+      },
+      "high_blood_pressure": {
+        "accuracy": 0.6333,
+        "correct": 19,
+        "total": 30
+      },
+      "high_cholesterol": {
+        "accuracy": 0.6333,
+        "correct": 19,
+        "total": 30
+      },
+      "mental_health_not_good": {
+        "accuracy": 0.5,
+        "correct": 15,
+        "total": 30
+      },
+      "obesity": {
+        "accuracy": 0.4667,
+        "correct": 14,
+        "total": 30
+      },
+      "physical_health_not_good": {
+        "accuracy": 0.6667,
+        "correct": 20,
+        "total": 30
+      },
+      "physical_inactivity": {
+        "accuracy": 0.5333,
+        "correct": 16,
+        "total": 30
+      },
+      "sleep_less_7hr": {
+        "accuracy": 0.5667,
+        "correct": 17,
+        "total": 30
+      },
+      "smoking": {
+        "accuracy": 0.4333,
+        "correct": 13,
+        "total": 30
+      },
+      "stroke": {
+        "accuracy": 0.7667,
+        "correct": 23,
+        "total": 30
+      },
+      "home_value": {
+        "accuracy": 0.9667,
+        "correct": 29,
+        "total": 30
+      },
+      "income": {
+        "accuracy": 0.6,
+        "correct": 18,
+        "total": 30
+      },
+      "population_density": {
+        "accuracy": 0.7333,
+        "correct": 22,
+        "total": 30
+      },
+      "elevation": {
+        "accuracy": 0.9333,
+        "correct": 28,
+        "total": 30
+      },
+      "night_lights": {
+        "accuracy": 0.8667,
+        "correct": 26,
+        "total": 30
+      },
+      "tree_cover": {
+        "accuracy": 0.8667,
+        "correct": 26,
+        "total": 30
+      }
+    },
+    "verdict": "PASS"
+  }
+}

@@ -1,0 +1,122 @@
+● All 5 repos pushed cleanly:
+
+  ┌────────────────────┬─────────┬───────────────────────────────────────────────────────────────────────┐
+  │        Repo        │ Commit  │                                Change                                 │
+  ├────────────────────┼─────────┼───────────────────────────────────────────────────────────────────────┤
+  │ yrsn               │ 2c8b142 │ C2 constant annotations (ADR-020 OQ-2)                                │
+  ├────────────────────┼─────────┼───────────────────────────────────────────────────────────────────────┤
+  │ yrsn-controlplane  │ 807c1c3 │ GateType/GateSubSignal/GateCheckResult/predicate GateConfig (ADR-025) │
+  ├────────────────────┼─────────┼───────────────────────────────────────────────────────────────────────┤
+  │ yrsn-orchestration │ ce343bf │ GeometryMeasurementAdapter.re_encode() (ADR-013)                      │
+  ├────────────────────┼─────────┼───────────────────────────────────────────────────────────────────────┤
+  │ swarm-it-api       │ d053fb0 │ RuntimeGuard startup wiring (ADR-014 V-015)                           │
+  ├────────────────────┼─────────┼───────────────────────────────────────────────────────────────────────┤
+  │ rsct-governance    │ 84a6ad4 │ ADR-013/016b/020/025 accepted; ADR-014 V-015 noted; file cleanup      │
+  └────────────────────┴─────────┴───────────────────────────────────────────────────────────────────────┘
+
+✻ Worked for 1m 45s
+
+> status of adr open/proposed
+
+● Bash(grep -rn "Status.*PROPOSED\|Status.*Proposed\|Status.*OPEN\|Status.*Draft\|Status.*draft"
+      /c/Users/marti/github/rsct-governance/adr/*.md 2>/dev/null | grep -v "…)
+  ⎿  ADR-003-execution-and-agent-boundary-architecture.md:4:**Status:** PROPOSED
+     ADR-007-consumer-role-differentiation.md:4:**Status**: PROPOSED
+     ADR-008-amendment-stats-artifact-integrity.md:3:**Status:** Proposed
+     … +2 lines (ctrl+o to expand)
+
+● Bash(grep -l "Status.*Accepted\|Status.*ACCEPTED" /c/Users/marti/github/rsct-governance/adr/*.md 2>/dev/null | wc -l
+      echo "---"…)
+  ⎿  24
+     ---
+     ADR-003-execution-and-agent-boundary-architecture.md
+     … +4 lines (ctrl+o to expand)
+
+● 5 PROPOSED, 24 Accepted. Here's the status of each open one:
+
+  ---
+  ADR-003 — Execution and Agent Boundary Architecture
+
+  Blocker: requires SageMaker infra + ADK implementation — cannot implement locally
+
+  - 003A (Parallel Execution): SageMaker jobs must declare an ExecutionClass with measured wall-time, vCPU, cost profile. No
+   ExecutionClass enum exists in any repo.
+  - 003B/C/D (ADK Boundary): Delegation authority scoping, inter-agent handoff protocol, validate-at-receive — designed but
+  not operational.
+  - Multi-week effort. Needs SageMaker experiments running before the declarations are meaningful.
+
+  ---
+  ADR-007 — Consumer Role Differentiation
+
+  Blocker: partial implementation — endpoint coverage + CI check incomplete
+
+  - RoleProjectionRegistry and project_response_for_role() implemented in swarm-it-api
+  - /certify/pair wired through the projection chokepoint
+  - Remaining: full endpoint coverage across the 7 public + internal surfaces, plus a CI gate that enforces role-scoped
+  responses
+  - Memory note (V-002): "remaining: full endpoint coverage + CI check"
+
+  ---
+  ADR-008 Amendment — Stats Artifact Integrity
+
+  Blocker: 5-phase migration not started
+
+  - Amends ADR-008 (omega is dimension-aware + stats-backed)
+  - Requires: SHA-256 on all stats manifests, embed_dim validation at load time, (model_id, head_id, stats_id) triple
+  binding
+  - No code changes made yet; ADR created as PROPOSED to track the gap
+
+  ---
+  ADR-011 — Agent Embedding Source (RoleEmbeddingPort)
+
+  Blocker: blocked on PR4b — 3.5/13 acceptance criteria met
+
+  ┌────────────────────────────────────────────────┬─────────────────────────────────────────────────┐
+  │                    Criteria                    │                     Status                      │
+  ├────────────────────────────────────────────────┼─────────────────────────────────────────────────┤
+  │ T-1: RoleEmbeddingPort protocol exists         │ PASS                                            │
+  ├────────────────────────────────────────────────┼─────────────────────────────────────────────────┤
+  │ T-2: RoleRegistry implements RoleEmbeddingPort │ PASS                                            │
+  ├────────────────────────────────────────────────┼─────────────────────────────────────────────────┤
+  │ T-3: latent_contract property                  │ FAIL — not declared on protocol or RoleRegistry │
+  ├────────────────────────────────────────────────┼─────────────────────────────────────────────────┤
+  │ C-4: Controller accepts role_embedding_port    │ NOT IMPL                                        │
+  ├────────────────────────────────────────────────┼─────────────────────────────────────────────────┤
+  │ C-5: Three-way contract validation at init     │ NOT IMPL                                        │
+  ├────────────────────────────────────────────────┼─────────────────────────────────────────────────┤
+  │ C-6: Operators receive port via DI             │ PARTIAL                                         │
+  ├────────────────────────────────────────────────┼─────────────────────────────────────────────────┤
+  │ P-7: AgentNode requires tensor param           │ NOT IMPL                                        │
+  ├────────────────────────────────────────────────┼─────────────────────────────────────────────────┤
+  │ P-8: OmniEncoder unreachable                   │ PARTIAL (_hash_embed stopgap remains)           │
+  ├────────────────────────────────────────────────┼─────────────────────────────────────────────────┤
+  │ X-9: Unit tests                                │ PARTIAL                                         │
+  ├────────────────────────────────────────────────┼─────────────────────────────────────────────────┤
+  │ X-10: Integration test with three ports        │ BLOCKED on C-4                                  │
+  └────────────────────────────────────────────────┴─────────────────────────────────────────────────┘
+
+  Critical path: T-3 → C-4 → C-5 → X-10 → P-7/P-8
+
+  ---
+  ADR-014 — Runtime Non-Learning Boundary
+
+  Blocker: DeploymentEpoch (Phase 1) + DerivedRepresentation (Phase 2) not built
+
+  ┌───────────────────────────────────┬──────────────────────────────────────────────────────────────────────────────────┐
+  │             Variance              │                                      Status                                      │
+  ├───────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────────┤
+  │ V-015: RuntimeGuard not wired     │ RESOLVED (2026-05-25) — wired to swarm-it-api startup                            │
+  ├───────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────────┤
+  │ V-010: re_encode.py:99 in-place   │ OPEN — needs DerivedRepresentation dataclass + active-representation-slot logic  │
+  │ mutation                          │                                                                                  │
+  ├───────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────────┤
+  │ V-014: DeploymentEpoch manifest   │ OPEN — YRSN_MODE env var is not a deployment epoch; needs manifest schema,       │
+  │                                   │ digest, startup validation                                                       │
+  ├───────────────────────────────────┼──────────────────────────────────────────────────────────────────────────────────┤
+  │ V-016: External API pinning in    │ OPEN — undefined if adapter calls external embedding API                         │
+  │ re_encode                         │                                                                                  │
+  └───────────────────────────────────┴──────────────────────────────────────────────────────────────────────────────────┘
+
+✻ Sautéed for 30s
+
+> next critical item?

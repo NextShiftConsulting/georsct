@@ -1,0 +1,28 @@
+  Key results from the (embedding × task) turbulence surface:
+
+  [1] Embedding explains turbulence far more than it explains R²
+
+  ┌────────────────────┬───────────┬──────────────────┐
+  │       Source       │ η² for r2 │ η² for rsct_turb │
+  ├────────────────────┼───────────┼──────────────────┤
+  │ Embedding          │ 0.281     │ 0.634            │
+  ├────────────────────┼───────────┼──────────────────┤
+  │ Solver             │ 0.074     │ 0.003            │
+  ├────────────────────┼───────────┼──────────────────┤
+  │ Embedding × Solver │ 0.033     │ 0.132            │
+  └────────────────────┴───────────┴──────────────────┘
+
+  Trajectory choice (embedding) is the dominant driver of turbulence — more so than for predictive quality. Solver is
+  nearly irrelevant for turbulence.
+
+  [2] Within each geometry, embedding explains 79–82% of turbulence variance. This confirms the
+  trajectory-within-geometry reading is real, not noise.
+
+  [3] Geometry-conditional laminarity (η²_interaction = 0.132). geo_spatial is the clearest case: most turbulent on
+  elevation (0.415) but only rank 6 of 7 on diabetes (0.380). It fits the geographic gradient geometry specifically.
+  gnn_v2 is consistently turbulent across all three geometries — a trajectory that never settles into laminar flow.
+
+  [4] Better representations are MORE turbulent (rho(turb, r2) = +0.615). The higher-fidelity embeddings are
+  geometrically selective — they distinguish easy ZCTAs from hard ones sharply, widening the D*/D per-sample
+  distribution. Turbulence is measuring selectivity, not noise. noisy_control is the most laminar (uniformly mediocre
+  D*/D across all ZCTAs).

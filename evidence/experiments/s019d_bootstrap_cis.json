@@ -1,0 +1,560 @@
+{
+  "experiment": "S019D",
+  "description": "Fold-level block bootstrap CIs on N-ceiling (B=1000, 6-family)",
+  "primary_seed": 42,
+  "seeds_loaded": [
+    42,
+    123,
+    456
+  ],
+  "n_boot": 1000,
+  "bootstrap_method": "fold-level block (resample 5 folds with replacement per task)",
+  "n_tasks": 27,
+  "n_embeddings": 6,
+  "embeddings": [
+    "pca_v1",
+    "spatial_lag_v1",
+    "gnn_v2",
+    "geo_spatial",
+    "noisy_control",
+    "domain_features"
+  ],
+  "n_ceiling_summary": {
+    "min": 0.0837,
+    "max": 0.4436,
+    "mean": 0.244,
+    "range_ratio": 5.3
+  },
+  "ci_width_summary": {
+    "mean": 0.0278,
+    "median": 0.0277,
+    "max": 0.0743,
+    "min": 0.0094
+  },
+  "cross_seed_std_summary": {
+    "mean": 0.0004,
+    "max": 0.0015
+  },
+  "kappa_rho": {
+    "mean_within_task_rho": 0.9471,
+    "ci_low": 0.9132,
+    "ci_high": 0.9725,
+    "n_tasks": 27,
+    "n_correct_top_rank": 25
+  },
+  "per_task": {
+    "annual_checkup": {
+      "n_ceiling": 0.2607,
+      "ci_low": 0.2449,
+      "ci_high": 0.2738,
+      "ci_width": 0.0289,
+      "n_boot_valid": 1000,
+      "family": "health",
+      "cross_seed": {
+        "per_seed": {
+          "42": 0.2607,
+          "123": 0.2609,
+          "456": 0.2592
+        },
+        "mean": 0.2603,
+        "std": 0.0008,
+        "min": 0.2592,
+        "max": 0.2609
+      }
+    },
+    "arthritis": {
+      "n_ceiling": 0.2661,
+      "ci_low": 0.2483,
+      "ci_high": 0.2825,
+      "ci_width": 0.0342,
+      "n_boot_valid": 1000,
+      "family": "health",
+      "cross_seed": {
+        "per_seed": {
+          "42": 0.2661,
+          "123": 0.2659,
+          "456": 0.2666
+        },
+        "mean": 0.2662,
+        "std": 0.0003,
+        "min": 0.2659,
+        "max": 0.2666
+      }
+    },
+    "asthma": {
+      "n_ceiling": 0.3059,
+      "ci_low": 0.2835,
+      "ci_high": 0.3222,
+      "ci_width": 0.0387,
+      "n_boot_valid": 1000,
+      "family": "health",
+      "cross_seed": {
+        "per_seed": {
+          "42": 0.3059,
+          "123": 0.3052,
+          "456": 0.3058
+        },
+        "mean": 0.3056,
+        "std": 0.0003,
+        "min": 0.3052,
+        "max": 0.3059
+      }
+    },
+    "binge_drinking": {
+      "n_ceiling": 0.4436,
+      "ci_low": 0.4366,
+      "ci_high": 0.4503,
+      "ci_width": 0.0136,
+      "n_boot_valid": 1000,
+      "family": "health",
+      "cross_seed": {
+        "per_seed": {
+          "42": 0.4436,
+          "123": 0.4438,
+          "456": 0.4423
+        },
+        "mean": 0.4432,
+        "std": 0.0007,
+        "min": 0.4423,
+        "max": 0.4438
+      }
+    },
+    "bp_medicated": {
+      "n_ceiling": 0.2569,
+      "ci_low": 0.244,
+      "ci_high": 0.2686,
+      "ci_width": 0.0247,
+      "n_boot_valid": 1000,
+      "family": "health",
+      "cross_seed": {
+        "per_seed": {
+          "42": 0.2569,
+          "123": 0.2599,
+          "456": 0.2565
+        },
+        "mean": 0.2578,
+        "std": 0.0015,
+        "min": 0.2565,
+        "max": 0.2599
+      }
+    },
+    "cancer": {
+      "n_ceiling": 0.3223,
+      "ci_low": 0.3033,
+      "ci_high": 0.345,
+      "ci_width": 0.0417,
+      "n_boot_valid": 1000,
+      "family": "health",
+      "cross_seed": {
+        "per_seed": {
+          "42": 0.3223,
+          "123": 0.3215,
+          "456": 0.3216
+        },
+        "mean": 0.3218,
+        "std": 0.0004,
+        "min": 0.3215,
+        "max": 0.3223
+      }
+    },
+    "cholesterol_screening": {
+      "n_ceiling": 0.3571,
+      "ci_low": 0.3198,
+      "ci_high": 0.3941,
+      "ci_width": 0.0743,
+      "n_boot_valid": 1000,
+      "family": "health",
+      "cross_seed": {
+        "per_seed": {
+          "42": 0.3571,
+          "123": 0.3592,
+          "456": 0.3594
+        },
+        "mean": 0.3586,
+        "std": 0.001,
+        "min": 0.3571,
+        "max": 0.3594
+      }
+    },
+    "chronic_kidney_disease": {
+      "n_ceiling": 0.3098,
+      "ci_low": 0.2897,
+      "ci_high": 0.3322,
+      "ci_width": 0.0425,
+      "n_boot_valid": 1000,
+      "family": "health",
+      "cross_seed": {
+        "per_seed": {
+          "42": 0.3098,
+          "123": 0.3108,
+          "456": 0.3095
+        },
+        "mean": 0.31,
+        "std": 0.0006,
+        "min": 0.3095,
+        "max": 0.3108
+      }
+    },
+    "copd": {
+      "n_ceiling": 0.1996,
+      "ci_low": 0.1864,
+      "ci_high": 0.2102,
+      "ci_width": 0.0238,
+      "n_boot_valid": 1000,
+      "family": "health",
+      "cross_seed": {
+        "per_seed": {
+          "42": 0.1996,
+          "123": 0.1996,
+          "456": 0.1999
+        },
+        "mean": 0.1997,
+        "std": 0.0001,
+        "min": 0.1996,
+        "max": 0.1999
+      }
+    },
+    "coronary_heart_disease": {
+      "n_ceiling": 0.2936,
+      "ci_low": 0.2741,
+      "ci_high": 0.3131,
+      "ci_width": 0.0391,
+      "n_boot_valid": 1000,
+      "family": "health",
+      "cross_seed": {
+        "per_seed": {
+          "42": 0.2936,
+          "123": 0.2945,
+          "456": 0.2941
+        },
+        "mean": 0.2941,
+        "std": 0.0004,
+        "min": 0.2936,
+        "max": 0.2945
+      }
+    },
+    "dental_visit": {
+      "n_ceiling": 0.1747,
+      "ci_low": 0.1704,
+      "ci_high": 0.1805,
+      "ci_width": 0.0102,
+      "n_boot_valid": 1000,
+      "family": "health",
+      "cross_seed": {
+        "per_seed": {
+          "42": 0.1747,
+          "123": 0.1753,
+          "456": 0.175
+        },
+        "mean": 0.175,
+        "std": 0.0002,
+        "min": 0.1747,
+        "max": 0.1753
+      }
+    },
+    "diabetes": {
+      "n_ceiling": 0.2204,
+      "ci_low": 0.206,
+      "ci_high": 0.2344,
+      "ci_width": 0.0284,
+      "n_boot_valid": 1000,
+      "family": "health",
+      "cross_seed": {
+        "per_seed": {
+          "42": 0.2204,
+          "123": 0.2212,
+          "456": 0.2203
+        },
+        "mean": 0.2206,
+        "std": 0.0004,
+        "min": 0.2203,
+        "max": 0.2212
+      }
+    },
+    "elevation": {
+      "n_ceiling": 0.1175,
+      "ci_low": 0.1081,
+      "ci_high": 0.1271,
+      "ci_width": 0.019,
+      "n_boot_valid": 1000,
+      "family": "environmental",
+      "cross_seed": {
+        "per_seed": {
+          "42": 0.1175,
+          "123": 0.117,
+          "456": 0.1186
+        },
+        "mean": 0.1177,
+        "std": 0.0007,
+        "min": 0.117,
+        "max": 0.1186
+      }
+    },
+    "high_blood_pressure": {
+      "n_ceiling": 0.2363,
+      "ci_low": 0.2206,
+      "ci_high": 0.2442,
+      "ci_width": 0.0236,
+      "n_boot_valid": 1000,
+      "family": "health",
+      "cross_seed": {
+        "per_seed": {
+          "42": 0.2363,
+          "123": 0.2374,
+          "456": 0.2374
+        },
+        "mean": 0.237,
+        "std": 0.0005,
+        "min": 0.2363,
+        "max": 0.2374
+      }
+    },
+    "high_cholesterol": {
+      "n_ceiling": 0.3685,
+      "ci_low": 0.3577,
+      "ci_high": 0.3782,
+      "ci_width": 0.0205,
+      "n_boot_valid": 1000,
+      "family": "health",
+      "cross_seed": {
+        "per_seed": {
+          "42": 0.3685,
+          "123": 0.3694,
+          "456": 0.3693
+        },
+        "mean": 0.3691,
+        "std": 0.0004,
+        "min": 0.3685,
+        "max": 0.3694
+      }
+    },
+    "home_value": {
+      "n_ceiling": 0.1189,
+      "ci_low": 0.1044,
+      "ci_high": 0.1319,
+      "ci_width": 0.0275,
+      "n_boot_valid": 1000,
+      "family": "socioeconomic",
+      "cross_seed": {
+        "per_seed": {
+          "42": 0.1189,
+          "123": 0.1197,
+          "456": 0.1185
+        },
+        "mean": 0.119,
+        "std": 0.0005,
+        "min": 0.1185,
+        "max": 0.1197
+      }
+    },
+    "income": {
+      "n_ceiling": 0.2675,
+      "ci_low": 0.247,
+      "ci_high": 0.2887,
+      "ci_width": 0.0417,
+      "n_boot_valid": 1000,
+      "family": "socioeconomic",
+      "cross_seed": {
+        "per_seed": {
+          "42": 0.2675,
+          "123": 0.2683,
+          "456": 0.2672
+        },
+        "mean": 0.2677,
+        "std": 0.0005,
+        "min": 0.2672,
+        "max": 0.2683
+      }
+    },
+    "mental_health_not_good": {
+      "n_ceiling": 0.2281,
+      "ci_low": 0.2082,
+      "ci_high": 0.2417,
+      "ci_width": 0.0335,
+      "n_boot_valid": 1000,
+      "family": "health",
+      "cross_seed": {
+        "per_seed": {
+          "42": 0.2281,
+          "123": 0.2275,
+          "456": 0.228
+        },
+        "mean": 0.2279,
+        "std": 0.0003,
+        "min": 0.2275,
+        "max": 0.2281
+      }
+    },
+    "night_lights": {
+      "n_ceiling": 0.0837,
+      "ci_low": 0.0763,
+      "ci_high": 0.0902,
+      "ci_width": 0.0138,
+      "n_boot_valid": 1000,
+      "family": "environmental",
+      "cross_seed": {
+        "per_seed": {
+          "42": 0.0837,
+          "123": 0.0837,
+          "456": 0.0839
+        },
+        "mean": 0.0838,
+        "std": 0.0001,
+        "min": 0.0837,
+        "max": 0.0839
+      }
+    },
+    "obesity": {
+      "n_ceiling": 0.2474,
+      "ci_low": 0.2337,
+      "ci_high": 0.2621,
+      "ci_width": 0.0284,
+      "n_boot_valid": 1000,
+      "family": "health",
+      "cross_seed": {
+        "per_seed": {
+          "42": 0.2474,
+          "123": 0.2476,
+          "456": 0.2479
+        },
+        "mean": 0.2476,
+        "std": 0.0002,
+        "min": 0.2474,
+        "max": 0.2479
+      }
+    },
+    "physical_health_not_good": {
+      "n_ceiling": 0.1677,
+      "ci_low": 0.1619,
+      "ci_high": 0.1735,
+      "ci_width": 0.0117,
+      "n_boot_valid": 1000,
+      "family": "health",
+      "cross_seed": {
+        "per_seed": {
+          "42": 0.1677,
+          "123": 0.168,
+          "456": 0.1677
+        },
+        "mean": 0.1678,
+        "std": 0.0001,
+        "min": 0.1677,
+        "max": 0.168
+      }
+    },
+    "physical_inactivity": {
+      "n_ceiling": 0.1874,
+      "ci_low": 0.1801,
+      "ci_high": 0.1943,
+      "ci_width": 0.0142,
+      "n_boot_valid": 1000,
+      "family": "health",
+      "cross_seed": {
+        "per_seed": {
+          "42": 0.1874,
+          "123": 0.1875,
+          "456": 0.1877
+        },
+        "mean": 0.1875,
+        "std": 0.0001,
+        "min": 0.1874,
+        "max": 0.1877
+      }
+    },
+    "population_density": {
+      "n_ceiling": 0.1067,
+      "ci_low": 0.1012,
+      "ci_high": 0.1112,
+      "ci_width": 0.01,
+      "n_boot_valid": 1000,
+      "family": "socioeconomic",
+      "cross_seed": {
+        "per_seed": {
+          "42": 0.1067,
+          "123": 0.1075,
+          "456": 0.1072
+        },
+        "mean": 0.1071,
+        "std": 0.0003,
+        "min": 0.1067,
+        "max": 0.1075
+      }
+    },
+    "sleep_less_7hr": {
+      "n_ceiling": 0.2882,
+      "ci_low": 0.2765,
+      "ci_high": 0.3043,
+      "ci_width": 0.0278,
+      "n_boot_valid": 1000,
+      "family": "health",
+      "cross_seed": {
+        "per_seed": {
+          "42": 0.2882,
+          "123": 0.2879,
+          "456": 0.2884
+        },
+        "mean": 0.2882,
+        "std": 0.0002,
+        "min": 0.2879,
+        "max": 0.2884
+      }
+    },
+    "smoking": {
+      "n_ceiling": 0.1793,
+      "ci_low": 0.1734,
+      "ci_high": 0.1828,
+      "ci_width": 0.0094,
+      "n_boot_valid": 1000,
+      "family": "health",
+      "cross_seed": {
+        "per_seed": {
+          "42": 0.1793,
+          "123": 0.1802,
+          "456": 0.1802
+        },
+        "mean": 0.1799,
+        "std": 0.0004,
+        "min": 0.1793,
+        "max": 0.1802
+      }
+    },
+    "stroke": {
+      "n_ceiling": 0.2625,
+      "ci_low": 0.2411,
+      "ci_high": 0.2838,
+      "ci_width": 0.0427,
+      "n_boot_valid": 1000,
+      "family": "health",
+      "cross_seed": {
+        "per_seed": {
+          "42": 0.2625,
+          "123": 0.2625,
+          "456": 0.2626
+        },
+        "mean": 0.2625,
+        "std": 0.0,
+        "min": 0.2625,
+        "max": 0.2626
+      }
+    },
+    "tree_cover": {
+      "n_ceiling": 0.3169,
+      "ci_low": 0.3038,
+      "ci_high": 0.3315,
+      "ci_width": 0.0277,
+      "n_boot_valid": 1000,
+      "family": "environmental",
+      "cross_seed": {
+        "per_seed": {
+          "42": 0.3169,
+          "123": 0.3188,
+          "456": 0.3168
+        },
+        "mean": 0.3175,
+        "std": 0.0009,
+        "min": 0.3168,
+        "max": 0.3188
+      }
+    }
+  }
+}

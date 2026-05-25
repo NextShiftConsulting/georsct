@@ -1,0 +1,31 @@
+{
+  "experiment": "s019a",
+  "target": "elevation",
+  "embedding": "pca_v1",
+  "solver": "mlp",
+  "n_folds": 5,
+  "certificate": {
+    "R": 0.3306,
+    "S_sup": 0.3537,
+    "N": 0.2456,
+    "alpha": 0.582,
+    "kappa": 0.0448,
+    "kappa_std": 0.0034,
+    "sigma": 0.2456,
+    "simplex_sum": 0.9299
+  },
+  "performance": {
+    "r2_mean": 0.4302,
+    "r2_std": 0.0552
+  },
+  "gate_flat": {
+    "decision": "re_encode",
+    "kappa_req": 0.22,
+    "margin": -0.1752
+  },
+  "gate_oobleck": {
+    "decision": "re_encode",
+    "kappa_req": 0.3248,
+    "margin": -0.28
+  }
+}

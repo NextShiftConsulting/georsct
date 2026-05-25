@@ -1,0 +1,31 @@
+{
+  "experiment": "s019a",
+  "target": "elevation",
+  "embedding": "geo_spatial",
+  "solver": "histgbdt",
+  "n_folds": 5,
+  "certificate": {
+    "R": 0.3053,
+    "S_sup": 0.3274,
+    "N": 0.2711,
+    "alpha": 0.5331,
+    "kappa": 0.5616,
+    "kappa_std": 0.0747,
+    "sigma": 0.2711,
+    "simplex_sum": 0.9039
+  },
+  "performance": {
+    "r2_mean": 0.8825,
+    "r2_std": 0.0131
+  },
+  "gate_flat": {
+    "decision": "execute",
+    "kappa_req": 0.22,
+    "margin": 0.3416
+  },
+  "gate_oobleck": {
+    "decision": "execute",
+    "kappa_req": 0.3465,
+    "margin": 0.2151
+  }
+}

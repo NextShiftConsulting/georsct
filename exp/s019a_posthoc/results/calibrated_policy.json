@@ -1,0 +1,9 @@
+{
+  "n_changes": 0,
+  "n_total": 27,
+  "changes": [],
+  "s2_config": {
+    "kappa_base": 0.3,
+    "note": "geospatial-conus27 + kappa_base=0.30"
+  }
+}
