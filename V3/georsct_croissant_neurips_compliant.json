@@ -143,6 +143,22 @@
     },
     {
       "@type": "cr:FileObject",
+      "@id": "nfip-long-parquet",
+      "name": "nfip_claims_long.parquet",
+      "description": "Temporal companion sidecar: FEMA NFIP paid claims at ZCTA x year grain (~1978-2024). One row per (zcta_id, year), zero-filled for all 31,789 canonical ZCTAs. Columns: zcta_id, year, nfip_claim_count, nfip_building_loss, nfip_contents_loss, nfip_total_loss. Joins to georsct-main on zcta_id. Source: FEMA OpenFEMA FimaNfipClaims v2; ZIP-to-ZCTA via direct 5-digit code match.",
+      "contentUrl": "https://huggingface.co/datasets/rudymartin/georsct/resolve/main/nfip_claims_long.parquet",
+      "encodingFormat": "application/x-parquet"
+    },
+    {
+      "@type": "cr:FileObject",
+      "@id": "nfip-wide-parquet",
+      "name": "nfip_claims_wide.parquet",
+      "description": "Temporal companion sidecar: FEMA NFIP paid claims aggregated to three epochs per ZCTA. One row per zcta_id. Epoch columns: e1=1996-2004 (pre-Katrina), e2=2005-2011 (post-Katrina/pre-Sandy), e3=2012-2024 (Sandy onward). Metrics per epoch: nfip_claim_count, nfip_building_loss, nfip_contents_loss, nfip_total_loss. Rolling features: *_total, nfip_total_loss_peak_yr. Joins to georsct-main on zcta_id.",
+      "contentUrl": "https://huggingface.co/datasets/rudymartin/georsct/resolve/main/nfip_claims_wide.parquet",
+      "encodingFormat": "application/x-parquet"
+    },
+    {
+      "@type": "cr:FileObject",
       "@id": "croissant-json",
       "name": "croissant.json",
       "description": "Machine-readable Croissant metadata for GeoRSCT, including core dataset metadata, source provenance, and Responsible AI metadata for NeurIPS Evaluations & Datasets review.",
@@ -1984,6 +2000,150 @@
       ]
     }
   ],
+  "nfip-claims-long": {
+    "@type": "cr:RecordSet",
+    "@id": "nfip-claims-long",
+    "name": "nfip-claims-long",
+    "description": "FEMA NFIP paid claims at ZCTA x year grain. Zero-filled for all 31,789 ZCTAs. Joins to georsct-main on zcta_id.",
+    "field": [
+      {
+        "@type": "cr:Field",
+        "@id": "nfip-long/zcta_id",
+        "name": "zcta_id",
+        "description": "5-digit ZCTA identifier",
+        "dataType": "sc:Text",
+        "source": { "fileObject": { "@id": "nfip-long-parquet" }, "extract": { "column": "zcta_id" } }
+      },
+      {
+        "@type": "cr:Field",
+        "@id": "nfip-long/year",
+        "name": "year",
+        "description": "Calendar year of loss",
+        "dataType": "sc:Integer",
+        "source": { "fileObject": { "@id": "nfip-long-parquet" }, "extract": { "column": "year" } }
+      },
+      {
+        "@type": "cr:Field",
+        "@id": "nfip-long/nfip_claim_count",
+        "name": "nfip_claim_count",
+        "description": "Count of paid NFIP claims in this ZCTA in this year",
+        "dataType": "sc:Integer",
+        "source": { "fileObject": { "@id": "nfip-long-parquet" }, "extract": { "column": "nfip_claim_count" } }
+      },
+      {
+        "@type": "cr:Field",
+        "@id": "nfip-long/nfip_building_loss",
+        "name": "nfip_building_loss",
+        "description": "Total building loss paid ($)",
+        "dataType": "sc:Float",
+        "source": { "fileObject": { "@id": "nfip-long-parquet" }, "extract": { "column": "nfip_building_loss" } }
+      },
+      {
+        "@type": "cr:Field",
+        "@id": "nfip-long/nfip_contents_loss",
+        "name": "nfip_contents_loss",
+        "description": "Total contents loss paid ($)",
+        "dataType": "sc:Float",
+        "source": { "fileObject": { "@id": "nfip-long-parquet" }, "extract": { "column": "nfip_contents_loss" } }
+      },
+      {
+        "@type": "cr:Field",
+        "@id": "nfip-long/nfip_total_loss",
+        "name": "nfip_total_loss",
+        "description": "Total loss paid, building + contents ($)",
+        "dataType": "sc:Float",
+        "source": { "fileObject": { "@id": "nfip-long-parquet" }, "extract": { "column": "nfip_total_loss" } }
+      }
+    ]
+  },
+  "nfip-claims-wide": {
+    "@type": "cr:RecordSet",
+    "@id": "nfip-claims-wide",
+    "name": "nfip-claims-wide",
+    "description": "FEMA NFIP paid claims aggregated to three epoch windows per ZCTA. One row per zcta_id. Joins to georsct-main on zcta_id.",
+    "field": [
+      {
+        "@type": "cr:Field",
+        "@id": "nfip-wide/zcta_id",
+        "name": "zcta_id",
+        "description": "5-digit ZCTA identifier",
+        "dataType": "sc:Text",
+        "source": { "fileObject": { "@id": "nfip-wide-parquet" }, "extract": { "column": "zcta_id" } }
+      },
+      {
+        "@type": "cr:Field",
+        "@id": "nfip-wide/nfip_claim_count_e1",
+        "name": "nfip_claim_count_e1",
+        "description": "Paid claim count, epoch e1 (1996-2004, pre-Katrina)",
+        "dataType": "sc:Integer",
+        "source": { "fileObject": { "@id": "nfip-wide-parquet" }, "extract": { "column": "nfip_claim_count_e1" } }
+      },
+      {
+        "@type": "cr:Field",
+        "@id": "nfip-wide/nfip_claim_count_e2",
+        "name": "nfip_claim_count_e2",
+        "description": "Paid claim count, epoch e2 (2005-2011, post-Katrina/pre-Sandy)",
+        "dataType": "sc:Integer",
+        "source": { "fileObject": { "@id": "nfip-wide-parquet" }, "extract": { "column": "nfip_claim_count_e2" } }
+      },
+      {
+        "@type": "cr:Field",
+        "@id": "nfip-wide/nfip_claim_count_e3",
+        "name": "nfip_claim_count_e3",
+        "description": "Paid claim count, epoch e3 (2012-2024, Sandy onward)",
+        "dataType": "sc:Integer",
+        "source": { "fileObject": { "@id": "nfip-wide-parquet" }, "extract": { "column": "nfip_claim_count_e3" } }
+      },
+      {
+        "@type": "cr:Field",
+        "@id": "nfip-wide/nfip_total_loss_e1",
+        "name": "nfip_total_loss_e1",
+        "description": "Total loss paid, epoch e1 (1996-2004) ($)",
+        "dataType": "sc:Float",
+        "source": { "fileObject": { "@id": "nfip-wide-parquet" }, "extract": { "column": "nfip_total_loss_e1" } }
+      },
+      {
+        "@type": "cr:Field",
+        "@id": "nfip-wide/nfip_total_loss_e2",
+        "name": "nfip_total_loss_e2",
+        "description": "Total loss paid, epoch e2 (2005-2011) ($)",
+        "dataType": "sc:Float",
+        "source": { "fileObject": { "@id": "nfip-wide-parquet" }, "extract": { "column": "nfip_total_loss_e2" } }
+      },
+      {
+        "@type": "cr:Field",
+        "@id": "nfip-wide/nfip_total_loss_e3",
+        "name": "nfip_total_loss_e3",
+        "description": "Total loss paid, epoch e3 (2012-2024) ($)",
+        "dataType": "sc:Float",
+        "source": { "fileObject": { "@id": "nfip-wide-parquet" }, "extract": { "column": "nfip_total_loss_e3" } }
+      },
+      {
+        "@type": "cr:Field",
+        "@id": "nfip-wide/nfip_claim_count_total",
+        "name": "nfip_claim_count_total",
+        "description": "Total paid claims, all years",
+        "dataType": "sc:Integer",
+        "source": { "fileObject": { "@id": "nfip-wide-parquet" }, "extract": { "column": "nfip_claim_count_total" } }
+      },
+      {
+        "@type": "cr:Field",
+        "@id": "nfip-wide/nfip_total_loss_total",
+        "name": "nfip_total_loss_total",
+        "description": "Total loss paid, all years ($)",
+        "dataType": "sc:Float",
+        "source": { "fileObject": { "@id": "nfip-wide-parquet" }, "extract": { "column": "nfip_total_loss_total" } }
+      },
+      {
+        "@type": "cr:Field",
+        "@id": "nfip-wide/nfip_total_loss_peak_yr",
+        "name": "nfip_total_loss_peak_yr",
+        "description": "Maximum single-year total loss paid (captures extreme events) ($)",
+        "dataType": "sc:Float",
+        "source": { "fileObject": { "@id": "nfip-wide-parquet" }, "extract": { "column": "nfip_total_loss_peak_yr" } }
+      }
+    ]
+  },
   "rai:dataLimitations": "GeoRSCT is a ZCTA-level benchmark for evaluating geospatial regression and representation-solver compatibility, not an individual-level dataset. Its applicability is limited to aggregate, area-level analysis over the contiguous United States and Washington, DC. Results may not generalize to Alaska, Hawaii, U.S. territories, non-U.S. geographies, finer geographies such as blocks or households, or future time periods without revalidation. ZCTAs are statistical approximations of postal delivery areas and are not stable administrative units; conclusions are subject to aggregation effects and the modifiable areal unit problem. Some targets are modeled estimates rather than direct measurements, and upstream coverage, confidence intervals, survey margins of error, missingness, spatial autocorrelation, and CRS/overlay choices can affect downstream evaluation. The dataset is not recommended for individual risk prediction, clinical decision-making, eligibility determination, enforcement, insurance pricing, credit allocation, or direct resource allocation without additional domain validation, uncertainty analysis, and local stakeholder review.",
   "rai:dataBiases": "Known and suspected biases include survey non-response and sampling bias in ACS inputs; BRFSS/CDC PLACES modeling and coverage bias in small-area health estimates; demographic and socioeconomic skew across ZCTAs; rural/urban imbalance; spatial clustering that can inflate naive cross-validation estimates; uncertainty in facility-location and service-access sources; OpenStreetMap/OSRM road-network completeness and routing-profile bias; remote-sensing measurement bias for VIIRS night lights, elevation, flood overlays, and tree cover; and differential missingness in low-population or geographically unusual areas. These biases may cause models to perform differently across population density, income, race/ethnicity composition, language, age structure, transportation access, health-access, and vulnerability regimes.",
   "rai:personalSensitiveInformation": "The dataset does not contain individual-level records, names, street addresses, direct personal identifiers, household-level records, or protected health information. It does contain geographically indexed aggregate attributes related to socioeconomic status, age, race/ethnicity, language, housing, transportation, health prevalence estimates, vulnerability, facility access, and environmental exposure at the ZCTA level. These aggregate variables can still be sensitive when used to profile communities, target interventions, make eligibility decisions, or rank places.",
@@ -2074,6 +2234,13 @@
       "url": "https://www.ncei.noaa.gov/pub/data/swdi/stormevents/csvfiles/",
       "license": "https://www.usa.gov/government-copyright",
       "role": "Flood event history per ZCTA 1996-2024, aggregated to long (zcta x year) and wide (three named epochs) companion sidecars. Event types: Flash Flood, Flood, Coastal Flood, Lakeshore Flood. County-to-ZCTA via majority-county land-area crosswalk."
+    },
+    {
+      "@type": "sc:Dataset",
+      "name": "FEMA OpenFEMA FimaNfipClaims",
+      "url": "https://www.fema.gov/api/open/v2/FimaNfipClaims",
+      "license": "https://www.usa.gov/government-copyright",
+      "role": "NFIP paid claims (~2.4M records) per ZCTA, aggregated to long (zcta x year) and wide (three named epochs) companion sidecars. Metrics: claim count, building loss, contents loss, total loss. ZIP-to-ZCTA via direct 5-digit code match."
     },
     {
       "@type": "sc:Dataset",
