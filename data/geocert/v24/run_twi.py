@@ -6,21 +6,49 @@ Downloads EPA StreamCat / USGS ScienceBase CONUS-wide parquet files for
 Topographic Wetness Index (TWI) and basin characteristics (slope), joins
 to the COMID-to-ZCTA spatial crosswalk (area-weighted), aggregates to ZCTA.
 
-NOTE: The old EPA FTP (gaftp.epa.gov) is dead as of 2025.
-Data now lives on USGS ScienceBase — fetched via the ScienceBase JSON API
-using stable item IDs so URLs auto-update if files are re-issued.
+Instance: ml.m5.xlarge (4 vCPU, 16 GB RAM)
+Runtime:  ~15-20 min (download ~100 MB + vectorized join on 3M rows)
+Cost:     ~$0.08
+
+--- DATA SOURCE HISTORY ---
+
+The old EPA StreamCat FTP (gaftp.epa.gov) went offline in 2025. Data moved to
+USGS ScienceBase. Two URL patterns exist on ScienceBase — only one is public:
+
+  PUBLIC  (used here): catalog/file/get/{item_id}?f=__disk__{hash}
+    Returned by the ScienceBase JSON API as "downloadUri" in the files[] array.
+    These are the ZIP downloads. No auth required.
+
+  AUTH-GATED (do not use): sciencebase.usgs.gov/manager/download/{hash}
+    The parquet/CSV direct-download URLs visible in the browser. Return 0 bytes
+    without a USGS session cookie. Not useful from a container.
+
+Strategy: query the JSON API at runtime to get the current downloadUri for the
+named ZIP file, then download and extract. Stable item IDs survive file re-issues.
 
 ScienceBase items:
   TWI:   https://www.sciencebase.gov/catalog/item/56f97be4e4b0a6037df06b70
   Slope: https://www.sciencebase.gov/catalog/item/57976a0ce4b021cadec97890
 
-Instance: ml.m5.xlarge (4 vCPU, 16 GB RAM)
-Runtime:  ~15-20 min (download ~100 MB + vectorized join on 3M rows)
-Cost:     ~$0.08
+--- FILE FORMAT NOTE ---
 
-Inputs (SageMaker mounts):
+StreamCat distributes data as ZIPs containing .txt files (not .csv), but the
+content is standard comma-delimited with a header row. pandas.read_csv handles
+.txt files identically to .csv. download_zip_csv accepts both extensions.
+
+--- AGGREGATION APPROACH ---
+
+Area-weighted mean from COMID to ZCTA using the comid_zcta_crosswalk.parquet
+(built by sagemaker_comid_zcta.py). Each COMID contributes proportionally to
+its area_fraction within the ZCTA. Fully vectorized groupby — no Python loops
+over ZCTAs. county_crosswalk used only for zero-filling: ensures all ~33K ZCTAs
+appear in the output even if they have no NHDPlus catchment overlap.
+
+--- INPUTS ---
+
   /opt/ml/processing/input/data/   -- comid_zcta_crosswalk.parquet
   /opt/ml/processing/input/county/ -- zcta_county_crosswalk.parquet
+  (separate LocalPaths required — SageMaker rejects duplicate LocalPaths)
 
 Output:
   s3://swarm-yrsn-datasets/rsct_curriculum/series_018/processed/twi_features_zcta.parquet

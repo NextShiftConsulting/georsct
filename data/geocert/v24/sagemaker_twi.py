@@ -9,6 +9,38 @@ Instance: ml.m5.xlarge (4 vCPU, 16 GB RAM, $0.23/hr)
 Runtime:  ~15-25 min
 Cost:     ~$0.10
 
+--- RESOURCE RATIONALE ---
+
+Instance (ml.m5.xlarge — 4 vCPU / 16 GB):
+  Peak memory budget: crosswalk ~500 MB + TWI raw ~200 MB + slope raw ~300 MB
+  + merged join ~1 GB = ~2 GB comfortably inside 16 GB. An m5.large (8 GB) would
+  also work, but xlarge gives headroom if ScienceBase ships larger files.
+  No benefit from more vCPUs — workload is sequential I/O + single-threaded pandas.
+
+Threads / parallelism: none.
+  Pipeline is download → parse → join → aggregate. Fully vectorized pandas groupby
+  with no parallel workers. ProcessPoolExecutor would add overhead with zero gain
+  here (unlike comid_zcta which needs 16 workers for 2179 HUC8s in parallel).
+
+Cache: none (ephemeral container).
+  ZIPs are downloaded into in-memory BytesIO buffers and discarded after parsing.
+  No /tmp writes except the final output parquet. Eliminates the stale-cache class
+  of bugs (HIFLD incident: local /tmp file had all-NaN columns while S3 was correct).
+
+Image (pytorch-training:2.5-cpu-py311):
+  Only deps are requests + pyarrow + pandas, pip-installed at startup.
+  PyTorch image is oversized but cached in SageMaker's regional fleet so cold-start
+  penalty is near zero. Consistent with other geocert jobs — avoids a separate
+  custom ECR image to maintain. Revisit if startup time becomes a bottleneck.
+
+S3 inputs use UNIQUE LocalPaths (critical):
+  comid_zcta  -> /opt/ml/processing/input/data
+  county_xwalk -> /opt/ml/processing/input/county
+  Two inputs sharing the same LocalPath causes ValidationException at job creation.
+  run_twi.py uses --data-dir and --county-dir args to address each independently.
+
+--- END RATIONALE ---
+
 Inputs:
   Code:      s3://swarm-yrsn-datasets/rsct_code/geocert_v24/twi/
   Data:      s3://swarm-yrsn-datasets/rsct_curriculum/geo/comid_zcta_crosswalk.parquet
