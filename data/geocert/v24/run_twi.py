@@ -30,6 +30,7 @@ import io
 import json
 import logging
 import sys
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -61,33 +62,39 @@ def _s3():
     return boto3.client("s3")
 
 
-def get_sciencebase_parquet_url(item_id: str, suffix: str = "_cat") -> str:
-    """Query ScienceBase JSON API and return the download URI for the _cat parquet."""
+def get_sciencebase_zip_url(item_id: str, zip_name: str) -> str:
+    """Query ScienceBase JSON API and return the public ZIP download URL."""
     url = f"https://www.sciencebase.gov/catalog/item/{item_id}?format=json"
     log.info("  Querying ScienceBase: %s", url)
     resp = requests.get(url, timeout=30)
     resp.raise_for_status()
     files = resp.json().get("files", [])
     for f in files:
-        name = f.get("name", "")
-        if name.endswith(f"{suffix}.parquet"):
+        if f.get("name", "") == zip_name:
             uri = f.get("downloadUri", "")
-            log.info("  Found: %s -> %s", name, uri[:70])
+            log.info("  Found: %s -> %s", zip_name, uri[:80])
             return uri
     raise RuntimeError(
-        f"No {suffix}.parquet found in ScienceBase item {item_id}. "
+        f"{zip_name} not found in ScienceBase item {item_id}. "
         f"Files: {[f.get('name') for f in files]}"
     )
 
 
-def download_parquet(url: str, label: str) -> pd.DataFrame:
-    """Download a parquet from a URL into a DataFrame."""
-    log.info("Downloading %s (~may be large)...", label)
+def download_zip_csv(url: str, label: str) -> pd.DataFrame:
+    """Download a ZIP from URL, extract first CSV, return as DataFrame."""
+    log.info("Downloading %s...", label)
     resp = requests.get(url, timeout=300, stream=True)
     resp.raise_for_status()
     data = b"".join(resp.iter_content(chunk_size=1024 * 1024))
     log.info("  Downloaded %.1f MB for %s", len(data) / 1e6, label)
-    df = pd.read_parquet(io.BytesIO(data))
+    with zipfile.ZipFile(io.BytesIO(data)) as zf:
+        csv_names = [n for n in zf.namelist() if n.lower().endswith(".csv")]
+        if not csv_names:
+            raise RuntimeError(f"No CSV found in ZIP for {label}: {zf.namelist()}")
+        csv_name = csv_names[0]
+        log.info("  Extracting: %s", csv_name)
+        with zf.open(csv_name) as f:
+            df = pd.read_csv(f, dtype={"COMID": str})
     log.info("  Shape: %s | Columns: %s", df.shape, list(df.columns[:10]))
     return df
 
@@ -186,15 +193,15 @@ def main():
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # --- Resolve ScienceBase URLs at runtime ---
+    # --- Resolve ScienceBase ZIP URLs at runtime ---
     log.info("=== RESOLVING SCIENCEBASE DOWNLOAD URLS ===")
-    twi_url   = get_sciencebase_parquet_url(SB_TWI_ITEM,   "_cat")
-    slope_url = get_sciencebase_parquet_url(SB_SLOPE_ITEM, "_cat")
+    twi_url   = get_sciencebase_zip_url(SB_TWI_ITEM,   "TWI_CONUS.zip")
+    slope_url = get_sciencebase_zip_url(SB_SLOPE_ITEM, "BASIN_CHAR_CAT_CONUS.zip")
 
     # --- Download ---
-    log.info("=== DOWNLOADING STREAMCAT PARQUETS ===")
-    twi_raw   = download_parquet(twi_url,   "TWI_cat")
-    slope_raw = download_parquet(slope_url, "Slope_cat")
+    log.info("=== DOWNLOADING STREAMCAT DATA ===")
+    twi_raw   = download_zip_csv(twi_url,   "TWI_CONUS.zip")
+    slope_raw = download_zip_csv(slope_url, "BASIN_CHAR_CAT_CONUS.zip")
 
     twi_raw   = normalize_comid(twi_raw)
     slope_raw = normalize_comid(slope_raw)
