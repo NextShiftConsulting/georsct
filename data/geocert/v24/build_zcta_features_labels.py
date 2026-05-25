@@ -56,12 +56,16 @@ PREFIX = "rsct_curriculum/series_018/processed"
 REGION = "us-east-1"
 AWS_PROFILE = "nsc-swarm"
 
-# S3 keys — input is v23.001, output overwrites as v23.002
+# S3 keys — input is v23.001, output overwrites as v23.002 / v24.001
 BASE_KEY = f"{PREFIX}/zcta_features_labels.parquet"
 SVI_KEY = f"{PREFIX}/svi_zcta.parquet"
 HIFLD_KEY = f"{PREFIX}/hifld_zcta.parquet"
 FLOOD_KEY = f"{PREFIX}/flood_zones_zcta.parquet"
 DRIVE_KEY = f"{PREFIX}/drive_times_zcta.parquet"
+# v24 flood modal sources (pre-flood certificate experiment)
+NOAA_KEY = f"{PREFIX}/noaa_storm_events_zcta.parquet"
+NFIP_KEY = f"{PREFIX}/nfip_claims_zcta.parquet"
+TWI_KEY = f"{PREFIX}/twi_features_zcta.parquet"
 OUTPUT_KEY = f"{PREFIX}/zcta_features_labels.parquet"
 PROVENANCE_KEY = f"{PREFIX}/zcta_features_labels_provenance.json"
 
@@ -134,6 +138,10 @@ def main():
         "HIFLD facilities": HIFLD_KEY,
         "FEMA flood zones": FLOOD_KEY,
         "Drive times": DRIVE_KEY,
+        # v24 flood modal sources — optional, skip if not yet built
+        "NOAA storm events": NOAA_KEY,
+        "NFIP claims": NFIP_KEY,
+        "TWI watershed": TWI_KEY,
     }
     enrichment_dfs = {}
     for name, key in enrichment_keys.items():
