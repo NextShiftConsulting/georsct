@@ -5,9 +5,10 @@ SageMaker Launcher: COMID-to-ZCTA Spatial Crosswalk
 Launches a processing job to build the NHDPlus COMID → ZCTA spatial crosswalk
 with area fraction weights. Required for production-quality TWI aggregation.
 
-Instance: ml.m5.12xlarge (32 vCPU, 128 GB RAM, $1.845/hr)
-Runtime:  ~20-30 min (21 VPUs fully parallel, bounded by slowest VPU)
-Cost:     ~$0.90 estimated
+Instance: ml.m5.12xlarge (48 vCPU, 192 GB RAM, $1.845/hr)
+Runtime:  ~60-90 min (16 workers × 2179 HUC8s, ~136 HUC8s/worker)
+Cost:     ~$2.80 estimated
+Workers:  16 (capped; geopandas spawn workers use 4-8GB each — 48 workers OOMs)
 Image:    PyTorch 2.5 CPU (pip installs geopandas + py7zr at startup)
 
 Mounts:

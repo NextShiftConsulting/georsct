@@ -257,7 +257,9 @@ def main():
 
     huc2_codes = args.huc2 or CONUS_HUC2
     n_cpu = os.cpu_count() or 16
-    n_workers = args.workers or min(n_cpu, 48)
+    # Cap at 16: geopandas spawn workers are memory-heavy (~4-8GB each).
+    # 48 workers on 192GB = OOM kills before any HUC8 completes.
+    n_workers = args.workers or min(n_cpu, 16)
     log.info("HUC2 regions: %s | Workers: %d | CPUs: %d", huc2_codes, n_workers, n_cpu)
 
     # --- Load and reproject TIGER ZCTAs ---
