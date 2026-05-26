@@ -104,7 +104,7 @@ def compute_simplex_diagnostic_ratios(
     """Compute diagnostic simplex ratio views (ADR-021).
 
     These are diagnostic only.
-    They do not alter canonical alpha, kappa_gate, or runtime gate decisions.
+    They do not alter canonical alpha, kappa_compat, or runtime gate decisions.
     Log under diagnostics.simplex_ratios, not certificate.core.
     """
     return {

@@ -141,7 +141,7 @@ def build_gatekeepers():
 def evaluate_gates(cert: dict, gatekeepers: dict) -> dict:
     """Evaluate one certificate under both gatekeepers.
 
-    Uses theory_kappa as kappa_gate and sigma (=N) as sigma.
+    Uses theory_kappa as kappa_compat and sigma (=N) as sigma.
 
     Args:
         cert: Single embedding result from certify_group.
@@ -153,7 +153,7 @@ def evaluate_gates(cert: dict, gatekeepers: dict) -> dict:
     sigma = float(compute_sigma_request(cert["N"]))
     cert_input = CPGatekeeperInput(
         alpha=cert["alpha"],
-        kappa_gate=cert["theory_kappa"],
+        kappa_compat=cert["theory_kappa"],
         sigma=sigma,
         source_mode="direct",
         evidence={

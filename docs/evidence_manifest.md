@@ -82,7 +82,7 @@ All 16 models' OOF predictions, embeddings, and certificate triples are stored i
 
 | Version | Formula | Status | Commit |
 |---------|---------|--------|--------|
-| proxy_spearman_v1 | `kappa = 0.5*r + 0.3*alpha + 0.2*(1-n); kappa_gate = kappa*(1-0.5*sigma)` | SUPERSEDED | pre-`46d0e51` |
+| proxy_spearman_v1 | `kappa = 0.5*r + 0.3*alpha + 0.2*(1-n); kappa_compat = kappa*(1-0.5*sigma)` | SUPERSEDED | pre-`46d0e51` |
 | proxy_spearman_v2 | `kappa = R/(R+N)` (canonical RSCT) | CURRENT | `46d0e51` (2026-04-14) |
 
 **v2 validation:** H1 18/26 negative rho, H2 21/26 gated R-sq improvement @ 25% coverage,

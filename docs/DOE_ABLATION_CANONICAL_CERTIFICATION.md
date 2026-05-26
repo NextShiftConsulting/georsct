@@ -40,7 +40,7 @@ The SequentialGatekeeper evaluates gates in fixed order (P2). Evaluation stops a
 | **1** | Integrity Guard | `noise_admissibility` (or `N` fallback), `alpha` | N < 0.5 OR alpha >= 0.3 | REJECT | Mandatory |
 | **1B** | N-Ceiling | `n_ceiling` | n_ceiling < 0.6 | BLOCK | Off (opt-in) |
 | **2** | Consensus | `coherence` | coherence >= 0.4 | BLOCK | Pass-if-absent (evaluates when provided) |
-| **3** | Admissibility | `kappa_gate`, `sigma` | sigma <= 0.5 + Oobleck curve | RE_ENCODE | Mandatory |
+| **3** | Admissibility | `kappa_compat`, `sigma` | sigma <= 0.5 + Oobleck curve | RE_ENCODE | Mandatory |
 | **3B** | Trajectory | `trajectory_aux.r_bar` | r_bar >= 0.65 | RE_ENCODE | Fires when `trajectory_aux` is populated |
 | **4** | Grounding | `kappa_H`, `kappa_L`, `kappa_interface` (multimodal) or `kappa_L` (unimodal) | Dynamic per level | RE_ENCODE/REPAIR | Pass-if-not-multimodal; geo certs are unimodal |
 | **5** | Contract Coverage | `contract_coverage` | coverage >= 0.8 | BLOCK | Off (opt-in) |
@@ -55,7 +55,7 @@ Each gate requires specific inputs. For CONUS-27 geospatial regression, the sour
 | 1 | `alpha` | R/(R+N) from classifier softmax | Via classifier rerun |
 | 1B | `n_ceiling` | Table 2 N-ceiling values (0.155-0.593) | YES — precomputed per task |
 | 2 | `coherence` | Multi-solver agreement: 3 solver families provide natural multi-source structure | COMPUTE — see design below |
-| 3 | `kappa_gate` | R*(1-N) from classifier softmax | Via classifier rerun |
+| 3 | `kappa_compat` | R*(1-N) from classifier softmax | Via classifier rerun |
 | 3 | `sigma` | std(kappa_per_sample) via `compute_sigma_from_kappa_array` | Via classifier rerun |
 | 3B | `r_bar` | Representation stability across OOF folds | COMPUTE — see design below |
 | 4 | `kappa_L` | Per-solver kappa (unimodal path) | Via classifier rerun |

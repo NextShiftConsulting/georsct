@@ -170,7 +170,7 @@ def _evaluate_gates(result: dict, gatekeepers: dict) -> dict:
     """Evaluate one embedding result under both gatekeepers using theory kappa."""
     cert_input = CPGatekeeperInput(
         alpha=result["alpha"],
-        kappa_gate=result["theory_kappa"],
+        kappa_compat=result["theory_kappa"],
         sigma=result["sigma"],
         source_mode="direct",
         evidence={

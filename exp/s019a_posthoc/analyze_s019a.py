@@ -608,7 +608,7 @@ def calibrated_policy_sensitivity(records: list) -> dict:
 
         cert_input = CPGatekeeperInput(
             alpha=avg("alpha"),
-            kappa_gate=avg("theory_kappa"),
+            kappa_compat=avg("theory_kappa"),
             sigma=avg("sigma"),
             source_mode="direct",
             evidence={
