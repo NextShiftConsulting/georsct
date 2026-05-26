@@ -1,0 +1,67 @@
+view_id: access_restoration
+version: "1.0.0"
+status: active
+
+description: >
+  Prioritizes ZCTAs by infrastructure access fragility. Leads with
+  access_fragility (road closures, pump failures, drainage capacity) to
+  identify locations where response teams cannot reach or exit. Secondary
+  ordering by risk_level, then reliability_action, then population, then
+  vulnerability. Use for infrastructure recovery staging and route-clearing
+  operations where access determines whether any other response is possible.
+
+ordering_rule:
+  - field: access_fragility
+    direction: DESC
+    rank_map:
+      high: 3
+      medium: 2
+      low: 1
+      not_applicable: 0
+      null: 0
+  - field: risk_level
+    direction: DESC
+    rank_map:
+      high: 3
+      moderate: 2
+      low: 1
+      null: 0
+  - field: reliability_action
+    direction: DESC
+    rank_map:
+      escalate: 4
+      review: 3
+      trust: 2
+      suppress: 1
+      null: 0
+  - field: population_context
+    direction: DESC
+    rank_map:
+      high: 3
+      medium: 2
+      low: 1
+      null: 0
+  - field: equity_context
+    direction: DESC
+    rank_map:
+      q4: 4
+      q3: 3
+      q2: 2
+      q1: 1
+      null: 0
+
+tie_break: location_id ASC
+
+refuse_to_plan_on:
+  - reliability_action: suppress
+
+jurisdiction_notes: >
+  Primary view for desert flash flood (S3) where road_access_status is
+  the binding constraint — a ZCTA with high risk_level but closed roads
+  cannot receive resources regardless of priority. Also relevant for S2
+  pump station failure scenarios where infrastructure determines whether
+  a protected basin can drain. For S5 (urban cloudburst), access_fragility
+  will be null until v24.003 — this view degrades gracefully but operators
+  should note the missing dimension.
+
+source_adr: ADR-035

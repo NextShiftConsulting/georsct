@@ -1,0 +1,73 @@
+view_id: equity_stabilization
+version: "1.0.0"
+status: active
+
+description: >
+  Prioritizes ZCTAs by social vulnerability index quartile. Leads with
+  equity_context (SVI quartile — q4 = highest vulnerability) to surface
+  historically underserved populations first, then by population density,
+  then risk_level, then reliability_action, then access_fragility. Use for
+  equity-weighted response allocation where the policy goal is ensuring
+  high-vulnerability communities receive resources regardless of raw risk
+  ranking. Intended as a counterweight to life_safety_first — F45 conflict
+  comparison between these two views identifies ZCTAs where equity and
+  life-safety priorities diverge.
+
+ordering_rule:
+  - field: equity_context
+    direction: DESC
+    rank_map:
+      q4: 4
+      q3: 3
+      q2: 2
+      q1: 1
+      null: 0
+  - field: population_context
+    direction: DESC
+    rank_map:
+      high: 3
+      medium: 2
+      low: 1
+      null: 0
+  - field: risk_level
+    direction: DESC
+    rank_map:
+      high: 3
+      moderate: 2
+      low: 1
+      null: 0
+  - field: reliability_action
+    direction: DESC
+    rank_map:
+      escalate: 4
+      review: 3
+      trust: 2
+      suppress: 1
+      null: 0
+  - field: access_fragility
+    direction: DESC
+    rank_map:
+      high: 3
+      medium: 2
+      low: 1
+      not_applicable: 0
+      null: 0
+
+tie_break: location_id ASC
+
+refuse_to_plan_on:
+  - reliability_action: suppress
+
+jurisdiction_notes: >
+  Designed to be compared against life_safety_first and shelter_capacity via
+  F45. Conflict ZCTAs — those ranking high under equity_stabilization but low
+  under life_safety_first — are the primary operator decision points: they
+  represent communities where equity weight exceeds immediate risk weight.
+  For S4 (surge evacuation), equity_stabilization may surface inland low-risk
+  ZCTAs with high SVI ahead of coastal high-risk ZCTAs with low SVI; this is
+  the intended behavior, not a misconfiguration. Operators should review the
+  F45 conflict structure before overriding this view's ordering for S4.
+  For S5 (NYC/NJ urban cloudburst), equity_context and population_context
+  dominate since access_fragility is null until v24.003.
+
+source_adr: ADR-035

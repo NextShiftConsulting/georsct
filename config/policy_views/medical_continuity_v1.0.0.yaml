@@ -1,0 +1,69 @@
+view_id: medical_continuity
+version: "1.0.0"
+status: active
+
+description: >
+  Prioritizes ZCTAs by decision reliability before everything else. Leads with
+  reliability_action to ensure medical resources are pre-positioned only where
+  the forecast evidence supports action. Secondary ordering by risk_level, then
+  access_fragility (can the location be reached), then population density, then
+  vulnerability context. Use for medical resource pre-positioning, EMS staging,
+  and hospital bypass routing where acting on unreliable data causes active harm.
+
+ordering_rule:
+  - field: reliability_action
+    direction: DESC
+    rank_map:
+      escalate: 4
+      review: 3
+      trust: 2
+      suppress: 1
+      null: 0
+  - field: risk_level
+    direction: DESC
+    rank_map:
+      high: 3
+      moderate: 2
+      low: 1
+      null: 0
+  - field: access_fragility
+    direction: DESC
+    rank_map:
+      high: 3
+      medium: 2
+      low: 1
+      not_applicable: 0
+      null: 0
+  - field: population_context
+    direction: DESC
+    rank_map:
+      high: 3
+      medium: 2
+      low: 1
+      null: 0
+  - field: equity_context
+    direction: DESC
+    rank_map:
+      q4: 4
+      q3: 3
+      q2: 2
+      q1: 1
+      null: 0
+
+tie_break: location_id ASC
+
+refuse_to_plan_on:
+  - reliability_action: suppress
+
+jurisdiction_notes: >
+  Primary view for S2 (New Orleans pump station failure) where acting on
+  unreliable forecasts creates active harm — EMS resources dispatched to a
+  zone that drains before arrival leave higher-risk zones uncovered.
+  For S1 (Houston urban drainage), reliability_action leading means ZCTAs
+  with escalate status surface regardless of population or access rank — this
+  is intentional for medical continuity. Note: medical_continuity and
+  life_safety_first will frequently agree on the top ZCTA but disagree on
+  mid-tier ZCTAs where reliability varies; use F45 conflict comparison to
+  identify those contested locations before committing resources.
+
+source_adr: ADR-035

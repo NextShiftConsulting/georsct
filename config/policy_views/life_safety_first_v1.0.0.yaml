@@ -1,0 +1,64 @@
+view_id: life_safety_first
+version: "1.0.0"
+status: active
+
+description: >
+  Prioritizes ZCTAs by immediate threat to life. Leads with risk_level
+  (severity of decision uncertainty), then reliability_action (whether
+  the forecast evidence supports action), then population density, then
+  infrastructure access, then vulnerability context. Use for evacuation
+  routing and life-safety resource pre-positioning.
+
+ordering_rule:
+  - field: risk_level
+    direction: DESC
+    rank_map:
+      high: 3
+      moderate: 2
+      low: 1
+      null: 0
+  - field: reliability_action
+    direction: DESC
+    rank_map:
+      escalate: 4
+      review: 3
+      trust: 2
+      suppress: 1
+      null: 0
+  - field: population_context
+    direction: DESC
+    rank_map:
+      high: 3
+      medium: 2
+      low: 1
+      null: 0
+  - field: access_fragility
+    direction: DESC
+    rank_map:
+      high: 3
+      medium: 2
+      low: 1
+      not_applicable: 0
+      null: 0
+  - field: equity_context
+    direction: DESC
+    rank_map:
+      q4: 4
+      q3: 3
+      q2: 2
+      q1: 1
+      null: 0
+
+tie_break: location_id ASC
+
+refuse_to_plan_on:
+  - reliability_action: suppress
+
+jurisdiction_notes: >
+  Default for coastal Texas (S1) and New Orleans protected basin (S2)
+  scenarios where levee/pump failure creates acute life-safety windows.
+  For desert flash (S3) and surge evacuation (S4), confirm road_access_status
+  before applying — access_fragility weight may warrant switching to
+  access_restoration view.
+
+source_adr: ADR-035

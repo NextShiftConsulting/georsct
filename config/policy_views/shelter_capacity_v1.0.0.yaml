@@ -1,0 +1,66 @@
+view_id: shelter_capacity
+version: "1.0.0"
+status: active
+
+description: >
+  Prioritizes ZCTAs by population density under threat, then by whether
+  those populations can be physically reached. Leads with population_context
+  to surface high-density ZCTAs first, then access_fragility to determine
+  feasibility, then risk_level and reliability, then vulnerability context.
+  Use for shelter site selection, bus pre-positioning, and mass-care
+  resource allocation where the number of people at risk is the primary
+  driver.
+
+ordering_rule:
+  - field: population_context
+    direction: DESC
+    rank_map:
+      high: 3
+      medium: 2
+      low: 1
+      null: 0
+  - field: access_fragility
+    direction: DESC
+    rank_map:
+      high: 3
+      medium: 2
+      low: 1
+      not_applicable: 0
+      null: 0
+  - field: risk_level
+    direction: DESC
+    rank_map:
+      high: 3
+      moderate: 2
+      low: 1
+      null: 0
+  - field: reliability_action
+    direction: DESC
+    rank_map:
+      escalate: 4
+      review: 3
+      trust: 2
+      suppress: 1
+      null: 0
+  - field: equity_context
+    direction: DESC
+    rank_map:
+      q4: 4
+      q3: 3
+      q2: 2
+      q1: 1
+      null: 0
+
+tie_break: location_id ASC
+
+refuse_to_plan_on:
+  - reliability_action: suppress
+
+jurisdiction_notes: >
+  Most relevant for S1 (Houston urban drainage) and S5 (NYC/NJ urban
+  cloudburst) where high population density ZCTAs dominate the scenario.
+  For S3 (desert flash) and S4 (surge evacuation) low-density contexts,
+  this view may produce shallow rankings — consider life_safety_first or
+  access_restoration as the primary view for those scenarios.
+
+source_adr: ADR-035
