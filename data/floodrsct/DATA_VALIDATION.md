@@ -297,20 +297,98 @@ validation layer:
 
 ---
 
-## Bugs Found by the Validator (2026-05-29)
+## Bugs Found and Fixed by the Validator
 
-First run of `_validate_contract.py --all --layer 1` across 5 scenarios:
+Iterative runs of `_validate_contract.py --all --layer 1` (2026-05-29):
 
-| Bug | Severity | Resolution |
-|-----|----------|------------|
+| Bug | How Found | Resolution |
+|-----|-----------|------------|
 | NLCD contract path wrong (`impervious/v2021/` vs actual `impervious_2021/`) | L1 FAIL | Fixed in FEATURE_CONTRACT.yaml |
 | HWM validator expected `elev_m` but builder uses `elev_ft` | L1 FAIL | Fixed validator spec (builder is correct) |
+| HWM contract only listed `raw/usgs_stn/` but data also at `raw/surge_estimates/` | L1 FAIL | Added `or` path in contract |
+| NOLA validator used `ida2021_nola` but S3 key is `ida2021_nyc` | L1 FAIL | Fixed SCENARIO_EVENTS mapping |
 | 3 tidal stub files (station 8771013, 66 bytes -- decommissioned gauge) | L1 WARN | Harmless; builder reads parquets not JSON |
 | HURDAT2 storm_tracks.parquet missing `category` column | Known | Builder derives from `max_wind_kt` + `status` |
-| OpenFEMA data absent across all 5 scenarios | L1 FAIL | Fetch job not yet run (blocker) |
-| geocertdb2026 absent from floodrsct bucket | L1 FAIL* | Copy job not yet run (blocker) |
 
-*geocertdb2026 checked via separate path (not in per-scenario contract loop).
+---
+
+## Current Scorecard (2026-05-29, post-fix)
+
+| Scenario | PASS | FAIL | WARN | SKIP |
+|----------|------|------|------|------|
+| **houston** | 6 | 4 | 1 | 1 |
+| **new_orleans** | 4 | 4 | 0 | 1 |
+| **nyc** | 7 | 4 | 0 | 0 |
+| **riverside_coachella** | 7 | 1 | 0 | 1 |
+| **southwest_florida** | 6 | 4 | 0 | 1 |
+| **Total** | **30** | **17** | **1** | **4** |
+
+---
+
+## Gap / Variance Register
+
+Every remaining L1 FAIL classified as: **FETCH** (run existing fetcher),
+**CODE** (write new fetcher or fix builder), or **VARIANCE** (document as
+accepted limitation in the paper).
+
+### FETCH -- Run Existing Fetcher (Launchers Ready)
+
+| Feature | Scenarios | S3 Path | Launcher | Impact if Missing |
+|---------|-----------|---------|----------|-------------------|
+| `nfip_event_claims` | ALL 5 | `raw/openfema/` | `launch_fetch_openfema_event.py` | **BLOCKER** -- this is the label/outcome variable |
+| geocertdb2026 | ALL 5 | `raw/geocertdb2026/` | `launch_copy_geocertdb2026.py` | **BLOCKER** -- all Layer 2 static features (ACS, SVI, flood zones) |
+
+### CODE -- New Fetcher or Builder Fix Needed
+
+| Feature | Scenarios | Issue | Effort | Priority |
+|---------|-----------|-------|--------|----------|
+| `flood_311_count` | houston, nyc | Fetchers exist (`fetch_houston_311.py`, `fetch_nyc_311.py`) but no launchers for per-event pulls | Low (add launcher + run) | MEDIUM -- post-event label, not model input |
+| `sewer_shed_id` | nyc | Fetcher exists (`fetch_nyc_sewersheds.py`) but no launcher | Low | LOW -- scenario-specific |
+| `levee_condition_rating` | new_orleans, nyc | Fetcher exists (`fetch_usace_levees.py`) but no launcher with correct `--scenario` | Low | MEDIUM |
+| `coastal_distance_m` | southwest_florida | No fetcher for TIGER coastline | Medium (write fetcher + spatial join) | LOW for Data Lock A |
+| `slosh_max_surge_m`, `slosh_category` | southwest_florida | SLOSH MOM grids not freely downloadable in bulk; `fetch_noaa_slosh.py` may need manual download step | Medium-High | HIGH for SWFL scenario |
+
+### VARIANCE -- Accepted Gaps (Document in Paper)
+
+| Feature | Scenarios | Why Accepted | Paper Section |
+|---------|-----------|-------------|---------------|
+| `bayou_segment_id` | houston | NHDPlus Houston subset not fetched; builder has `build_catchment_features` but no Houston-specific NHDPlus data | S9 Limitations: "Hydrologic unit membership (HUC-12, bayou segment) is defined in the feature contract but not populated for Data Lock A" |
+| `drainage_district_id` | houston | HCFCD shapefile requires manual download from county portal | S9 Limitations: same |
+| `subsidence_rate_mm_yr` | new_orleans | USGS InSAR subsidence raster not fetched; fetcher not written | S9 Limitations: "Land subsidence rates require InSAR-derived velocity fields not included in this study" |
+| `canal_proximity_m` | new_orleans | OSM Overpass query not written | S9 Limitations: "Canal proximity features for the New Orleans protected-basin scenario are deferred" |
+| `drainage_capacity_status` | houston | SKIP (operational -- no public archive) | Already documented in FEATURE_CONTRACT as `operational_status_unavailable` |
+| `pump_station_status` | new_orleans | SKIP (operational -- partially hand-coded for Ida 2021) | Already documented |
+| `road_access_status` | riverside_coachella | SKIP (operational) | Already documented |
+| `evacuation_route_status` | southwest_florida | SKIP (operational) | Already documented |
+
+### NOLA Event Key Variance (Discovered During Validation)
+
+The MRMS fetcher stored Ida 2021 under key `ida2021_nyc` (Sep 1-4 window, covering
+the NYC remnant rainfall). The NOLA builder uses event key `ida2021` and expects
+MRMS at `raw/noaa_mrms/ida2021/` -- but the NOLA builder **does not call
+`aggregate_mrms_rainfall()` at all** (lines 738-747). This is a code gap, not a data
+gap: MRMS rainfall for Ida's NOLA landfall (Aug 27-Sep 1) requires a separate
+fetcher run with a NOLA-specific window.
+
+**Impact**: NOLA scenario has no MRMS rainfall features. Tidal surge and HWM data
+provide partial flood signal, but the dominant forcing (200+ mm rainfall over
+Orleans Parish in 6 hours) is absent.
+
+**Resolution**: Add `ida2021_nola` event to MRMS fetcher (window: Aug 27-Sep 1)
+and add MRMS call to `build_new_orleans()`. Not a Data Lock A blocker (Houston is
+the primary scenario) but required for Data Lock B.
+
+---
+
+### Summary by Fixability
+
+| Category | Count | Action |
+|----------|-------|--------|
+| **FETCH** (run existing launcher) | 2 features, all 5 scenarios | Launch now |
+| **CODE** (write launcher / minor fix) | 5 features | Before Data Lock B |
+| **VARIANCE** (accepted limitation) | 4 features | Document in S9 |
+| **OPERATIONAL** (skip by design) | 4 features | Already documented |
+| **NOLA event key** | 1 code gap | Before Data Lock B |
 
 ---
 

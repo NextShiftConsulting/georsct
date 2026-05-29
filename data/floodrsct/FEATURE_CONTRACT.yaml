@@ -469,7 +469,7 @@ features:
     scenarios: [houston, southwest_florida, nyc, riverside_coachella]
     source_type: derived
     source_dataset: usgs_stn
-    raw_s3_path: raw/usgs_stn/{event}_hwm.parquet
+    raw_s3_path: raw/usgs_stn/{event}_hwm.parquet or raw/surge_estimates/{event}/hwm_{event}.parquet
     processed_s3_path: (embedded in {scenario}_event_features.parquet)
     build_function: aggregate_hwm
     output_column: hwm_max_ft
@@ -478,6 +478,7 @@ features:
     version_target: v24.003
     notes: >
       Maximum high-water mark elevation (ft above ground) within ZCTA.
+      Builder checks both raw/usgs_stn/ (pre-uploaded) and raw/surge_estimates/ (fetcher output).
       LABEL/OUTCOME — do not use as model input. Used for certificate validation only.
 
   - feature_name: flood_311_count
