@@ -237,6 +237,124 @@ The surrogate model will treat a tidal value 5km from a gauge identically to one
 
 ---
 
+## 7. Temporal Collapse — INFORMATION DESTRUCTION DURING AGGREGATION
+
+### Problem
+
+Every time-varying data source is collapsed to a single scalar per (ZCTA, event) row. The temporal structure — when things happened relative to each other — is destroyed before it reaches the surrogate model.
+
+### What Gets Collapsed
+
+| Source | Native Granularity | What Builder Keeps | What's Lost |
+|--------|-------------------|-------------------|-------------|
+| MRMS rainfall | Hourly (432 files for Harvey) | `rainfall_total_mm` (sum) | Hyetograph shape, peak intensity, duration of heavy rain |
+| NOAA tides | Hourly (~400 records) | `max_surge_m` (single max) | Timing of peak surge, tidal phase, duration above flood stage |
+| HURDAT2 track | 6-hourly fixes | `storm_min_dist_km` (min distance) | Duration of exposure, approach speed, track curvature |
+| USGS gauges | 15-min to hourly | `peak_stage_ft` (max) | Time-to-peak, recession curve, duration above flood stage |
+| 311 reports | Individual timestamps | `complaints_311_count` (count) | Temporal distribution, onset delay relative to storm |
+
+### Why This Matters for Flood Prediction
+
+Flood damage is driven by **temporal coincidence**, not independent maxima:
+
+1. **Harvey (2017):** Catastrophic because 500mm of rain fell over 4 days while astronomically high tides blocked bayou drainage. A model seeing `rainfall_total_mm=500` and `max_surge_m=1.2` separately cannot learn that the damage was caused by their overlap — the rain couldn't drain because the tide was high simultaneously.
+
+2. **Ida NYC (2021):** 80mm fell in a single hour (hourly intensity, not total, drove subway flooding). The total rainfall for the event was moderate. `rainfall_total_mm` underweights this because it sums over the full window including dry hours.
+
+3. **Ian (2022):** Storm surge arrived hours before peak rainfall. ZCTAs that flooded from surge alone vs. surge + rain had different damage patterns. The model sees identical `max_surge_m` for both.
+
+### Specific Aggregation Failures
+
+**MRMS `rainfall_total_mm`:**
+- Harvey: 432 hourly files summed to one number. The difference between "500mm over 4 days" and "500mm in 12 hours" is the difference between managed flooding and catastrophe. Both produce the same `rainfall_total_mm`.
+- A ZCTA that received 50mm/hr for 10 hours is more damaged than one that received 10mm/hr for 50 hours, despite identical totals. Peak intensity matters more than total for urban flash flooding.
+
+**Tides `max_surge_m`:**
+- Takes the single maximum across all stations and all hours, broadcasts to every ZCTA.
+- Timing of peak surge relative to peak rainfall is the key driver. If surge peaks at low tide + 1.2m, the absolute water level is lower than if surge peaks at high tide + 0.8m. The tidal phase is discarded.
+
+**Tides + MRMS temporal join (never performed):**
+- The pipeline never aligns hourly rainfall with hourly water level. The compound flooding signal (rain + tide at the same hour) is the most predictive feature for coastal flood damage, and it doesn't exist in the output schema.
+
+### Suggested Solutions
+
+**Option A (Data Lock A — minimal):** Add derived temporal features that preserve some structure without changing the schema:
+1. `rainfall_peak_hourly_mm` — max single-hour rainfall (captures intensity, not just total)
+2. `rainfall_duration_hrs` — hours with >1mm precipitation (captures storm duration)
+3. `surge_duration_above_1m_hrs` — hours where surge exceeded 1m (captures exposure duration)
+4. `surge_rainfall_overlap_hrs` — hours where surge > 0.5m AND rainfall > 10mm simultaneously (compound flooding proxy)
+
+These are computable from the raw hourly files already on S3 without changing the aggregation unit.
+
+**Option B (Post-Lock — requires schema change):** Add a temporal feature vector per (ZCTA, event):
+1. Store 6-hour or 12-hour binned rainfall/surge as array columns in parquet
+2. The surrogate model receives a short time series, not a scalar
+3. This is the path to learning temporal coincidence effects
+
+**Option C (Post-Lock — dual resolution):** Separate the temporal and spatial problems:
+1. Temporal features at station/grid-cell level (full hourly resolution, no spatial aggregation)
+2. Spatial features at ZCTA level (static infrastructure, demographics)
+3. Join via a temporal-spatial attention mechanism in the surrogate model
+
+### Impact If Not Fixed
+
+The surrogate model cannot distinguish between:
+- 500mm over 4 days (manageable) vs. 500mm in 12 hours (catastrophic)
+- Peak surge during high tide (devastating) vs. peak surge during low tide (survivable)
+- Simultaneous surge + rain (compound flooding) vs. sequential (less damaging)
+
+These are the dominant drivers of flood damage severity. A model trained on temporal scalars will have a ceiling on predictive accuracy that no amount of hyperparameter tuning can overcome. The limitation should be stated in the paper's methodology section.
+
+### Timestamp Handling Audit (Verified 2026-05-29)
+
+UTC handling across the pipeline is consistent:
+- NOAA tides: requested as `time_zone: "gmt"`, stored as tz-naive datetime64 (implicitly UTC)
+- MRMS: filenames encode UTC hour, event windows use `tzinfo=timezone.utc`
+- HURDAT2: NHC data is UTC; fetcher writes tz-naive; builder defensively localizes with `tz_localize("UTC")`
+- Event windows in fetchers (broad) vs. peak_window in builder (narrow) are correctly nested
+
+One bug: Imelda peak_window in build_event_dataset.py uses year 2017 instead of 2019 (line 607).
+
+No UTC conversion errors were found. The problem is not timezone handling — it is the deliberate destruction of temporal resolution during scalar aggregation.
+
+---
+
+## 8. Column Name Mismatches — SILENT DATA LOSS
+
+### Problem
+
+Several `build_event_dataset.py` aggregation functions reference column names that don't match what the fetcher actually writes. Because all functions have graceful fallbacks (return NaN/empty), these mismatches produce a dataset that looks complete but has entire feature groups silently zeroed out.
+
+### Mismatches Found (2026-05-29)
+
+| Function | Expects | Fetcher Writes | Result |
+|----------|---------|---------------|--------|
+| `aggregate_tides()` | `water_level_m` | `observed_m` | All tides = NaN |
+| `aggregate_tides()` | `station_id` column | Not present | Falls back to S3 key string |
+| `compute_storm_proximity()` | `category` column | `max_wind_kt` + `status` | `storm_landfall_category` = NaN always |
+| `aggregate_mrms_rainfall()` | Uncompressed `.grb2` | Gzip-compressed `.grib2.gz` | cfgrib fails silently, all rainfall = NaN |
+| `aggregate_mrms_rainfall()` | Caps at 200 files | Harvey has 432 | Drops 232 hours (post-landfall) |
+| `load_nfip_event_claims()` | `amountPaidOnBuildingClaim` | Column presence varies | Falls back to count (mislabeled as dollar loss) |
+
+### Why These Are Dangerous
+
+The pipeline "succeeds" — no crashes, no error exits. The output parquet has all expected columns. But tides, storm proximity, rainfall, and NFIP loss are NaN or wrong for reasons that are invisible without reading the code. A downstream modeler would see "sparse data" and attribute it to source gaps, not column name bugs.
+
+### Suggested Fix
+
+Add a post-assembly validation step that checks non-null rates for critical columns and warns if they fall below expected thresholds:
+
+```python
+EXPECTED_NON_NULL = {
+    "rainfall_total_mm": 0.5,   # at least 50% of ZCTAs should have rainfall
+    "max_surge_m": 0.3,          # coastal scenarios only
+    "storm_min_dist_km": 0.9,    # almost all ZCTAs should have storm distance
+    "peak_stage_ft": 0.1,        # gauge coverage is sparse but not zero
+}
+```
+
+---
+
 ## References
 
 - HAND methodology: Nobre et al. (2011), "Height Above the Nearest Drainage"
