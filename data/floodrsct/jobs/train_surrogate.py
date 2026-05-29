@@ -40,6 +40,7 @@ import tempfile
 from pathlib import Path
 
 import boto3
+from swarm_auth import get_aws_credentials
 import numpy as np
 import pandas as pd
 
@@ -344,7 +345,8 @@ def main() -> None:
     args = parser.parse_args()
 
     scenario = args.scenario
-    s3 = boto3.client("s3", region_name="us-east-1")
+    _aws = get_aws_credentials()
+    s3 = boto3.client("s3", region_name="us-east-1", **_aws)
 
     df = load_event_features(s3, scenario)
     log.info("Loaded %d rows for scenario=%s", len(df), scenario)

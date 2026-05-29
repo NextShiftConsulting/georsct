@@ -28,6 +28,7 @@ import time
 from pathlib import Path
 
 import boto3
+from swarm_auth import get_aws_credentials
 import pandas as pd
 import requests
 
@@ -154,7 +155,8 @@ def fetch_311(event_name: str, start: str, end: str) -> pd.DataFrame:
 
 
 def upload(df: pd.DataFrame, s3_key: str) -> None:
-    s3 = boto3.client("s3", region_name="us-east-1")
+    _aws = get_aws_credentials()
+    s3 = boto3.client("s3", region_name="us-east-1", **_aws)
     local = f"/tmp/{Path(s3_key).name}"
     df.to_parquet(local, index=False)
     s3.upload_file(local, BUCKET, s3_key)

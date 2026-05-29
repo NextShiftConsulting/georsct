@@ -30,6 +30,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import boto3
+from swarm_auth import get_aws_credentials
 import requests
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -81,7 +82,8 @@ def query_tnm_tiles(bbox: tuple, product_tag: str) -> list[dict]:
 
 
 def main() -> None:
-    s3 = boto3.client("s3", region_name="us-east-1")
+    _aws = get_aws_credentials()
+    s3 = boto3.client("s3", region_name="us-east-1", **_aws)
     total_uploaded = 0
 
     for region, spec in REGIONS.items():

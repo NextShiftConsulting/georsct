@@ -23,6 +23,7 @@ from _manifest_writer import write_manifest
 from _s3_stream import stream_download_to_s3, s3_key_exists, get_s3
 
 import boto3
+from swarm_auth import get_aws_credentials
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -197,7 +198,8 @@ def main():
     # ------------------------------------------------------------------
     # Pass 0: delete existing stub files (< 10 KB) from prior bad runs
     # ------------------------------------------------------------------
-    s3_main = boto3.client("s3", region_name="us-east-1")
+    _aws = get_aws_credentials()
+    s3_main = boto3.client("s3", region_name="us-east-1", **_aws)
     deleted = delete_s3_stubs(s3_main, event, timestamps)
     log.info("Stub cleanup: deleted %d files < %d bytes", deleted, MIN_FILE_SIZE)
     sys.stdout.flush()

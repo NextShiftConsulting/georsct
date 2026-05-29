@@ -33,6 +33,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import boto3
+from swarm_auth import get_aws_credentials
 
 sys.path.insert(0, "/opt/ml/processing/input/code")
 from _manifest_writer import write_manifest
@@ -51,7 +52,8 @@ OUTPUT_PREFIX = "model/terramind_flood"
 
 
 def weights_already_in_s3() -> bool:
-    s3 = boto3.client("s3", region_name="us-east-1")
+    _aws = get_aws_credentials()
+    s3 = boto3.client("s3", region_name="us-east-1", **_aws)
     try:
         s3.head_object(Bucket=BUCKET, Key=f"{OUTPUT_PREFIX}/weights/{WEIGHTS_FILE}")
         return True
@@ -103,7 +105,8 @@ def smoke_test(model_dir: Path) -> dict:
 
 def upload_to_s3(local_dir: Path, s3_prefix: str) -> list[dict]:
     """Upload all files; skip hidden dirs and files already in S3 at same size."""
-    s3 = boto3.client("s3", region_name="us-east-1")
+    _aws = get_aws_credentials()
+    s3 = boto3.client("s3", region_name="us-east-1", **_aws)
     uploaded = []
     for fp in sorted(local_dir.rglob("*")):
         if not fp.is_file():
@@ -136,7 +139,8 @@ def main() -> None:
     smoke_dir.mkdir(parents=True, exist_ok=True)
 
     pt_local = model_dir / WEIGHTS_FILE
-    s3_client = boto3.client("s3", region_name="us-east-1")
+    _aws = get_aws_credentials()
+    s3_client = boto3.client("s3", region_name="us-east-1", **_aws)
 
     # 1. Download weights (skip if already in S3)
     if weights_already_in_s3():

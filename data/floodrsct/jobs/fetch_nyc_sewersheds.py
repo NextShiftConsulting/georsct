@@ -20,6 +20,7 @@ import tempfile
 from pathlib import Path
 
 import boto3
+from swarm_auth import get_aws_credentials
 import pandas as pd
 import requests
 
@@ -98,7 +99,8 @@ def try_geojson(url: str) -> tuple[object | None, pd.DataFrame | None]:
 
 
 def upload_file(local_path: str, s3_key: str) -> None:
-    s3 = boto3.client("s3", region_name="us-east-1")
+    _aws = get_aws_credentials()
+    s3 = boto3.client("s3", region_name="us-east-1", **_aws)
     s3.upload_file(local_path, BUCKET, s3_key)
     log.info("Uploaded to s3://%s/%s", BUCKET, s3_key)
 

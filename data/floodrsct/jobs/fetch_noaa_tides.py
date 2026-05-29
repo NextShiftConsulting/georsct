@@ -36,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from _manifest_writer import write_manifest
 
 import boto3
+from swarm_auth import get_aws_credentials
 
 logging.basicConfig(
     level=logging.INFO,
@@ -246,7 +247,8 @@ def main() -> None:
     log.info("Window:   %s - %s", window["start"], window["end"])
     log.info("Stations: %d", len(stations))
 
-    s3 = boto3.client("s3", region_name="us-east-1")
+    _aws = get_aws_credentials()
+    s3 = boto3.client("s3", region_name="us-east-1", **_aws)
 
     total_records = 0
     uploaded_keys = []

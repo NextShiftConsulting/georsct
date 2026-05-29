@@ -13,8 +13,8 @@ Thread safety:
   - Pass s3=None to use the thread-local client
 
 Container vs local:
-  - In SageMaker containers: IAM role is auto-discovered
-  - Local: pass an explicit s3 client; never import swarm_auth inside container code
+  - All environments use swarm_auth.get_aws_credentials() for credential discovery
+  - swarm_auth handles IAM roles (SageMaker) and local profiles transparently
 """
 
 import logging
@@ -27,14 +27,16 @@ from typing import Optional
 
 import boto3
 import requests
+from swarm_auth import get_aws_credentials
 
 _tls = threading.local()
 
 
 def get_s3():
-    """Return a thread-local S3 client (IAM role, us-east-1)."""
+    """Return a thread-local S3 client via swarm_auth credentials."""
     if not hasattr(_tls, "s3"):
-        _tls.s3 = boto3.client("s3", region_name="us-east-1")
+        _aws = get_aws_credentials()
+        _tls.s3 = boto3.client("s3", region_name="us-east-1", **_aws)
     return _tls.s3
 
 

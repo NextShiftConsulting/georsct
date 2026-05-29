@@ -26,6 +26,7 @@ import sys
 from pathlib import Path
 
 import boto3
+from swarm_auth import get_aws_credentials
 import pandas as pd
 import requests
 
@@ -121,7 +122,8 @@ def normalize(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def main() -> None:
-    s3 = boto3.client("s3", region_name="us-east-1")
+    _aws = get_aws_credentials()
+    s3 = boto3.client("s3", region_name="us-east-1", **_aws)
 
     try:
         s3.head_object(Bucket=DST_BUCKET, Key=DST_KEY)

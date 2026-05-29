@@ -25,6 +25,7 @@ import time
 from pathlib import Path
 
 import boto3
+from swarm_auth import get_aws_credentials
 import requests
 from bs4 import BeautifulSoup
 
@@ -133,7 +134,8 @@ def scrape_gis_archive(event_cfg: dict) -> list[tuple[str, bytes]]:
 
 
 def upload_files(files: list[tuple[str, bytes]], s3_prefix: str) -> None:
-    s3 = boto3.client("s3", region_name="us-east-1")
+    _aws = get_aws_credentials()
+    s3 = boto3.client("s3", region_name="us-east-1", **_aws)
     for filename, content in files:
         local_path = f"/tmp/{filename}"
         with open(local_path, "wb") as f:
@@ -160,7 +162,8 @@ def main() -> None:
                 event_name,
             )
             # Write a placeholder manifest so the job doesn't fail silently
-            s3 = boto3.client("s3", region_name="us-east-1")
+            _aws = get_aws_credentials()
+            s3 = boto3.client("s3", region_name="us-east-1", **_aws)
             manifest = (
                 f"SLOSH data not auto-downloaded for {event_name}.\n"
                 f"Manual download required from https://www.nhc.noaa.gov/surge/slosh.php\n"

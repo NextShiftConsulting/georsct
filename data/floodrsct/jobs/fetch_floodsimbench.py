@@ -30,6 +30,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import boto3
+from swarm_auth import get_aws_credentials
 import requests
 
 sys.path.insert(0, "/opt/ml/processing/input/code")
@@ -58,7 +59,8 @@ def fetch_rainfall_metadata() -> dict:
     """Download cities_rainfall.json and return as dict."""
     url = f"{HF_BASE}/cities_rainfall.json"
     s3_key = f"{OUTPUT_PREFIX}/cities_rainfall.json"
-    s3 = boto3.client("s3", region_name="us-east-1")
+    _aws = get_aws_credentials()
+    s3 = boto3.client("s3", region_name="us-east-1", **_aws)
 
     # Upload to S3 if not already there
     if not s3_key_exists(s3, BUCKET, s3_key):
@@ -169,7 +171,8 @@ def main() -> None:
         "scenario_tiles": SCENARIO_TILES,
         "completed_at": datetime.now(timezone.utc).isoformat(),
     }
-    s3 = boto3.client("s3", region_name="us-east-1")
+    _aws = get_aws_credentials()
+    s3 = boto3.client("s3", region_name="us-east-1", **_aws)
     s3.put_object(
         Bucket=BUCKET,
         Key=f"{OUTPUT_PREFIX}/summary.json",

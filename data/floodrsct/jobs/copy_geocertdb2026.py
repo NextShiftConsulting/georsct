@@ -18,6 +18,7 @@ import sys
 from pathlib import Path
 
 import boto3
+from swarm_auth import get_aws_credentials
 import pandas as pd
 
 logging.basicConfig(
@@ -88,7 +89,8 @@ def filter_and_upload(
 
 
 def main() -> None:
-    s3 = boto3.client("s3", region_name="us-east-1")
+    _aws = get_aws_credentials()
+    s3 = boto3.client("s3", region_name="us-east-1", **_aws)
 
     # Step 1: copy all files wholesale
     for filename in PARQUET_FILES:

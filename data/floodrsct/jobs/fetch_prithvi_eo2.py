@@ -24,6 +24,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 
 import boto3
+from swarm_auth import get_aws_credentials
 
 sys.path.insert(0, "/opt/ml/processing/input/code")
 from _manifest_writer import write_manifest
@@ -138,7 +139,8 @@ def smoke_test(model_dir: Path) -> dict:
 
 def upload_to_s3(local_dir: Path, s3_prefix: str) -> list[dict]:
     """Upload all files; skip .cache/ dirs and files already in S3 at the same size."""
-    s3 = boto3.client("s3", region_name="us-east-1")
+    _aws = get_aws_credentials()
+    s3 = boto3.client("s3", region_name="us-east-1", **_aws)
     uploaded = []
     for fp in sorted(local_dir.rglob("*")):
         if not fp.is_file():
@@ -170,7 +172,8 @@ def upload_to_s3(local_dir: Path, s3_prefix: str) -> list[dict]:
 
 def weights_already_in_s3() -> bool:
     """Return True if the main weights file is already in S3."""
-    s3 = boto3.client("s3", region_name="us-east-1")
+    _aws = get_aws_credentials()
+    s3 = boto3.client("s3", region_name="us-east-1", **_aws)
     try:
         s3.head_object(Bucket=BUCKET, Key=f"{OUTPUT_PREFIX}/weights/Prithvi_EO_V2_300M_TL.pt")
         return True
@@ -198,7 +201,8 @@ def main() -> None:
         ckpt.mark_done("upload_weights", n_files=0, note="skipped_already_in_s3")
         # Pull .pt file from S3 if not already local — needed for smoke test
         if not pt_local.exists():
-            s3_client = boto3.client("s3", region_name="us-east-1")
+            _aws = get_aws_credentials()
+            s3_client = boto3.client("s3", region_name="us-east-1", **_aws)
             obj_size = s3_client.head_object(Bucket=BUCKET, Key=pt_s3_key)["ContentLength"]
             log.info("Pulling weights from S3 for smoke test (%.1f MB)...", obj_size / 1e6)
             s3_client.download_file(BUCKET, pt_s3_key, str(pt_local))
@@ -232,7 +236,9 @@ def main() -> None:
                 "tested_at": datetime.now(timezone.utc).isoformat(),
             }
         smoke_path.write_text(json.dumps(result, indent=2))
-        boto3.client("s3", region_name="us-east-1").upload_file(
+        _aws = get_aws_credentials()
+        s3 = boto3.client("s3", region_name="us-east-1", **_aws)
+        s3.upload_file(
             str(smoke_path), BUCKET,
             f"{OUTPUT_PREFIX}/smoke_test/smoke_test_result.json"
         )
@@ -240,8 +246,9 @@ def main() -> None:
 
     # 3. Write manifest
     if not ckpt.is_done("manifest"):
+        _aws = get_aws_credentials()
         write_manifest(
-            s3=boto3.client("s3", region_name="us-east-1"),
+            s3=boto3.client("s3", region_name="us-east-1", **_aws),
             dataset="prithvi_eo2",
             version="v1",
             source_url=f"https://huggingface.co/{MODEL_ID}",

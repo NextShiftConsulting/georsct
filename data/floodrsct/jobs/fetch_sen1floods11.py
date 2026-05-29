@@ -34,6 +34,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import boto3
+from swarm_auth import get_aws_credentials
 import requests
 
 sys.path.insert(0, "/opt/ml/processing/input/code")
@@ -66,7 +67,8 @@ def download_file(url: str, timeout: int = 60) -> bytes:
 
 
 def main() -> None:
-    s3 = boto3.client("s3", region_name="us-east-1")
+    _aws = get_aws_credentials()
+    s3 = boto3.client("s3", region_name="us-east-1", **_aws)
     downloaded = []
     features = []
 

@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import boto3
+from swarm_auth import get_aws_credentials
 import requests
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -228,7 +229,8 @@ def main() -> None:
     log.info("Launching %d parallel workers (MAX_WORKERS=%d)", MAX_WORKERS, MAX_WORKERS)
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
-        s3 = boto3.client("s3", region_name="us-east-1")
+        _aws = get_aws_credentials()
+        s3 = boto3.client("s3", region_name="us-east-1", **_aws)
         futures = {
             pool.submit(download_and_upload, s3, scenario, tile): tile
             for tile in tiles

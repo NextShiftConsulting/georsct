@@ -27,6 +27,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import boto3
+from swarm_auth import get_aws_credentials
 import pandas as pd
 import requests
 
@@ -218,7 +219,8 @@ def main() -> None:
 
     event_entry = EVENT_REGISTRY[event]
     event_id, state = event_entry
-    s3 = boto3.client("s3", region_name="us-east-1")
+    _aws = get_aws_credentials()
+    s3 = boto3.client("s3", region_name="us-east-1", **_aws)
 
     # Output key
     out_key = f"raw/surge_estimates/{event}/hwm_{event}.parquet"

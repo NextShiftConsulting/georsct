@@ -36,6 +36,7 @@ from pathlib import Path
 from typing import Optional
 
 import boto3
+from swarm_auth import get_aws_credentials
 import numpy as np
 import pandas as pd
 import yaml
@@ -1684,7 +1685,8 @@ def main() -> None:
     parser.add_argument("--scenario", required=True, choices=list(BUILDERS.keys()))
     args = parser.parse_args()
 
-    s3 = boto3.client("s3", region_name="us-east-1")
+    _aws = get_aws_credentials()
+    s3 = boto3.client("s3", region_name="us-east-1", **_aws)
 
     cfg_path = CONFIG_DIR / f"{args.scenario}.yaml"
     cfg = yaml.safe_load(cfg_path.read_text()) if cfg_path.exists() else {}
