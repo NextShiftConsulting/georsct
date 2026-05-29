@@ -48,6 +48,7 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)],
     force=True,
 )
+logging.getLogger("botocore.credentials").setLevel(logging.WARNING)
 log = logging.getLogger(__name__)
 
 DST_BUCKET = "swarm-floodrsct-data"

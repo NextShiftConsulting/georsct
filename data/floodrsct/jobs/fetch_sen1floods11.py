@@ -45,6 +45,7 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
     force=True,
 )
+logging.getLogger("botocore.credentials").setLevel(logging.WARNING)
 log = logging.getLogger(__name__)
 
 BUCKET = "swarm-floodrsct-data"

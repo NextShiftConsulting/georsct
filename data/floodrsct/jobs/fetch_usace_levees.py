@@ -29,18 +29,26 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)],
     force=True,
 )
+logging.getLogger("botocore.credentials").setLevel(logging.WARNING)
 log = logging.getLogger(__name__)
 
 BUCKET = "swarm-floodrsct-data"
-NLD_BASE = "https://levees.sec.usace.army.mil/api-local"
 
-# State FIPS codes for spatial filter
+# ArcGIS Online FeatureServer — NLD2 public dataset (Leveed_Areas = layer 16)
+# Original API at levees.sec.usace.army.mil/api-local went 404 circa May 2026.
+NLD_FS_BASE = (
+    "https://services2.arcgis.com/FiaPA4ga0iQKduv3/arcgis/rest/services"
+    "/NLD2_PUBLIC_v1/FeatureServer/16/query"
+)
+PAGE_SIZE = 1000
+
+# State name filter (STATES field contains full names, e.g. "Louisiana")
 SCENARIO_STATES = {
-    "new_orleans": ["22"],      # Louisiana
-    "nyc": ["36", "34"],        # New York, New Jersey
+    "new_orleans": ["Louisiana"],
+    "nyc": ["New York", "New Jersey"],
 }
 
-# USACE districts by scenario (for filtering)
+# USACE district / county keywords for filtering to scenario metro area
 SCENARIO_KEYWORDS = {
     "new_orleans": ["Orleans", "Jefferson", "St. Bernard", "Plaquemines", "St. Tammany",
                     "New Orleans", "Lake Pontchartrain"],
@@ -48,94 +56,82 @@ SCENARIO_KEYWORDS = {
             "New York", "New Jersey"],
 }
 
-
-def fetch_systems_by_state(state_fips: str) -> list[dict]:
-    """Fetch all levee systems in a state from NLD."""
-    url = f"{NLD_BASE}/levee-systems"
-    params = {
-        "state": state_fips,
-        "format": "json",
-    }
-    log.info("Fetching levee systems for state FIPS %s", state_fips)
-    try:
-        resp = requests.get(url, params=params, timeout=120)
-        resp.raise_for_status()
-        data = resp.json()
-        # NLD response may be under 'features' (GeoJSON) or direct list
-        if isinstance(data, list):
-            return data
-        if isinstance(data, dict) and "features" in data:
-            return [f.get("properties", f) for f in data["features"]]
-        return []
-    except requests.RequestException as e:
-        log.warning("NLD request failed for state %s: %s", state_fips, e)
-        return []
+# Fields to retrieve from NLD2 Leveed_Areas
+OUT_FIELDS = (
+    "SYSTEM_ID,SYSTEM_NAME,LEVEED_ID,STATES,COUNTIES,DISTRICTS,"
+    "FEMA_ACCREDITATION_RATING,LEVEED_AREA_SQ_MI,SPONSORS,RESPONSIBLE_ORGANIZATION"
+)
 
 
-def fetch_inspections(system_id: str) -> list[dict]:
-    """Fetch inspection records for a levee system."""
-    url = f"{NLD_BASE}/levee-systems/{system_id}/inspections"
-    try:
-        resp = requests.get(url, timeout=60)
-        resp.raise_for_status()
-        return resp.json() if isinstance(resp.json(), list) else []
-    except requests.RequestException as e:
-        log.debug("Could not fetch inspections for system %s: %s", system_id, e)
-        return []
+def fetch_leveed_areas(state_name: str) -> list[dict]:
+    """Paginated ArcGIS FeatureServer query for leveed areas in a state."""
+    all_records = []
+    offset = 0
+    while True:
+        params = {
+            "where": f"STATES LIKE '%{state_name}%'",
+            "outFields": OUT_FIELDS,
+            "resultRecordCount": PAGE_SIZE,
+            "resultOffset": offset,
+            "f": "json",
+            "returnGeometry": "false",
+        }
+        log.info("Fetching NLD2 leveed areas for %s, offset %d", state_name, offset)
+        try:
+            resp = requests.get(NLD_FS_BASE, params=params, timeout=120)
+            resp.raise_for_status()
+            data = resp.json()
+        except requests.RequestException as e:
+            log.warning("NLD2 request failed for %s: %s", state_name, e)
+            break
+        if "error" in data:
+            log.warning("NLD2 query error for %s: %s", state_name, data["error"])
+            break
+        features = data.get("features", [])
+        if not features:
+            break
+        all_records.extend(f["attributes"] for f in features)
+        if len(features) < PAGE_SIZE:
+            break
+        offset += PAGE_SIZE
+        time.sleep(0.3)
+    return all_records
 
 
 def build_levee_df(scenario: str) -> pd.DataFrame:
-    states = SCENARIO_STATES[scenario]
+    state_names = SCENARIO_STATES[scenario]
     keywords = SCENARIO_KEYWORDS[scenario]
     keywords_lower = [k.lower() for k in keywords]
 
-    all_systems = []
-    for state_fips in states:
-        systems = fetch_systems_by_state(state_fips)
-        all_systems.extend(systems)
-        time.sleep(0.5)
+    all_records = []
+    for state_name in state_names:
+        records = fetch_leveed_areas(state_name)
+        all_records.extend(records)
 
-    log.info("Scenario %s: %d raw systems from NLD", scenario, len(all_systems))
+    log.info("Scenario %s: %d raw leveed areas from NLD2", scenario, len(all_records))
 
-    if not all_systems:
-        log.warning("No levee systems found for %s — NLD API may have changed", scenario)
+    if not all_records:
+        log.warning("No leveed areas found for %s", scenario)
         return pd.DataFrame()
 
-    df = pd.DataFrame(all_systems)
+    df = pd.DataFrame(all_records)
 
-    # Filter to scenario-relevant systems by name keyword
-    name_col = next((c for c in df.columns if "name" in c.lower()), None)
-    if name_col:
-        mask = df[name_col].str.lower().apply(
-            lambda x: any(k in str(x) for k in keywords_lower)
+    # Filter to scenario-relevant systems by county/district/name keywords
+    text_cols = ["SYSTEM_NAME", "COUNTIES", "DISTRICTS"]
+    existing_cols = [c for c in text_cols if c in df.columns]
+    if existing_cols:
+        combined = df[existing_cols].fillna("").apply(
+            lambda row: " ".join(row).lower(), axis=1
         )
+        mask = combined.apply(lambda x: any(k in x for k in keywords_lower))
         df_filtered = df[mask].copy()
         log.info("Filtered to %d systems matching scenario keywords", len(df_filtered))
     else:
-        log.warning("No name column found in NLD response; using all %d systems", len(df))
         df_filtered = df.copy()
 
-    # Enrich with inspection records
-    id_col = next((c for c in df_filtered.columns if "system_id" in c.lower() or c == "id"), None)
-    if id_col and len(df_filtered) <= 200:
-        inspection_rows = []
-        for _, row in df_filtered.iterrows():
-            sys_id = row[id_col]
-            inspections = fetch_inspections(str(sys_id))
-            if inspections:
-                latest = max(inspections, key=lambda x: x.get("inspection_date", ""))
-                inspection_rows.append({
-                    id_col: sys_id,
-                    "latest_inspection_date": latest.get("inspection_date"),
-                    "condition_rating": latest.get("overall_system_rating",
-                                                   latest.get("condition_rating")),
-                    "inspection_type": latest.get("inspection_type"),
-                })
-            time.sleep(0.2)
-        if inspection_rows:
-            insp_df = pd.DataFrame(inspection_rows)
-            df_filtered = pd.merge(df_filtered, insp_df, on=id_col, how="left")
-            log.info("Merged inspection data for %d systems", len(insp_df))
+    # Derive condition_rating from FEMA_ACCREDITATION_RATING
+    if "FEMA_ACCREDITATION_RATING" in df_filtered.columns:
+        df_filtered["condition_rating"] = df_filtered["FEMA_ACCREDITATION_RATING"]
 
     df_filtered["scenario"] = scenario
     return df_filtered.reset_index(drop=True)

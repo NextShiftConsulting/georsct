@@ -38,6 +38,7 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)],
     force=True,
 )
+logging.getLogger("botocore.credentials").setLevel(logging.WARNING)
 log = logging.getLogger(__name__)
 
 BUCKET = "swarm-floodrsct-data"
@@ -69,11 +70,16 @@ FLOOD_TYPES = ["Flooding", "Drainage"]
 
 
 def build_where(start: str, end: str) -> str:
+    """Build ArcGIS WHERE clause using date literal syntax.
+
+    Created_Date_Local is esriFieldTypeDate — the server requires
+    ``date 'YYYY-MM-DD HH:MM:SS'`` format, not bare quoted strings.
+    """
     type_list = ", ".join(f"'{t}'" for t in FLOOD_TYPES)
     return (
         f"Incident_Case_Type IN ({type_list}) "
-        f"AND Created_Date_Local >= '{start}' "
-        f"AND Created_Date_Local <= '{end}'"
+        f"AND Created_Date_Local >= date '{start}' "
+        f"AND Created_Date_Local <= date '{end}'"
     )
 
 

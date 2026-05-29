@@ -30,6 +30,7 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)],
     force=True,
 )
+logging.getLogger("botocore.credentials").setLevel(logging.WARNING)
 log = logging.getLogger(__name__)
 
 BUCKET = "swarm-floodrsct-data"
@@ -39,16 +40,12 @@ OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 # Orleans Parish + Jefferson Parish bounding box (generous)
 NOLA_BBOX = (29.85, -90.25, 30.10, -89.85)  # (south, west, north, east)
 
-OVERPASS_QUERY = """
-[out:json][timeout:120];
-(
-  way["waterway"="canal"]({south},{west},{north},{east});
-  way["waterway"="drain"]({south},{west},{north},{east});
-);
-out body;
->;
-out skel qt;
-"""
+OVERPASS_QUERY = (
+    '[out:json][timeout:120];'
+    '(way["waterway"="canal"]({south},{west},{north},{east});'
+    'way["waterway"="drain"]({south},{west},{north},{east}););'
+    'out body;>;out skel qt;'
+)
 
 
 def fetch_canals() -> gpd.GeoDataFrame:
@@ -57,7 +54,12 @@ def fetch_canals() -> gpd.GeoDataFrame:
     query = OVERPASS_QUERY.format(south=south, west=west, north=north, east=east)
 
     log.info("Querying Overpass API for canals in bbox %s", NOLA_BBOX)
-    resp = requests.post(OVERPASS_URL, data={"data": query}, timeout=180)
+    resp = requests.post(
+        OVERPASS_URL,
+        data={"data": query},
+        headers={"User-Agent": "floodrsct/1.0 (geospatial-qa)"},
+        timeout=180,
+    )
     resp.raise_for_status()
     data = resp.json()
 

@@ -170,8 +170,8 @@ EXPECTED_RAW_COLUMNS = {
 # call MRMS at all. This mapping uses the S3 event keys (what the fetchers wrote).
 SCENARIO_EVENTS = {
     "houston": ["harvey2017", "imelda2019", "beryl2024"],
-    "new_orleans": ["ida2021_nyc"],  # S3 key; builder uses "ida2021" internally
-    "nyc": ["ida2021_nyc"],
+    "new_orleans": ["ida2021"],
+    "nyc": ["ida2021", "ida2021_nyc"],  # 311 uses "ida2021"; MRMS/tides use "ida2021_nyc"
     "riverside_coachella": ["hilary2023"],
     "southwest_florida": ["ian2022"],
 }

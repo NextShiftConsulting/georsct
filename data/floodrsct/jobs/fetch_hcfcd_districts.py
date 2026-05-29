@@ -29,6 +29,7 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)],
     force=True,
 )
+logging.getLogger("botocore.credentials").setLevel(logging.WARNING)
 log = logging.getLogger(__name__)
 
 BUCKET = "swarm-floodrsct-data"
@@ -37,14 +38,14 @@ S3_KEY = "raw/hcfcd/drainage_districts/v1/hcfcd_districts.parquet"
 # HCFCD ArcGIS REST endpoint for watershed boundaries
 # This is the public MapServer layer for HCFCD drainage areas
 ARCGIS_URL = (
-    "https://maps.hcfcd.org/arcgis/rest/services/HCFCD_Public/"
-    "Flood_Hazard/MapServer/0/query"
+    "https://www.gis.hctx.net/arcgishcpid/rest/services/"
+    "HCFCD/Watershed/MapServer/1/query"
 )
 
-# Fallback: HCFCD Open Data GeoJSON endpoint
+# Fallback: ArcGIS Online hosted feature layer
 GEOJSON_URL = (
-    "https://data.hcfcd.org/api/v2/catalog/datasets/"
-    "hcfcd-watersheds/exports/geojson"
+    "https://services.arcgis.com/0ZrJhVGlMgJkF4iG/arcgis/rest/services/"
+    "HCFCD_Watersheds/FeatureServer/0/query"
 )
 
 
@@ -66,13 +67,19 @@ def fetch_from_arcgis() -> gpd.GeoDataFrame:
 
 
 def fetch_from_geojson() -> gpd.GeoDataFrame:
-    """Fallback: fetch from HCFCD Open Data GeoJSON export."""
-    log.info("Trying HCFCD Open Data GeoJSON endpoint")
-    resp = requests.get(GEOJSON_URL, timeout=120)
+    """Fallback: fetch from ArcGIS Online hosted feature layer."""
+    params = {
+        "where": "1=1",
+        "outFields": "*",
+        "f": "geojson",
+        "returnGeometry": "true",
+    }
+    log.info("Trying ArcGIS Online feature layer endpoint")
+    resp = requests.get(GEOJSON_URL, params=params, timeout=120)
     resp.raise_for_status()
 
     gdf = gpd.read_file(resp.text, driver="GeoJSON")
-    log.info("GeoJSON endpoint returned %d features", len(gdf))
+    log.info("ArcGIS Online returned %d features", len(gdf))
     return gdf
 
 
