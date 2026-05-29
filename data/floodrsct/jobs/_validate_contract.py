@@ -302,19 +302,27 @@ def validate_layer1(
                     ))
                     continue
 
-        # Check 3: file size guard (catch HTML stubs, empty files)
+        # Check 3: file size guard (catch HTML stubs, placeholders, empty files)
         if file_count > 0:
             all_objects = []
             for rp in resolved_paths:
                 all_objects.extend(_list_s3_keys(s3, rp))
-            tiny = [o for o in all_objects if o["Size"] < 100]
-            if tiny:
+            tiny = [o for o in all_objects if o["Size"] < 200]
+            real = [o for o in all_objects if o["Size"] >= 200]
+            if tiny and real:
                 results.append(ValidationResult(
                     feature=name, layer=1, status=Status.WARN,
-                    message=f"{len(tiny)} file(s) < 100 bytes (possible stubs)",
+                    message=f"{len(tiny)} file(s) < 200 bytes (possible stubs)",
                     details={"tiny_files": [t["Key"] for t in tiny[:5]]},
                 ))
-                # Don't skip -- still pass overall
+                # Don't skip -- real data files exist alongside stubs
+            elif tiny and not real:
+                results.append(ValidationResult(
+                    feature=name, layer=1, status=Status.FAIL,
+                    message=f"all {len(tiny)} file(s) < 200 bytes (placeholders only)",
+                    details={"tiny_files": [t["Key"] for t in tiny[:5]]},
+                ))
+                continue
 
         results.append(ValidationResult(
             feature=name, layer=1, status=Status.PASS,

@@ -149,18 +149,18 @@ python _validate_contract.py --all --layer 1
 --- Layer 1 ---
   [L1] [PASS] impervious_pct: 1 files, 26351.0 MB
   [L1] [SKIP] drainage_capacity_status: operational -- no raw data expected
-  [L1] [FAIL] bayou_segment_id: no files at raw/nhdplus/houston/v2/
+  [L1] [PASS] bayou_segment_id: 2 files, 89.7 MB
   [L1] [FAIL] drainage_district_id: no files at raw/hcfcd/drainage_districts/v1/
   [L1] [PASS] max_rainfall_mm: 696 files, 429.5 MB
   [L1] [PASS] total_rainfall_mm: 696 files, 429.5 MB
-  [L1] [WARN] tidal_surge_max_m: 3 file(s) < 100 bytes (possible stubs)
+  [L1] [WARN] tidal_surge_max_m: 6 file(s) < 200 bytes (possible stubs)
   [L1] [PASS] tidal_surge_max_m: 24 files, 1.2 MB
   [L1] [PASS] storm_distance_km: 1 files, 0.0 MB
-  [L1] [PASS] hwm_max_ft: 2 files, 0.1 MB
+  [L1] [PASS] hwm_max_ft: 4 files, 0.1 MB
   [L1] [FAIL] flood_311_count: no files at raw/houston_311/...
-  [L1] [FAIL] nfip_event_claims: no files at raw/openfema/...
+  [L1] [PASS] nfip_event_claims: 9 files, 3.8 MB
 
-PASS: 6  FAIL: 4  WARN: 1  SKIP: 1
+PASS: 8  FAIL: 2  WARN: 1  SKIP: 1
 VERDICT: BLOCKED -- fix FAILs before proceeding
 ```
 
@@ -309,57 +309,107 @@ Iterative runs of `_validate_contract.py --all --layer 1` (2026-05-29):
 | NOLA validator used `ida2021_nola` but S3 key is `ida2021_nyc` | L1 FAIL | Fixed SCENARIO_EVENTS mapping |
 | 3 tidal stub files (station 8771013, 66 bytes -- decommissioned gauge) | L1 WARN | Harmless; builder reads parquets not JSON |
 | HURDAT2 storm_tracks.parquet missing `category` column | Known | Builder derives from `max_wind_kt` + `status` |
+| SLOSH placeholder files (148 bytes) counted as data | L1 false PASS | Raised stub threshold to 200 bytes; all-stub = FAIL |
+| `get_aws_credentials()` returns `region_name`, duplicates explicit kwarg | Crash on every boto3.client() call | Added `_aws.pop("region_name", None)` across 27 scripts |
+| OpenFEMA `$select` had wrong field names (`floodZone`, `numberOfFloorsInInsuredBuilding`) | 400 Bad Request | Fixed to `ratedFloodZone`, `numberOfFloorsInTheInsuredBuilding` |
+| `bayou_segment_id` L1 PASS with wrong-geography data (RC HUC, not Houston HUC) | Review | Documented as VARIANCE; L1 cannot detect spatial mismatch |
 
 ---
 
-## Current Scorecard (2026-05-29, post-fix)
+## Current Scorecard (2026-05-29, live from `_validate_contract.py --all`)
 
-| Scenario | PASS | FAIL | WARN | SKIP |
-|----------|------|------|------|------|
-| **houston** | 6 | 4 | 1 | 1 |
-| **new_orleans** | 4 | 4 | 0 | 1 |
-| **nyc** | 7 | 4 | 0 | 0 |
-| **riverside_coachella** | 7 | 1 | 0 | 1 |
-| **southwest_florida** | 6 | 4 | 0 | 1 |
-| **Total** | **30** | **17** | **1** | **4** |
+### Layer 1 -- Feature x Scenario Matrix
+
+Legend: P = PASS, F = FAIL, W = WARN, S = SKIP (operational), `*` = see notes
+
+| Feature | HOU | NOLA | NYC | RC | SWFL | Gap Category |
+|---------|-----|------|-----|----|------|--------------|
+| `impervious_pct` | P | -- | P | -- | -- | |
+| `elevation_m_msl` | -- | P | -- | -- | P | |
+| `burn_scar_overlap` | -- | -- | -- | P | -- | |
+| `upstream_catchment_km2` | -- | -- | -- | P | -- | |
+| `wash_segment_id` | -- | -- | -- | P | -- | |
+| `bayou_segment_id` | P`*` | -- | -- | -- | -- | VARIANCE (wrong HUC) |
+| `drainage_district_id` | **F** | -- | -- | -- | -- | VARIANCE |
+| `subway_station_count` | -- | -- | P | -- | -- | |
+| `nearest_subway_distance_m` | -- | -- | P | -- | -- | |
+| `sewer_shed_id` | -- | -- | **F** | -- | -- | CODE |
+| `levee_condition_rating` | -- | **F** | **F** | -- | -- | CODE |
+| `subsidence_rate_mm_yr` | -- | **F** | -- | -- | -- | VARIANCE |
+| `canal_proximity_m` | -- | **F** | -- | -- | -- | VARIANCE |
+| `slosh_max_surge_m` | -- | -- | -- | -- | **F** | CODE (manual DL) |
+| `slosh_category` | -- | -- | -- | -- | **F** | CODE (manual DL) |
+| `coastal_distance_m` | -- | -- | -- | -- | **F** | CODE |
+| `max_rainfall_mm` | P | P | P | P | P | |
+| `total_rainfall_mm` | P | P | P | P | P | |
+| `tidal_surge_max_m` | P/W | P | P | -- | P | WARN: 6 stub files |
+| `storm_distance_km` | P | -- | -- | P | P | |
+| `hwm_max_ft` | P | -- | P | P | P | |
+| `flood_311_count` | **F** | -- | **F** | -- | -- | CODE |
+| `nfip_event_claims` | P | P | P | P | P | DONE (fetched 2026-05-29) |
+| `drainage_capacity_status` | S | -- | -- | -- | -- | OPERATIONAL |
+| `pump_station_status` | -- | S | -- | -- | -- | OPERATIONAL |
+| `road_access_status` | -- | -- | -- | S | -- | OPERATIONAL |
+| `evacuation_route_status` | -- | -- | -- | -- | S | OPERATIONAL |
+
+### Scenario Totals (L1 only)
+
+| Scenario | PASS | FAIL | WARN | SKIP | L1 Verdict |
+|----------|------|------|------|------|------------|
+| **riverside_coachella** | 8 | 0 | 0 | 1 | **CLEAR** |
+| **houston** | 8 | 2 | 1 | 1 | BLOCKED |
+| **new_orleans** | 5 | 3 | 0 | 1 | BLOCKED |
+| **nyc** | 8 | 3 | 0 | 0 | BLOCKED |
+| **southwest_florida** | 7 | 3 | 0 | 1 | BLOCKED |
+| **Total** | **36** | **11** | **1** | **4** | |
+
+### Layer 3 -- All scenarios BLOCKED (builds not yet run)
+
+All 5 scenarios show `output_parquet: FAIL` because `build_event_dataset.py` has
+not been executed. This is expected -- L3 validates the assembled output, which
+does not exist until the builder runs. L3 will be re-run as the Data Lock gate
+after each build.
 
 ---
 
 ## Gap / Variance Register
 
-Every remaining L1 FAIL classified as: **FETCH** (run existing fetcher),
-**CODE** (write new fetcher or fix builder), or **VARIANCE** (document as
-accepted limitation in the paper).
+Every remaining L1 FAIL classified by resolution path.
 
-### FETCH -- Run Existing Fetcher (Launchers Ready)
+### DONE -- Fetched This Session (2026-05-29)
 
-| Feature | Scenarios | S3 Path | Launcher | Impact if Missing |
-|---------|-----------|---------|----------|-------------------|
-| `nfip_event_claims` | ALL 5 | `raw/openfema/` | `launch_fetch_openfema_event.py` | **BLOCKER** -- this is the label/outcome variable |
-| geocertdb2026 | ALL 5 | `raw/geocertdb2026/` | `launch_copy_geocertdb2026.py` | **BLOCKER** -- all Layer 2 static features (ACS, SVI, flood zones) |
+| Feature | Scenarios | Result |
+|---------|-----------|--------|
+| `nfip_event_claims` | ALL 5 | 435 declarations + 270K claims across 9 DRs |
+| geocertdb2026 (ZCTA features) | ALL 5 | 7 parquets + 5 scenario subsets (17-198 ZCTAs each) |
 
-### CODE -- New Fetcher or Builder Fix Needed
+### CODE -- Fetcher Exists, Needs Launcher or Data
 
 | Feature | Scenarios | Issue | Effort | Priority |
 |---------|-----------|-------|--------|----------|
-| `flood_311_count` | houston, nyc | Fetchers exist (`fetch_houston_311.py`, `fetch_nyc_311.py`) but no launchers for per-event pulls | Low (add launcher + run) | MEDIUM -- post-event label, not model input |
-| `sewer_shed_id` | nyc | Fetcher exists (`fetch_nyc_sewersheds.py`) but no launcher | Low | LOW -- scenario-specific |
-| `levee_condition_rating` | new_orleans, nyc | Fetcher exists (`fetch_usace_levees.py`) but no launcher with correct `--scenario` | Low | MEDIUM |
-| `coastal_distance_m` | southwest_florida | No fetcher for TIGER coastline | Medium (write fetcher + spatial join) | LOW for Data Lock A |
-| `slosh_max_surge_m`, `slosh_category` | southwest_florida | SLOSH MOM grids not freely downloadable in bulk; `fetch_noaa_slosh.py` may need manual download step | Medium-High | HIGH for SWFL scenario |
+| `flood_311_count` | houston, nyc | Fetchers exist (`fetch_houston_311.py`, `fetch_nyc_311.py`) but no per-event launchers | Low | MEDIUM -- post-event label, not model input |
+| `sewer_shed_id` | nyc | Fetcher exists (`fetch_nyc_sewersheds.py`) but not run | Low | LOW -- scenario-specific |
+| `levee_condition_rating` | new_orleans, nyc | Fetcher exists (`fetch_usace_levees.py`) but not run with correct `--scenario` | Low | MEDIUM |
+| `coastal_distance_m` | southwest_florida | No fetcher for TIGER coastline shapefile | Medium | LOW for Data Lock A |
+| `slosh_max_surge_m`, `slosh_category` | southwest_florida | SLOSH grids require manual download from NHC; placeholders only on S3 | Medium-High | HIGH for SWFL scenario |
 
-### VARIANCE -- Accepted Gaps (Document in Paper)
+### VARIANCE -- Accepted Gaps (Document in Paper S9)
 
-| Feature | Scenarios | Why Accepted | Paper Section |
-|---------|-----------|-------------|---------------|
-| `bayou_segment_id` | houston | NHDPlus Houston subset not fetched; builder has `build_catchment_features` but no Houston-specific NHDPlus data | S9 Limitations: "Hydrologic unit membership (HUC-12, bayou segment) is defined in the feature contract but not populated for Data Lock A" |
-| `drainage_district_id` | houston | HCFCD shapefile requires manual download from county portal | S9 Limitations: same |
-| `subsidence_rate_mm_yr` | new_orleans | USGS InSAR subsidence raster not fetched; fetcher not written | S9 Limitations: "Land subsidence rates require InSAR-derived velocity fields not included in this study" |
-| `canal_proximity_m` | new_orleans | OSM Overpass query not written | S9 Limitations: "Canal proximity features for the New Orleans protected-basin scenario are deferred" |
-| `drainage_capacity_status` | houston | SKIP (operational -- no public archive) | Already documented in FEATURE_CONTRACT as `operational_status_unavailable` |
-| `pump_station_status` | new_orleans | SKIP (operational -- partially hand-coded for Ida 2021) | Already documented |
-| `road_access_status` | riverside_coachella | SKIP (operational) | Already documented |
-| `evacuation_route_status` | southwest_florida | SKIP (operational) | Already documented |
+| Feature | Scenarios | Why Accepted | Paper Text |
+|---------|-----------|-------------|------------|
+| `bayou_segment_id` | houston | L1 PASS is misleading: data at `raw/nhdplus/catchments/v2/` covers Riverside HUC4 1810/1811, not Houston HUC8 12040104. Files exist but for the wrong geography. | "Hydrologic unit membership (bayou segment) is defined in the feature contract but Houston-specific NHDPlus flowlines are not populated for Data Lock A" |
+| `drainage_district_id` | houston | HCFCD shapefile requires manual download from county portal (data.hcfcd.org) | same |
+| `subsidence_rate_mm_yr` | new_orleans | USGS InSAR subsidence raster (Qu et al. doi:10.5066/P9VFMF9K); fetcher not written | "Land subsidence rates require InSAR-derived velocity fields not included in this study" |
+| `canal_proximity_m` | new_orleans | OSM Overpass query not written | "Canal proximity features for the New Orleans protected-basin scenario are deferred" |
+
+### OPERATIONAL -- Skip by Design (No Public Archive)
+
+| Feature | Scenario | Notes |
+|---------|----------|-------|
+| `drainage_capacity_status` | houston | Real-time HCFCD pump/gate telemetry |
+| `pump_station_status` | new_orleans | S&WB pump telemetry; partial hand-coded CSV for Ida 2021 |
+| `road_access_status` | riverside_coachella | CalTrans/SigAlert not archived |
+| `evacuation_route_status` | southwest_florida | FL county OES not archived |
 
 ### NOLA Event Key Variance (Discovered During Validation)
 
@@ -372,20 +422,20 @@ fetcher run with a NOLA-specific window.
 
 **Impact**: NOLA scenario has no MRMS rainfall features. Tidal surge and HWM data
 provide partial flood signal, but the dominant forcing (200+ mm rainfall over
-Orleans Parish in 6 hours) is absent.
+Orleans Parish in 6 hours) is absent. If NOLA appears in the paper's main results,
+this gap must be filled or NOLA scoped to appendix.
 
 **Resolution**: Add `ida2021_nola` event to MRMS fetcher (window: Aug 27-Sep 1)
-and add MRMS call to `build_new_orleans()`. Not a Data Lock A blocker (Houston is
-the primary scenario) but required for Data Lock B.
+and add MRMS call to `build_new_orleans()`. Required for Data Lock B.
 
 ---
 
 ### Summary by Fixability
 
-| Category | Count | Action |
-|----------|-------|--------|
-| **FETCH** (run existing launcher) | 2 features, all 5 scenarios | Launch now |
-| **CODE** (write launcher / minor fix) | 5 features | Before Data Lock B |
+| Category | Feature Count | Action |
+|----------|---------------|--------|
+| **DONE** (fetched this session) | 2 features, all 5 scenarios | Complete |
+| **CODE** (launcher / minor fix) | 5 features | Before Data Lock B |
 | **VARIANCE** (accepted limitation) | 4 features | Document in S9 |
 | **OPERATIONAL** (skip by design) | 4 features | Already documented |
 | **NOLA event key** | 1 code gap | Before Data Lock B |
