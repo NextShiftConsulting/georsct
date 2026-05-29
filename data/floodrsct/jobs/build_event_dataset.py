@@ -244,6 +244,22 @@ def _empty_nwis(zcta_ids: list[str]) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
+# Merge helper (dedup guard)
+# ---------------------------------------------------------------------------
+
+def _safe_merge_parts(base: pd.DataFrame, parts: list, zcta_col: str = "zcta_id") -> pd.DataFrame:
+    """Merge feature DataFrames onto base with row-duplication detection."""
+    expected = len(base)
+    for part in parts:
+        base = base.merge(part, on=zcta_col, how="left")
+        if len(base) != expected:
+            log.error("Row duplication after merging %s: got %d rows, expected %d",
+                      [c for c in part.columns if c != zcta_col], len(base), expected)
+            base = base.drop_duplicates(subset=[zcta_col, "event"], keep="first")
+    return base
+
+
+# ---------------------------------------------------------------------------
 # MRMS rainfall
 # ---------------------------------------------------------------------------
 
@@ -680,11 +696,10 @@ def build_houston(s3, cfg: dict) -> pd.DataFrame:
 
         base = pd.DataFrame({"zcta_id": harris_zctas, "event": event_name,
                               "scenario": "houston"})
-        for part in [nwis, mrms, hwm, s311, nfip, storm,
-                     impervious, catchments, levees, drainage_op]:
-            base = base.merge(part, on="zcta_id", how="left")
+        base = _safe_merge_parts(base, [nwis, mrms, hwm, s311, nfip, storm,
+                                        impervious, catchments, levees, drainage_op])
         if not static.empty:
-            base = base.merge(static, on="zcta_id", how="left")
+            base = _safe_merge_parts(base, [static])
         base = compute_observability_flags(base)
         rows.append(base)
 
@@ -728,10 +743,9 @@ def build_new_orleans(s3, cfg: dict) -> pd.DataFrame:
 
         base = pd.DataFrame({"zcta_id": no_zctas, "event": event_name,
                               "scenario": "new_orleans"})
-        for part in [nwis, tides, nfip, storm, levee_feats, elevation, pump_op]:
-            base = base.merge(part, on="zcta_id", how="left")
+        base = _safe_merge_parts(base, [nwis, tides, nfip, storm, levee_feats, elevation, pump_op])
         if not static.empty:
-            base = base.merge(static, on="zcta_id", how="left")
+            base = _safe_merge_parts(base, [static])
         # Attach pump evidence for Ida 2021 (hand-coded override for pump_station_status)
         if event_name == "ida2021" and pump_evidence is not None and "pump_available" in pump_evidence.columns:
             ida_pump = pump_evidence[["district_id", "pump_available"]].rename(
@@ -787,11 +801,10 @@ def build_nyc(s3, cfg: dict) -> pd.DataFrame:
 
         base = pd.DataFrame({"zcta_id": nyc_zctas, "event": event_name,
                               "scenario": "nyc"})
-        for part in [nwis, mrms, s311, nfip, storm,
-                     impervious, sewer_feats, subway_feats]:
-            base = base.merge(part, on="zcta_id", how="left")
+        base = _safe_merge_parts(base, [nwis, mrms, s311, nfip, storm,
+                                        impervious, sewer_feats, subway_feats])
         if not static.empty:
-            base = base.merge(static, on="zcta_id", how="left")
+            base = _safe_merge_parts(base, [static])
         # Subway flooding evidence (hand-coded Ida 2021 overlay)
         if event_name == "ida2021" and subway_evidence is not None and "flooding_observed" in subway_evidence.columns:
             flooded = subway_evidence[subway_evidence["flooding_observed"] == True]
@@ -843,10 +856,9 @@ def build_riverside_coachella(s3, cfg: dict) -> pd.DataFrame:
 
         base = pd.DataFrame({"zcta_id": rc_zctas, "event": event_name,
                               "scenario": "riverside_coachella"})
-        for part in [nwis, mrms, nfip, storm, burn_scars, catchments, road_op]:
-            base = base.merge(part, on="zcta_id", how="left")
+        base = _safe_merge_parts(base, [nwis, mrms, nfip, storm, burn_scars, catchments, road_op])
         if not static.empty:
-            base = base.merge(static, on="zcta_id", how="left")
+            base = _safe_merge_parts(base, [static])
         base = compute_observability_flags(base)
         rows.append(base)
 
@@ -898,11 +910,10 @@ def build_southwest_florida(s3, cfg: dict) -> pd.DataFrame:
 
         base = pd.DataFrame({"zcta_id": swfl_zctas, "event": event_name,
                               "scenario": "southwest_florida"})
-        for part in [nwis, mrms, tides, nfip, storm,
-                     slosh, elevation, coastal_dist, levee_feats, evac_op]:
-            base = base.merge(part, on="zcta_id", how="left")
+        base = _safe_merge_parts(base, [nwis, mrms, tides, nfip, storm,
+                                        slosh, elevation, coastal_dist, levee_feats, evac_op])
         if not static.empty:
-            base = base.merge(static, on="zcta_id", how="left")
+            base = _safe_merge_parts(base, [static])
         base = compute_observability_flags(base)
         rows.append(base)
 
