@@ -27,7 +27,6 @@ import logging
 import sys
 from pathlib import Path
 
-import boto3
 import numpy as np
 import pandas as pd
 import yaml
@@ -492,7 +491,10 @@ def main():
                         help="Path to FEATURE_CONTRACT.yaml")
     args = parser.parse_args()
 
-    s3 = boto3.client("s3", region_name="us-east-1")
+    import boto3
+    from swarm_auth import get_aws_credentials
+    _aws = get_aws_credentials()
+    s3 = boto3.client("s3", **_aws)
     events = SCENARIO_EVENTS.get(args.scenario, [])
     all_pass = True
 
