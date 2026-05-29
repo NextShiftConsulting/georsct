@@ -1,4 +1,4 @@
 #!/bin/bash
 set -e
 pip install -q requests boto3 pandas pyarrow swarm-auth
-python3 -u /opt/ml/processing/input/code/fetch_noaa_tides.py --event "$1"
+python3 -u /opt/ml/processing/input/code/fetch_openfema_event.py

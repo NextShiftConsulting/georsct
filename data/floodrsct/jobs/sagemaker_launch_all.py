@@ -108,6 +108,55 @@ JOB_CONFIG = {
         "volume_gb": 10,
         "events": None,
     },
+    "openfema": {
+        "script": "fetch_openfema_event.py",
+        "entrypoint": "entrypoint_openfema.sh",
+        "instance": "ml.m5.large",
+        "volume_gb": 10,
+        "events": None,
+    },
+    "geocertdb": {
+        "script": "copy_geocertdb2026.py",
+        "entrypoint": "entrypoint_geocertdb.sh",
+        "instance": "ml.m5.large",
+        "volume_gb": 10,
+        "events": None,
+    },
+    "sewersheds": {
+        "script": "fetch_nyc_sewersheds.py",
+        "entrypoint": "entrypoint_sewersheds.sh",
+        "instance": "ml.m5.large",
+        "volume_gb": 10,
+        "events": None,
+    },
+    "levees": {
+        "script": "fetch_usace_levees.py",
+        "entrypoint": "entrypoint_levees.sh",
+        "instance": "ml.m5.large",
+        "volume_gb": 10,
+        "events": None,
+    },
+    "nyc311": {
+        "script": "fetch_nyc_311.py",
+        "entrypoint": "entrypoint_nyc311.sh",
+        "instance": "ml.m5.large",
+        "volume_gb": 10,
+        "events": None,
+    },
+    "houston311": {
+        "script": "fetch_houston_311.py",
+        "entrypoint": "entrypoint_houston311.sh",
+        "instance": "ml.m5.large",
+        "volume_gb": 10,
+        "events": None,
+    },
+    "slosh": {
+        "script": "fetch_noaa_slosh.py",
+        "entrypoint": "entrypoint_slosh.sh",
+        "instance": "ml.m5.large",
+        "volume_gb": 10,
+        "events": None,
+    },
 }
 
 

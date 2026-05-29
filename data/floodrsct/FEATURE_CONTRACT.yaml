@@ -350,7 +350,7 @@ features:
     scenarios: [houston]
     source_type: derived
     source_dataset: nhdplus_v2_catchments
-    raw_s3_path: raw/nhdplus/houston/v2/
+    raw_s3_path: raw/nhdplus/catchments/v2/
     processed_s3_path: (embedded in houston_event_features.parquet)
     build_function: build_catchment_features
     output_column: bayou_segment_id
