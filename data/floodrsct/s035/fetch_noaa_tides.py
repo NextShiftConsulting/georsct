@@ -56,8 +56,8 @@ API_URL = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter"
 STATIONS = {
     "houston": [
         {"id": "8771450", "name": "Galveston Pier 21"},
-        {"id": "8770570", "name": "Sabine Pass North"},
         {"id": "8771013", "name": "Eagle Point"},
+        {"id": "8770822", "name": "Texas Point"},
     ],
     "nyc_nj": [
         {"id": "8518750", "name": "The Battery"},
@@ -71,6 +71,10 @@ STATIONS = {
         {"id": "8761724", "name": "Grand Isle"},
         {"id": "8761927", "name": "New Canal Station"},
     ],
+    "southern_california": [
+        {"id": "9410230", "name": "La Jolla"},
+        {"id": "9410660", "name": "Los Angeles"},
+    ],
 }
 
 EVENT_WINDOWS = {
@@ -79,7 +83,7 @@ EVENT_WINDOWS = {
     "beryl2024": {"start": "20240707", "end": "20240713", "scenario": "houston"},
     "ida2021_nyc": {"start": "20210901", "end": "20210904", "scenario": "nyc_nj"},
     "ian2022": {"start": "20220923", "end": "20221001", "scenario": "southwest_florida"},
-    "hilary2023": {"start": "20230819", "end": "20230823", "scenario": "houston"},
+    "hilary2023": {"start": "20230819", "end": "20230823", "scenario": "southern_california"},
 }
 
 PRODUCTS = ["hourly_height", "predictions"]
@@ -121,6 +125,12 @@ def fetch_product(
              product, station_id, begin_date, end_date)
 
     resp = requests.get(API_URL, params=params, timeout=120)
+
+    if resp.status_code == 400:
+        log.warning("  HTTP 400 for station %s/%s -- station may not support "
+                    "NAVD datum or date range. Skipping.", station_id, product)
+        return {"error": {"message": f"HTTP 400 for station {station_id}"}}
+
     resp.raise_for_status()
     payload = resp.json()
 

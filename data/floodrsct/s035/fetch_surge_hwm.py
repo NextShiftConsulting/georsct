@@ -52,12 +52,12 @@ FT_TO_M = 0.3048
 
 # Map event slug -> (STN event_id, state abbreviation)
 EVENT_REGISTRY = {
-    "harvey2017": (295, "TX"),
-    "imelda2019": (321, "TX"),
-    "ian2022": (332, "FL"),
-    "ida2021_nyc": (320, "NY"),
-    "beryl2024": (373, "TX"),
-    "hilary2023": (351, "CA"),
+    "harvey2017": (180, "TX"),
+    "imelda2019": (None, "TX"),  # No STN deployment for Imelda
+    "ian2022": (325, "FL"),
+    "ida2021_nyc": (312, "NY"),
+    "beryl2024": (342, "TX"),
+    "hilary2023": (335, "CA"),
 }
 
 # Existing S3 parquets (pre-uploaded)
@@ -66,7 +66,7 @@ S3_HWM_KEYS = {
     "imelda2019": "raw/usgs_stn/imelda2019_hwm.parquet",
 }
 
-STN_API_BASE = "https://stn.wim.usgs.gov/STNServices/HWMs.json"
+STN_API_BASE = "https://stn.wim.usgs.gov/STNServices/HWMs/FilteredHWMs.json"
 
 
 # ---------------------------------------------------------------------------
@@ -90,8 +90,12 @@ def _download_parquet_from_s3(s3, key: str) -> pd.DataFrame:
 
 
 def _fetch_from_stn_api(event_id: int, state: str) -> pd.DataFrame:
-    """Fetch HWMs from USGS STN Flood Event API."""
-    url = f"{STN_API_BASE}?Event={event_id}&State={state}"
+    """Fetch HWMs from USGS STN FilteredHWMs API."""
+    if event_id is None:
+        log.warning("No STN event ID for this event -- no API data available")
+        return pd.DataFrame()
+
+    url = f"{STN_API_BASE}?Event={event_id}"
     log.info("Fetching STN API: %s", url)
 
     resp = requests.get(url, timeout=120)
@@ -99,10 +103,10 @@ def _fetch_from_stn_api(event_id: int, state: str) -> pd.DataFrame:
     records = resp.json()
 
     if not records:
-        log.warning("STN API returned 0 records for event=%d state=%s", event_id, state)
+        log.warning("STN API returned 0 records for event=%d", event_id)
         return pd.DataFrame()
 
-    log.info("STN API returned %d HWM records", len(records))
+    log.info("STN API returned %d total HWM records", len(records))
 
     rows = []
     for rec in records:
@@ -123,7 +127,9 @@ def _fetch_from_stn_api(event_id: int, state: str) -> pd.DataFrame:
             "elev_ft": float(elev),
         })
 
-    return pd.DataFrame(rows)
+    df = pd.DataFrame(rows)
+    log.info("After filtering: %d HWMs with valid coordinates and elevation", len(df))
+    return df
 
 
 def _normalize_s3_parquet(df: pd.DataFrame) -> pd.DataFrame:
@@ -210,7 +216,8 @@ def main() -> None:
         )
         sys.exit(1)
 
-    event_id, state = EVENT_REGISTRY[event]
+    event_entry = EVENT_REGISTRY[event]
+    event_id, state = event_entry
     s3 = boto3.client("s3", region_name="us-east-1")
 
     # Output key
@@ -236,8 +243,18 @@ def main() -> None:
         source_label = f"{STN_API_BASE}?Event={event_id}"
 
     if df.empty:
-        log.error("No valid HWM records for event %s", event)
-        sys.exit(1)
+        log.warning("No valid HWM records for event %s -- writing empty manifest", event)
+        write_manifest(
+            s3=s3,
+            dataset=f"surge_hwm_{event}",
+            version=datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S"),
+            source_url="N/A",
+            s3_key="N/A",
+            record_count=0,
+            notes=f"No STN HWM data available for {event}.",
+        )
+        log.info("Done -- %s has no HWM data", event)
+        return
 
     # Add derived columns
     df = _add_derived_columns(df, event, source_label)

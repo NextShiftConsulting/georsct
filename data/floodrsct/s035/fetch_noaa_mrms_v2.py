@@ -70,13 +70,13 @@ EVENT_WINDOWS = {
     },
 }
 
-# URL templates
-# Primary: Iowa State Mesonet GaugeCorr QPE 01H (gzip-compressed GRIB2, ~700KB each)
-IOWA_URL = (
-    "https://mtarchive.geol.iastate.edu/"
-    "{year:04d}/{month:02d}/{day:02d}/mrms/ncep/GaugeCorr_QPE_01H/"
-    "GaugeCorr_QPE_01H_00.00_{year:04d}{month:02d}{day:02d}-{hour:02d}0000.grib2.gz"
-)
+# URL templates -- Iowa State Mesonet archive (gzip-compressed GRIB2, ~700KB each)
+# Product name changed: GaugeCorr_QPE_01H (<=2020), MultiSensor_QPE_01H_Pass2 (>=2021)
+IOWA_BASE = "https://mtarchive.geol.iastate.edu/{year:04d}/{month:02d}/{day:02d}/mrms/ncep"
+PRODUCT_BY_ERA = {
+    "old": "GaugeCorr_QPE_01H",      # 2017-2020
+    "new": "MultiSensor_QPE_01H_Pass2",  # 2021+
+}
 # Fallback: EMC NCEP Stage IV archive
 EMC_URL = (
     "https://www.emc.ncep.noaa.gov/mmb/ylin/pcpanl/stage4/"
@@ -96,9 +96,15 @@ def hourly_timestamps(start: datetime, end: datetime):
         dt += timedelta(hours=1)
 
 
+def _product_name(dt: datetime) -> str:
+    """Return the correct MRMS product name for the given year."""
+    return PRODUCT_BY_ERA["old"] if dt.year <= 2020 else PRODUCT_BY_ERA["new"]
+
+
 def s3_key_for(event: str, dt: datetime) -> str:
     """Build the S3 key for a given hour."""
-    fname = f"GaugeCorr_QPE_01H_00.00_{dt:%Y%m%d}-{dt:%H}0000.grib2.gz"
+    product = _product_name(dt)
+    fname = f"{product}_00.00_{dt:%Y%m%d}-{dt:%H}0000.grib2.gz"
     return f"{DST_PREFIX}/{event}/{fname}"
 
 
@@ -108,7 +114,9 @@ def urls_for(dt: datetime) -> list:
         "year": dt.year, "month": dt.month,
         "day": dt.day, "hour": dt.hour,
     }
-    return [IOWA_URL.format(**parts), EMC_URL.format(**parts)]
+    product = _product_name(dt)
+    iowa_url = f"{IOWA_BASE.format(**parts)}/{product}/{product}_00.00_{dt:%Y%m%d}-{dt:%H}0000.grib2.gz"
+    return [iowa_url, EMC_URL.format(**parts)]
 
 
 def delete_s3_stubs(s3_client, event: str, timestamps: list) -> int:
