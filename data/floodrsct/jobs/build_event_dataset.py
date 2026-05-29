@@ -263,7 +263,7 @@ def aggregate_mrms_rainfall(s3, event: str, zcta_ids: list[str]) -> pd.DataFrame
     empty = pd.DataFrame({
         "zcta_id": zcta_ids,
         "rainfall_total_mm": np.nan,
-        "obs_mrms_coverage_pct": 0.0 if not files else len(files) / max(len(files), 1),
+        "obs_mrms_coverage_pct": 0.0,
     })
 
     if not files:
@@ -272,16 +272,15 @@ def aggregate_mrms_rainfall(s3, event: str, zcta_ids: list[str]) -> pd.DataFrame
 
     if not HAS_GEO:
         log.warning("cfgrib/geopandas not available; MRMS aggregation skipped")
-        empty["obs_mrms_coverage_pct"] = float(len(files)) / max(len(files), 1)
+        empty["obs_mrms_coverage_pct"] = 0.0
         return empty
 
     # Spatial aggregation — download files, read with cfgrib, overlay on ZCTA polygons
-    # This is compute-intensive; limit to first 200 files for now
     try:
-        return _mrms_spatial_aggregate(s3, files[:200], zcta_ids, event)
+        return _mrms_spatial_aggregate(s3, files, zcta_ids, event)
     except Exception as e:
         log.error("MRMS spatial aggregation failed: %s", e)
-        empty["obs_mrms_coverage_pct"] = float(len(files)) / max(len(files), 1)
+        empty["obs_mrms_coverage_pct"] = 0.0
         return empty
 
 
@@ -471,10 +470,19 @@ def load_nfip_event_claims(s3, dr_number: int, zcta_ids: list[str]) -> pd.DataFr
         return empty
 
     claims["zcta_id"] = claims["zcta_id"].astype(str).str.zfill(5)
-    agg = claims.groupby("zcta_id").agg(
-        nfip_event_claim_count=("zcta_id", "count"),
-        nfip_event_total_loss=("amountPaidOnBuildingClaim", "sum") if "amountPaidOnBuildingClaim" in claims.columns else ("zcta_id", "count"),
-    ).reset_index()
+    loss_col = "amountPaidOnBuildingClaim"
+    if loss_col not in claims.columns:
+        log.warning("NFIP: %s not found in claims columns %s; total_loss will be 0",
+                    loss_col, list(claims.columns))
+        agg = claims.groupby("zcta_id").agg(
+            nfip_event_claim_count=("zcta_id", "count"),
+        ).reset_index()
+        agg["nfip_event_total_loss"] = 0.0
+    else:
+        agg = claims.groupby("zcta_id").agg(
+            nfip_event_claim_count=("zcta_id", "count"),
+            nfip_event_total_loss=(loss_col, "sum"),
+        ).reset_index()
     agg["obs_nfip_event_claims"] = agg["nfip_event_claim_count"]
 
     all_zctas = pd.DataFrame({"zcta_id": zcta_ids})
