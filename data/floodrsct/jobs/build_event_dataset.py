@@ -256,7 +256,8 @@ def aggregate_mrms_rainfall(s3, event: str, zcta_ids: list[str]) -> pd.DataFrame
     """
     prefix = f"raw/noaa_mrms/{event}/"
     resp = s3.list_objects_v2(Bucket=BUCKET, Prefix=prefix)
-    files = [o["Key"] for o in resp.get("Contents", []) if o["Key"].endswith(".grb2")]
+    files = [o["Key"] for o in resp.get("Contents", [])
+             if o["Key"].endswith(".grb2") or o["Key"].endswith(".grib2.gz")]
     log.info("MRMS: %d grib2 files for event %s", len(files), event)
 
     empty = pd.DataFrame({
@@ -357,8 +358,10 @@ def _mrms_spatial_aggregate(s3, file_keys: list[str], zcta_ids: list[str],
 # ---------------------------------------------------------------------------
 
 def aggregate_hwm(s3, event: str, zcta_ids: list[str]) -> pd.DataFrame:
-    key = f"raw/usgs_stn/{event}_hwm.parquet"
-    hwm = s3_read(s3, key)
+    # Check both locations: pre-uploaded S3 parquets and fetch_surge_hwm output
+    hwm = s3_read(s3, f"raw/usgs_stn/{event}_hwm.parquet")
+    if hwm is None or hwm.empty:
+        hwm = s3_read(s3, f"raw/surge_estimates/{event}/hwm_{event}.parquet")
     empty = pd.DataFrame({"zcta_id": zcta_ids, "hwm_count": 0,
                            "hwm_max_elev_ft": np.nan, "obs_has_hwm": False})
     if hwm is None or hwm.empty:
@@ -472,7 +475,7 @@ def compute_storm_proximity(s3, storm_id: str,
                              peak_window: tuple[str, str],
                              zcta_ids: list[str]) -> pd.DataFrame:
     """Compute distance from each ZCTA to storm track within peak window."""
-    hurdat = s3_read(s3, "raw/hurdat2/s035_storms.parquet")
+    hurdat = s3_read(s3, "raw/hurdat2/storm_tracks.parquet")
     empty = pd.DataFrame({"zcta_id": zcta_ids, "storm_min_dist_km": np.nan,
                            "storm_landfall_category": np.nan})
     if hurdat is None or hurdat.empty:
@@ -671,7 +674,7 @@ def build_new_orleans(s3, cfg: dict) -> pd.DataFrame:
     for event_name, ev in event_map.items():
         log.info("New Orleans event: %s", event_name)
         nwis   = aggregate_nwis(s3, "new_orleans", event_name, no_zctas, cfg)
-        tides  = aggregate_tides(s3, "raw/noaa_tides/no_", event_name, no_zctas)
+        tides  = aggregate_tides(s3, "raw/noaa_tides/", event_name, no_zctas)
         nfip   = load_nfip_event_claims(s3, ev["dr"], no_zctas)
         storm  = compute_storm_proximity(s3, ev["storm_id"], ev["peak_window"], no_zctas)
 
@@ -839,7 +842,7 @@ def build_southwest_florida(s3, cfg: dict) -> pd.DataFrame:
         log.info("SW Florida event: %s", event_name)
         nwis  = aggregate_nwis(s3, "southwest_florida", event_name, swfl_zctas, cfg)
         mrms  = aggregate_mrms_rainfall(s3, event_name, swfl_zctas)
-        tides = aggregate_tides(s3, "raw/noaa_tides/swfl_", event_name, swfl_zctas)
+        tides = aggregate_tides(s3, "raw/noaa_tides/", event_name, swfl_zctas)
         nfip  = load_nfip_event_claims(s3, ev["dr"], swfl_zctas)
         storm = compute_storm_proximity(s3, ev["storm_id"], ev["peak_window"], swfl_zctas)
 
@@ -934,12 +937,22 @@ def build_impervious_features(s3, zcta_ids: list[str]) -> pd.DataFrame:
         log.warning("build_impervious_features: rasterio not available; returning NaN")
         return empty
 
-    # List raw NLCD TIFs
-    resp = s3.list_objects_v2(Bucket=BUCKET, Prefix="raw/nlcd/impervious/v2021/")
-    tif_keys = [o["Key"] for o in resp.get("Contents", []) if o["Key"].endswith(".tif")]
-    if not tif_keys:
-        log.warning("build_impervious_features: no NLCD TIFs found in S3; returning NaN")
+    # Find NLCD raster: national .img file or per-state TIFs
+    nlcd_key = None
+    for prefix in ["raw/nlcd/impervious_2021/", "raw/nlcd/impervious/v2021/"]:
+        resp = s3.list_objects_v2(Bucket=BUCKET, Prefix=prefix)
+        for o in resp.get("Contents", []):
+            k = o["Key"]
+            if k.endswith((".img", ".tif", ".tiff")):
+                nlcd_key = k
+                break
+        if nlcd_key:
+            break
+    if not nlcd_key:
+        log.warning("build_impervious_features: no NLCD raster found in S3; returning NaN")
         return empty
+
+    log.info("build_impervious_features: using %s", nlcd_key)
 
     # Load ZCTA centroids from geocertdb2026
     static_key = "raw/geocertdb2026/zcta_features_labels.parquet"
@@ -958,25 +971,43 @@ def build_impervious_features(s3, zcta_ids: list[str]) -> pd.DataFrame:
     )
     centroids = static[static["zcta_id"].isin(zcta_ids)].dropna(subset=["lat", "lon"])
 
+    # Download national raster (26 GB .img) -- stream to /tmp
+    local_raster = f"/tmp/nlcd_{Path(nlcd_key).stem}{Path(nlcd_key).suffix}"
+    log.info("build_impervious_features: downloading %s (this may take a few minutes)", nlcd_key)
+    s3.download_file(BUCKET, nlcd_key, local_raster)
+
+    # Use windowed reads per ZCTA centroid (avoids loading full 26 GB into RAM)
+    # NLCD is in EPSG:5070 (Albers Equal Area, meters) -- must reproject centroid
     results = []
-    for _, tif_key in enumerate(tif_keys):
-        local_tif = f"/tmp/nlcd_{Path(tif_key).stem}.tif"
-        s3.download_file(BUCKET, tif_key, local_tif)
-        with rasterio.open(local_tif) as src:
-            nodata = src.nodata if src.nodata is not None else 127
-            for _, row in centroids.iterrows():
-                # 500m buffer box around centroid
-                delta = 0.005  # ~500m in degrees
-                geom = [mapping(box(row["lon"] - delta, row["lat"] - delta,
-                                    row["lon"] + delta, row["lat"] + delta))]
-                try:
-                    masked, _ = rio_mask(src, geom, crop=True, nodata=nodata)
-                    vals = masked[0].flatten()
-                    valid = vals[(vals != nodata) & (vals >= 0) & (vals <= 100)]
-                    imp_pct = float(np.mean(valid)) if len(valid) > 0 else np.nan
-                except Exception:
-                    imp_pct = np.nan
-                results.append({"zcta_id": row["zcta_id"], "impervious_pct": imp_pct})
+    with rasterio.open(local_raster) as src:
+        nodata = src.nodata if src.nodata is not None else 127
+        raster_crs = src.crs
+        # Build transformer: WGS84 lat/lon -> raster native CRS
+        from pyproj import Transformer
+        transformer = Transformer.from_crs("EPSG:4326", raster_crs, always_xy=True)
+        is_projected = raster_crs.is_projected  # True for EPSG:5070
+        for _, row in centroids.iterrows():
+            # Reproject centroid to raster CRS, then build 500m buffer
+            x, y = transformer.transform(row["lon"], row["lat"])
+            if is_projected:
+                delta = 500  # 500 meters in native CRS units
+            else:
+                delta = 0.005  # fallback ~500m in degrees if raster is geographic
+            geom = [mapping(box(x - delta, y - delta, x + delta, y + delta))]
+            try:
+                masked, _ = rio_mask(src, geom, crop=True, nodata=nodata)
+                vals = masked[0].flatten()
+                valid = vals[(vals != nodata) & (vals >= 0) & (vals <= 100)]
+                imp_pct = float(np.mean(valid)) if len(valid) > 0 else np.nan
+            except Exception:
+                imp_pct = np.nan
+            results.append({"zcta_id": row["zcta_id"], "impervious_pct": imp_pct})
+
+    # Clean up local file
+    try:
+        Path(local_raster).unlink()
+    except OSError:
+        pass
 
     if not results:
         return empty
@@ -1035,10 +1066,17 @@ def build_elevation_features(s3, zcta_ids: list[str], region: str) -> pd.DataFra
         s3.download_file(BUCKET, tif_key, local_tif)
         with rasterio.open(local_tif) as src:
             nodata = src.nodata if src.nodata is not None else -9999
+            raster_crs = src.crs
+            from pyproj import Transformer
+            transformer = Transformer.from_crs("EPSG:4326", raster_crs, always_xy=True)
+            is_projected = raster_crs.is_projected
             for _, row in centroids.iterrows():
-                delta = 0.01  # ~1km in degrees
-                geom = [mapping(box(row["lon"] - delta, row["lat"] - delta,
-                                    row["lon"] + delta, row["lat"] + delta))]
+                x, y = transformer.transform(row["lon"], row["lat"])
+                if is_projected:
+                    delta = 1000  # 1km in native CRS meters
+                else:
+                    delta = 0.01  # ~1km in degrees for geographic CRS
+                geom = [mapping(box(x - delta, y - delta, x + delta, y + delta))]
                 try:
                     masked, _ = rio_mask(src, geom, crop=True, nodata=nodata)
                     vals = masked[0].flatten()

@@ -31,7 +31,7 @@ Result: a per-pixel "flood susceptibility" in meters. HAND < 5m = high risk. HAN
 
 1. Add HAND fetcher targeting NOAA/OWP HAND tiles (GeoTIFF, EPSG:5070, 10m)
 2. Compute per-ZCTA statistics: `hand_mean_m`, `hand_p10_m` (10th percentile = most flood-prone areas), `hand_pct_below_5m` (fraction of ZCTA in high-risk zone)
-3. Reproject from EPSG:5070 to EPSG:4326 before zonal stats (or compute in native CRS)
+3. Reproject centroid/geometry to EPSG:5070 before zonal stats (same CRS fix pattern as NLCD -- Section 3 applies here)
 4. Add to FEATURE_CONTRACT.yaml as `temporal_class: invariant`
 
 ### Impact If Not Fixed
@@ -111,9 +111,9 @@ Rainfall that falls in an upstream HUC-12 flows downstream — but the ZCTA-only
 
 **MRMS (HRAP polar stereographic):**
 - `aggregate_mrms_rainfall()` uses haversine nearest-neighbor to find the closest MRMS grid cell to each ZCTA centroid
-- If MRMS coordinates are still in HRAP x/y (not reprojected), nearest-neighbor matches the wrong cell
-- At Houston's latitude (~30N), HRAP grid cells are ~4.7 km; mismatch could assign rainfall from a cell 4-8 km away
-- Result: Rainfall values are real numbers but from the wrong location
+- Iowa State Mesonet GRIB2 files typically encode lat/lon coordinates in metadata; cfgrib reads these, so `ds["latitude"]` and `ds["longitude"]` should already be in degrees
+- **Likely not a 4-8 km error** -- but worth a one-file verification (open one GRIB2, confirm coordinates are geographic)
+- If MRMS coordinates were raw HRAP x/y (unlikely given source), mismatch would be ~4-8 km at mid-latitudes
 
 ### Suggested Solution
 
@@ -198,7 +198,7 @@ The surrogate model will treat a tidal value 5km from a gauge identically to one
 | `aggregate_tides()` | Nearest station, broadcast to all ZCTAs | Inland ZCTAs get meaningless coastal values |
 | `aggregate_hwm()` | Haversine nearest within 5km | >80% NaN; biased toward road-accessible locations |
 | `build_elevation_features()` | 500m buffer around centroid | Ignores ZCTA shape; misses floodplain edges |
-| `build_impervious_features()` | Point sample at centroid | Single pixel; not representative of ZCTA |
+| `build_impervious_features()` | 500m buffer zonal mean | CRS bug made this sample wrong pixels (FIXED) |
 | `compute_storm_proximity()` | Haversine to HURDAT2 track points | Correct for this use case |
 
 ### Recommended Upgrades (Priority Order)
@@ -226,8 +226,8 @@ The surrogate model will treat a tidal value 5km from a gauge identically to one
 
 ### Must-fix before Data Lock A:
 
-1. NLCD CRS reprojection (or confirm file is already in 4326)
-2. MRMS coordinate verification (open one GRIB2, check if coordinates are lat/lon or HRAP x/y)
+1. ~~NLCD CRS reprojection~~ **FIXED** -- pyproj.Transformer added to `build_impervious_features()` and `build_elevation_features()`
+2. MRMS coordinate verification (open one GRIB2, confirm ds["latitude"]/ds["longitude"] are in degrees)
 
 ### Should-fix before SIGSPATIAL submission:
 
