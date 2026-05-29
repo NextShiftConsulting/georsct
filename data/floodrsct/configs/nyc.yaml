@@ -1,0 +1,67 @@
+# New York / New Jersey — FloodRSCT scenario config
+
+scenario: nyc
+state_fips: ["36", "34"]  # NY, NJ
+borough_counties:
+  manhattan: "36061"
+  brooklyn: "36047"
+  queens: "36081"
+  bronx: "36005"
+  staten_island: "36085"
+zcta_state_filter: "NY"
+
+events:
+  ida2021:
+    disaster_declaration: DR-4615-NY
+    start_date: "2021-09-01"
+    end_date: "2021-09-03"
+    nhc_storm_id: AL092021
+    peak_window: ["2021-09-01", "2021-09-02"]
+    # 311 data: ~10K flooding complaints in this 48-hour window
+  henri2021:
+    disaster_declaration: null  # Henri made landfall RI, limited NY declarations
+    start_date: "2021-08-21"
+    end_date: "2021-08-23"
+    nhc_storm_id: AL082021
+    peak_window: ["2021-08-21", "2021-08-22"]
+
+# USGS NWIS — limited coastal-influenced gauges
+usgs_anchor_sites:
+  - "01372058"  # Hudson River at West Point
+  - "01389500"  # Passaic River at Little Falls NJ
+  - "01378500"  # Hackensack River at New Milford NJ
+  - "01302000"  # Nissequogue River at Smithtown NY
+
+# NYC 311 complaint types (Socrata filter)
+nyc_311_complaint_types:
+  - "Sewer"
+  - "Street Flooding"
+  - "Catch Basin Clogged/Flooding"
+  - "Flooded Basement"
+
+# NYC DEP sewer-sheds
+# Source: NYC Open Data dataset nbry-ynxa or manual DEP portal download
+nyc_dep_sewershed_dataset: "nbry-ynxa"
+nyc_open_data_domain: "data.cityofnewyork.us"
+
+# MTA subway flooding ground truth
+# Populated from hand-coded evidence/nyc_subway_flooding_ida2021.csv
+subway_evidence: "evidence/nyc_subway_flooding_ida2021.csv"
+
+# USACE levee systems
+usace_levee_systems:
+  - "Jamaica Bay"
+  - "Newtown Creek"
+  - "Coney Island Creek"
+
+# Minimum viable dataset criteria
+mvd:
+  min_sewersheds: 100
+  required_columns:
+    - sewershed_id
+    - event
+    - rainfall_total_mm
+    - complaints_311_count
+    - nfip_claim_count
+    - acsE_total_pop
+    - svi_overall

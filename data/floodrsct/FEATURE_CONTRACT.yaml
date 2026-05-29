@@ -1,0 +1,367 @@
+# FEATURE_CONTRACT.yaml — Series 035 FloodRSCT
+# Single source of truth for all infrastructure evidence and derived features.
+# Every column in the (unit, event) tables must trace to an entry here.
+#
+# field_status behaviors:
+#   present              — value computed successfully
+#   missing_source_data  — public raw data not yet fetched / not available for version
+#   operational_status_unavailable — real-time operational telemetry; no public archive
+#
+# source_type:
+#   public_fetch   — raw data fetched from public source to S3
+#   derived        — computed in build_event_dataset.py from one or more raw inputs
+#   hand_coded     — manually assembled evidence CSV in evidence/
+#   operational    — real-time status; cannot be obtained from public historical archive
+#
+# version_target: the s035 data version when this field becomes fully populated
+# ---
+
+features:
+
+  # ─── NLCD Impervious Surface ──────────────────────────────────────────────
+
+  - feature_name: impervious_pct
+    scenarios: [houston, nyc]
+    source_type: derived
+    source_dataset: nlcd_impervious
+    raw_s3_path: raw/nlcd/impervious/v2021/
+    processed_s3_path: raw/nlcd/impervious_pct_zcta.parquet
+    build_function: build_impervious_features
+    output_column: impervious_pct
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.003
+    notes: >
+      NLCD 2021 30m impervious surface GeoTIFF; state subsets for TX (48) and NY (36).
+      Fetch: fetch_nlcd_impervious.py writes raw GeoTIFFs.
+      Derive: build_impervious_features() does ZCTA zonal statistics in build_event_dataset.py.
+
+  # ─── DEM Elevation ────────────────────────────────────────────────────────
+
+  - feature_name: elevation_m_msl
+    scenarios: [southwest_florida, new_orleans]
+    source_type: derived
+    source_dataset: usgs_3dep_dem
+    raw_s3_path: raw/dem/3dep/v1/
+    processed_s3_path: raw/dem/elevation_m_msl_zcta.parquet
+    build_function: build_elevation_features
+    output_column: elevation_m_msl
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.003
+    notes: >
+      USGS 3DEP 1/3 arc-second (~10m) DEM.
+      Fetch: fetch_dem_elevation.py downloads raw GeoTIFFs for FL (12) and LA (22).
+      Derive: build_elevation_features() computes mean elevation per ZCTA centroid.
+
+  # ─── MTBS Burn Scars ──────────────────────────────────────────────────────
+
+  - feature_name: burn_scar_overlap
+    scenarios: [riverside_coachella]
+    source_type: derived
+    source_dataset: mtbs_burn_perimeters
+    raw_s3_path: raw/mtbs/perimeters/v2023/
+    processed_s3_path: raw/mtbs/burn_scar_zcta.parquet
+    build_function: build_burn_scar_features
+    output_column: burn_scar_overlap
+    missing_behavior: "False (conservative) — with field_status = missing_source_data if raw absent"
+    field_status_behavior: missing_source_data
+    version_target: v24.003
+    notes: >
+      USGS Monitoring Trends in Burn Severity (MTBS) 2015-2023 perimeter shapefile.
+      Filter to Riverside (06065) + San Bernardino (06071) counties.
+      Fetch: fetch_mtbs_burn_scars.py writes raw shapefile as GeoParquet.
+      Derive: build_burn_scar_features() computes binary overlap per ZCTA.
+
+  # ─── NHDPlus Catchments ───────────────────────────────────────────────────
+
+  - feature_name: upstream_catchment_km2
+    scenarios: [riverside_coachella]
+    source_type: derived
+    source_dataset: nhdplus_v2_catchments
+    raw_s3_path: raw/nhdplus/catchments/v2/
+    processed_s3_path: raw/nhdplus/catchment_area_zcta.parquet
+    build_function: build_catchment_features
+    output_column: upstream_catchment_km2
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.003
+    notes: >
+      NHDPlus V2 catchment polygons for HUC4 1810 (Lower Colorado) + 1811 (Salton Sea area).
+      Fetch: fetch_nhdplus_catchments.py writes raw catchment GeoParquet.
+      Derive: build_catchment_features() spatially joins to ZCTAs; sums contributing area.
+
+  - feature_name: wash_segment_id
+    scenarios: [riverside_coachella]
+    source_type: derived
+    source_dataset: nhdplus_v2_catchments
+    raw_s3_path: raw/nhdplus/catchments/v2/
+    processed_s3_path: raw/nhdplus/catchment_area_zcta.parquet
+    build_function: build_catchment_features
+    output_column: wash_segment_id
+    missing_behavior: "null string — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.003
+    notes: >
+      NHD COMID of the dominant wash/channel segment intersecting each ZCTA.
+      Derived from same NHDPlus fetch as upstream_catchment_km2.
+
+  # ─── SLOSH Surge ─────────────────────────────────────────────────────────
+
+  - feature_name: slosh_max_surge_m
+    scenarios: [southwest_florida]
+    source_type: derived
+    source_dataset: noaa_slosh
+    raw_s3_path: raw/noaa_slosh/{event}/
+    processed_s3_path: (embedded in southwest_florida_event_features.parquet)
+    build_function: build_slosh_features
+    output_column: slosh_max_surge_m
+    missing_behavior: "NaN — field_status = missing_source_data; flag MANUAL_DOWNLOAD_REQUIRED"
+    field_status_behavior: missing_source_data
+    version_target: v24.002
+    notes: >
+      NHC SLOSH MOM/MEOW surge grids for Ian 2022, Helene 2024, Milton 2024.
+      Raw SLOSH grids already fetched by fetch_noaa_slosh.py.
+      Derive: build_slosh_features() does ZCTA spatial overlay in build_event_dataset.py.
+
+  - feature_name: slosh_category
+    scenarios: [southwest_florida]
+    source_type: derived
+    source_dataset: noaa_slosh
+    raw_s3_path: raw/noaa_slosh/{event}/
+    processed_s3_path: (embedded in southwest_florida_event_features.parquet)
+    build_function: build_slosh_features
+    output_column: slosh_category
+    missing_behavior: "null — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.002
+    notes: >
+      Saffir-Simpson surge category (1-5) derived from slosh_max_surge_m thresholds.
+      Same build function as slosh_max_surge_m.
+
+  - feature_name: coastal_distance_m
+    scenarios: [southwest_florida]
+    source_type: derived
+    source_dataset: tiger_coastline
+    raw_s3_path: raw/tiger/coastline/v2020/
+    processed_s3_path: raw/tiger/coastal_distance_zcta.parquet
+    build_function: build_coastal_distance_features
+    output_column: coastal_distance_m
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.003
+    notes: >
+      Haversine distance from ZCTA centroid to nearest point on TIGER 2020 coastline.
+      Fetch: fetch_tiger_coastline.py writes raw national coastline shapefile.
+      Derive: build_coastal_distance_features() computes nearest-neighbor distances.
+
+  # ─── NYC Sewersheds ───────────────────────────────────────────────────────
+
+  - feature_name: sewer_shed_id
+    scenarios: [nyc]
+    source_type: derived
+    source_dataset: nyc_sewersheds
+    raw_s3_path: raw/nyc_sewersheds/nyc_sewersheds.gpkg
+    processed_s3_path: (embedded in nyc_event_features.parquet)
+    build_function: build_sewershed_features
+    output_column: sewer_shed_id
+    missing_behavior: "null — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.002
+    notes: >
+      NYC DEP drainage area polygon for the dominant sewer shed intersecting each ZCTA.
+      Raw sewersheds already fetched by fetch_nyc_sewersheds.py.
+      Derive: build_sewershed_features() spatial join in build_event_dataset.py.
+
+  # ─── MTA Subway Stations ─────────────────────────────────────────────────
+
+  - feature_name: subway_station_count
+    scenarios: [nyc]
+    source_type: derived
+    source_dataset: mta_subway_stations
+    raw_s3_path: raw/mta/subway_stations/v1/subway_stations.parquet
+    processed_s3_path: (embedded in nyc_event_features.parquet)
+    build_function: build_subway_features
+    output_column: subway_station_count
+    missing_behavior: "0 — field_status = missing_source_data if raw absent"
+    field_status_behavior: missing_source_data
+    version_target: v24.003
+    notes: >
+      Count of MTA subway stations within ZCTA boundary.
+      Fetch: fetch_mta_stations.py downloads from NYC Open Data (kk4q-3rt2).
+      Derive: build_subway_features() counts stations per ZCTA.
+
+  - feature_name: nearest_subway_distance_m
+    scenarios: [nyc]
+    source_type: derived
+    source_dataset: mta_subway_stations
+    raw_s3_path: raw/mta/subway_stations/v1/subway_stations.parquet
+    processed_s3_path: (embedded in nyc_event_features.parquet)
+    build_function: build_subway_features
+    output_column: nearest_subway_distance_m
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.003
+    notes: Same fetch and build function as subway_station_count.
+
+  # ─── USACE Levees → ZCTA ─────────────────────────────────────────────────
+
+  - feature_name: levee_condition_rating
+    scenarios: [new_orleans, nyc]
+    source_type: derived
+    source_dataset: usace_levees
+    raw_s3_path: raw/usace_levees/{scenario}_levees.parquet
+    processed_s3_path: (embedded in {scenario}_event_features.parquet)
+    build_function: build_levee_features
+    output_column: levee_condition_rating
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.002
+    notes: >
+      USACE levee inspection condition rating nearest to each ZCTA centroid.
+      Raw levees already fetched by fetch_usace_levees.py.
+      Derive: build_levee_features() spatial proximity join in build_event_dataset.py.
+
+  # ─── Land Subsidence (New Orleans) ───────────────────────────────────────
+
+  - feature_name: subsidence_rate_mm_yr
+    scenarios: [new_orleans]
+    source_type: derived
+    source_dataset: usgs_subsidence_no
+    raw_s3_path: raw/usgs_subsidence/no_subsidence_v1/
+    processed_s3_path: raw/usgs_subsidence/subsidence_rate_zcta.parquet
+    build_function: build_elevation_features
+    output_column: subsidence_rate_mm_yr
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.003
+    notes: >
+      USGS InSAR-derived subsidence velocity for the Mississippi River Delta / NOLA metro.
+      Source: USGS data release doi:10.5066/P9VFMF9K (Qu et al., 2020-2023).
+      Fetch: fetch_usgs_subsidence_no.py downloads raster and writes to raw/.
+      Derive: build_elevation_features() interpolates to ZCTA centroids.
+
+  # ─── Operational / Real-Time Fields (cannot be historically archived) ─────
+
+  - feature_name: drainage_capacity_status
+    scenarios: [houston]
+    source_type: operational
+    source_dataset: null
+    raw_s3_path: null
+    processed_s3_path: null
+    build_function: null
+    output_column: drainage_capacity_status
+    missing_behavior: >
+      "unknown" — field_status = operational_status_unavailable.
+      Real-time HCFCD pump/gate telemetry; no public historical archive.
+    field_status_behavior: operational_status_unavailable
+    version_target: null
+    notes: >
+      Would require Harris County Flood Control District operational data feed.
+      Not available from any public historical archive.
+      F40 access_fragility = null if drainage_capacity_status = unknown.
+
+  - feature_name: pump_station_status
+    scenarios: [new_orleans]
+    source_type: operational
+    source_dataset: >
+      evidence/no_pump_stations_ida2021.csv (hand-coded; Ida 2021 only)
+    raw_s3_path: null
+    processed_s3_path: null
+    build_function: null
+    output_column: pump_station_status
+    missing_behavior: >
+      "unknown" — field_status = operational_status_unavailable for non-Ida events.
+      For Ida 2021: derive from hand-coded CSV if available.
+    field_status_behavior: operational_status_unavailable
+    version_target: null
+    notes: >
+      Sewerage and Water Board pump telemetry not publicly archived.
+      Partial post-hoc reconstruction possible for Ida 2021 via hand-coded evidence.
+
+  - feature_name: road_access_status
+    scenarios: [riverside_coachella]
+    source_type: operational
+    source_dataset: null
+    raw_s3_path: null
+    processed_s3_path: null
+    build_function: null
+    output_column: road_access_status
+    missing_behavior: >
+      "unknown" — field_status = operational_status_unavailable.
+      No public CalTrans historical road closure archive at ZCTA granularity.
+    field_status_behavior: operational_status_unavailable
+    version_target: null
+    notes: >
+      Real-time CALTRANS / SigAlert road closure feeds; not publicly archived historically.
+      F40 access_fragility = null if road_access_status = unknown.
+
+  - feature_name: evacuation_route_status
+    scenarios: [southwest_florida]
+    source_type: operational
+    source_dataset: null
+    raw_s3_path: null
+    processed_s3_path: null
+    build_function: null
+    output_column: evacuation_route_status
+    missing_behavior: >
+      "unknown" — field_status = operational_status_unavailable.
+      FL county OES evacuation route status not publicly archived historically.
+    field_status_behavior: operational_status_unavailable
+    version_target: null
+    notes: >
+      Real-time FL DOT / county OES feeds; not publicly archived historically.
+      Static evacuation zone shapefiles (FL DEM) do exist and can be fetched,
+      but route operational status (open/congested/closed) is operational-only.
+      F40 access_fragility = null if evacuation_route_status = unknown.
+
+  # ─── Bayou / Drainage District Identifiers ────────────────────────────────
+
+  - feature_name: bayou_segment_id
+    scenarios: [houston]
+    source_type: derived
+    source_dataset: nhdplus_v2_catchments
+    raw_s3_path: raw/nhdplus/houston/v2/
+    processed_s3_path: (embedded in houston_event_features.parquet)
+    build_function: build_catchment_features
+    output_column: bayou_segment_id
+    missing_behavior: "null — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.003
+    notes: >
+      NHD COMID of the dominant channel segment (Buffalo Bayou, Brays Bayou, etc.)
+      intersecting or nearest to each ZCTA.
+      Derived from NHDPlus flowlines for HUC8 12040104 (Buffalo Bayou) and neighbors.
+
+  - feature_name: drainage_district_id
+    scenarios: [houston]
+    source_type: derived
+    source_dataset: hcfcd_drainage_districts
+    raw_s3_path: raw/hcfcd/drainage_districts/v1/
+    processed_s3_path: raw/hcfcd/drainage_district_zcta.parquet
+    build_function: build_drainage_district_features
+    output_column: drainage_district_id
+    missing_behavior: "null — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.003
+    notes: >
+      Harris County Flood Control District (HCFCD) watershed/district shapefiles.
+      Source: Harris County Open Data portal (data.hcfcd.org).
+      Fetch: fetch_hcfcd_districts.py.
+      Derive: spatial intersection with ZCTA polygons.
+
+  - feature_name: canal_proximity_m
+    scenarios: [new_orleans]
+    source_type: derived
+    source_dataset: osm_canals_no
+    raw_s3_path: raw/osm/new_orleans_canals/v1/
+    processed_s3_path: (embedded in no_event_features.parquet)
+    build_function: build_levee_features
+    output_column: canal_proximity_m
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.003
+    notes: >
+      Distance from ZCTA centroid to nearest OSM canal/drainage channel in Orleans Parish.
+      Fetch: fetch_osm_canals_no.py (Overpass API query for waterway=canal).
+      Derive: haversine nearest-neighbor in build_levee_features().

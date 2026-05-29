@@ -1,0 +1,57 @@
+# New Orleans, LA — FloodRSCT scenario config
+
+scenario: new_orleans
+state_fips: "22"
+county_fips: "22071"  # Orleans Parish
+zcta_state_filter: "LA"
+
+events:
+  ida2021:
+    disaster_declaration: DR-4611-LA
+    start_date: "2021-08-29"
+    end_date: "2021-09-05"
+    nhc_storm_id: AL092021
+    peak_window: ["2021-08-29", "2021-09-01"]
+
+# USGS NWIS gauge sites
+usgs_anchor_sites:
+  - "07374000"  # Mississippi River at New Orleans
+  - "07375500"  # Lake Pontchartrain at Lakefront
+  - "295503090072600"  # Industrial Canal (if available)
+
+# NOAA Tides and Currents stations
+noaa_tide_stations:
+  - id: "8761724"
+    name: "Pilots Station East SW Pass"
+  - id: "8761927"
+    name: "New Canal Station"
+  - id: "8760922"
+    name: "Michoud Canal, ICWW"
+  - id: "8762075"
+    name: "Port Sulphur"
+
+# USACE levee system identifiers (National Levee Database)
+usace_levee_systems:
+  - "Lake Pontchartrain and Vicinity Hurricane Protection System"
+  - "Orleans Parish East of Harvey Canal"
+  - "New Orleans to Venice"
+
+# NWS Lower Mississippi River Forecast Center
+nws_lmrfc_url: "https://www.weather.gov/lmrfc"
+
+# Pump-station ground truth
+# Populated from hand-coded evidence/no_pump_stations_ida2021.csv
+pump_station_evidence: "evidence/no_pump_stations_ida2021.csv"
+
+# Minimum viable dataset criteria
+mvd:
+  min_districts: 30
+  required_columns:
+    - district_id
+    - event
+    - nfip_claim_count
+    - acsE_total_pop
+    - svi_overall
+    - levee_condition_rating
+    - pump_available  # from hand-coded evidence
+    - nws_warning_flag

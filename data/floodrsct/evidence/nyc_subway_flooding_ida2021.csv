@@ -1,0 +1,6 @@
+station_id,station_name,line,borough,flooding_observed,depth_estimate_ft,notes,source
+# Hand-coded from MTA Hurricane Ida post-event reports and press releases
+# Sources: MTA press releases Sept 2-5 2021, NY Times, NY Post, NY1
+# flooding_observed: 1=yes, 0=no
+# depth_estimate_ft: approximate water depth in station; NULL if not reported
+# TODO: fill from MTA reporting during May 31 hand-coding session

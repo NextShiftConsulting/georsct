@@ -1,0 +1,58 @@
+# Riverside-Coachella, CA — FloodRSCT scenario config
+# Scope: design-stage empirical coverage
+# Empirical target: variogram + autocorrelation analysis supporting §6 block-size claim
+# Full certificate evaluation deferred to companion technical report
+
+scenario: riverside_coachella
+state_fips: "06"
+county_fips_list:
+  - "06065"  # Riverside County
+  - "06025"  # Imperial County (Coachella Valley extension)
+zcta_state_filter: "CA"
+
+events:
+  # No single dominant tropical event; flash flood + atmospheric river regime
+  # Use NOAA storm events + USGS gauge peaks for multi-year window
+  flash_flood_2023:
+    # Hilary remnants + subsequent AR events
+    start_date: "2023-08-20"
+    end_date: "2023-08-22"
+    nhc_storm_id: EP082023  # Hilary
+    peak_window: ["2023-08-20", "2023-08-21"]
+  ar_flood_2023:
+    # March 2023 atmospheric river sequence
+    start_date: "2023-03-01"
+    end_date: "2023-03-22"
+    nhc_storm_id: null
+    peak_window: ["2023-03-10", "2023-03-15"]
+
+# USGS NWIS — target stream gauges
+usgs_anchor_sites:
+  - "10259000"  # Whitewater River near Mecca
+  - "10255800"  # Tahquitz Creek near Palm Springs
+  - "10260000"  # Coachella Valley Storm Water Channel near Indio
+  - "10261500"  # New River at International Boundary
+  - "10254730"  # Palm Canyon Wash at Palm Springs
+  - "10256500"  # Deep Canyon Creek near Palm Desert
+
+# NWS California-Nevada River Forecast Center
+nws_rfc: "cnrfc"
+nws_rfc_url: "https://www.cnrfc.noaa.gov"
+
+# Regime characteristics (for §6 block-size design)
+regime:
+  type: "flash_flood_arroyo"
+  spatial_autocorrelation_range_km: 15  # short-range; arid basin confinement
+  dominant_mechanism: "convective_and_atmospheric_river"
+  infrastructure_stressor: "arroyo_channel_capacity"
+  hypothesized_active_gate: "kappa"  # structural capacity of engineered channels
+
+# Minimum viable dataset criteria (variogram analysis only)
+mvd:
+  min_zctas: 30
+  required_columns:
+    - zcta_id
+    - event
+    - rainfall_total_mm
+    - peak_stage_ft
+    - acsE_total_pop

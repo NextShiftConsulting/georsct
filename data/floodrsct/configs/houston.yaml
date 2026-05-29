@@ -1,0 +1,58 @@
+# Houston, TX — FloodRSCT scenario config
+
+scenario: houston
+state_fips: "48"
+county_fips: "48201"  # Harris County
+zcta_state_filter: "TX"
+
+events:
+  harvey2017:
+    disaster_declaration: DR-4332-TX
+    start_date: "2017-08-17"
+    end_date: "2017-09-15"
+    nhc_storm_id: AL092017
+    peak_window: ["2017-08-25", "2017-09-02"]
+  imelda2019:
+    disaster_declaration: DR-4466-TX
+    start_date: "2019-09-17"
+    end_date: "2019-09-21"
+    nhc_storm_id: AL132019
+    peak_window: ["2019-09-17", "2019-09-21"]
+  beryl2024:
+    disaster_declaration: DR-4781-TX
+    start_date: "2024-07-08"
+    end_date: "2024-07-12"
+    nhc_storm_id: AL022024
+    peak_window: ["2024-07-08", "2024-07-12"]
+
+# USGS NWIS — Harris County active gauges
+# Full list queried at runtime via NWIS county filter; this is the
+# known anchor set for validation.
+usgs_anchor_sites:
+  - "08074000"  # Buffalo Bayou at Piney Point
+  - "08073600"  # Brays Bayou at Houston
+  - "08075900"  # Clear Creek near Friendswood
+  - "08076000"  # Greens Bayou near Houston
+  - "08077600"  # Sims Bayou at Houston
+  - "08116650"  # Brazos River at Richmond
+  - "08114000"  # Brazos River near Rosharon
+
+# Houston 311 service request types (Socrata filter)
+houston_311_service_types:
+  - "Streets & Drainage"
+  - "Flooded Street"
+  - "Flooded Yard or Ditch"
+
+# Minimum viable dataset criteria
+mvd:
+  min_zctas: 100
+  min_events_per_zcta: 2
+  required_columns:
+    - zcta_id
+    - event
+    - rainfall_total_mm
+    - peak_stage_ft
+    - nfip_claim_count
+    - hwm_count
+    - acsE_total_pop
+    - svi_overall

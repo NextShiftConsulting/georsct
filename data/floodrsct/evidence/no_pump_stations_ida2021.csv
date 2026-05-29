@@ -1,0 +1,5 @@
+district_id,district_name,pump_available,notes,source
+# Hand-coded from Hurricane Ida 2021 post-event reports
+# Sources: NOLA Times-Picayune, AP, USACE post-event reports, SWB press releases
+# pump_available: 1=operational, 0=failed/reduced, 0.5=partial
+# TODO: fill from post-event reporting during May 31 hand-coding session

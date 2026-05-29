@@ -1,0 +1,105 @@
+# Southwest Florida — FloodRSCT scenario config
+# Scope: design-stage empirical coverage
+# Empirical target: variogram + autocorrelation analysis supporting §6 block-size claim
+# Full certificate evaluation deferred to companion technical report
+
+scenario: southwest_florida
+state_fips: "12"
+county_fips_list:
+  - "12021"  # Collier County (Ian/Milton primary landfall region)
+  - "12071"  # Lee County (Fort Myers; Ian direct hit)
+  - "12115"  # Sarasota County
+  - "12081"  # Manatee County (Helene/Milton)
+  - "12057"  # Hillsborough County (Tampa Bay; Helene surge)
+  - "12103"  # Pinellas County (St. Pete; Helene/Milton)
+zcta_state_filter: "FL"
+
+events:
+  ian2022:
+    disaster_declaration: DR-4673-FL
+    start_date: "2022-09-23"
+    end_date: "2022-10-01"
+    nhc_storm_id: AL092022
+    peak_window: ["2022-09-28", "2022-09-29"]
+    landfall_point: [26.6, -82.0]  # near Fort Myers Beach
+  helene2024:
+    disaster_declaration: DR-4828-FL
+    start_date: "2024-09-25"
+    end_date: "2024-09-28"
+    nhc_storm_id: AL092024
+    peak_window: ["2024-09-26", "2024-09-27"]
+    landfall_point: [29.9, -84.1]  # Big Bend / Taylor County
+  milton2024:
+    disaster_declaration: DR-4834-FL
+    start_date: "2024-10-08"
+    end_date: "2024-10-11"
+    nhc_storm_id: AL142024
+    peak_window: ["2024-10-09", "2024-10-10"]
+    landfall_point: [27.3, -82.4]  # Siesta Key / Sarasota County
+
+# USGS NWIS — SW Florida coastal and inland gauges
+usgs_anchor_sites:
+  - "02291500"  # Caloosahatchee River near Olga
+  - "02292900"  # Barron River near Everglades City
+  - "02297310"  # Peace River at Arcadia
+  - "02298202"  # Myakka River near Sarasota
+  - "02299950"  # Little Manatee River near Wimauma
+  - "02300700"  # Hillsborough River near Zephyrhills
+
+# NOAA Tides and Currents — storm surge stations
+noaa_tide_stations:
+  - id: "8725520"
+    name: "Fort Myers"
+  - id: "8726520"
+    name: "St. Petersburg"
+  - id: "8726607"
+    name: "Old Port Tampa"
+  - id: "8725110"
+    name: "Naples"
+  - id: "8726724"
+    name: "Clearwater Beach"
+
+# NOAA SLOSH (Sea, Lake and Overland Surges from Hurricanes)
+# Retrospective SLOSH outputs available from NHC for Ian, Helene, Milton
+# Download from: https://www.nhc.noaa.gov/surge/slosh.php
+slosh_available_events:
+  - ian2022
+  - helene2024
+  - milton2024
+
+# FEMA OpenFEMA disaster registrations
+disaster_declarations:
+  ian2022:
+    dr_number: 4673
+    state: "FL"
+    incident_start: "2022-09-23"
+    incident_end: "2022-10-15"
+  helene2024:
+    dr_number: 4828
+    state: "FL"
+    incident_start: "2024-09-24"
+    incident_end: "2024-10-15"
+  milton2024:
+    dr_number: 4834
+    state: "FL"
+    incident_start: "2024-10-07"
+    incident_end: "2024-11-01"
+
+# Regime characteristics (for §6 block-size design)
+regime:
+  type: "coastal_surge_tropical"
+  spatial_autocorrelation_range_km: 40  # longer range; surge propagates broadly
+  dominant_mechanism: "tropical_cyclone_storm_surge"
+  infrastructure_stressor: "coastal_elevation_and_barrier_islands"
+  hypothesized_active_gate: "S"  # stability under rapid surge onset
+
+# Minimum viable dataset criteria (variogram analysis only)
+mvd:
+  min_zctas: 50
+  required_columns:
+    - zcta_id
+    - event
+    - max_surge_m         # from SLOSH or NOAA tides
+    - nfip_claim_count
+    - acsE_total_pop
+    - flood_pct_zone_a    # from geocertdb2026

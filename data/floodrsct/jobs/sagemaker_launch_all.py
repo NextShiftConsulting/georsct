@@ -88,6 +88,19 @@ JOB_CONFIG = {
         "volume_gb": 100,
         "events": None,
     },
+    "dem": {
+        "script": "fetch_3dep_dem.py",
+        "entrypoint": "entrypoint_dem.sh",
+        "instance": "ml.m5.2xlarge",
+        "volume_gb": 50,
+        "events": [
+            "houston",
+            "southwest_florida",
+            "nyc",
+            "socal",
+            "new_orleans",
+        ],
+    },
     "hurdat2": {
         "script": "fetch_hurdat2.py",
         "entrypoint": "entrypoint_hurdat2.sh",
