@@ -36,7 +36,6 @@ def get_s3():
     """Return a thread-local S3 client via swarm_auth credentials."""
     if not hasattr(_tls, "s3"):
         _aws = get_aws_credentials()
-        _aws.pop("region_name", None)
         _tls.s3 = boto3.client("s3", region_name="us-east-1", **_aws)
     return _tls.s3
 

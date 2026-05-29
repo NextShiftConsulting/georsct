@@ -36,7 +36,7 @@ TIMESTAMP = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Shared utilities uploaded with every job
-SHARED_FILES = ["_manifest_writer.py", "_s3_stream.py"]
+SHARED_FILES = ["_manifest_writer.py", "_s3_stream.py", "swarm_auth-0.2.0-py3-none-any.whl"]
 
 JOB_CONFIG = {
     "mrms": {
