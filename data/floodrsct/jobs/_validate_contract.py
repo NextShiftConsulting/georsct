@@ -154,8 +154,8 @@ EXPECTED_RAW_COLUMNS = {
     },
     "aggregate_hwm": {
         "file_pattern": "raw/surge_estimates/",
-        "required_columns": ["latitude", "longitude", "elev_ft", "elev_m"],
-        "note": "Also checks raw/usgs_stn/ as fallback path",
+        "required_columns": ["latitude", "longitude", "elev_ft"],
+        "note": "Also checks raw/usgs_stn/ as fallback path. Builder uses elev_ft directly.",
     },
 }
 

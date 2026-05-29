@@ -36,7 +36,7 @@ features:
     scenarios: [houston, nyc]
     source_type: derived
     source_dataset: nlcd_impervious
-    raw_s3_path: raw/nlcd/impervious/v2021/
+    raw_s3_path: raw/nlcd/impervious_2021/
     processed_s3_path: raw/nlcd/impervious_pct_zcta.parquet
     build_function: build_impervious_features
     output_column: impervious_pct
