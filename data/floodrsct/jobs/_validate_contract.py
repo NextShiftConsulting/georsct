@@ -34,6 +34,9 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
+# Silence botocore credential chain chatter
+logging.getLogger("botocore.credentials").setLevel(logging.WARNING)
+
 BUCKET = "swarm-floodrsct-data"
 CONTRACT_PATH = Path(__file__).parent.parent / "FEATURE_CONTRACT.yaml"
 
