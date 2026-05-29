@@ -1702,6 +1702,16 @@ def main() -> None:
     log.info("  Certificate slots null: %s",
              {c: df[c].isna().sum() for c in CERTIFICATE_SLOTS if c in df.columns})
 
+    # Post-assembly validation (Layer 2)
+    try:
+        from validate_assembly import validate_post_assembly, log_validation_report
+        report = validate_post_assembly(df, args.scenario)
+        passed = log_validation_report(report)
+        if not passed:
+            log.error("Post-assembly validation FAILED -- uploading anyway (check errors above)")
+    except ImportError:
+        log.warning("validate_assembly not available -- skipping post-assembly validation")
+
     s3_upload(df, OUTPUT_KEYS[args.scenario], s3)
     log.info("build_event_dataset complete: %s", args.scenario)
 
