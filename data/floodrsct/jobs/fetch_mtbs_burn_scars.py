@@ -141,6 +141,7 @@ def main() -> None:
         sys.exit(1)
 
     _aws = get_aws_credentials()
+    _aws.pop("region_name", None)
     s3 = boto3.client("s3", region_name="us-east-1", **_aws)
 
     try:

@@ -90,6 +90,7 @@ def filter_and_upload(
 
 def main() -> None:
     _aws = get_aws_credentials()
+    _aws.pop("region_name", None)
     s3 = boto3.client("s3", region_name="us-east-1", **_aws)
 
     # Step 1: copy all files wholesale

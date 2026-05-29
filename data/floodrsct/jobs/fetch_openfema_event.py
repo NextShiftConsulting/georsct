@@ -103,7 +103,7 @@ def fetch_nfip_claims(state: str, start: str, end: str, dr_number: int) -> pd.Da
             "$select": (
                 "reportedZipCode,dateOfLoss,amountPaidOnBuildingClaim,"
                 "amountPaidOnContentsClaim,totalBuildingInsuranceCoverage,"
-                "floodZone,occupancyType,numberOfFloorsInInsuredBuilding,"
+                "ratedFloodZone,occupancyType,numberOfFloorsInTheInsuredBuilding,"
                 "basementEnclosureCrawlspaceType"
             ),
         }
@@ -134,6 +134,7 @@ def fetch_nfip_claims(state: str, start: str, end: str, dr_number: int) -> pd.Da
 
 def upload(df: pd.DataFrame, s3_key: str) -> None:
     _aws = get_aws_credentials()
+    _aws.pop("region_name", None)
     s3 = boto3.client("s3", region_name="us-east-1", **_aws)
     local = f"/tmp/{Path(s3_key).name}"
     df.to_parquet(local, index=False)

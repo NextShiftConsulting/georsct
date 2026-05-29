@@ -109,6 +109,7 @@ def fetch_hwm(event_id: int, event_name: str) -> pd.DataFrame:
 
 def upload(df: pd.DataFrame, s3_key: str) -> None:
     _aws = get_aws_credentials()
+    _aws.pop("region_name", None)
     s3 = boto3.client("s3", region_name="us-east-1", **_aws)
     local = f"/tmp/{Path(s3_key).name}"
     df.to_parquet(local, index=False)

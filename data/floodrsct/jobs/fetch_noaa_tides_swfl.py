@@ -104,6 +104,7 @@ def fetch_station_event(station_id: str, station_name: str, event: str,
 
 def upload(df: pd.DataFrame, s3_key: str) -> None:
     _aws = get_aws_credentials()
+    _aws.pop("region_name", None)
     s3 = boto3.client("s3", region_name="us-east-1", **_aws)
     local = f"/tmp/{Path(s3_key).name}"
     df.to_parquet(local, index=False)

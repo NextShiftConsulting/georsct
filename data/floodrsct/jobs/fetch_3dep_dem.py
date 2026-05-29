@@ -230,6 +230,7 @@ def main() -> None:
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
         _aws = get_aws_credentials()
+        _aws.pop("region_name", None)
         s3 = boto3.client("s3", region_name="us-east-1", **_aws)
         futures = {
             pool.submit(download_and_upload, s3, scenario, tile): tile

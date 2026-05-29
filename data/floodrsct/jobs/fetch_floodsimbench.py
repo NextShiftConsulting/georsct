@@ -60,6 +60,7 @@ def fetch_rainfall_metadata() -> dict:
     url = f"{HF_BASE}/cities_rainfall.json"
     s3_key = f"{OUTPUT_PREFIX}/cities_rainfall.json"
     _aws = get_aws_credentials()
+    _aws.pop("region_name", None)
     s3 = boto3.client("s3", region_name="us-east-1", **_aws)
 
     # Upload to S3 if not already there
@@ -172,6 +173,7 @@ def main() -> None:
         "completed_at": datetime.now(timezone.utc).isoformat(),
     }
     _aws = get_aws_credentials()
+    _aws.pop("region_name", None)
     s3 = boto3.client("s3", region_name="us-east-1", **_aws)
     s3.put_object(
         Bucket=BUCKET,

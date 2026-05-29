@@ -220,6 +220,7 @@ def main() -> None:
     event_entry = EVENT_REGISTRY[event]
     event_id, state = event_entry
     _aws = get_aws_credentials()
+    _aws.pop("region_name", None)
     s3 = boto3.client("s3", region_name="us-east-1", **_aws)
 
     # Output key

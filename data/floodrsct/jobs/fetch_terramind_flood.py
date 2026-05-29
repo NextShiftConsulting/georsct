@@ -53,6 +53,7 @@ OUTPUT_PREFIX = "model/terramind_flood"
 
 def weights_already_in_s3() -> bool:
     _aws = get_aws_credentials()
+    _aws.pop("region_name", None)
     s3 = boto3.client("s3", region_name="us-east-1", **_aws)
     try:
         s3.head_object(Bucket=BUCKET, Key=f"{OUTPUT_PREFIX}/weights/{WEIGHTS_FILE}")
@@ -106,6 +107,7 @@ def smoke_test(model_dir: Path) -> dict:
 def upload_to_s3(local_dir: Path, s3_prefix: str) -> list[dict]:
     """Upload all files; skip hidden dirs and files already in S3 at same size."""
     _aws = get_aws_credentials()
+    _aws.pop("region_name", None)
     s3 = boto3.client("s3", region_name="us-east-1", **_aws)
     uploaded = []
     for fp in sorted(local_dir.rglob("*")):
@@ -140,6 +142,7 @@ def main() -> None:
 
     pt_local = model_dir / WEIGHTS_FILE
     _aws = get_aws_credentials()
+    _aws.pop("region_name", None)
     s3_client = boto3.client("s3", region_name="us-east-1", **_aws)
 
     # 1. Download weights (skip if already in S3)

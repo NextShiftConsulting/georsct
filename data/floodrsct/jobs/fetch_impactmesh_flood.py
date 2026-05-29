@@ -72,6 +72,7 @@ def download_one(item: dict) -> dict:
 
 def main() -> None:
     _aws = get_aws_credentials()
+    _aws.pop("region_name", None)
     s3 = boto3.client("s3", region_name="us-east-1", **_aws)
 
     file_list = [

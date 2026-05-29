@@ -1686,6 +1686,7 @@ def main() -> None:
     args = parser.parse_args()
 
     _aws = get_aws_credentials()
+    _aws.pop("region_name", None)
     s3 = boto3.client("s3", region_name="us-east-1", **_aws)
 
     cfg_path = CONFIG_DIR / f"{args.scenario}.yaml"

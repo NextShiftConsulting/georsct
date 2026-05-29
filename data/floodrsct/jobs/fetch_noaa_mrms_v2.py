@@ -199,6 +199,7 @@ def main():
     # Pass 0: delete existing stub files (< 10 KB) from prior bad runs
     # ------------------------------------------------------------------
     _aws = get_aws_credentials()
+    _aws.pop("region_name", None)
     s3_main = boto3.client("s3", region_name="us-east-1", **_aws)
     deleted = delete_s3_stubs(s3_main, event, timestamps)
     log.info("Stub cleanup: deleted %d files < %d bytes", deleted, MIN_FILE_SIZE)

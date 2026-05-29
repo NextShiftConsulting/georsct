@@ -135,6 +135,7 @@ def scrape_gis_archive(event_cfg: dict) -> list[tuple[str, bytes]]:
 
 def upload_files(files: list[tuple[str, bytes]], s3_prefix: str) -> None:
     _aws = get_aws_credentials()
+    _aws.pop("region_name", None)
     s3 = boto3.client("s3", region_name="us-east-1", **_aws)
     for filename, content in files:
         local_path = f"/tmp/{filename}"
@@ -163,6 +164,7 @@ def main() -> None:
             )
             # Write a placeholder manifest so the job doesn't fail silently
             _aws = get_aws_credentials()
+            _aws.pop("region_name", None)
             s3 = boto3.client("s3", region_name="us-east-1", **_aws)
             manifest = (
                 f"SLOSH data not auto-downloaded for {event_name}.\n"

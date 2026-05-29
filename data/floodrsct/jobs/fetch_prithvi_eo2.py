@@ -140,6 +140,7 @@ def smoke_test(model_dir: Path) -> dict:
 def upload_to_s3(local_dir: Path, s3_prefix: str) -> list[dict]:
     """Upload all files; skip .cache/ dirs and files already in S3 at the same size."""
     _aws = get_aws_credentials()
+    _aws.pop("region_name", None)
     s3 = boto3.client("s3", region_name="us-east-1", **_aws)
     uploaded = []
     for fp in sorted(local_dir.rglob("*")):
@@ -173,6 +174,7 @@ def upload_to_s3(local_dir: Path, s3_prefix: str) -> list[dict]:
 def weights_already_in_s3() -> bool:
     """Return True if the main weights file is already in S3."""
     _aws = get_aws_credentials()
+    _aws.pop("region_name", None)
     s3 = boto3.client("s3", region_name="us-east-1", **_aws)
     try:
         s3.head_object(Bucket=BUCKET, Key=f"{OUTPUT_PREFIX}/weights/Prithvi_EO_V2_300M_TL.pt")
@@ -202,6 +204,7 @@ def main() -> None:
         # Pull .pt file from S3 if not already local — needed for smoke test
         if not pt_local.exists():
             _aws = get_aws_credentials()
+            _aws.pop("region_name", None)
             s3_client = boto3.client("s3", region_name="us-east-1", **_aws)
             obj_size = s3_client.head_object(Bucket=BUCKET, Key=pt_s3_key)["ContentLength"]
             log.info("Pulling weights from S3 for smoke test (%.1f MB)...", obj_size / 1e6)
@@ -237,6 +240,7 @@ def main() -> None:
             }
         smoke_path.write_text(json.dumps(result, indent=2))
         _aws = get_aws_credentials()
+        _aws.pop("region_name", None)
         s3 = boto3.client("s3", region_name="us-east-1", **_aws)
         s3.upload_file(
             str(smoke_path), BUCKET,
@@ -247,6 +251,7 @@ def main() -> None:
     # 3. Write manifest
     if not ckpt.is_done("manifest"):
         _aws = get_aws_credentials()
+        _aws.pop("region_name", None)
         write_manifest(
             s3=boto3.client("s3", region_name="us-east-1", **_aws),
             dataset="prithvi_eo2",

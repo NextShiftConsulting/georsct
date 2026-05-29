@@ -83,6 +83,7 @@ def query_tnm_tiles(bbox: tuple, product_tag: str) -> list[dict]:
 
 def main() -> None:
     _aws = get_aws_credentials()
+    _aws.pop("region_name", None)
     s3 = boto3.client("s3", region_name="us-east-1", **_aws)
     total_uploaded = 0
 

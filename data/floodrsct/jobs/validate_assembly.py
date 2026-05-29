@@ -494,6 +494,7 @@ def main():
     import boto3
     from swarm_auth import get_aws_credentials
     _aws = get_aws_credentials()
+    _aws.pop("region_name", None)
     s3 = boto3.client("s3", **_aws)
     events = SCENARIO_EVENTS.get(args.scenario, [])
     all_pass = True
