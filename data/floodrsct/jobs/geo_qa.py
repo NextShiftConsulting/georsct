@@ -280,9 +280,8 @@ def main() -> None:
     if not args.scenario and not args.all:
         parser.error("specify --scenario or --all")
 
-    _aws = get_aws_credentials()
-    _aws.pop("region_name", None)
-    s3 = boto3.client("s3", region_name="us-east-1", **_aws)
+    aws = get_aws_credentials()
+    s3 = boto3.client("s3", **aws)
 
     scenarios = reg.active_names() if args.all else [args.scenario]
     total_fails = 0
