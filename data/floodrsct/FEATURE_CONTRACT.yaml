@@ -14,6 +14,17 @@
 #   operational    — real-time status; cannot be obtained from public historical archive
 #
 # version_target: the s035 data version when this field becomes fully populated
+#
+# temporal_class:
+#   invariant     — physical geography; unchanged across events (DEM, coastal distance, catchment area)
+#   slow_drift    — updated annually/decadally; version-pinned per analysis (NLCD, census, SVI, flood zones)
+#   event_window  — measured hourly during the event; aggregated to (unit, event) row (MRMS, HRRR, tides, track)
+#   post_event    — observed days/weeks after event; ground truth / outcome (HWMs, 311, NFIP claims)
+#   operational   — real-time telemetry; cannot be historically reconstructed (pump status, road closures)
+#
+# CAUSAL BOUNDARY: Only invariant, slow_drift, and event_window features are legitimate
+# inputs to a forecast model or certificate. post_event features are LABELS/OUTCOMES —
+# using them as inputs is label leakage. operational features are unknowable at forecast time.
 # ---
 
 features:
@@ -21,6 +32,7 @@ features:
   # ─── NLCD Impervious Surface ──────────────────────────────────────────────
 
   - feature_name: impervious_pct
+    temporal_class: slow_drift
     scenarios: [houston, nyc]
     source_type: derived
     source_dataset: nlcd_impervious
@@ -39,6 +51,7 @@ features:
   # ─── DEM Elevation ────────────────────────────────────────────────────────
 
   - feature_name: elevation_m_msl
+    temporal_class: invariant
     scenarios: [southwest_florida, new_orleans]
     source_type: derived
     source_dataset: usgs_3dep_dem
@@ -57,6 +70,7 @@ features:
   # ─── MTBS Burn Scars ──────────────────────────────────────────────────────
 
   - feature_name: burn_scar_overlap
+    temporal_class: slow_drift
     scenarios: [riverside_coachella]
     source_type: derived
     source_dataset: mtbs_burn_perimeters
@@ -76,6 +90,7 @@ features:
   # ─── NHDPlus Catchments ───────────────────────────────────────────────────
 
   - feature_name: upstream_catchment_km2
+    temporal_class: invariant
     scenarios: [riverside_coachella]
     source_type: derived
     source_dataset: nhdplus_v2_catchments
@@ -92,6 +107,7 @@ features:
       Derive: build_catchment_features() spatially joins to ZCTAs; sums contributing area.
 
   - feature_name: wash_segment_id
+    temporal_class: invariant
     scenarios: [riverside_coachella]
     source_type: derived
     source_dataset: nhdplus_v2_catchments
@@ -109,6 +125,7 @@ features:
   # ─── SLOSH Surge ─────────────────────────────────────────────────────────
 
   - feature_name: slosh_max_surge_m
+    temporal_class: event_window
     scenarios: [southwest_florida]
     source_type: derived
     source_dataset: noaa_slosh
@@ -125,6 +142,7 @@ features:
       Derive: build_slosh_features() does ZCTA spatial overlay in build_event_dataset.py.
 
   - feature_name: slosh_category
+    temporal_class: event_window
     scenarios: [southwest_florida]
     source_type: derived
     source_dataset: noaa_slosh
@@ -140,6 +158,7 @@ features:
       Same build function as slosh_max_surge_m.
 
   - feature_name: coastal_distance_m
+    temporal_class: invariant
     scenarios: [southwest_florida]
     source_type: derived
     source_dataset: tiger_coastline
@@ -158,6 +177,7 @@ features:
   # ─── NYC Sewersheds ───────────────────────────────────────────────────────
 
   - feature_name: sewer_shed_id
+    temporal_class: invariant
     scenarios: [nyc]
     source_type: derived
     source_dataset: nyc_sewersheds
@@ -176,6 +196,7 @@ features:
   # ─── MTA Subway Stations ─────────────────────────────────────────────────
 
   - feature_name: subway_station_count
+    temporal_class: invariant
     scenarios: [nyc]
     source_type: derived
     source_dataset: mta_subway_stations
@@ -192,6 +213,7 @@ features:
       Derive: build_subway_features() counts stations per ZCTA.
 
   - feature_name: nearest_subway_distance_m
+    temporal_class: invariant
     scenarios: [nyc]
     source_type: derived
     source_dataset: mta_subway_stations
@@ -207,6 +229,7 @@ features:
   # ─── USACE Levees → ZCTA ─────────────────────────────────────────────────
 
   - feature_name: levee_condition_rating
+    temporal_class: slow_drift
     scenarios: [new_orleans, nyc]
     source_type: derived
     source_dataset: usace_levees
@@ -225,6 +248,7 @@ features:
   # ─── Land Subsidence (New Orleans) ───────────────────────────────────────
 
   - feature_name: subsidence_rate_mm_yr
+    temporal_class: slow_drift
     scenarios: [new_orleans]
     source_type: derived
     source_dataset: usgs_subsidence_no
@@ -244,6 +268,7 @@ features:
   # ─── Operational / Real-Time Fields (cannot be historically archived) ─────
 
   - feature_name: drainage_capacity_status
+    temporal_class: operational
     scenarios: [houston]
     source_type: operational
     source_dataset: null
@@ -262,6 +287,7 @@ features:
       F40 access_fragility = null if drainage_capacity_status = unknown.
 
   - feature_name: pump_station_status
+    temporal_class: operational
     scenarios: [new_orleans]
     source_type: operational
     source_dataset: >
@@ -280,6 +306,7 @@ features:
       Partial post-hoc reconstruction possible for Ida 2021 via hand-coded evidence.
 
   - feature_name: road_access_status
+    temporal_class: operational
     scenarios: [riverside_coachella]
     source_type: operational
     source_dataset: null
@@ -297,6 +324,7 @@ features:
       F40 access_fragility = null if road_access_status = unknown.
 
   - feature_name: evacuation_route_status
+    temporal_class: operational
     scenarios: [southwest_florida]
     source_type: operational
     source_dataset: null
@@ -318,6 +346,7 @@ features:
   # ─── Bayou / Drainage District Identifiers ────────────────────────────────
 
   - feature_name: bayou_segment_id
+    temporal_class: invariant
     scenarios: [houston]
     source_type: derived
     source_dataset: nhdplus_v2_catchments
@@ -334,6 +363,7 @@ features:
       Derived from NHDPlus flowlines for HUC8 12040104 (Buffalo Bayou) and neighbors.
 
   - feature_name: drainage_district_id
+    temporal_class: invariant
     scenarios: [houston]
     source_type: derived
     source_dataset: hcfcd_drainage_districts
@@ -351,6 +381,7 @@ features:
       Derive: spatial intersection with ZCTA polygons.
 
   - feature_name: canal_proximity_m
+    temporal_class: invariant
     scenarios: [new_orleans]
     source_type: derived
     source_dataset: osm_canals_no
@@ -365,3 +396,118 @@ features:
       Distance from ZCTA centroid to nearest OSM canal/drainage channel in Orleans Parish.
       Fetch: fetch_osm_canals_no.py (Overpass API query for waterway=canal).
       Derive: haversine nearest-neighbor in build_levee_features().
+
+  # ─── Event-Window Features (measured during the event) ──────────────────────
+
+  - feature_name: max_rainfall_mm
+    temporal_class: event_window
+    scenarios: [houston, nyc, riverside_coachella, southwest_florida, new_orleans]
+    source_type: derived
+    source_dataset: noaa_mrms
+    raw_s3_path: raw/noaa_mrms/{event}/
+    processed_s3_path: (embedded in {scenario}_event_features.parquet)
+    build_function: aggregate_mrms_rainfall
+    output_column: max_rainfall_mm
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.003
+    notes: >
+      Maximum hourly Stage IV rainfall (mm) within ZCTA boundary during event window.
+      Aggregated from hourly GRIB2 files via spatial overlay.
+
+  - feature_name: total_rainfall_mm
+    temporal_class: event_window
+    scenarios: [houston, nyc, riverside_coachella, southwest_florida, new_orleans]
+    source_type: derived
+    source_dataset: noaa_mrms
+    raw_s3_path: raw/noaa_mrms/{event}/
+    processed_s3_path: (embedded in {scenario}_event_features.parquet)
+    build_function: aggregate_mrms_rainfall
+    output_column: total_rainfall_mm
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.003
+    notes: Same source and build as max_rainfall_mm; cumulative sum over event window.
+
+  - feature_name: tidal_surge_max_m
+    temporal_class: event_window
+    scenarios: [houston, new_orleans, southwest_florida, nyc]
+    source_type: derived
+    source_dataset: noaa_tides
+    raw_s3_path: raw/noaa_tides/{event}/
+    processed_s3_path: (embedded in {scenario}_event_features.parquet)
+    build_function: aggregate_tides
+    output_column: tidal_surge_max_m
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.003
+    notes: >
+      Maximum tidal surge residual (observed - predicted) during event window.
+      Assigned to ZCTAs by nearest-station. Currently uniform (no interpolation).
+
+  - feature_name: storm_distance_km
+    temporal_class: event_window
+    scenarios: [houston, southwest_florida, riverside_coachella]
+    source_type: derived
+    source_dataset: hurdat2
+    raw_s3_path: raw/hurdat2/storm_tracks.parquet
+    processed_s3_path: (embedded in {scenario}_event_features.parquet)
+    build_function: compute_storm_proximity
+    output_column: storm_distance_km
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.003
+    notes: >
+      Minimum distance (km) from ZCTA centroid to storm track during peak window.
+      Derived from HURDAT2 best-track 6-hourly positions.
+
+  # ─── Post-Event Features (LABELS — not inputs to models) ───────────────────
+  # CAUTION: These are outcomes/ground truth. Using as model inputs = label leakage.
+
+  - feature_name: hwm_max_ft
+    temporal_class: post_event
+    scenarios: [houston, southwest_florida, nyc, riverside_coachella]
+    source_type: derived
+    source_dataset: usgs_stn
+    raw_s3_path: raw/usgs_stn/{event}_hwm.parquet
+    processed_s3_path: (embedded in {scenario}_event_features.parquet)
+    build_function: aggregate_hwm
+    output_column: hwm_max_ft
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.003
+    notes: >
+      Maximum high-water mark elevation (ft above ground) within ZCTA.
+      LABEL/OUTCOME — do not use as model input. Used for certificate validation only.
+
+  - feature_name: flood_311_count
+    temporal_class: post_event
+    scenarios: [houston, nyc]
+    source_type: derived
+    source_dataset: houston_311 / nyc_311
+    raw_s3_path: raw/houston_311/{event}_311.parquet or raw/nyc_311/{event}_flooding_311.parquet
+    processed_s3_path: (embedded in {scenario}_event_features.parquet)
+    build_function: aggregate_311
+    output_column: flood_311_count
+    missing_behavior: "0 — field_status = missing_source_data if raw absent"
+    field_status_behavior: missing_source_data
+    version_target: v24.003
+    notes: >
+      Count of flood-related 311 service requests per ZCTA during event + 7 days.
+      LABEL/OUTCOME — do not use as model input. Used for certificate validation only.
+
+  - feature_name: nfip_event_claims
+    temporal_class: post_event
+    scenarios: [houston, new_orleans, nyc, southwest_florida, riverside_coachella]
+    source_type: derived
+    source_dataset: openfema
+    raw_s3_path: raw/openfema/nfip_claims_dr{dr_number}.parquet
+    processed_s3_path: (embedded in {scenario}_event_features.parquet)
+    build_function: load_nfip_event_claims
+    output_column: nfip_event_claims
+    missing_behavior: "0 — field_status = missing_source_data if raw absent"
+    field_status_behavior: missing_source_data
+    version_target: v24.003
+    notes: >
+      Count of NFIP flood insurance claims filed per ZCTA for this specific disaster declaration.
+      LABEL/OUTCOME — do not use as model input. Used for certificate validation only.
