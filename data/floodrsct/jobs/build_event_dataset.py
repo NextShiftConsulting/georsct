@@ -288,6 +288,7 @@ def aggregate_mrms_rainfall(s3, event: str, zcta_ids: list[str]) -> pd.DataFrame
 def _mrms_spatial_aggregate(s3, file_keys: list[str], zcta_ids: list[str],
                              event: str) -> pd.DataFrame:
     """Download grib2 files, read precipitation values, overlay on ZCTA polygons."""
+    import gzip
     import tempfile
     import geopandas as gpd
     import cfgrib
@@ -297,24 +298,41 @@ def _mrms_spatial_aggregate(s3, file_keys: list[str], zcta_ids: list[str],
     lat_arr = lon_arr = None
 
     for key in file_keys:
-        with tempfile.NamedTemporaryFile(suffix=".grb2") as f:
-            s3.download_fileobj(BUCKET, key, f)
-            f.flush()
-            try:
-                ds = cfgrib.open_dataset(f.name, indexpath=None)
-                precip_var = next(
-                    (v for v in ["tp", "unknown", "apcp", "APCP"] if v in ds),
-                    None,
-                )
-                if precip_var is None:
-                    continue
-                arr = ds[precip_var].values  # 2D grid
-                if lat_arr is None:
-                    lat_arr = ds["latitude"].values
-                    lon_arr = ds["longitude"].values
-                hourly_arrays.append(arr)
-            except Exception as e:
-                log.debug("Could not read %s: %s", key, e)
+        with tempfile.NamedTemporaryFile(suffix=".gz", delete=False) as f_gz:
+            s3.download_fileobj(BUCKET, key, f_gz)
+            f_gz.flush()
+            gz_path = f_gz.name
+
+        # Decompress .grib2.gz -> .grb2 for cfgrib/eccodes
+        grb2_path = gz_path.replace(".gz", ".grb2")
+        try:
+            if key.endswith(".gz"):
+                with gzip.open(gz_path, "rb") as gz_in:
+                    with open(grb2_path, "wb") as raw_out:
+                        raw_out.write(gz_in.read())
+            else:
+                grb2_path = gz_path  # already uncompressed
+
+            ds = cfgrib.open_dataset(grb2_path, indexpath=None)
+            precip_var = next(
+                (v for v in ["tp", "unknown", "apcp", "APCP"] if v in ds),
+                None,
+            )
+            if precip_var is None:
+                continue
+            arr = ds[precip_var].values  # 2D grid
+            if lat_arr is None:
+                lat_arr = ds["latitude"].values
+                lon_arr = ds["longitude"].values
+            hourly_arrays.append(arr)
+        except Exception as e:
+            log.debug("Could not read %s: %s", key, e)
+        finally:
+            for p in (gz_path, grb2_path):
+                try:
+                    Path(p).unlink(missing_ok=True)
+                except OSError:
+                    pass
 
     if not hourly_arrays:
         return pd.DataFrame({"zcta_id": zcta_ids, "rainfall_total_mm": np.nan,
@@ -481,10 +499,14 @@ def compute_storm_proximity(s3, storm_id: str,
     if hurdat is None or hurdat.empty:
         return empty
 
+    # Localize timestamp if tz-naive (fetcher writes naive UTC datetimes)
+    ts_col = hurdat["timestamp"]
+    if ts_col.dt.tz is None:
+        ts_col = ts_col.dt.tz_localize("UTC")
     track = hurdat[
         (hurdat["storm_id"] == storm_id) &
-        (hurdat["datetime_utc"] >= pd.Timestamp(peak_window[0], tz="UTC")) &
-        (hurdat["datetime_utc"] <= pd.Timestamp(peak_window[1], tz="UTC"))
+        (ts_col >= pd.Timestamp(peak_window[0], tz="UTC")) &
+        (ts_col <= pd.Timestamp(peak_window[1], tz="UTC"))
     ]
     if track.empty:
         return empty
@@ -494,7 +516,25 @@ def compute_storm_proximity(s3, storm_id: str,
         return empty
 
     geo = geo[geo["zcta_id"].isin(zcta_ids)][["zcta_id", "latitude", "longitude"]].dropna()
-    landfall_cat = track.loc[track["category"].notna(), "category"].max() if track["category"].notna().any() else np.nan
+    # Derive Saffir-Simpson category from max_wind_kt (fetcher writes status + max_wind_kt, not category)
+    def _saffir_simpson(kt):
+        if pd.isna(kt):
+            return np.nan
+        if kt >= 137:
+            return 5
+        if kt >= 113:
+            return 4
+        if kt >= 96:
+            return 3
+        if kt >= 83:
+            return 2
+        if kt >= 64:
+            return 1
+        return 0  # tropical storm / depression
+    if "max_wind_kt" in track.columns:
+        landfall_cat = track["max_wind_kt"].apply(_saffir_simpson).max()
+    else:
+        landfall_cat = np.nan
 
     rows = []
     for _, zcta_row in geo.iterrows():
@@ -540,9 +580,9 @@ def aggregate_tides(s3, prefix_pattern: str, event: str,
     frames = []
     for key in keys:
         df = s3_read(s3, key)
-        if df is not None and "water_level_m" in df.columns:
+        if df is not None and "observed_m" in df.columns:
             station_id = df["station_id"].iloc[0] if "station_id" in df.columns else key
-            peak_wl = df["water_level_m"].max()
+            peak_wl = df["observed_m"].max()
             peak_surge = df["surge_m"].max() if "surge_m" in df.columns else np.nan
             frames.append({"station_id": station_id,
                            "max_water_level_m": peak_wl,
@@ -604,7 +644,7 @@ def build_houston(s3, cfg: dict) -> pd.DataFrame:
         "harvey2017": {"dr": 4332, "storm_id": "AL092017",
                        "peak_window": ("2017-08-25", "2017-09-02")},
         "imelda2019": {"dr": 4466, "storm_id": "AL132019",
-                       "peak_window": ("2017-09-17", "2017-09-21")},
+                       "peak_window": ("2019-09-17", "2019-09-21")},
         "beryl2024":  {"dr": 4781, "storm_id": "AL022024",
                        "peak_window": ("2024-07-08", "2024-07-12")},
     }
