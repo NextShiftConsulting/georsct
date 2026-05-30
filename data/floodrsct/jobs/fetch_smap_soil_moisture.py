@@ -510,10 +510,18 @@ def date_range(start: date, end: date):
 
 
 def main() -> None:
-    # Token: env var first, then swarm_auth
+    # Token: env var -> swarm_auth -> direct Secrets Manager
     token = os.environ.get("EARTHDATA_TOKEN", "").strip()
     if not token:
         token = (get_credential("EARTHDATA_TOKEN") or "").strip()
+    if not token:
+        # Direct Secrets Manager fallback (secret stored without swarm-it/ prefix)
+        try:
+            sm = boto3.client("secretsmanager", region_name="us-east-1")
+            resp = sm.get_secret_value(SecretId="EARTHDATA_TOKEN")
+            token = resp["SecretString"].strip()
+        except Exception as e:
+            log.warning("Secrets Manager fallback failed: %s", e)
     if not token:
         log.error(
             "EARTHDATA_TOKEN is not set. "

@@ -15,7 +15,6 @@ Usage:
 """
 
 import argparse
-import os
 import sys
 from pathlib import Path
 
@@ -34,19 +33,9 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    # EARTHDATA_TOKEN must be set in the environment before launching.
-    # It is passed to the container as an environment variable via the
-    # SageMaker job config below.
-    token = os.environ.get("EARTHDATA_TOKEN", "").strip()
-    if not token:
-        print(
-            "ERROR: EARTHDATA_TOKEN is not set.\n"
-            "Export it first:\n"
-            "  export EARTHDATA_TOKEN=<your-token>",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
+    # EARTHDATA_TOKEN is read at runtime inside the container via
+    # swarm_auth -> AWS Secrets Manager (token is 681 chars, exceeds
+    # SageMaker's 256-char env var limit).
     job_name = make_job_name("fetch-smap-soil-moisture")
 
     # We need requests; boto3 + pyyaml + pandas are in _BASE_PACKAGES.
@@ -62,11 +51,10 @@ def main() -> None:
     launch_processing_job(
         job_name=job_name,
         job_script="fetch_smap_soil_moisture.py",
-        job_args=[],          # script uses env var EARTHDATA_TOKEN, no CLI args
+        job_args=[],
         instance_type=instance_type,
         volume_size_gb=volume_size_gb,
         pip_packages=pip_packages,
-        env_overrides={"EARTHDATA_TOKEN": token},
         dry_run=args.dry_run,
     )
 
