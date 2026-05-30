@@ -79,6 +79,8 @@ EVENT_BBOX = {
     "ian2022":          (-82.5, 25.5, -81.0, 27.5),   # SW Florida
     "helene2024":       (-84.0, 25.5, -81.0, 30.5),   # SW Florida (wider for Helene track)
     "milton2024":       (-82.5, 25.5, -81.0, 27.5),   # SW Florida
+    "ida2021_nyc":      (-74.5, 40.0, -73.5, 41.5),   # NYC/NJ
+    "ar_flood_2023":    (-122.5, 34.0, -117.0, 38.5),  # Central/Southern CA
 }
 
 # 7-day antecedent windows (inclusive start..end, 7 days each)
@@ -92,6 +94,8 @@ EVENTS = {
     "ian2022":      {"start": date(2022, 9, 21), "end": date(2022, 9, 27)},
     "helene2024":   {"start": date(2024, 9, 17), "end": date(2024, 9, 23)},
     "milton2024":   {"start": date(2024, 9, 28), "end": date(2024, 10, 4)},
+    "ida2021_nyc":  {"start": date(2021, 8, 25), "end": date(2021, 8, 31)},
+    "ar_flood_2023":{"start": date(2023, 1, 1),  "end": date(2023, 1, 7)},
 }
 
 

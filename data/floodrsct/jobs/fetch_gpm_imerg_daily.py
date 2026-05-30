@@ -84,6 +84,10 @@ EVENTS = {
         "start": date(2024, 10, 5),
         "end": date(2024, 10, 11),
     },
+    "ar_flood_2023": {
+        "start": date(2023, 1, 7),
+        "end": date(2023, 1, 28),
+    },
 }
 
 
