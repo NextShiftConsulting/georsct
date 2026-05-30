@@ -82,6 +82,13 @@ def upload_code(job_name: str, job_script: str, extra_files: list[str] | None = 
     return s3_prefix
 
 
+def _upload_bootstrap(code_prefix: str, script_content: str) -> None:
+    """Upload a bootstrap shell script alongside the code."""
+    s3 = boto3.client("s3", **get_aws_credentials())
+    key = f"{code_prefix}_bootstrap.sh"
+    s3.put_object(Bucket=CODE_BUCKET, Key=key, Body=script_content.encode())
+
+
 # Default packages installed in every job container.
 # Extend per-job via the pip_packages argument — do NOT add geopandas/rasterio
 # here; only spatial jobs need them, and they add 2-3 min install time on the
@@ -135,17 +142,21 @@ def launch_processing_job(
     processing_outputs: list[dict] = []
 
     args_str = " ".join(job_args)
+
     # SageMaker caps each ContainerEntrypoint member at 256 chars.
-    # Keep the bash -c string compact.
+    # Write a bootstrap script to avoid the limit.
+    bootstrap = (
+        "#!/bin/bash\nset -e\n"
+        f"pip install -qU {packages}\n"
+        "pip install -q /opt/ml/processing/input/code/*.whl 2>/dev/null || true\n"
+        "cd /opt/ml/processing/input/code\n"
+        f"python -u {job_script} {args_str}\n"
+    )
+    _upload_bootstrap(code_prefix, bootstrap)
+
     container_cmd = [
         "bash",
-        "-c",
-        (
-            f"pip install -qU {packages}"
-            " && pip install -q /opt/ml/processing/input/code/*.whl"
-            " 2>/dev/null; cd /opt/ml/processing/input/code &&"
-            f" python -u {job_script} {args_str}"
-        ),
+        f"/opt/ml/processing/input/code/_bootstrap.sh",
     ]
 
     job_config = {
