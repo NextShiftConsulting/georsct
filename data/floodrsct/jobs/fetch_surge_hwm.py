@@ -64,6 +64,7 @@ EVENT_REGISTRY = {
     "helene2024": (346, "FL"),
     "milton2024": (347, "FL"),
     "ar_flood_2023": (327, "CA"),
+    "henri2021": (310, "NY"),
 }
 
 # Existing S3 parquets (pre-uploaded)

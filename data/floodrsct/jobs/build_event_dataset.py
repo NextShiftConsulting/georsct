@@ -30,6 +30,7 @@ Usage:
 
 import argparse
 import logging
+import os
 import sys
 from io import BytesIO
 from pathlib import Path
@@ -1336,10 +1337,42 @@ def build_catchment_features(s3, zcta_ids: list[str], vpu: str) -> pd.DataFrame:
     return out
 
 
-def build_slosh_features(s3, event: str, zcta_ids: list[str]) -> pd.DataFrame:
-    """Derive slosh_max_surge_m and slosh_category per ZCTA from NHC SLOSH grids.
+def _slosh_surge_to_category(m: float) -> Optional[str]:
+    """Convert surge depth (m) to Saffir-Simpson category string."""
+    if np.isnan(m):
+        return None
+    if m < 1.5:
+        return "1"
+    elif m < 2.4:
+        return "2"
+    elif m < 3.7:
+        return "3"
+    elif m < 5.5:
+        return "4"
+    return "5"
 
-    Requires: raw/noaa_slosh/{event}/*.zip or *.nc (SLOSH MOM grid)
+
+# Saffir-Simpson category at landfall for each SW Florida event.
+# Used to select the correct MOM GeoTIFF layer.
+_SWFL_EVENT_CATEGORY = {
+    "ian2022": 4,
+    "helene2024": 4,
+    "milton2024": 3,
+}
+
+# MOM national GeoTIFF key template (Cat 1-5)
+_MOM_KEY_TEMPLATE = "raw/noaa_slosh/mom_national/us_Category{cat}_MOM_Inundation_HIGH.tif"
+
+
+def build_slosh_features(s3, event: str, zcta_ids: list[str]) -> pd.DataFrame:
+    """Derive slosh_max_surge_m and slosh_category per ZCTA from NHC SLOSH MOM.
+
+    Primary path: national MOM GeoTIFF at raw/noaa_slosh/mom_national/.
+    The event determines which SS category layer to sample (e.g. Ian=Cat4).
+    MOM is basin-specific and invariant -- same grid regardless of storm.
+
+    Fallback: legacy per-event NetCDF at raw/noaa_slosh/{event}/ (deprecated).
+
     Returns DataFrame: zcta_id, slosh_max_surge_m, slosh_category, _fs_slosh_max_surge_m.
     """
     empty = pd.DataFrame({
@@ -1349,33 +1382,14 @@ def build_slosh_features(s3, event: str, zcta_ids: list[str]) -> pd.DataFrame:
         "_fs_slosh_max_surge_m": _FS_MISSING,
     })
 
-    resp = s3.list_objects_v2(Bucket=BUCKET, Prefix=f"raw/noaa_slosh/{event}/")
-    slosh_keys = [o["Key"] for o in resp.get("Contents", [])
-                  if not o["Key"].endswith("MANUAL_DOWNLOAD_REQUIRED.txt")]
-    if not slosh_keys:
-        log.warning("build_slosh_features: no SLOSH data for event=%s; "
-                    "check for MANUAL_DOWNLOAD_REQUIRED.txt", event)
+    # Resolve storm category for MOM lookup
+    cat = _SWFL_EVENT_CATEGORY.get(event)
+    if cat is None:
+        log.warning("build_slosh_features: no SS category mapping for event=%s; "
+                    "returning NaN", event)
         return empty
 
-    # SLOSH MOM grids are ASCII or NetCDF; attempt NetCDF first
-    nc_keys = [k for k in slosh_keys if k.endswith(".nc") or k.endswith(".grb2")]
-    if not nc_keys:
-        log.warning("build_slosh_features: SLOSH keys found but no .nc/.grb2 for event=%s; "
-                    "returning NaN (manual inspection required)", event)
-        return empty
-
-    if not HAS_GEO:
-        log.warning("build_slosh_features: geopandas not available; returning NaN")
-        return empty
-
-    try:
-        import xarray as xr
-        from shapely.geometry import Point
-        import geopandas as gpd
-    except ImportError:
-        log.warning("build_slosh_features: xarray not available; returning NaN")
-        return empty
-
+    # Load ZCTA centroids
     static = s3_read(s3, "raw/geocertdb2026/zcta_features_labels.parquet")
     if static is None:
         return empty
@@ -1390,13 +1404,117 @@ def build_slosh_features(s3, event: str, zcta_ids: list[str]) -> pd.DataFrame:
                  .query("zcta_id in @zcta_ids")
                  .dropna(subset=["lat", "lon"]))
 
+    # --- Primary path: national MOM GeoTIFF via rasterio ---
+    mom_key = _MOM_KEY_TEMPLATE.format(cat=cat)
+    result = _build_slosh_from_mom_geotiff(s3, mom_key, cat, centroids, zcta_ids, event)
+    if result is not None:
+        return result
+
+    # --- Fallback: legacy per-event NetCDF (deprecated) ---
+    log.info("build_slosh_features: MOM GeoTIFF path failed; trying legacy per-event path")
+    result = _build_slosh_from_legacy_nc(s3, event, centroids, zcta_ids)
+    if result is not None:
+        return result
+
+    return empty
+
+
+def _build_slosh_from_mom_geotiff(
+    s3, mom_key: str, cat: int, centroids: pd.DataFrame,
+    zcta_ids: list[str], event: str,
+) -> Optional[pd.DataFrame]:
+    """Sample national MOM GeoTIFF at ZCTA centroids. Returns DataFrame or None."""
+    try:
+        import rasterio
+    except ImportError:
+        log.warning("build_slosh_features: rasterio not available; cannot read MOM GeoTIFF")
+        return None
+
+    local = f"/tmp/slosh_mom_cat{cat}.tif"
+    try:
+        s3.download_file(BUCKET, mom_key, local)
+    except Exception as exc:
+        log.warning("build_slosh_features: failed to download %s: %s", mom_key, exc)
+        return None
+
     surge_vals: dict[str, float] = {}
-    for nc_key in nc_keys[:3]:  # limit to first 3 to avoid memory issues
+    try:
+        with rasterio.open(local) as src:
+            log.info("build_slosh_features: opened MOM Cat %d (%s, %dx%d, crs=%s)",
+                     cat, mom_key, src.width, src.height, src.crs)
+            band = src.read(1)
+            nodata = src.nodata
+
+            for _, row in centroids.iterrows():
+                try:
+                    # Transform lon/lat to pixel coordinates
+                    px, py = src.index(row["lon"], row["lat"])
+                    if 0 <= px < src.height and 0 <= py < src.width:
+                        val = float(band[px, py])
+                        if nodata is not None and val == nodata:
+                            val = np.nan
+                        elif val >= 99:
+                            # NHC metadata: value 99 = levee-protected areas;
+                            # not valid surge depth.
+                            val = np.nan
+                        elif val <= 0:
+                            val = np.nan
+                        surge_vals[row["zcta_id"]] = val
+                except Exception:
+                    pass
+    except Exception as exc:
+        log.warning("build_slosh_features: rasterio read error: %s", exc)
+        return None
+    finally:
+        if Path(local).exists():
+            os.unlink(local)
+
+    # MOM values are in feet; convert to meters
+    FT_TO_M = 0.3048
+    rows = []
+    for z in zcta_ids:
+        val_ft = surge_vals.get(z, np.nan)
+        val_m = val_ft * FT_TO_M if not np.isnan(val_ft) else np.nan
+        rows.append({
+            "zcta_id": z,
+            "slosh_max_surge_m": val_m,
+            "slosh_category": str(cat) if not np.isnan(val_m) else None,
+        })
+    out = pd.DataFrame(rows)
+    out["_fs_slosh_max_surge_m"] = np.where(
+        out["slosh_max_surge_m"].notna(), "present", _FS_MISSING)
+    pct = out["slosh_max_surge_m"].notna().mean() * 100
+    log.info("build_slosh_features: %d ZCTAs, %.1f%% with MOM surge (event=%s, cat=%d)",
+             len(out), pct, event, cat)
+    return out
+
+
+def _build_slosh_from_legacy_nc(
+    s3, event: str, centroids: pd.DataFrame, zcta_ids: list[str],
+) -> Optional[pd.DataFrame]:
+    """Legacy fallback: read per-event SLOSH NetCDF files. Returns DataFrame or None."""
+    resp = s3.list_objects_v2(Bucket=BUCKET, Prefix=f"raw/noaa_slosh/{event}/")
+    slosh_keys = [o["Key"] for o in resp.get("Contents", [])
+                  if not o["Key"].endswith("MANUAL_DOWNLOAD_REQUIRED.txt")]
+    if not slosh_keys:
+        return None
+
+    nc_keys = [k for k in slosh_keys if k.endswith(".nc") or k.endswith(".grb2")]
+    if not nc_keys:
+        return None
+
+    try:
+        import xarray as xr
+    except ImportError:
+        log.warning("build_slosh_features(legacy): xarray not available")
+        return None
+
+    surge_vals: dict[str, float] = {}
+    for nc_key in nc_keys[:3]:
         local = f"/tmp/slosh_{Path(nc_key).stem}.nc"
         s3.download_file(BUCKET, nc_key, local)
         try:
             ds = xr.open_dataset(local, engine="netcdf4")
-            # SLOSH MOM variable names vary; try common ones
             surge_var = next(
                 (v for v in ds.data_vars
                  if any(k in v.lower() for k in ["surge", "mom", "meow", "water"])),
@@ -1414,37 +1532,27 @@ def build_slosh_features(s3, event: str, zcta_ids: list[str]) -> pd.DataFrame:
             surge_arr = surge_da.values.flatten()
 
             for _, row in centroids.iterrows():
-                # Nearest-neighbor lookup
                 dists = np.sqrt((lat_arr - row["lat"])**2 + (lon_arr - row["lon"])**2)
                 idx = np.argmin(dists)
                 val = float(surge_arr[idx]) if not np.isnan(surge_arr[idx]) else np.nan
                 if row["zcta_id"] not in surge_vals or val > surge_vals.get(row["zcta_id"], 0):
                     surge_vals[row["zcta_id"]] = val
         except Exception as exc:
-            log.warning("SLOSH read error for %s: %s", nc_key, exc)
+            log.warning("SLOSH legacy read error for %s: %s", nc_key, exc)
+        finally:
+            if Path(local).exists():
+                os.unlink(local)
 
     if not surge_vals:
-        return empty
-
-    def surge_to_category(m: float) -> Optional[str]:
-        if np.isnan(m):
-            return None
-        if m < 1.5:
-            return "1"
-        elif m < 2.4:
-            return "2"
-        elif m < 3.7:
-            return "3"
-        elif m < 5.5:
-            return "4"
-        return "5"
+        return None
 
     rows = [{"zcta_id": z, "slosh_max_surge_m": v,
-             "slosh_category": surge_to_category(v)} for z, v in surge_vals.items()]
+             "slosh_category": _slosh_surge_to_category(v)} for z, v in surge_vals.items()]
     out = pd.DataFrame(rows)
     out = pd.DataFrame({"zcta_id": zcta_ids}).merge(out, on="zcta_id", how="left")
-    out["_fs_slosh_max_surge_m"] = np.where(out["slosh_max_surge_m"].notna(), "present", _FS_MISSING)
-    log.info("build_slosh_features: %d ZCTAs, %.1f%% with surge data (event=%s)",
+    out["_fs_slosh_max_surge_m"] = np.where(
+        out["slosh_max_surge_m"].notna(), "present", _FS_MISSING)
+    log.info("build_slosh_features(legacy): %d ZCTAs, %.1f%% with surge data (event=%s)",
              len(out), out["slosh_max_surge_m"].notna().mean() * 100, event)
     return out
 

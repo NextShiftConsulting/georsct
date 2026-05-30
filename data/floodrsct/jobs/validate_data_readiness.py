@@ -22,6 +22,7 @@ from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 
 import boto3
+from swarm_auth import get_aws_credentials
 
 logging.basicConfig(
     level=logging.INFO,
@@ -147,7 +148,6 @@ STATIC_DATASETS = {
 # Known no-data cases (STN confirmed zero HWMs)
 NO_DATA = {
     ("beryl2024", "hwm"): "USGS STN event 342 confirmed zero HWMs",
-    ("henri2021", "hwm"): "No STN deployment for Henri",
     ("ar_flood_2023", "tides"): "Inland atmospheric river; tidal stations not relevant",
     ("ar_flood_2023", "hurdat2"): "Atmospheric river, not tropical cyclone",
 }
@@ -230,7 +230,9 @@ def main() -> None:
     parser.add_argument("--upload", action="store_true", help="Upload matrix to S3")
     args = parser.parse_args()
 
-    s3 = boto3.client("s3", region_name="us-east-1")
+    _aws = get_aws_credentials()
+    _aws.pop("region_name", None)
+    s3 = boto3.client("s3", region_name="us-east-1", **_aws)
     results: list[CellStatus] = []
 
     # Event-level datasets
