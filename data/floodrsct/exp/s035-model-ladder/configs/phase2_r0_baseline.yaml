@@ -1,0 +1,52 @@
+# Phase 2: R0 Tabular Baseline
+# HistGBDT + Ridge on ZCTA tabular features
+
+scenarios:
+  - houston
+
+representation: R0
+
+targets:
+  nfip_loss:
+    column: obs_nfip_event_claims
+    transform: log1p
+    task: regression
+    metric: rmse
+  report_311:
+    column: obs_311_flood_reports
+    transform: log1p
+    task: regression
+    metric: rmse
+  hwm_presence:
+    column: obs_hwm_present
+    transform: null
+    task: classification
+    metric: roc_auc
+
+solvers:
+  histgbdt:
+    class: sklearn.ensemble.HistGradientBoostingRegressor
+    params:
+      max_iter: 200
+      max_depth: 6
+      learning_rate: 0.1
+      random_state: 42
+    # For classification target, use HistGradientBoostingClassifier
+  ridge:
+    class: sklearn.linear_model.Ridge
+    params:
+      alpha: 1.0
+    pipeline:
+      - sklearn.preprocessing.StandardScaler
+      - sklearn.impute.SimpleImputer
+
+splits:
+  - random
+  - county_blocked
+  - leave_event_out
+
+# Features: STATIC_FEATURES from _coverage_common.py
+# NaN handling: HistGBDT native; Ridge via SimpleImputer(strategy=median)
+
+# Output: s3://swarm-floodrsct-data/results/s035/r0_{scenario}_{target}_{solver}_{split}.json
+#         s3://swarm-floodrsct-data/results/s035/r0_{scenario}_predictions.parquet

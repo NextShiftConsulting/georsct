@@ -1,0 +1,15 @@
+# Phase 0: Data Lock Manifest
+# Run full 18-audit battery, produce JSON manifest with checksums
+
+scenarios:
+  - houston          # anchor scenario (Data Lock A)
+  # - new_orleans    # uncomment after Data Lock B
+  # - nyc
+  # - riverside_coachella
+  # - southwest_florida
+
+min_support: 10
+seed: 42
+upload: true
+
+# Output: s3://swarm-floodrsct-data/evidence/qa/data_lock_manifest_{scenario}.json
