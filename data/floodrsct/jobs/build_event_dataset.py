@@ -1442,26 +1442,27 @@ def _build_slosh_from_mom_geotiff(
         with rasterio.open(local) as src:
             log.info("build_slosh_features: opened MOM Cat %d (%s, %dx%d, crs=%s)",
                      cat, mom_key, src.width, src.height, src.crs)
-            band = src.read(1)
             nodata = src.nodata
 
-            for _, row in centroids.iterrows():
-                try:
-                    # Transform lon/lat to pixel coordinates
-                    px, py = src.index(row["lon"], row["lat"])
-                    if 0 <= px < src.height and 0 <= py < src.width:
-                        val = float(band[px, py])
-                        if nodata is not None and val == nodata:
-                            val = np.nan
-                        elif val >= 99:
-                            # NHC metadata: value 99 = levee-protected areas;
-                            # not valid surge depth.
-                            val = np.nan
-                        elif val <= 0:
-                            val = np.nan
-                        surge_vals[row["zcta_id"]] = val
-                except Exception:
-                    pass
+            # Use src.sample() to read only the needed pixels -- the full
+            # raster is 318K x 224K (66 GB) and cannot fit in memory.
+            coords = list(zip(centroids["lon"].values, centroids["lat"].values))
+            zcta_list = centroids["zcta_id"].values
+
+            for (zcta_id, sample_val) in zip(zcta_list, src.sample(coords)):
+                val = float(sample_val[0])
+                if nodata is not None and val == nodata:
+                    val = np.nan
+                elif val >= 99:
+                    # NHC metadata: value 99 = levee-protected areas;
+                    # not valid surge depth.
+                    val = np.nan
+                elif val <= 0:
+                    val = np.nan
+                surge_vals[zcta_id] = val
+
+            log.info("build_slosh_features: sampled %d centroids from MOM Cat %d",
+                     len(coords), cat)
     except Exception as exc:
         log.warning("build_slosh_features: rasterio read error: %s", exc)
         return None
