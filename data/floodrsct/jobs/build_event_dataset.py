@@ -1565,6 +1565,9 @@ def build_levee_features(s3, zcta_ids: list[str], scenario: str) -> pd.DataFrame
         return empty
 
     rating_col = next((c for c in levees.columns if "condition" in c.lower() or "rating" in c.lower()), None)
+    # USACE NLD ratings may be strings ("Acceptable", etc.) -- coerce to numeric
+    if rating_col:
+        levees[rating_col] = pd.to_numeric(levees[rating_col], errors="coerce")
     lat_col = next((c for c in levees.columns if "lat" in c.lower()), None)
     lon_col = next((c for c in levees.columns if "lon" in c.lower() or "lng" in c.lower()), None)
 
