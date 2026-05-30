@@ -42,7 +42,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
         xwalk = load_crosswalk(s3)
     except Exception as e:
         result = AuditResult(
-            audit_id="A4", scenario=scenario, probe="hierarchical",
+            audit_id="P4", scenario=scenario, probe="hierarchical",
             status="FAIL",
             detail={"error": f"Could not load crosswalk: {e}"},
             min_support=min_support, timestamp=ts,
@@ -60,7 +60,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
 
     if "county_fips" not in merged.columns:
         result = AuditResult(
-            audit_id="A4", scenario=scenario, probe="hierarchical",
+            audit_id="P4", scenario=scenario, probe="hierarchical",
             status="FAIL",
             detail={"error": "No county_fips in crosswalk after join"},
             min_support=min_support, timestamp=ts,
@@ -74,7 +74,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
     for county, count in sorted(county_counts.items()):
         status = "PASS" if count >= min_support else "FAIL"
         results.append(AuditResult(
-            audit_id="A4", scenario=scenario, probe="hierarchical",
+            audit_id="P4", scenario=scenario, probe="hierarchical",
             status=status,
             detail={
                 "county_fips": str(county),
@@ -87,7 +87,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
     total_counties = len(county_counts)
     passing = sum(1 for r in results if r.status == "PASS")
     results.append(AuditResult(
-        audit_id="A4", scenario=scenario, probe="hierarchical",
+        audit_id="P4", scenario=scenario, probe="hierarchical",
         status="PASS" if passing == total_counties else "FAIL",
         detail={
             "summary": True,

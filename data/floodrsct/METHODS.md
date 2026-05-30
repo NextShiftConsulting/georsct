@@ -80,23 +80,26 @@ SCENARIO (e.g. southwest_florida)
  |  | stratified_coverage_audit.py                       |
  |  |   --scenario southwest_florida                     |
  |  |                                                   |
- |  |  12 audits in two families:                       |
+ |  |  13 audits in two layers:                         |
  |  |                                                   |
- |  |  PROBE-MAPPED (stratum sufficiency):              |
- |  |    A1. Per-event support (transfer)               |
- |  |    A2. Coastal vs inland (ranking)                |
- |  |    A3. Levee-protected vs not (ranking)           |
- |  |    A4. County group sizes (hierarchical)          |
- |  |    A5. Adjacency coverage (rel. propagation)      |
- |  |    A6. Outcome signal per stratum (all probes)    |
+ |  |  LAYER 0 -- Dataset-support probes                |
+ |  |  (is the substrate admissible for evaluation?)    |
+ |  |    P1. Per-event support (transfer)               |
+ |  |    P2. Coastal vs inland (heterogeneity)          |
+ |  |    P3. Levee-protected vs not (heterogeneity)     |
+ |  |    P4. County group sizes (blocked CV)            |
+ |  |    P5. Adjacency coverage (spatial-lag)           |
+ |  |    P6. Outcome signal per stratum (ceiling)       |
  |  |                                                   |
- |  |  GEORSCT FAILURE MODES (data quality):            |
- |  |    A1. Autocorrelation leakage (split bias)       |
- |  |    B2. Scale mismatch (broadcast/coarse)          |
- |  |    B3. Crosswalk gap (join hit rates)             |
- |  |    C1. Vintage drift (feature age vs event)       |
- |  |    C3. Spatial missingness bias (systematic NaN)  |
- |  |    D3. Interp/extrap mismatch (distribution gap)  |
+ |  |  LAYER 1 -- GeoRSCT mode audits                  |
+ |  |  (which failure modes are active?)                |
+ |  |    A.1 Autocorrelation leakage (split bias)       |
+ |  |    B.2 Scale mismatch (broadcast/coarse)          |
+ |  |    B.3 Crosswalk gap (join hit rates)             |
+ |  |    C.1 Vintage drift (feature age vs event)       |
+ |  |    C.2 CRS inconsistency (projection/datum)       |
+ |  |    C.3 Spatial missingness bias (systematic NaN)  |
+ |  |    D.3 Interp/extrap mismatch (distribution gap)  |
  |  |                                                   |
  |  |  -> evidence/qa/coverage_audit_{scenario}.json    |
  |  +---------------------------------------------------+

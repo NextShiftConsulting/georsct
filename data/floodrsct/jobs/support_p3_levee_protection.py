@@ -38,7 +38,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
 
     if scenario not in LEVEE_SCENARIOS:
         result = AuditResult(
-            audit_id="A3", scenario=scenario, probe="ranking",
+            audit_id="P3", scenario=scenario, probe="ranking",
             status="SKIP",
             detail={"reason": f"No levee features for {scenario}"},
             min_support=min_support, timestamp=ts,
@@ -50,7 +50,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
 
     if "levee_condition_rating" not in df.columns:
         result = AuditResult(
-            audit_id="A3", scenario=scenario, probe="ranking",
+            audit_id="P3", scenario=scenario, probe="ranking",
             status="FAIL",
             detail={"error": "levee_condition_rating column missing from parquet"},
             min_support=min_support, timestamp=ts,
@@ -75,7 +75,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
         status = "PASS" if any_outcome >= min_support else "FAIL"
 
         results.append(AuditResult(
-            audit_id="A3", scenario=scenario, probe="ranking",
+            audit_id="P3", scenario=scenario, probe="ranking",
             status=status,
             detail={
                 "stratum": label,

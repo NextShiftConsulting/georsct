@@ -41,7 +41,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
 
     if "event" not in df.columns:
         return [AuditResult(
-            audit_id="A1", scenario=scenario, probe="transfer",
+            audit_id="P1", scenario=scenario, probe="transfer",
             status="FAIL",
             detail={"error": "No 'event' column in processed parquet"},
             min_support=min_support,
@@ -74,7 +74,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
         status = "PASS" if viable else "FAIL"
 
         results.append(AuditResult(
-            audit_id="A1",
+            audit_id="P1",
             scenario=scenario,
             probe="transfer",
             status=status,
