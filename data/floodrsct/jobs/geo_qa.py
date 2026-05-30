@@ -82,9 +82,14 @@ def _list_keys(s3, prefix: str) -> list[str]:
 # ---------------------------------------------------------------------------
 
 def check_bbox(
-    s3, feature: str, s3_key: str, bounds: BoundingBox
+    s3, feature: str, s3_key: str, bounds: BoundingBox,
+    scope: str = "scenario",
 ) -> list[GeoQAResult]:
-    """Check that point/geometry data falls within scenario bounding box."""
+    """Check that point/geometry data falls within scenario bounding box.
+
+    scope="scenario": data should be tightly scoped (80% PASS, 30% WARN, <30% FAIL).
+    scope="storm": data covers full storm footprint; any overlap is PASS, zero = FAIL.
+    """
     results = []
 
     df = _read_parquet(s3, s3_key)
@@ -128,8 +133,27 @@ def check_bbox(
         (lons >= bounds.lon_min) & (lons <= bounds.lon_max)
     )
     pct_in = in_bounds.mean()
+    coord_summary = (
+        f"(lat: {lats.min():.2f}-{lats.max():.2f}, "
+        f"lon: {lons.min():.2f}-{lons.max():.2f})"
+    )
 
-    if pct_in >= 0.8:
+    if scope == "storm":
+        # Storm-wide data: any overlap with scenario bbox is fine
+        if pct_in > 0:
+            results.append(GeoQAResult(
+                feature, "bbox", "PASS",
+                f"{pct_in:.0%} of storm-wide points overlap scenario bounds "
+                f"[{bounds.lat_min}-{bounds.lat_max}, {bounds.lon_min}-{bounds.lon_max}] "
+                f"{coord_summary}",
+            ))
+        else:
+            results.append(GeoQAResult(
+                feature, "bbox", "FAIL",
+                f"zero overlap with scenario bounds -- wrong storm? "
+                f"{coord_summary}",
+            ))
+    elif pct_in >= 0.8:
         results.append(GeoQAResult(
             feature, "bbox", "PASS",
             f"{pct_in:.0%} of points within scenario bounds "
@@ -139,16 +163,14 @@ def check_bbox(
         results.append(GeoQAResult(
             feature, "bbox", "WARN",
             f"only {pct_in:.0%} of points within bounds -- possible partial coverage "
-            f"(lat range: {lats.min():.2f}-{lats.max():.2f}, "
-            f"lon range: {lons.min():.2f}-{lons.max():.2f})",
+            f"{coord_summary}",
         ))
     else:
         results.append(GeoQAResult(
             feature, "bbox", "FAIL",
             f"only {pct_in:.0%} of points within bounds -- likely WRONG GEOGRAPHY "
-            f"(data lat: {lats.min():.2f}-{lats.max():.2f}, "
-            f"data lon: {lons.min():.2f}-{lons.max():.2f}, "
-            f"expected: [{bounds.lat_min}-{bounds.lat_max}, {bounds.lon_min}-{bounds.lon_max}])",
+            f"{coord_summary}, "
+            f"expected: [{bounds.lat_min}-{bounds.lat_max}, {bounds.lon_min}-{bounds.lon_max}]",
         ))
 
     return results
@@ -158,34 +180,34 @@ def check_bbox(
 # Per-scenario QA checks
 # ---------------------------------------------------------------------------
 
-# Map feature -> S3 key patterns to check per scenario
-# Only features with spatial data worth bbox-checking
+# Map feature -> (s3_key, scope) to check per scenario
+# scope: "scenario" = data should be tightly bounded, "storm" = storm-wide footprint OK
 SPATIAL_CHECKS = {
     "houston": [
-        ("bayou_segment_id", "raw/nhdplus/catchments/v2/"),
-        ("drainage_district_id", "raw/hcfcd/drainage_districts/v1/hcfcd_districts.parquet"),
-        ("hwm_max_ft", "raw/surge_estimates/harvey2017/hwm_harvey2017.parquet"),
+        ("bayou_segment_id", "raw/nhdplus/catchments/v2/", "scenario"),
+        ("drainage_district_id", "raw/hcfcd/drainage_districts/v1/hcfcd_districts.parquet", "scenario"),
+        ("hwm_max_ft", "raw/surge_estimates/harvey2017/hwm_harvey2017.parquet", "storm"),
     ],
     "new_orleans": [
-        ("levee_condition_rating", "raw/usace_levees/new_orleans_levees.parquet"),
-        ("canal_proximity_m", "raw/osm/new_orleans_canals/v1/no_canals.parquet"),
-        ("tidal_surge_max_m", "raw/noaa_tides/ida2021_nyc/"),
+        ("levee_condition_rating", "raw/usace_levees/new_orleans_levees.parquet", "scenario"),
+        ("canal_proximity_m", "raw/osm/new_orleans_canals/v1/no_canals.parquet", "scenario"),
+        ("tidal_surge_max_m", "raw/noaa_tides/ida2021_nyc/", "scenario"),
     ],
     "nyc": [
-        ("sewer_shed_id", "raw/nyc_sewersheds/nyc_sewersheds.gpkg"),
-        ("subway_station_count", "raw/mta/subway_stations/v1/subway_stations.parquet"),
-        ("levee_condition_rating", "raw/usace_levees/nyc_levees.parquet"),
-        ("hwm_max_ft", "raw/surge_estimates/ida2021_nyc/hwm_ida2021_nyc.parquet"),
+        ("sewer_shed_id", "raw/nyc_sewersheds/nyc_sewersheds.gpkg", "scenario"),
+        ("subway_station_count", "raw/mta/subway_stations/v1/subway_stations.parquet", "scenario"),
+        ("levee_condition_rating", "raw/usace_levees/nyc_levees.parquet", "scenario"),
+        ("hwm_max_ft", "raw/surge_estimates/ida2021_nyc/hwm_ida2021_nyc.parquet", "storm"),
     ],
     "riverside_coachella": [
-        ("upstream_catchment_km2", "raw/nhdplus/catchments/v2/"),
-        ("burn_scar_overlap", "raw/mtbs/perimeters/v2023/"),
-        ("hwm_max_ft", "raw/surge_estimates/hilary2023/hwm_hilary2023.parquet"),
+        ("upstream_catchment_km2", "raw/nhdplus/catchments/v2/", "scenario"),
+        ("burn_scar_overlap", "raw/mtbs/perimeters/v2023/", "scenario"),
+        ("hwm_max_ft", "raw/surge_estimates/hilary2023/hwm_hilary2023.parquet", "storm"),
     ],
     "southwest_florida": [
-        ("coastal_distance_m", "raw/tiger/coastline/v2020/us_coastline.parquet"),
-        ("tidal_surge_max_m", "raw/noaa_tides/ian2022/"),
-        ("hwm_max_ft", "raw/surge_estimates/ian2022/hwm_ian2022.parquet"),
+        ("coastal_distance_m", "raw/tiger/coastline/v2020/us_coastline.parquet", "scenario"),
+        ("tidal_surge_max_m", "raw/noaa_tides/ian2022/", "scenario"),
+        ("hwm_max_ft", "raw/surge_estimates/ian2022/hwm_ian2022.parquet", "storm"),
     ],
 }
 
@@ -211,16 +233,16 @@ def run_geo_qa(s3, scenario: str) -> list[GeoQAResult]:
         ))
         return results
 
-    for feature, s3_path in checks:
+    for feature, s3_path, scope in checks:
         # Find a parquet file to check
         if s3_path.endswith(".parquet"):
-            bbox_results = check_bbox(s3, feature, s3_path, sdef.bounds)
+            bbox_results = check_bbox(s3, feature, s3_path, sdef.bounds, scope=scope)
         else:
             # Directory prefix -- find first parquet
             keys = _list_keys(s3, s3_path)
             parquets = [k for k in keys if k.endswith(".parquet")]
             if parquets:
-                bbox_results = check_bbox(s3, feature, parquets[0], sdef.bounds)
+                bbox_results = check_bbox(s3, feature, parquets[0], sdef.bounds, scope=scope)
             else:
                 bbox_results = [GeoQAResult(
                     feature, "bbox", "SKIP",

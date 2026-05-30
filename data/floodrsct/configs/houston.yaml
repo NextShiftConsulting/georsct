@@ -16,7 +16,7 @@ events:
     disaster_declaration: DR-4466-TX
     start_date: "2019-09-17"
     end_date: "2019-09-21"
-    nhc_storm_id: AL132019
+    nhc_storm_id: AL112019
     peak_window: ["2019-09-17", "2019-09-21"]
   beryl2024:
     disaster_declaration: DR-4781-TX

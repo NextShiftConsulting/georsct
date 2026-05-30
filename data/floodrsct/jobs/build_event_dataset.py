@@ -606,9 +606,14 @@ def aggregate_tides(s3, prefix_pattern: str, event: str,
     frames = []
     for key in keys:
         df = s3_read(s3, key)
-        if df is not None and "observed_m" in df.columns:
+        if df is None:
+            continue
+        # Handle both column naming conventions:
+        # fetch_noaa_tides.py writes "observed_m", fetch_noaa_tides_swfl.py writes "water_level_m"
+        wl_col = next((c for c in ["observed_m", "water_level_m"] if c in df.columns), None)
+        if wl_col is not None:
             station_id = df["station_id"].iloc[0] if "station_id" in df.columns else key
-            peak_wl = df["observed_m"].max()
+            peak_wl = df[wl_col].max()
             peak_surge = df["surge_m"].max() if "surge_m" in df.columns else np.nan
             frames.append({"station_id": station_id,
                            "max_water_level_m": peak_wl,
@@ -669,7 +674,7 @@ def build_houston(s3, cfg: dict) -> pd.DataFrame:
     event_map = {
         "harvey2017": {"dr": 4332, "storm_id": "AL092017",
                        "peak_window": ("2017-08-25", "2017-09-02")},
-        "imelda2019": {"dr": 4466, "storm_id": "AL132019",
+        "imelda2019": {"dr": 4466, "storm_id": "AL112019",
                        "peak_window": ("2019-09-17", "2019-09-21")},
         "beryl2024":  {"dr": 4781, "storm_id": "AL022024",
                        "peak_window": ("2024-07-08", "2024-07-12")},

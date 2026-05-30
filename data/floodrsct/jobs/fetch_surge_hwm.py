@@ -63,8 +63,8 @@ EVENT_REGISTRY = {
 }
 
 # Existing S3 parquets (pre-uploaded)
+# NOTE: harvey2017 removed -- pre-uploaded file contained Ida NYC data (wrong geography)
 S3_HWM_KEYS = {
-    "harvey2017": "raw/usgs_stn/harvey2017_hwm.parquet",
     "imelda2019": "raw/usgs_stn/imelda2019_hwm.parquet",
 }
 
