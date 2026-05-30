@@ -42,7 +42,7 @@ def main() -> None:
     job_name = make_job_name(f"fetch-mrms-{args.event.replace('_', '-')}")
     launch_processing_job(
         job_name=job_name,
-        job_script="fetch_noaa_mrms.py",
+        job_script="fetch_noaa_mrms_v2.py",
         job_args=["--event", args.event],
         instance_type=EVENT_INSTANCES[args.event],
         volume_size_gb=100,   # grib2 files accumulate

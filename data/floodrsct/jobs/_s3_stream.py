@@ -128,3 +128,26 @@ def stream_download_to_s3(
     finally:
         if Path(tmp_path).exists():
             os.unlink(tmp_path)
+
+
+def stream_s3_object_to_tmp(
+    s3,
+    bucket: str,
+    key: str,
+    tmp_path: str,
+    request_payer: bool = False,
+) -> bool:
+    """Download an S3 object to a local temp file. Returns True on success."""
+    client = s3 or get_s3()
+    try:
+        extra = {"RequestPayer": "requester"} if request_payer else {}
+        if extra:
+            client.download_file(bucket, key, tmp_path, ExtraArgs=extra)
+        else:
+            client.download_file(bucket, key, tmp_path)
+        return True
+    except Exception as exc:
+        log.warning("S3 download failed s3://%s/%s: %s", bucket, key, exc)
+        if Path(tmp_path).exists():
+            os.unlink(tmp_path)
+        return False
