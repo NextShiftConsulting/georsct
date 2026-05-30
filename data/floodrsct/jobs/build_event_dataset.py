@@ -1050,17 +1050,24 @@ def build_impervious_features(s3, zcta_ids: list[str]) -> pd.DataFrame:
         log.warning("build_impervious_features: rasterio not available; returning NaN")
         return empty
 
-    # Find NLCD raster: national .img file or per-state TIFs
+    # Find NLCD raster: prefer pre-converted .tif over raw .img.
+    # The .tif is a lossless conversion (gdal_translate -co COMPRESS=LZW)
+    # that pip-installed rasterio can read without HFA driver.
     nlcd_key = None
+    _nlcd_img_fallback = None
     for prefix in ["raw/nlcd/impervious_2021/", "raw/nlcd/impervious/v2021/"]:
         resp = s3.list_objects_v2(Bucket=BUCKET, Prefix=prefix)
         for o in resp.get("Contents", []):
             k = o["Key"]
-            if k.endswith((".img", ".tif", ".tiff")):
+            if k.endswith((".tif", ".tiff")):
                 nlcd_key = k
                 break
+            elif k.endswith(".img") and _nlcd_img_fallback is None:
+                _nlcd_img_fallback = k
         if nlcd_key:
             break
+    if not nlcd_key:
+        nlcd_key = _nlcd_img_fallback
     if not nlcd_key:
         log.warning("build_impervious_features: no NLCD raster found in S3; returning NaN")
         return empty
