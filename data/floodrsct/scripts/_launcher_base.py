@@ -135,16 +135,16 @@ def launch_processing_job(
     processing_outputs: list[dict] = []
 
     args_str = " ".join(job_args)
+    # SageMaker caps each ContainerEntrypoint member at 256 chars.
+    # Keep the bash -c string compact.
     container_cmd = [
         "bash",
         "-c",
         (
-            "pip install --quiet --upgrade "
-            f"--root-user-action=ignore {packages} && "
-            "pip install --quiet --root-user-action=ignore "
-            "/opt/ml/processing/input/code/*.whl 2>/dev/null; "
-            "cd /opt/ml/processing/input/code && "
-            f"python -u {job_script} {args_str}"
+            f"pip install -qU {packages}"
+            " && pip install -q /opt/ml/processing/input/code/*.whl"
+            " 2>/dev/null; cd /opt/ml/processing/input/code &&"
+            f" python -u {job_script} {args_str}"
         ),
     ]
 
@@ -166,6 +166,7 @@ def launch_processing_job(
         "RoleArn": SAGEMAKER_ROLE,
         "Environment": {
             "PYTHONUNBUFFERED": "1",
+            "PIP_ROOT_USER_ACTION": "ignore",
             "AWS_DEFAULT_REGION": REGION,
             # Route all HF Hub + Datasets cache to EBS (/tmp), not root fs (~20 GB limit)
             "HF_HOME": "/tmp/hf_cache",
