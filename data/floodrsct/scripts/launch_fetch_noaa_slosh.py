@@ -20,7 +20,7 @@ def main() -> None:
         job_script="fetch_noaa_slosh.py",
         job_args=[],
         instance_type="ml.m5.large",
-        # beautifulsoup4 needed for archive scraping fallback
+        pip_packages="requests beautifulsoup4",
         dry_run=args.dry_run,
     )
 
