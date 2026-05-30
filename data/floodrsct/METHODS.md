@@ -80,7 +80,7 @@ SCENARIO (e.g. southwest_florida)
  |  | stratified_coverage_audit.py                       |
  |  |   --scenario southwest_florida                     |
  |  |                                                   |
- |  |  13 audits in two layers:                         |
+ |  |  15 audits in two layers:                         |
  |  |                                                   |
  |  |  LAYER 0 -- Dataset-support probes                |
  |  |  (is the substrate admissible for evaluation?)    |
@@ -94,6 +94,8 @@ SCENARIO (e.g. southwest_florida)
  |  |  LAYER 1 -- GeoRSCT mode audits                  |
  |  |  (which failure modes are active?)                |
  |  |    A.1 Autocorrelation leakage (split bias)       |
+ |  |    A.2 Geographic heterogeneity (stratum CV)      |
+ |  |    B.1 MAUP / partition drift (ZCTA boundaries)   |
  |  |    B.2 Scale mismatch (broadcast/coarse)          |
  |  |    B.3 Crosswalk gap (join hit rates)             |
  |  |    C.1 Vintage drift (feature age vs event)       |

@@ -1089,32 +1089,85 @@ def build_impervious_features(s3, zcta_ids: list[str]) -> pd.DataFrame:
     log.info("build_impervious_features: downloading %s (this may take a few minutes)", nlcd_key)
     s3.download_file(BUCKET, nlcd_key, local_raster)
 
+    # .img (Erdas Imagine HFA) may not be readable by pip-installed rasterio
+    # (lacks HFA driver). Use osgeo.gdal to sample directly if rasterio fails.
+    try:
+        _test_ds = rasterio.open(local_raster)
+        _test_ds.close()
+        _use_gdal_fallback = False
+    except Exception:
+        log.warning("build_impervious_features: rasterio cannot open .img; trying osgeo.gdal fallback")
+        _use_gdal_fallback = True
+
     # Use windowed reads per ZCTA centroid (avoids loading full 26 GB into RAM)
     # NLCD is in EPSG:5070 (Albers Equal Area, meters) -- must reproject centroid
     results = []
-    with rasterio.open(local_raster) as src:
-        nodata = src.nodata if src.nodata is not None else 127
-        raster_crs = src.crs
-        # Build transformer: WGS84 lat/lon -> raster native CRS
+
+    if _use_gdal_fallback:
+        # osgeo.gdal can read .img (HFA) even when pip-installed rasterio cannot
+        from osgeo import gdal, osr
         from pyproj import Transformer
-        transformer = Transformer.from_crs("EPSG:4326", raster_crs, always_xy=True)
-        is_projected = raster_crs.is_projected  # True for EPSG:5070
+        gdal.UseExceptions()
+        ds = gdal.Open(local_raster)
+        if ds is None:
+            log.error("build_impervious_features: gdal.Open also failed; returning NaN")
+            return empty
+        gt = ds.GetGeoTransform()  # (x_origin, pixel_w, 0, y_origin, 0, pixel_h)
+        band = ds.GetRasterBand(1)
+        nodata = band.GetNoDataValue() if band.GetNoDataValue() is not None else 127
+        # Get raster SRS for reprojection
+        raster_srs = osr.SpatialReference()
+        raster_srs.ImportFromWkt(ds.GetProjection())
+        epsg = raster_srs.GetAuthorityCode(None) or "5070"
+        transformer = Transformer.from_crs("EPSG:4326", f"EPSG:{epsg}", always_xy=True)
+        delta = 500  # meters in EPSG:5070
         for _, row in centroids.iterrows():
-            # Reproject centroid to raster CRS, then build 500m buffer
             x, y = transformer.transform(row["lon"], row["lat"])
-            if is_projected:
-                delta = 500  # 500 meters in native CRS units
-            else:
-                delta = 0.005  # fallback ~500m in degrees if raster is geographic
-            geom = [mapping(box(x - delta, y - delta, x + delta, y + delta))]
+            # Convert geo coords to pixel coords for the 1km buffer window
+            col_min = int((x - delta - gt[0]) / gt[1])
+            row_min = int((y - delta - gt[3]) / gt[5])
+            col_max = int((x + delta - gt[0]) / gt[1])
+            row_max = int((y + delta - gt[3]) / gt[5])
+            # Clamp to raster extent
+            col_min, col_max = max(0, min(col_min, col_max)), min(ds.RasterXSize, max(col_min, col_max))
+            row_min, row_max = max(0, min(row_min, row_max)), min(ds.RasterYSize, max(row_min, row_max))
+            w = col_max - col_min
+            h = row_max - row_min
+            if w <= 0 or h <= 0:
+                results.append({"zcta_id": row["zcta_id"], "impervious_pct": np.nan})
+                continue
             try:
-                masked, _ = rio_mask(src, geom, crop=True, nodata=nodata)
-                vals = masked[0].flatten()
-                valid = vals[(vals != nodata) & (vals >= 0) & (vals <= 100)]
+                arr = band.ReadAsArray(col_min, row_min, w, h)
+                valid = arr[(arr != nodata) & (arr >= 0) & (arr <= 100)]
                 imp_pct = float(np.mean(valid)) if len(valid) > 0 else np.nan
             except Exception:
                 imp_pct = np.nan
             results.append({"zcta_id": row["zcta_id"], "impervious_pct": imp_pct})
+        ds = None  # close
+    else:
+        with rasterio.open(local_raster) as src:
+            nodata = src.nodata if src.nodata is not None else 127
+            raster_crs = src.crs
+            # Build transformer: WGS84 lat/lon -> raster native CRS
+            from pyproj import Transformer
+            transformer = Transformer.from_crs("EPSG:4326", raster_crs, always_xy=True)
+            is_projected = raster_crs.is_projected  # True for EPSG:5070
+            for _, row in centroids.iterrows():
+                # Reproject centroid to raster CRS, then build 500m buffer
+                x, y = transformer.transform(row["lon"], row["lat"])
+                if is_projected:
+                    delta = 500  # 500 meters in native CRS units
+                else:
+                    delta = 0.005  # fallback ~500m in degrees if raster is geographic
+                geom = [mapping(box(x - delta, y - delta, x + delta, y + delta))]
+                try:
+                    masked, _ = rio_mask(src, geom, crop=True, nodata=nodata)
+                    vals = masked[0].flatten()
+                    valid = vals[(vals != nodata) & (vals >= 0) & (vals <= 100)]
+                    imp_pct = float(np.mean(valid)) if len(valid) > 0 else np.nan
+                except Exception:
+                    imp_pct = np.nan
+                results.append({"zcta_id": row["zcta_id"], "impervious_pct": imp_pct})
 
     # Clean up local file
     try:
@@ -1322,6 +1375,11 @@ def build_catchment_features(s3, zcta_ids: list[str], vpu: str) -> pd.DataFrame:
         crs="EPSG:4326",
     )
 
+    # Geometry may be stored as WKB bytes in parquet -- deserialize if needed
+    if nhd_df["geometry"].dtype == object and isinstance(nhd_df["geometry"].iloc[0], bytes):
+        from shapely import wkb
+        nhd_df = nhd_df.copy()
+        nhd_df["geometry"] = nhd_df["geometry"].apply(wkb.loads)
     nhd_gdf = gpd.GeoDataFrame(nhd_df, geometry="geometry", crs="EPSG:4326")
     joined = gpd.sjoin(centroid_gdf, nhd_gdf[["comid", "area_sq_km", "geometry"]],
                        how="left", predicate="within")

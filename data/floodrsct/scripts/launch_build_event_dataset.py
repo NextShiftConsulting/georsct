@@ -50,6 +50,11 @@ SCENARIOS = [
 #   ar_flood_2023:       21-day window = ~504 grib2 files
 _LARGE_SCENARIOS = {"houston", "new_orleans", "southwest_florida", "ar_flood_2023"}
 
+# Scenarios that sample NLCD .img (Erdas Imagine HFA format).
+# pip-installed rasterio lacks the HFA driver; install libgdal-dev + GDAL
+# python bindings so the osgeo.gdal fallback path in build_event_dataset.py works.
+_NLCD_SCENARIOS = {"houston", "nyc"}
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -61,17 +66,27 @@ def main() -> None:
         "ml.m5.4xlarge" if args.scenario in _LARGE_SCENARIOS else "ml.m5.2xlarge"
     )
 
+    # NLCD scenarios need GDAL system libs for .img (HFA) format.
+    # pip-installed rasterio lacks the HFA driver. Install libgdal-dev
+    # and the GDAL python package (version-matched to system libgdal)
+    # so the osgeo.gdal fallback path works.
+    pre_install = None
+    if args.scenario in _NLCD_SCENARIOS:
+        pre_install = (
+            "apt-get update -qq && apt-get install -y -qq libgdal-dev gdal-bin > /dev/null 2>&1 && "
+            "pip install -q GDAL==$(gdal-config --version)"
+        )
+
     job_name = make_job_name(f"build-events-{args.scenario.replace('_', '-')}")
     launch_processing_job(
         job_name=job_name,
         job_script="build_event_dataset.py",
         job_args=["--scenario", args.scenario],
         instance_type=instance_type,
-        # Grib2 files are streamed from S3 and decoded in memory (not cached
-        # on disk). SLOSH GeoTIFF is the largest temp file (~1.2 GB). 50 GB
-        # covers pip installs (~2 GB) + temp files + safety margin.
-        volume_size_gb=50,
+        # NLCD raster is 26 GB; need headroom for download + open. 100 GB safe.
+        volume_size_gb=100 if args.scenario in _NLCD_SCENARIOS else 50,
         pip_packages="geopandas pyogrio rasterio cfgrib xarray eccodes scikit-learn xgboost",
+        pre_install_cmd=pre_install,
         dry_run=args.dry_run,
     )
 

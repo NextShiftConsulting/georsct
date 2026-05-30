@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-stratified_coverage_audit.py -- Stage 5: Run all 13 coverage audits.
+stratified_coverage_audit.py -- Stage 5: Run all 15 coverage audits.
 
 Orchestrates two audit layers for a scenario and produces a consolidated
 report. Each audit runs independently and can also be invoked standalone.
@@ -15,6 +15,8 @@ Layer 0: Dataset-support probes (is the substrate admissible?)
 
 Layer 1: GeoRSCT mode audits (which failure modes are active?)
   A.1  Autocorrelation leakage   -> random vs spatial split
+  A.2  Geographic heterogeneity  -> per-stratum CV divergence
+  B.1  MAUP / partition drift    -> ZCTA boundary misalignment
   B.2  Scale mismatch            -> broadcast/coarse detection
   B.3  Crosswalk gap             -> join hit rates
   C.1  Vintage drift             -> feature vintage vs event year
@@ -46,6 +48,8 @@ from support_p4_county_groups import audit as support_p4
 from support_p5_adjacency_coverage import audit as support_p5
 from support_p6_outcome_signal import audit as support_p6
 from audit_mode_a1_leakage import audit as audit_mode_a1
+from audit_mode_a2_heterogeneity import audit as audit_mode_a2
+from audit_mode_b1_maup import audit as audit_mode_b1
 from audit_mode_b2_scale import audit as audit_mode_b2
 from audit_mode_b3_crosswalk import audit as audit_mode_b3
 from audit_mode_c1_vintage import audit as audit_mode_c1
@@ -64,6 +68,8 @@ SUPPORT_PROBES = [
 
 MODE_AUDITS = [
     ("mode_A1_leakage", audit_mode_a1),
+    ("mode_A2_heterogeneity", audit_mode_a2),
+    ("mode_B1_maup", audit_mode_b1),
     ("mode_B2_scale", audit_mode_b2),
     ("mode_B3_crosswalk", audit_mode_b3),
     ("mode_C1_vintage", audit_mode_c1),
@@ -152,7 +158,7 @@ def run_scenario(scenario: str, min_support: int, seed: int,
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Stage 5: Stratified coverage audit (13 checks)"
+        description="Stage 5: Stratified coverage audit (15 checks)"
     )
     parser.add_argument(
         "--scenario", required=True,

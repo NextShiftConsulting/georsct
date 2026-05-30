@@ -106,6 +106,7 @@ def launch_processing_job(
     pip_packages: str | None = None,
     image_uri: str | None = None,
     env_overrides: dict[str, str] | None = None,
+    pre_install_cmd: str | None = None,
     dry_run: bool = False,
 ) -> str:
     """Upload code and launch a SageMaker Processing job.
@@ -119,6 +120,8 @@ def launch_processing_job(
         env_overrides: Additional environment variables to inject into the
             container (e.g. {"EARTHDATA_TOKEN": token}).  Merged on top of
             the default environment; caller-supplied values take precedence.
+        pre_install_cmd: Shell command to run before pip install (e.g. apt-get
+            for system-level dependencies like libgdal-dev).
     """
     code_prefix = upload_code(job_name, job_script, extra_files)
 
@@ -145,8 +148,10 @@ def launch_processing_job(
 
     # SageMaker caps each ContainerEntrypoint member at 256 chars.
     # Write a bootstrap script to avoid the limit.
+    pre_cmd = f"{pre_install_cmd}\n" if pre_install_cmd else ""
     bootstrap = (
         "#!/bin/bash\nset -e\n"
+        f"{pre_cmd}"
         f"pip install -qU {packages}\n"
         "pip install -q /opt/ml/processing/input/code/*.whl 2>/dev/null || true\n"
         "cd /opt/ml/processing/input/code\n"
