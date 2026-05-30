@@ -302,54 +302,83 @@ def aggregate_mrms_rainfall(s3, event: str, zcta_ids: list[str]) -> pd.DataFrame
         return empty
 
 
-def _mrms_spatial_aggregate(s3, file_keys: list[str], zcta_ids: list[str],
-                             event: str) -> pd.DataFrame:
-    """Download grib2 files, read precipitation values, overlay on ZCTA polygons."""
+def _process_one_grib(args: tuple) -> tuple:
+    """Worker: download + decompress + read one grib2 file. Returns (arr, lat, lon) or None."""
     import gzip
     import tempfile
-    import geopandas as gpd
-    import cfgrib
+    key, bucket = args
+    import boto3
+    from swarm_auth import get_aws_credentials
+    s3w = boto3.client("s3", region_name="us-east-1", **get_aws_credentials())
 
-    # Download a sample to get grid coordinates, then accumulate
+    with tempfile.NamedTemporaryFile(suffix=".gz", delete=False) as f_gz:
+        s3w.download_fileobj(bucket, key, f_gz)
+        f_gz.flush()
+        gz_path = f_gz.name
+
+    grb2_path = gz_path.replace(".gz", ".grb2")
+    try:
+        if key.endswith(".gz"):
+            with gzip.open(gz_path, "rb") as gz_in:
+                with open(grb2_path, "wb") as raw_out:
+                    raw_out.write(gz_in.read())
+        else:
+            grb2_path = gz_path
+
+        import cfgrib
+        ds = cfgrib.open_dataset(grb2_path, indexpath=None)
+        precip_var = next(
+            (v for v in ["tp", "unknown", "apcp", "APCP"] if v in ds),
+            None,
+        )
+        if precip_var is None:
+            return None
+        arr = ds[precip_var].values
+        lat = ds["latitude"].values
+        lon = ds["longitude"].values
+        return (arr, lat, lon)
+    except Exception:
+        return None
+    finally:
+        for p in (gz_path, grb2_path):
+            try:
+                Path(p).unlink(missing_ok=True)
+            except OSError:
+                pass
+
+
+def _mrms_spatial_aggregate(s3, file_keys: list[str], zcta_ids: list[str],
+                             event: str) -> pd.DataFrame:
+    """Download grib2 files, read precipitation values, overlay on ZCTA polygons.
+
+    Uses ProcessPoolExecutor to parallelize gzip decompression + cfgrib reads
+    across all available CPU cores.
+    """
+    import os
+    from concurrent.futures import ProcessPoolExecutor, as_completed
+
+    n_workers = max(1, os.cpu_count() or 4)
+    log.info("MRMS parallel decode: %d files, %d workers", len(file_keys), n_workers)
+
     hourly_arrays = []
     lat_arr = lon_arr = None
 
-    for key in file_keys:
-        with tempfile.NamedTemporaryFile(suffix=".gz", delete=False) as f_gz:
-            s3.download_fileobj(BUCKET, key, f_gz)
-            f_gz.flush()
-            gz_path = f_gz.name
-
-        # Decompress .grib2.gz -> .grb2 for cfgrib/eccodes
-        grb2_path = gz_path.replace(".gz", ".grb2")
-        try:
-            if key.endswith(".gz"):
-                with gzip.open(gz_path, "rb") as gz_in:
-                    with open(grb2_path, "wb") as raw_out:
-                        raw_out.write(gz_in.read())
-            else:
-                grb2_path = gz_path  # already uncompressed
-
-            ds = cfgrib.open_dataset(grb2_path, indexpath=None)
-            precip_var = next(
-                (v for v in ["tp", "unknown", "apcp", "APCP"] if v in ds),
-                None,
-            )
-            if precip_var is None:
+    work_items = [(key, BUCKET) for key in file_keys]
+    with ProcessPoolExecutor(max_workers=n_workers) as pool:
+        futures = {pool.submit(_process_one_grib, item): item for item in work_items}
+        done = 0
+        for fut in as_completed(futures):
+            done += 1
+            if done % 25 == 0:
+                log.info("MRMS decode progress: %d/%d", done, len(file_keys))
+            result = fut.result()
+            if result is None:
                 continue
-            arr = ds[precip_var].values  # 2D grid
-            if lat_arr is None:
-                lat_arr = ds["latitude"].values
-                lon_arr = ds["longitude"].values
+            arr, lat, lon = result
             hourly_arrays.append(arr)
-        except Exception as e:
-            log.debug("Could not read %s: %s", key, e)
-        finally:
-            for p in (gz_path, grb2_path):
-                try:
-                    Path(p).unlink(missing_ok=True)
-                except OSError:
-                    pass
+            if lat_arr is None:
+                lat_arr = lat
+                lon_arr = lon
 
     if not hourly_arrays:
         return pd.DataFrame({"zcta_id": zcta_ids, "rainfall_total_mm": np.nan,
