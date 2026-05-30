@@ -129,7 +129,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
 
         if cov_col is None:
             results.append(AuditResult(
-                audit_id="mode_C3", scenario=scenario, probe="missingness",
+                audit_id="mode_C3", scenario=scenario, mode="missingness",
                 status="SKIP",
                 detail={
                     "outcome": outcome_col,
@@ -149,7 +149,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
 
         if len(group_present) < 2 or len(group_absent) < 2:
             results.append(AuditResult(
-                audit_id="mode_C3", scenario=scenario, probe="missingness",
+                audit_id="mode_C3", scenario=scenario, mode="missingness",
                 status="SKIP",
                 detail={
                     "outcome": outcome_col,
@@ -169,7 +169,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
         status = "FAIL" if is_biased else "PASS"
 
         results.append(AuditResult(
-            audit_id="mode_C3", scenario=scenario, probe="missingness",
+            audit_id="mode_C3", scenario=scenario, mode="missingness",
             status=status,
             detail={
                 "outcome": outcome_col,
@@ -196,7 +196,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
 
     if not results:
         results.append(AuditResult(
-            audit_id="mode_C3", scenario=scenario, probe="missingness",
+            audit_id="mode_C3", scenario=scenario, mode="missingness",
             status="SKIP",
             detail={"note": "No testable outcome columns for this scenario"},
             min_support=min_support, timestamp=ts,

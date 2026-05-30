@@ -75,7 +75,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
             continue
         if col not in df.columns:
             results.append(AuditResult(
-                audit_id="mode_B3", scenario=scenario, probe="crosswalk",
+                audit_id="mode_B3", scenario=scenario, mode="crosswalk",
                 status="FAIL",
                 detail={
                     "column": col,
@@ -118,14 +118,14 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
                 detail["warning"] = "Single value broadcast -- see Mode B.2"
 
         results.append(AuditResult(
-            audit_id="mode_B3", scenario=scenario, probe="crosswalk",
+            audit_id="mode_B3", scenario=scenario, mode="crosswalk",
             status=status, detail=detail,
             min_support=min_support, timestamp=ts,
         ))
 
     if not results:
         results.append(AuditResult(
-            audit_id="mode_B3", scenario=scenario, probe="crosswalk",
+            audit_id="mode_B3", scenario=scenario, mode="crosswalk",
             status="SKIP",
             detail={"note": "No crosswalk-dependent features for this scenario"},
             min_support=min_support, timestamp=ts,

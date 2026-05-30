@@ -90,7 +90,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
 
     if not available:
         results.append(AuditResult(
-            audit_id="mode_A2", scenario=scenario, probe="heterogeneity",
+            audit_id="mode_A2", scenario=scenario, mode="heterogeneity",
             status="SKIP",
             detail={"note": "No checkable features with sufficient data"},
             min_support=min_support, timestamp=ts,
@@ -114,7 +114,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
 
                 results.append(AuditResult(
                     audit_id="mode_A2", scenario=scenario,
-                    probe="heterogeneity",
+                    mode="heterogeneity",
                     status="FAIL" if is_heterogeneous else "PASS",
                     detail={
                         "feature": col,
@@ -144,7 +144,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
 
             results.append(AuditResult(
                 audit_id="mode_A2", scenario=scenario,
-                probe="heterogeneity",
+                mode="heterogeneity",
                 status="FAIL" if is_heterogeneous else "PASS",
                 detail={
                     "feature": col,
@@ -175,7 +175,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
 
             results.append(AuditResult(
                 audit_id="mode_A2", scenario=scenario,
-                probe="heterogeneity",
+                mode="heterogeneity",
                 status="FAIL" if is_heterogeneous else "PASS",
                 detail={
                     "feature": col,
@@ -200,7 +200,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
 
             results.append(AuditResult(
                 audit_id="mode_A2", scenario=scenario,
-                probe="heterogeneity",
+                mode="heterogeneity",
                 status="FAIL" if is_heterogeneous else "PASS",
                 detail={
                     "feature": col,
@@ -215,7 +215,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
 
     if not results:
         results.append(AuditResult(
-            audit_id="mode_A2", scenario=scenario, probe="heterogeneity",
+            audit_id="mode_A2", scenario=scenario, mode="heterogeneity",
             status="PASS",
             detail={"note": "No stratifications produced checkable groups"},
             min_support=min_support, timestamp=ts,

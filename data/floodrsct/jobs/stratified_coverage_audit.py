@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-stratified_coverage_audit.py -- Stage 5: Run all 15 coverage audits.
+stratified_coverage_audit.py -- Stage 5: Run all 18 coverage audits.
 
 Orchestrates two audit layers for a scenario and produces a consolidated
 report. Each audit runs independently and can also be invoked standalone.
@@ -23,6 +23,11 @@ Layer 1: GeoRSCT mode audits (which failure modes are active?)
   C.2  CRS inconsistency         -> projection/datum mismatch
   C.3  Spatial missingness bias  -> systematic null patterns
   D.3  Interp/extrap mismatch    -> cross-event distribution overlap
+
+  Model-dependent (emit NOT_READY until predictions exist):
+  A.3  Smooth-map illusion       -> prediction surface smoothness
+  D.1  Ceiling-aggregation drift -> per-event performance spread
+  D.2  Architecture flattening   -> cross-solver convergence
 
 Usage:
     python stratified_coverage_audit.py --scenario houston
@@ -56,6 +61,9 @@ from audit_mode_c1_vintage import audit as audit_mode_c1
 from audit_mode_c2_crs import audit as audit_mode_c2
 from audit_mode_c3_missingness import audit as audit_mode_c3
 from audit_mode_d3_transfer import audit as audit_mode_d3
+from audit_mode_a3_smooth_map import audit as audit_mode_a3
+from audit_mode_d1_ceiling_drift import audit as audit_mode_d1
+from audit_mode_d2_flattening import audit as audit_mode_d2
 
 SUPPORT_PROBES = [
     ("P1_event_support", support_p1),
@@ -76,6 +84,9 @@ MODE_AUDITS = [
     ("mode_C2_crs", audit_mode_c2),
     ("mode_C3_missingness", audit_mode_c3),
     ("mode_D3_transfer", audit_mode_d3),
+    ("mode_A3_smooth_map", audit_mode_a3),
+    ("mode_D1_ceiling_drift", audit_mode_d1),
+    ("mode_D2_flattening", audit_mode_d2),
 ]
 
 
@@ -89,9 +100,7 @@ def run_scenario(scenario: str, min_support: int, seed: int,
     print(f"{'='*60}\n")
 
     all_results = {}
-    total_pass = 0
-    total_fail = 0
-    total_skip = 0
+    counts = {"PASS": 0, "WARN": 0, "FAIL": 0, "NOT_READY": 0, "SKIP": 0}
 
     audit_list = []
     if run_support:
@@ -110,23 +119,20 @@ def run_scenario(scenario: str, min_support: int, seed: int,
         except Exception as e:
             print(f"  ERROR: {e}")
             results = []
-            total_fail += 1
+            counts["FAIL"] += 1
 
         for r in results:
-            if r.status == "PASS":
-                total_pass += 1
-            elif r.status == "FAIL":
-                total_fail += 1
-            elif r.status == "SKIP":
-                total_skip += 1
+            counts[r.status] = counts.get(r.status, 0) + 1
 
         all_results[name] = [r.__dict__ for r in results]
 
     # Summary
-    total = total_pass + total_fail + total_skip
+    total = sum(counts.values())
     print(f"\n{'='*60}")
     print(f"  SUMMARY: {scenario}")
-    print(f"  {total_pass}/{total} PASS, {total_fail} FAIL, {total_skip} SKIP")
+    print(f"  {counts['PASS']}/{total} PASS, {counts['WARN']} WARN, "
+          f"{counts['FAIL']} FAIL, {counts['NOT_READY']} NOT_READY, "
+          f"{counts['SKIP']} SKIP")
     print(f"{'='*60}\n")
 
     report = {
@@ -136,9 +142,7 @@ def run_scenario(scenario: str, min_support: int, seed: int,
         "seed": seed,
         "summary": {
             "total_checks": total,
-            "pass": total_pass,
-            "fail": total_fail,
-            "skip": total_skip,
+            **counts,
         },
         "audits": all_results,
     }
@@ -158,7 +162,7 @@ def run_scenario(scenario: str, min_support: int, seed: int,
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Stage 5: Stratified coverage audit (15 checks)"
+        description="Stage 5: Stratified coverage audit (18 checks)"
     )
     parser.add_argument(
         "--scenario", required=True,

@@ -84,7 +84,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
 
         if is_broadcast or is_near_broadcast:
             results.append(AuditResult(
-                audit_id="mode_B2", scenario=scenario, probe="scale",
+                audit_id="mode_B2", scenario=scenario, mode="scale",
                 status="FAIL",
                 detail={
                     "check": "broadcast_detection",
@@ -100,7 +100,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
             ))
         else:
             results.append(AuditResult(
-                audit_id="mode_B2", scenario=scenario, probe="scale",
+                audit_id="mode_B2", scenario=scenario, mode="scale",
                 status="PASS",
                 detail={
                     "check": "broadcast_detection",
@@ -124,7 +124,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
 
     if coarse_present:
         results.append(AuditResult(
-            audit_id="mode_B2", scenario=scenario, probe="scale",
+            audit_id="mode_B2", scenario=scenario, mode="scale",
             status="PASS",  # informational -- coarse features are expected
             detail={
                 "check": "coarse_grid_inventory",
@@ -150,7 +150,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
 
     if collapsed:
         results.append(AuditResult(
-            audit_id="mode_B2", scenario=scenario, probe="scale",
+            audit_id="mode_B2", scenario=scenario, mode="scale",
             status="PASS",  # informational
             detail={
                 "check": "temporal_collapse_inventory",
@@ -163,7 +163,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
 
     if not results:
         results.append(AuditResult(
-            audit_id="mode_B2", scenario=scenario, probe="scale",
+            audit_id="mode_B2", scenario=scenario, mode="scale",
             status="PASS",
             detail={"check": "no_scale_issues", "note": "No flagged features"},
             min_support=min_support, timestamp=ts,

@@ -45,7 +45,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
 
     if scenario not in TIDAL_SCENARIOS:
         result = AuditResult(
-            audit_id="P2", scenario=scenario, probe="ranking",
+            audit_id="P2", scenario=scenario, mode="ranking",
             status="SKIP",
             detail={"reason": "No tidal/coastal features for this scenario"},
             min_support=min_support, timestamp=ts,
@@ -64,7 +64,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
 
     if surge_col is None:
         result = AuditResult(
-            audit_id="P2", scenario=scenario, probe="ranking",
+            audit_id="P2", scenario=scenario, mode="ranking",
             status="FAIL",
             detail={"error": "No surge column found", "checked": SURGE_COLS},
             min_support=min_support, timestamp=ts,
@@ -85,7 +85,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
             status = "PASS" if n_surge >= min_support else "FAIL"
 
             results.append(AuditResult(
-                audit_id="P2", scenario=scenario, probe="ranking",
+                audit_id="P2", scenario=scenario, mode="ranking",
                 status=status,
                 detail={
                     "stratum": label,
@@ -103,7 +103,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
         n_unique = int(df[surge_col].dropna().nunique())
 
         results.append(AuditResult(
-            audit_id="P2", scenario=scenario, probe="ranking",
+            audit_id="P2", scenario=scenario, mode="ranking",
             status="PASS" if n_surge >= min_support else "FAIL",
             detail={
                 "stratum": "all_zctas",

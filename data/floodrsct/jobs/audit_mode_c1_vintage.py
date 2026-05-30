@@ -77,7 +77,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
 
     if "event" not in df.columns:
         result = AuditResult(
-            audit_id="mode_C1", scenario=scenario, probe="vintage",
+            audit_id="mode_C1", scenario=scenario, mode="vintage",
             status="FAIL",
             detail={"error": "No 'event' column in processed parquet"},
             min_support=min_support, timestamp=ts,
@@ -117,7 +117,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
                 status = "PASS"
 
             results.append(AuditResult(
-                audit_id="mode_C1", scenario=scenario, probe="vintage",
+                audit_id="mode_C1", scenario=scenario, mode="vintage",
                 status=status,
                 detail={
                     "event": event,
@@ -137,7 +137,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
 
     if not results:
         results.append(AuditResult(
-            audit_id="mode_C1", scenario=scenario, probe="vintage",
+            audit_id="mode_C1", scenario=scenario, mode="vintage",
             status="PASS",
             detail={"note": "No vintage-flagged features found in this scenario"},
             min_support=min_support, timestamp=ts,

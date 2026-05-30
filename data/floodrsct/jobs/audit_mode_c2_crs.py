@@ -116,7 +116,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
             status = "FAIL" if is_bad else "PASS"
 
             results.append(AuditResult(
-                audit_id="mode_C2", scenario=scenario, probe="crs",
+                audit_id="mode_C2", scenario=scenario, mode="crs",
                 status=status, detail=check,
                 min_support=min_support, timestamp=ts,
             ))
@@ -147,7 +147,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
             status = "FAIL" if is_bad else "PASS"
 
             results.append(AuditResult(
-                audit_id="mode_C2", scenario=scenario, probe="crs",
+                audit_id="mode_C2", scenario=scenario, mode="crs",
                 status=status, detail=check,
                 min_support=min_support, timestamp=ts,
             ))
@@ -177,7 +177,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
             status = "FAIL" if is_bad else "PASS"
 
             results.append(AuditResult(
-                audit_id="mode_C2", scenario=scenario, probe="crs",
+                audit_id="mode_C2", scenario=scenario, mode="crs",
                 status=status, detail=check,
                 min_support=min_support, timestamp=ts,
             ))
@@ -214,14 +214,14 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
             status = "FAIL" if is_bad else "PASS"
 
             results.append(AuditResult(
-                audit_id="mode_C2", scenario=scenario, probe="crs",
+                audit_id="mode_C2", scenario=scenario, mode="crs",
                 status=status, detail=check,
                 min_support=min_support, timestamp=ts,
             ))
 
     if not results:
         results.append(AuditResult(
-            audit_id="mode_C2", scenario=scenario, probe="crs",
+            audit_id="mode_C2", scenario=scenario, mode="crs",
             status="SKIP",
             detail={"note": "No CRS-sensitive features found for this scenario"},
             min_support=min_support, timestamp=ts,

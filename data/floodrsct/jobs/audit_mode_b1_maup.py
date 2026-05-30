@@ -75,14 +75,15 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
         n_multi = len(multi_county)
         n_total = len(counties_per_zcta)
 
+        multi_pct = round(n_multi / max(n_total, 1) * 100, 1)
         results.append(AuditResult(
-            audit_id="mode_B1", scenario=scenario, probe="maup",
+            audit_id="mode_B1", scenario=scenario, mode="maup",
             status="FAIL" if n_multi > n_total * 0.1 else "PASS",
             detail={
                 "check": "multi_county_zctas",
                 "total_zctas": n_total,
                 "multi_county_zctas": n_multi,
-                "multi_county_pct": round(n_multi / max(n_total, 1) * 100, 1),
+                "multi_county_pct": multi_pct,
                 "max_counties_per_zcta": int(counties_per_zcta["n_counties"].max()),
                 "note": ("ZCTAs spanning multiple counties indicate "
                          "postal/administrative boundaries cross jurisdictions. "
@@ -90,6 +91,12 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
                          "into different folds."),
             },
             min_support=min_support, timestamp=ts,
+            primary_metric="multi_county_pct",
+            metric_value=multi_pct,
+            threshold=10.0,
+            recommendation=("Multi-county ZCTAs may leak across blocked CV folds."
+                            if multi_pct > 10.0
+                            else "County boundaries align well with ZCTA boundaries."),
         ))
 
         # --- Check 2: MAUP sensitivity (ZCTA vs county aggregation) ---
@@ -121,7 +128,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
             is_maup_sensitive = variance_ratio < 0.1
 
             results.append(AuditResult(
-                audit_id="mode_B1", scenario=scenario, probe="maup",
+                audit_id="mode_B1", scenario=scenario, mode="maup",
                 status="FAIL" if is_maup_sensitive else "PASS",
                 detail={
                     "check": "variance_ratio",
@@ -140,12 +147,20 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
                            "county aggregation preserves signal.")
                     ),
                 },
+                primary_metric="variance_ratio",
+                metric_value=variance_ratio,
+                threshold=0.1,
+                recommendation=(
+                    f"MAUP active for {col}: R1 HUC/catchment features may recover lost variance."
+                    if is_maup_sensitive else
+                    f"{col} variance is mostly between-county; ZCTA aggregation preserves signal."
+                ),
                 min_support=min_support, timestamp=ts,
             ))
 
     except Exception as e:
         results.append(AuditResult(
-            audit_id="mode_B1", scenario=scenario, probe="maup",
+            audit_id="mode_B1", scenario=scenario, mode="maup",
             status="SKIP",
             detail={"error": f"Crosswalk unavailable: {e}"},
             min_support=min_support, timestamp=ts,
@@ -163,7 +178,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
 
         if len(inconsistent) > 0:
             results.append(AuditResult(
-                audit_id="mode_B1", scenario=scenario, probe="maup",
+                audit_id="mode_B1", scenario=scenario, mode="maup",
                 status="FAIL",
                 detail={
                     "check": "event_coverage_consistency",
@@ -177,7 +192,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
             ))
         else:
             results.append(AuditResult(
-                audit_id="mode_B1", scenario=scenario, probe="maup",
+                audit_id="mode_B1", scenario=scenario, mode="maup",
                 status="PASS",
                 detail={
                     "check": "event_coverage_consistency",
@@ -190,8 +205,8 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
     # --- Check 4: HUC crosswalk absence ---
     # Flag that ZCTA-to-HUC crosswalk does not exist
     results.append(AuditResult(
-        audit_id="mode_B1", scenario=scenario, probe="maup",
-        status="FAIL",
+        audit_id="mode_B1", scenario=scenario, mode="maup",
+        status="WARN",
         detail={
             "check": "huc_crosswalk_absence",
             "note": (
@@ -201,12 +216,12 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
                 "hydrologic regimes. This is a fundamental MAUP limitation "
                 "of the ZCTA-based substrate."
             ),
-            "action": (
-                "Document as known limitation. Future work: build "
-                "ZCTA-to-HUC12 crosswalk from NHDPlus WBD polygons."
-            ),
         },
         min_support=min_support, timestamp=ts,
+        recommendation=(
+            "Document as known limitation. R1 tests whether adding "
+            "HUC/catchment features mitigates this boundary mismatch."
+        ),
     ))
 
     write_evidence(results, "mode_b1_maup", scenario, s3=s3, upload=upload)

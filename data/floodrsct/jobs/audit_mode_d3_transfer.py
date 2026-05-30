@@ -66,7 +66,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
 
     if "event" not in df.columns:
         result = AuditResult(
-            audit_id="mode_D3", scenario=scenario, probe="transfer",
+            audit_id="mode_D3", scenario=scenario, mode="transfer",
             status="FAIL",
             detail={"error": "No 'event' column"},
             min_support=min_support, timestamp=ts,
@@ -77,7 +77,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
     events = sorted(df["event"].unique())
     if len(events) < 2:
         result = AuditResult(
-            audit_id="mode_D3", scenario=scenario, probe="transfer",
+            audit_id="mode_D3", scenario=scenario, mode="transfer",
             status="SKIP",
             detail={"note": f"Only {len(events)} event(s); transfer needs >= 2",
                     "events": events},
@@ -141,7 +141,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
         status = "FAIL" if has_gap else "PASS"
 
         results.append(AuditResult(
-            audit_id="mode_D3", scenario=scenario, probe="transfer",
+            audit_id="mode_D3", scenario=scenario, mode="transfer",
             status=status,
             detail={
                 "column": col,
@@ -162,7 +162,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
 
     if not results:
         results.append(AuditResult(
-            audit_id="mode_D3", scenario=scenario, probe="transfer",
+            audit_id="mode_D3", scenario=scenario, mode="transfer",
             status="PASS",
             detail={"note": "No transfer-relevant features found"},
             min_support=min_support, timestamp=ts,

@@ -62,7 +62,7 @@ def audit(scenario: str, min_support: int, seed: int,
         adj_df = load_adjacency(s3)
     except FileNotFoundError as e:
         result = AuditResult(
-            audit_id="mode_A1", scenario=scenario, probe="leakage",
+            audit_id="mode_A1", scenario=scenario, mode="leakage",
             status="FAIL", detail={"error": str(e)},
             min_support=min_support, timestamp=ts,
         )
@@ -105,7 +105,7 @@ def audit(scenario: str, min_support: int, seed: int,
     random_leakage = _compute_leakage_rate(test_random, train_random, scenario_adj)
 
     results.append(AuditResult(
-        audit_id="mode_A1", scenario=scenario, probe="leakage",
+        audit_id="mode_A1", scenario=scenario, mode="leakage",
         status="PASS" if random_leakage < LEAKAGE_THRESHOLD else "FAIL",
         detail={
             "split": "random_80_20",
@@ -116,6 +116,12 @@ def audit(scenario: str, min_support: int, seed: int,
             "threshold": LEAKAGE_THRESHOLD,
         },
         min_support=min_support, timestamp=ts,
+        primary_metric="leakage_rate",
+        metric_value=round(random_leakage, 4),
+        threshold=LEAKAGE_THRESHOLD,
+        recommendation=("Use spatial blocked CV instead of random split."
+                        if random_leakage >= LEAKAGE_THRESHOLD
+                        else "Random split leakage is acceptable."),
     ))
 
     # --- County-blocked split leakage ---
@@ -147,22 +153,28 @@ def audit(scenario: str, min_support: int, seed: int,
         mean_blocked = (np.mean([c["leakage_rate"] for c in county_leakages])
                         if county_leakages else 0.0)
 
+        reduction = round(random_leakage - float(mean_blocked), 4)
         results.append(AuditResult(
-            audit_id="mode_A1", scenario=scenario, probe="leakage",
+            audit_id="mode_A1", scenario=scenario, mode="leakage",
             status="PASS" if mean_blocked < random_leakage else "FAIL",
             detail={
                 "split": "county_blocked",
                 "n_counties": len(counties),
                 "mean_leakage_rate": round(float(mean_blocked), 4),
                 "random_leakage_rate": round(random_leakage, 4),
-                "reduction": round(random_leakage - float(mean_blocked), 4),
+                "reduction": reduction,
                 "per_county": county_leakages,
             },
             min_support=min_support, timestamp=ts,
+            primary_metric="leakage_reduction",
+            metric_value=reduction,
+            recommendation=("County-blocked CV reduces leakage; use as primary split."
+                            if mean_blocked < random_leakage
+                            else "Blocked CV does not reduce leakage; investigate adjacency."),
         ))
     except Exception as e:
         results.append(AuditResult(
-            audit_id="mode_A1", scenario=scenario, probe="leakage",
+            audit_id="mode_A1", scenario=scenario, mode="leakage",
             status="SKIP",
             detail={"split": "county_blocked", "error": str(e)},
             min_support=min_support, timestamp=ts,

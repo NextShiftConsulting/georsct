@@ -43,7 +43,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
         adj = load_adjacency(s3)
     except FileNotFoundError as e:
         result = AuditResult(
-            audit_id="P5", scenario=scenario, probe="relational_propagation",
+            audit_id="P5", scenario=scenario, mode="relational_propagation",
             status="FAIL",
             detail={"error": str(e)},
             min_support=min_support, timestamp=ts,
@@ -73,7 +73,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
         src_col, dst_col = adj_cols[0], adj_cols[1]
     else:
         result = AuditResult(
-            audit_id="P5", scenario=scenario, probe="relational_propagation",
+            audit_id="P5", scenario=scenario, mode="relational_propagation",
             status="FAIL",
             detail={"error": f"Adjacency has unexpected columns: {adj_cols}"},
             min_support=min_support, timestamp=ts,
@@ -92,7 +92,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
     total_edges = len(scenario_edges)
     if total_edges == 0:
         result = AuditResult(
-            audit_id="P5", scenario=scenario, probe="relational_propagation",
+            audit_id="P5", scenario=scenario, mode="relational_propagation",
             status="FAIL",
             detail={
                 "error": "No adjacency edges found for this scenario's ZCTAs",
@@ -114,7 +114,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
     status = "PASS" if coverage >= MIN_EDGE_COVERAGE else "FAIL"
 
     result = AuditResult(
-        audit_id="P5", scenario=scenario, probe="relational_propagation",
+        audit_id="P5", scenario=scenario, mode="relational_propagation",
         status=status,
         detail={
             "scenario_zctas": len(all_zctas),

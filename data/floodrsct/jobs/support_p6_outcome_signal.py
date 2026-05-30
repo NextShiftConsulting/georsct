@@ -51,7 +51,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
     available_outcomes = [c for c in OUTCOME_COLS if c in df.columns]
     if not available_outcomes:
         result = AuditResult(
-            audit_id="P6", scenario=scenario, probe="all",
+            audit_id="P6", scenario=scenario, mode="all",
             status="FAIL",
             detail={"error": "No outcome columns found", "checked": OUTCOME_COLS},
             min_support=min_support, timestamp=ts,
@@ -67,7 +67,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
     per_col = {c: int(df[c].notna().sum()) for c in available_outcomes}
 
     results.append(AuditResult(
-        audit_id="P6", scenario=scenario, probe="all",
+        audit_id="P6", scenario=scenario, mode="all",
         status="PASS" if any_outcome >= min_support else "FAIL",
         detail={
             "check": "overall",
@@ -87,7 +87,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
             e_per_col = {c: int(edf[c].notna().sum()) for c in available_outcomes}
 
             results.append(AuditResult(
-                audit_id="P6", scenario=scenario, probe="all",
+                audit_id="P6", scenario=scenario, mode="all",
                 status="PASS" if n_outcome >= min_support else "FAIL",
                 detail={
                     "check": "per_event",
@@ -113,7 +113,7 @@ def audit(scenario: str, min_support: int, upload: bool) -> list[AuditResult]:
                 n_outcome = _count_any_outcome(cdf, available_outcomes)
 
                 results.append(AuditResult(
-                    audit_id="P6", scenario=scenario, probe="all",
+                    audit_id="P6", scenario=scenario, mode="all",
                     status="PASS" if n_outcome >= min_support else "FAIL",
                     detail={
                         "check": "per_county",

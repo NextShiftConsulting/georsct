@@ -80,7 +80,7 @@ SCENARIO (e.g. southwest_florida)
  |  | stratified_coverage_audit.py                       |
  |  |   --scenario southwest_florida                     |
  |  |                                                   |
- |  |  15 audits in two layers:                         |
+ |  |  18 audits in two layers:                         |
  |  |                                                   |
  |  |  LAYER 0 -- Dataset-support probes                |
  |  |  (is the substrate admissible for evaluation?)    |
@@ -95,12 +95,15 @@ SCENARIO (e.g. southwest_florida)
  |  |  (which failure modes are active?)                |
  |  |    A.1 Autocorrelation leakage (split bias)       |
  |  |    A.2 Geographic heterogeneity (stratum CV)      |
+ |  |    A.3 Smooth-map illusion (NOT_READY)            |
  |  |    B.1 MAUP / partition drift (ZCTA boundaries)   |
  |  |    B.2 Scale mismatch (broadcast/coarse)          |
  |  |    B.3 Crosswalk gap (join hit rates)             |
  |  |    C.1 Vintage drift (feature age vs event)       |
  |  |    C.2 CRS inconsistency (projection/datum)       |
  |  |    C.3 Spatial missingness bias (systematic NaN)  |
+ |  |    D.1 Ceiling-aggregation drift (NOT_READY)      |
+ |  |    D.2 Architecture flattening (NOT_READY)        |
  |  |    D.3 Interp/extrap mismatch (distribution gap)  |
  |  |                                                   |
  |  |  -> evidence/qa/coverage_audit_{scenario}.json    |

@@ -83,19 +83,47 @@ def load_adjacency(s3) -> pd.DataFrame:
 
 @dataclass
 class AuditResult:
-    """Result of a single coverage audit check."""
+    """Result of a single coverage audit check.
+
+    Fields align with the data-lock manifest schema:
+      audit_id:        GeoRSCT mode (mode_A1, mode_B1, ...) or support probe (P1-P6)
+      mode:            failure mode name (leakage, maup, crs, ...)
+      scenario:        scenario key (houston, nyc, ...)
+      event:           event key or None for scenario-level audits
+      status:          PASS | WARN | FAIL | NOT_READY | SKIP
+      primary_metric:  name of the key metric tested (e.g. leakage_rate, variance_ratio)
+      metric_value:    numeric value of primary_metric, or None
+      threshold:       decision threshold for primary_metric, or None
+      recommendation:  actionable next step
+      detail:          full evidence dict
+      min_support:     minimum sample size for check
+      timestamp:       ISO-8601 timestamp
+      evidence_path:   S3 key where evidence JSON was written (set by write_evidence)
+    """
     audit_id: str
+    mode: str
     scenario: str
-    probe: str
-    status: str  # PASS | FAIL | SKIP
+    status: str  # PASS | WARN | FAIL | NOT_READY | SKIP
     detail: dict
     min_support: int
     timestamp: str
+    event: str = ""
+    primary_metric: str = ""
+    metric_value: float | None = None
+    threshold: float | None = None
+    recommendation: str = ""
+    evidence_path: str = ""
 
 
 def write_evidence(results: list[AuditResult], audit_name: str, scenario: str,
                    s3=None, upload: bool = False) -> None:
     """Print and optionally upload audit evidence."""
+    key = f"evidence/qa/coverage_{audit_name}_{scenario}.json"
+
+    # Set evidence_path on each result
+    for r in results:
+        r.evidence_path = f"s3://{BUCKET}/{key}"
+
     payload = {
         "audit": audit_name,
         "scenario": scenario,
@@ -104,7 +132,9 @@ def write_evidence(results: list[AuditResult], audit_name: str, scenario: str,
         "summary": {
             "total": len(results),
             "pass": sum(1 for r in results if r.status == "PASS"),
+            "warn": sum(1 for r in results if r.status == "WARN"),
             "fail": sum(1 for r in results if r.status == "FAIL"),
+            "not_ready": sum(1 for r in results if r.status == "NOT_READY"),
             "skip": sum(1 for r in results if r.status == "SKIP"),
         },
     }
@@ -112,7 +142,6 @@ def write_evidence(results: list[AuditResult], audit_name: str, scenario: str,
     print(json.dumps(payload, indent=2))
 
     if upload and s3:
-        key = f"evidence/qa/coverage_{audit_name}_{scenario}.json"
         s3.put_object(
             Bucket=BUCKET, Key=key,
             Body=json.dumps(payload, indent=2).encode(),
