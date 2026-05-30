@@ -52,7 +52,19 @@ def main() -> None:
     s3.download_file(BUCKET, IMG_KEY, local_img)
     log.info("Download complete: %.1f GB", Path(local_img).stat().st_size / 1e9)
 
-    # Convert to GeoTIFF (lossless LZW compression)
+    # Convert to GeoTIFF (lossless LZW compression).
+    # The apt gdal-bin on Ubuntu 22.04 lacks the HFA driver for .img files.
+    # Use conda-forge GDAL which includes all drivers.
+    log.info("Installing conda-forge GDAL (includes HFA driver)")
+    conda_result = subprocess.run(
+        ["conda", "install", "-y", "-q", "-c", "conda-forge", "gdal"],
+        capture_output=True, text=True, timeout=600,
+    )
+    if conda_result.returncode != 0:
+        log.error("conda install gdal failed: %s", conda_result.stderr[:500])
+        sys.exit(1)
+    log.info("conda-forge GDAL installed")
+
     local_tif = "/tmp/nlcd_2021_impervious_l48.tif"
     log.info("Converting .img -> .tif via gdal_translate (LZW, lossless)")
     result = subprocess.run(
