@@ -145,11 +145,37 @@ STATIC_DATASETS = {
     },
 }
 
-# Known no-data cases (STN confirmed zero HWMs)
+# Known no-data cases -- distinguished by reason type:
+#   not_applicable:  feature category does not apply to this event type
+#   source_empty:    our specific data source returned zero records; other sources may exist
 NO_DATA = {
-    ("beryl2024", "hwm"): "USGS STN event 342 confirmed zero HWMs",
-    ("ar_flood_2023", "tides"): "Inland atmospheric river; tidal stations not relevant",
-    ("ar_flood_2023", "hurdat2"): "Atmospheric river, not tropical cyclone",
+    ("beryl2024", "hwm"): {
+        "status": "source_empty",
+        "reason": (
+            "USGS STN/FEV event 342 returned zero HWM records in current fetch. "
+            "NHC/HCFCD/NWS survey evidence may exist outside this STN event record."
+        ),
+        "action": (
+            "Do not block experiments. Optional future enrichment: "
+            "ingest NHC/HCFCD/NWS survey marks as a separate source."
+        ),
+    },
+    ("ar_flood_2023", "tides"): {
+        "status": "not_applicable",
+        "reason": "Inland atmospheric river event; tidal stations not relevant.",
+        "action": "Do not fetch. Keep tidal features null for inland AR events.",
+    },
+    ("ar_flood_2023", "hurdat2"): {
+        "status": "not_applicable",
+        "reason": (
+            "Atmospheric river event; HURDAT2 is a tropical/subtropical cyclone "
+            "best-track dataset (NOAA). Not applicable to AR events."
+        ),
+        "action": (
+            "Do not fetch. Keep storm_distance_km null or mark not_applicable "
+            "for non-tropical events."
+        ),
+    },
 }
 
 
@@ -159,9 +185,10 @@ class CellStatus:
     event: str
     dataset: str
     s3_prefix: str
-    status: str  # missing | fetched | no_data_available
+    status: str  # missing | fetched | not_applicable | source_empty
     record_count: int
     missing_reason: str
+    action: str = ""
 
 
 def count_s3_objects(s3, prefix: str) -> int:
@@ -178,12 +205,15 @@ def check_event_dataset(s3, scenario: str, event: str, dataset: str, spec: dict)
     # Check no-data registry
     no_data_key = (event, dataset)
     if no_data_key in NO_DATA:
+        entry = NO_DATA[no_data_key]
         prefix = spec["prefix"].format(event=event)
         return CellStatus(
             scenario=scenario, event=event, dataset=dataset,
             s3_prefix=f"s3://{BUCKET}/{prefix}",
-            status="no_data_available", record_count=0,
-            missing_reason=NO_DATA[no_data_key],
+            status=entry["status"],
+            record_count=0,
+            missing_reason=entry["reason"],
+            action=entry["action"],
         )
 
     # Static datasets (not event-level)
@@ -262,7 +292,7 @@ def main() -> None:
     elif args.format == "csv":
         writer = csv.DictWriter(sys.stdout, fieldnames=[
             "scenario", "event", "dataset", "s3_prefix",
-            "status", "record_count", "missing_reason",
+            "status", "record_count", "missing_reason", "action",
         ])
         writer.writeheader()
         for r in results:
@@ -275,14 +305,24 @@ def main() -> None:
     total = len(results)
     fetched = sum(1 for r in results if r.status == "fetched")
     missing = sum(1 for r in results if r.status == "missing")
-    no_data = sum(1 for r in results if r.status == "no_data_available")
-    print(f"\n--- Summary: {fetched}/{total} fetched, {missing} missing, {no_data} no_data_available ---")
+    not_applicable = sum(1 for r in results if r.status == "not_applicable")
+    source_empty = sum(1 for r in results if r.status == "source_empty")
+    print(f"\n--- Summary: {fetched}/{total} fetched, {missing} missing, "
+          f"{not_applicable} not_applicable, {source_empty} source_empty ---")
 
     if missing > 0:
         print("\n--- MISSING ---")
         for r in results:
             if r.status == "missing":
                 print(f"  {r.scenario}/{r.event}/{r.dataset}: {r.s3_prefix}")
+
+    if source_empty > 0:
+        print("\n--- SOURCE EMPTY (other sources may exist) ---")
+        for r in results:
+            if r.status == "source_empty":
+                print(f"  {r.scenario}/{r.event}/{r.dataset}: {r.missing_reason}")
+                if r.action:
+                    print(f"    Action: {r.action}")
 
     # Upload
     if args.upload:
@@ -312,7 +352,8 @@ def _print_table(results: list[CellStatus]) -> None:
         status_marker = {
             "fetched": "FETCHED",
             "missing": "** MISSING **",
-            "no_data_available": "NO DATA (OK)",
+            "not_applicable": "N/A",
+            "source_empty": "SRC EMPTY",
         }.get(r.status, r.status)
 
         print(f"  {r.event:<20} {r.dataset:<15} {status_marker:<20} {r.record_count:>6}  {r.missing_reason}")

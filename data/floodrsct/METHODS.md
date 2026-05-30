@@ -1,5 +1,107 @@
 # FloodRSCT Data Processing Methods
 
+## Pipeline Overview
+
+Each scenario follows a five-stage pipeline. Stages 1-4 answer "is the dataset
+correctly built?" Stage 5 answers "is the dataset adequately supported across
+the strata that matter for the experiments?"
+
+```
+SCENARIO (e.g. southwest_florida)
+ |
+ |  Events: ian2022, helene2024, milton2024
+ |
+ |  STAGE 1: FETCH (per source, per event)
+ |  Each fetch job writes raw data to S3 independently.
+ |
+ |  Event-level sources              Static sources
+ |  (one fetch per event)            (one fetch per scenario)
+ |  +-----------------------+        +-----------------------+
+ |  | fetch_noaa_mrms.py    |        | fetch_dem_elevation.py|
+ |  |   -> raw/noaa_mrms/   |        |   -> raw/dem/3dep/    |
+ |  +-----------------------+        +-----------------------+
+ |  | fetch_noaa_tides.py   |        | fetch_noaa_slosh.py   |
+ |  |   -> raw/noaa_tides/  |        |   -> raw/noaa_slosh/  |
+ |  +-----------------------+        +-----------------------+
+ |  | fetch_noaa_hrrr.py    |        | fetch_tiger_coast.py  |
+ |  |   -> raw/noaa_hrrr/   |        |   -> raw/tiger/       |
+ |  +-----------------------+        +-----------------------+
+ |  | fetch_surge_hwm.py    |        | fetch_openfema.py     |
+ |  |   -> raw/surge_est./  |        |   -> raw/openfema/    |
+ |  +-----------------------+        +-----------------------+
+ |  | fetch_gpm_imerg.py    |
+ |  |   -> raw/gpm_imerg/   |
+ |  +-----------------------+
+ |  | fetch_smap.py         |
+ |  |   -> raw/smap_soil/   |
+ |  +-----------------------+
+ |  | fetch_hurdat2.py      |
+ |  |   -> raw/hurdat2/     |
+ |  +-----------------------+
+ |
+ |  STAGE 2: GATE (presence)
+ |  +---------------------------------------------------+
+ |  | validate_data_readiness.py                        |
+ |  |   Audits every (event, dataset) cell against S3.  |
+ |  |   Must show 0 MISSING before proceeding.          |
+ |  |   Distinguishes: not_applicable vs source_empty   |
+ |  +---------------------------------------------------+
+ |
+ |  STAGE 3: ASSEMBLE (join raw sources into per-event rows)
+ |  +---------------------------------------------------+
+ |  | build_event_dataset.py --scenario southwest_florida|
+ |  |                                                   |
+ |  |  For each event (ian2022, helene2024, milton2024):|
+ |  |    1. Load ZCTA geometries from geocertdb2026     |
+ |  |    2. Aggregate MRMS grids -> total_rainfall_mm   |
+ |  |    3. Join tidal surge (max across stations)      |
+ |  |    4. Spatial join HWMs to nearest ZCTA           |
+ |  |    5. Compute storm_distance_km from HURDAT2      |
+ |  |    6. Sample DEM at ZCTA centroids                |
+ |  |    7. Sample SLOSH MOM at ZCTA centroids          |
+ |  |    8. Join NFIP claims by reportedZipcode         |
+ |  |    9. Merge all features into (zcta_id, event) row|
+ |  |                                                   |
+ |  |  Output:                                          |
+ |  |    processed/southwest_florida/                    |
+ |  |      swfl_event_features.parquet                  |
+ |  +---------------------------------------------------+
+ |
+ |  STAGE 4: VALIDATE (integrity)
+ |  +---------------------------------------------------+
+ |  | strat_sampler_qa.py --scenario southwest_florida   |
+ |  |   Range checks, cross-column consistency,          |
+ |  |   key integrity, constant column detection         |
+ |  |   -> evidence/qa/strat_sampler_seed{N}.json       |
+ |  +---------------------------------------------------+
+ |
+ |  STAGE 5: STRATIFIED COVERAGE (sufficiency)
+ |  +---------------------------------------------------+
+ |  | stratified_coverage_audit.py                       |
+ |  |   --scenario southwest_florida                     |
+ |  |                                                   |
+ |  |  Gates whether each probe can run, not whether    |
+ |  |  the data is clean. A parquet can pass Stage 4    |
+ |  |  while all non-null values sit in one stratum.    |
+ |  |                                                   |
+ |  |  Six audits mapped to six decision geometries:    |
+ |  |    A1. Per-event support (transfer probe)         |
+ |  |    A2. Coastal vs inland balance (ranking probe)  |
+ |  |    A3. Levee-protected vs unprotected (ranking)   |
+ |  |    A4. County group sizes (rel. propagation)      |
+ |  |    A5. Adjacency coverage (rel. propagation)      |
+ |  |    A6. Outcome signal per stratum (all probes)    |
+ |  |                                                   |
+ |  |  -> evidence/qa/coverage_audit_{scenario}.json    |
+ |  +---------------------------------------------------+
+```
+
+Not all sources apply to every scenario. The feature contract
+(`FEATURE_CONTRACT.yaml`) defines which sources are required per scenario.
+Stage 2 enforces this before assembly.
+
+---
+
 ## Storm Surge Estimation
 
 ### Problem
@@ -151,6 +253,20 @@ the product is deterministic (no advisory selection required).
    - `slosh_max_surge_m`: maximum MOM inundation depth (feet converted to meters)
      at the ZCTA centroid for the storm's actual Saffir-Simpson category at landfall
    - `slosh_category`: the Saffir-Simpson category used for lookup
+   - Guard: raster pixel values >= 99 are treated as no-data (SLOSH uses high
+     sentinel values for dry cells outside the inundation envelope)
+
+### Assembly Pipeline
+
+The assembly step (`build_event_dataset.py --scenario southwest_florida`) joins
+all pre-fetched raw data into the final processed parquet. Raw data must already
+exist on S3 before assembly runs. The assembly job:
+
+1. Bootstraps pip packages (rasterio, geopandas, xarray, etc.)
+2. Assembles all SW Florida events (ian2022, helene2024, milton2024) by joining
+   MRMS, tides, HWM, HURDAT2, DEM, SLOSH, and NFIP sources per ZCTA
+3. For SLOSH: reads the Cat 4/3 MOM GeoTIFF from S3, samples at ZCTA centroids,
+   converts feet to meters, guards pixel values >= 99 as no-data
 
 ### Temporal Classification
 
@@ -205,3 +321,34 @@ quality across scenarios. Five probe families:
 
 Each run is parameterized by `--seed` and `--n-samples` for reproducibility.
 Results are written as JSON evidence to S3 for experiment traceability.
+
+---
+
+## Data Readiness Classification
+
+`validate_data_readiness.py` audits every (event, dataset) cell against S3 and
+classifies gaps into distinct statuses:
+
+| Status | Meaning | Example |
+|--------|---------|---------|
+| `fetched` | Data present on S3 | harvey2017/mrms (432 files) |
+| `missing` | Expected data not found; action required | -- |
+| `not_applicable` | Feature category does not apply to this event type | ar_flood_2023/hurdat2 |
+| `source_empty` | Our specific data source returned zero records; other sources may exist | beryl2024/hwm |
+
+### Accepted No-Data Cases
+
+**ar_flood_2023 / hurdat2** (`not_applicable`): HURDAT2 is a tropical/subtropical
+cyclone best-track dataset (NOAA). The 2023 California atmospheric river is not a
+tropical cyclone and has no HURDAT2 track. The `storm_distance_km` feature is null
+for AR events by definition.
+
+**beryl2024 / hwm** (`source_empty`): USGS STN Flood Event Viewer (event 342)
+returned zero high-water mark records for Hurricane Beryl (2024). This does not
+mean no HWM observations exist -- the NHC Beryl report documents survey teams
+finding 5-7 ft storm-surge inundation between Matagorda and Freeport, and
+HCFCD/NWS surveys recorded marks up to 10.2 ft NAVD88. These observations are
+not in STN and would require separate ingestion from NHC/HCFCD/NWS sources.
+
+**ar_flood_2023 / tides** (`not_applicable`): Inland atmospheric river event;
+coastal tidal stations are not relevant to the Riverside-Coachella scenario.
