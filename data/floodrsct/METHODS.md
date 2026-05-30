@@ -109,6 +109,79 @@ assign each ZCTA the value from its nearest tide station, weighted by distance.
 
 ---
 
+## SLOSH MOM Surge Hazard
+
+### Background
+
+NHC SLOSH (Sea, Lake and Overland Surges from Hurricanes) produces two product
+types relevant to flood risk:
+
+- **MEOW** (Maximum Envelope of Water): surge envelope for a single hypothetical
+  storm with fixed parameters (category, forward speed, track angle, landfall point)
+- **MOM** (Maximum of MEOWs): cell-wise maximum across thousands of MEOWs for a
+  given basin and storm category. This is the worst-case surge planning surface.
+
+MOM grids are **basin-specific and category-specific, not storm-specific**. A Cat 3
+MOM for the Tampa Bay (TBW) basin is the same regardless of whether the actual
+storm is Milton 2024 or a hypothetical future hurricane. MOM is a static hazard
+surface, not an event measurement.
+
+### Why MOM, Not Per-Storm Products
+
+The earlier approach attempted to download per-storm SLOSH products (advisory-level
+P-Surge archives) via NHC URLs. This failed because:
+
+1. NHC does not publish downloadable SLOSH grids at stable per-storm URLs
+2. Ian, Helene, and Milton hit **three different SLOSH basins** (FTM/Fort Myers,
+   APF/Big Bend, TBW/Tampa Bay) -- the Ian GeoTIFFs could not be reused
+3. P-Surge is an operational forecast product with ~21 advisory snapshots per storm;
+   selecting which advisory to use introduces subjective bias
+
+MOM avoids all three problems: one download covers all basins, all categories, and
+the product is deterministic (no advisory selection required).
+
+### Method
+
+1. **Download**: National SLOSH MOM inundation grid from NHC
+   (`US_SLOSH_MOM_Inundation_v4.zip`). Single GeoTIFF covering Texas to Maine,
+   all SLOSH basins, per Saffir-Simpson category (Cat 1-5).
+2. **Store**: `s3://swarm-floodrsct-data/raw/noaa_slosh/mom_national/`
+3. **Derive** (in `build_event_dataset.py`):
+   - For each SW Florida ZCTA centroid, sample the MOM raster at that location
+   - `slosh_max_surge_m`: maximum MOM inundation depth (feet converted to meters)
+     at the ZCTA centroid for the storm's actual Saffir-Simpson category at landfall
+   - `slosh_category`: the Saffir-Simpson category used for lookup
+
+### Temporal Classification
+
+`slosh_max_surge_m` is classified as **invariant** (not event_window). The MOM
+surface does not change between storms -- it represents the pre-computed worst-case
+envelope for the basin geometry. The event-specific element is only the category
+lookup key (e.g., Ian = Cat 4, Milton = Cat 3, Helene = Cat 4).
+
+### Limitations
+
+- MOM is a worst-case envelope, not an actual hindcast. Real surge from a specific
+  storm is typically lower than the MOM value for that category.
+- MOM resolution varies by basin (~250m to ~1km). Coastal ZCTAs smaller than the
+  grid cell may receive imprecise values.
+- Inland ZCTAs beyond the MOM inundation extent receive 0 (no surge), which is
+  correct but may mask riverine flooding contributions.
+- The national GeoTIFF is large (~500 MB). Only the SW Florida scenario uses SLOSH
+  features; other scenarios do not have surge model fields.
+
+### Basin Coverage
+
+| Storm | Year | SLOSH Basin | Landfall Location |
+|-------|------|-------------|-------------------|
+| Ian | 2022 | FTM (Fort Myers) | Cayo Costa / Fort Myers Beach |
+| Milton | 2024 | TBW (Tampa Bay) | Siesta Key / Sarasota |
+| Helene | 2024 | APF (Apalachee Bay) | Perry / Keaton Beach |
+
+All three basins are covered by the national MOM grid.
+
+---
+
 ## NFIP Claims
 
 Disaster-specific NFIP claims are joined to ZCTAs by the `reportedZipcode` field

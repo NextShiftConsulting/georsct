@@ -74,10 +74,6 @@ EVENT_DATASETS = {
         "prefix": "raw/surge_estimates/{event}/",
         "scenarios": ["houston", "southwest_florida", "nyc", "riverside_coachella"],
     },
-    "slosh": {
-        "prefix": "raw/noaa_slosh/{event}/",
-        "scenarios": ["southwest_florida"],
-    },
     "hurdat2": {
         "prefix": "raw/hurdat2/",
         "scenarios": ["houston", "southwest_florida", "riverside_coachella"],
@@ -142,6 +138,10 @@ STATIC_DATASETS = {
         "prefix": "raw/hcfcd/",
         "scenarios": ["houston"],
     },
+    "slosh_mom": {
+        "prefix": "raw/noaa_slosh/mom_national/",
+        "scenarios": ["southwest_florida"],
+    },
 }
 
 # Known no-data cases (STN confirmed zero HWMs)
@@ -150,7 +150,6 @@ NO_DATA = {
     ("henri2021", "hwm"): "No STN deployment for Henri",
     ("ar_flood_2023", "tides"): "Inland atmospheric river; tidal stations not relevant",
     ("ar_flood_2023", "hurdat2"): "Atmospheric river, not tropical cyclone",
-    ("ar_flood_2023", "slosh"): "Not a hurricane; no SLOSH model run",
 }
 
 

@@ -1,33 +1,34 @@
 #!/usr/bin/env python3
 """
-fetch_noaa_slosh.py -- SageMaker job: download NHC SLOSH retrospective surge outputs.
+fetch_noaa_slosh.py -- Download NHC SLOSH MOM national inundation grids.
 
-NHC publishes SLOSH Maximum Envelope of Water (MEOW) and Maximum of MEOWs (MOM)
-grids for landfalling storms. Ian 2022, Helene 2024, and Milton 2024 all have
-published SLOSH outputs.
+MOM (Maximum of MEOWs) grids are basin-specific, not storm-specific.
+They represent worst-case surge envelopes by Saffir-Simpson category
+for the entire US coastline. One download covers all events.
 
-Download source: https://www.nhc.noaa.gov/surge/slosh.php
-Individual storm archives: https://www.nhc.noaa.gov/gis/archive_forecast_info_results.php
+Source: https://www.nhc.noaa.gov/gis/hazardmaps/US_SLOSH_MOM_Inundation_v4.zip
 
-SLOSH grids are delivered as zipped shapefiles or NetCDF; we store as-is
-and extract peak surge per ZCTA in build_event_dataset.py.
+Output:
+  s3://swarm-floodrsct-data/raw/noaa_slosh/mom_national/
+    US_SLOSH_MOM_Inundation_v4.*  (GeoTIFF + world file + metadata)
 
-Outputs:
-  s3://swarm-floodrsct-data/raw/noaa_slosh/ian2022/
-  s3://swarm-floodrsct-data/raw/noaa_slosh/helene2024/
-  s3://swarm-floodrsct-data/raw/noaa_slosh/milton2024/
+Feature contract fields derived downstream:
+  - slosh_max_surge_m (max MOM inundation within ZCTA, by storm category)
+  - slosh_category (Saffir-Simpson category from MOM)
+
+Usage:
+    python fetch_noaa_slosh.py
 """
 
 import logging
-import re
+import os
 import sys
-import time
+import zipfile
 from pathlib import Path
 
 import boto3
-from swarm_auth import get_aws_credentials
 import requests
-from bs4 import BeautifulSoup
+from swarm_auth import get_aws_credentials
 
 logging.basicConfig(
     level=logging.INFO,
@@ -39,148 +40,93 @@ logging.getLogger("botocore.credentials").setLevel(logging.WARNING)
 log = logging.getLogger(__name__)
 
 BUCKET = "swarm-floodrsct-data"
-NHC_SURGE_BASE = "https://www.nhc.noaa.gov/surge"
-NHC_GIS_ARCHIVE = "https://www.nhc.noaa.gov/gis/archive_forecast_info_results.php"
+S3_PREFIX = "raw/noaa_slosh/mom_national"
 
-# NHC storm identifiers for SLOSH archive lookup
-EVENTS = {
-    "ian2022": {
-        "nhc_id": "al092022",
-        "name": "IAN",
-        "year": 2022,
-        "basin": "al",
-    },
-    "helene2024": {
-        "nhc_id": "al092024",
-        "name": "HELENE",
-        "year": 2024,
-        "basin": "al",
-    },
-    "milton2024": {
-        "nhc_id": "al142024",
-        "name": "MILTON",
-        "year": 2024,
-        "basin": "al",
-    },
-}
+MOM_URL = "https://www.nhc.noaa.gov/gis/hazardmaps/US_SLOSH_MOM_Inundation_v4.zip"
+MOM_ZIP_NAME = "US_SLOSH_MOM_Inundation_v4.zip"
 
-# Direct SLOSH product URLs (from NHC published archives — verify at runtime)
-# Pattern: https://www.nhc.noaa.gov/storm_graphics/api/{NHCID}/refresh/AL092022_SLOSH_MOM.zip
-SLOSH_URL_PATTERNS = [
-    "https://www.nhc.noaa.gov/storm_graphics/api/{nhc_id_upper}/refresh/{nhc_id_upper}_SLOSH_MOM.zip",
-    "https://www.nhc.noaa.gov/refresh/graphics_at{basin_num}+shtml/slosh.shtml",
-    # Fallback: NHC GIS archive page for the storm
-    "https://www.nhc.noaa.gov/gis/archive_forecast_info_results.php?id={nhc_id}&name={name}&year={year}",
-]
+# Extensions worth keeping from the zip
+KEEP_EXTENSIONS = {".tif", ".tfw", ".xml", ".prj", ".dbf", ".shp", ".shx", ".cpg"}
 
 
-def try_direct_download(event_name: str, event_cfg: dict) -> list[tuple[str, bytes]]:
-    """Try direct SLOSH archive URL patterns. Return list of (filename, content) tuples."""
-    results = []
-    nhc_id_upper = event_cfg["nhc_id"].upper()
-    basin_num = event_cfg["nhc_id"][2:4]  # e.g. "09" from "al092022"
+def download_mom_zip(dest_dir: str) -> str:
+    """Download the national MOM zip. Returns path to local zip file."""
+    local_path = os.path.join(dest_dir, MOM_ZIP_NAME)
+    log.info("Downloading %s", MOM_URL)
+    resp = requests.get(MOM_URL, timeout=600, stream=True)
+    resp.raise_for_status()
 
-    candidates = [
-        f"https://www.nhc.noaa.gov/storm_graphics/api/{nhc_id_upper}/refresh/{nhc_id_upper}_SLOSH_MOM.zip",
-        f"https://www.nhc.noaa.gov/storm_graphics/api/{nhc_id_upper}/refresh/{nhc_id_upper}_SLOSH_MEOW.zip",
-    ]
-
-    for url in candidates:
-        log.info("Trying SLOSH URL: %s", url)
-        resp = requests.get(url, timeout=300, stream=True)
-        if resp.status_code == 200:
-            filename = url.split("/")[-1]
-            content = resp.content
-            log.info("Downloaded %s (%d bytes)", filename, len(content))
-            results.append((filename, content))
-        else:
-            log.debug("Not found (%d): %s", resp.status_code, url)
-        time.sleep(0.5)
-
-    return results
+    total = 0
+    with open(local_path, "wb") as f:
+        for chunk in resp.iter_content(chunk_size=8 * 1024 * 1024):
+            f.write(chunk)
+            total += len(chunk)
+    log.info("Downloaded %s (%.1f MB)", MOM_ZIP_NAME, total / 1e6)
+    return local_path
 
 
-def scrape_gis_archive(event_cfg: dict) -> list[tuple[str, bytes]]:
-    """Scrape NHC GIS archive page for SLOSH links."""
-    results = []
-    url = (
-        f"{NHC_GIS_ARCHIVE}?id={event_cfg['nhc_id']}"
-        f"&name={event_cfg['name']}&year={event_cfg['year']}"
-    )
-    log.info("Scraping NHC GIS archive: %s", url)
-    try:
-        resp = requests.get(url, timeout=60)
-        if resp.status_code != 200:
-            return results
-        soup = BeautifulSoup(resp.text, "html.parser")
-        slosh_links = [
-            a["href"] for a in soup.find_all("a", href=True)
-            if "slosh" in a["href"].lower() or "SLOSH" in a["href"]
-        ]
-        log.info("Found %d SLOSH links in GIS archive", len(slosh_links))
-        for link in slosh_links[:10]:  # cap at 10 to avoid scraping everything
-            full_url = link if link.startswith("http") else f"https://www.nhc.noaa.gov{link}"
-            try:
-                file_resp = requests.get(full_url, timeout=300, stream=True)
-                if file_resp.status_code == 200:
-                    filename = full_url.split("/")[-1].split("?")[0]
-                    results.append((filename, file_resp.content))
-                    log.info("Downloaded: %s (%d bytes)", filename, len(file_resp.content))
-            except requests.RequestException as e:
-                log.warning("Failed to download %s: %s", full_url, e)
-            time.sleep(0.5)
-    except Exception as e:
-        log.warning("GIS archive scrape failed: %s", e)
-    return results
-
-
-def upload_files(files: list[tuple[str, bytes]], s3_prefix: str) -> None:
+def extract_and_upload(zip_path: str, dest_dir: str) -> int:
+    """Extract zip, upload relevant files to S3. Returns file count."""
     _aws = get_aws_credentials()
     _aws.pop("region_name", None)
     s3 = boto3.client("s3", region_name="us-east-1", **_aws)
-    for filename, content in files:
-        local_path = f"/tmp/{filename}"
-        with open(local_path, "wb") as f:
-            f.write(content)
-        s3_key = f"{s3_prefix}/{filename}"
-        s3.upload_file(local_path, BUCKET, s3_key)
-        log.info("Uploaded to s3://%s/%s", BUCKET, s3_key)
+
+    uploaded = 0
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        members = zf.namelist()
+        log.info("Zip contains %d entries", len(members))
+
+        for member in members:
+            # Skip directories
+            if member.endswith("/"):
+                continue
+
+            ext = os.path.splitext(member)[1].lower()
+            if ext not in KEEP_EXTENSIONS:
+                log.debug("Skipping %s (extension %s)", member, ext)
+                continue
+
+            # Extract to temp
+            basename = os.path.basename(member)
+            local_file = os.path.join(dest_dir, basename)
+            with zf.open(member) as src, open(local_file, "wb") as dst:
+                dst.write(src.read())
+
+            # Upload to S3
+            s3_key = f"{S3_PREFIX}/{basename}"
+            file_size = os.path.getsize(local_file)
+            log.info("Uploading %s (%.1f MB) -> s3://%s/%s",
+                     basename, file_size / 1e6, BUCKET, s3_key)
+            s3.upload_file(local_file, BUCKET, s3_key)
+            uploaded += 1
+
+            # Clean up local to save disk
+            os.unlink(local_file)
+
+    return uploaded
 
 
 def main() -> None:
-    for event_name, event_cfg in EVENTS.items():
-        log.info("Processing SLOSH data for %s", event_name)
-        s3_prefix = f"raw/noaa_slosh/{event_name}"
+    work_dir = "/tmp/slosh_mom"
+    os.makedirs(work_dir, exist_ok=True)
 
-        files = try_direct_download(event_name, event_cfg)
-        if not files:
-            log.info("Direct download failed; trying GIS archive scrape...")
-            files = scrape_gis_archive(event_cfg)
+    # Check if already uploaded
+    _aws = get_aws_credentials()
+    _aws.pop("region_name", None)
+    s3 = boto3.client("s3", region_name="us-east-1", **_aws)
+    resp = s3.list_objects_v2(Bucket=BUCKET, Prefix=S3_PREFIX, MaxKeys=1)
+    existing = resp.get("KeyCount", 0)
+    if existing > 0:
+        log.info("MOM data already exists at s3://%s/%s/ (%d objects). "
+                 "Delete prefix to re-download.", BUCKET, S3_PREFIX, existing)
+        return
 
-        if not files:
-            log.error(
-                "No SLOSH files found for %s. Manual download required from "
-                "https://www.nhc.noaa.gov/surge/slosh.php",
-                event_name,
-            )
-            # Write a placeholder manifest so the job doesn't fail silently
-            _aws = get_aws_credentials()
-            _aws.pop("region_name", None)
-            s3 = boto3.client("s3", region_name="us-east-1", **_aws)
-            manifest = (
-                f"SLOSH data not auto-downloaded for {event_name}.\n"
-                f"Manual download required from https://www.nhc.noaa.gov/surge/slosh.php\n"
-                f"Expected: {event_cfg['nhc_id'].upper()}_SLOSH_MOM.zip\n"
-            ).encode()
-            local = f"/tmp/{event_name}_slosh_manual_required.txt"
-            with open(local, "wb") as f:
-                f.write(manifest)
-            s3.upload_file(local, BUCKET, f"{s3_prefix}/MANUAL_DOWNLOAD_REQUIRED.txt")
-            continue
+    zip_path = download_mom_zip(work_dir)
+    count = extract_and_upload(zip_path, work_dir)
+    log.info("Done. Uploaded %d files to s3://%s/%s/", count, BUCKET, S3_PREFIX)
 
-        upload_files(files, s3_prefix)
-
-    log.info("fetch_noaa_slosh complete")
+    # Clean up zip
+    os.unlink(zip_path)
 
 
 if __name__ == "__main__":

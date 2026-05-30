@@ -125,28 +125,31 @@ features:
   # ─── SLOSH Surge ─────────────────────────────────────────────────────────
 
   - feature_name: slosh_max_surge_m
-    temporal_class: event_window
+    temporal_class: invariant
     scenarios: [southwest_florida]
     source_type: derived
-    source_dataset: noaa_slosh
-    raw_s3_path: raw/noaa_slosh/{event}/
+    source_dataset: noaa_slosh_mom
+    raw_s3_path: raw/noaa_slosh/mom_national/
     processed_s3_path: (embedded in southwest_florida_event_features.parquet)
     build_function: build_slosh_features
     output_column: slosh_max_surge_m
-    missing_behavior: "NaN — field_status = missing_source_data; flag MANUAL_DOWNLOAD_REQUIRED"
+    missing_behavior: "NaN — field_status = missing_source_data"
     field_status_behavior: missing_source_data
     version_target: v24.002
     notes: >
-      NHC SLOSH MOM/MEOW surge grids for Ian 2022, Helene 2024, Milton 2024.
-      Raw SLOSH grids already fetched by fetch_noaa_slosh.py.
-      Derive: build_slosh_features() does ZCTA spatial overlay in build_event_dataset.py.
+      NHC SLOSH MOM (Maximum of MEOWs) national inundation grid (v4).
+      MOM is basin-specific and category-specific, NOT storm-specific.
+      One download covers all SWFL basins (FTM/Ian, TBW/Milton, APF/Helene).
+      Derive: build_slosh_features() samples MOM raster at ZCTA centroids
+      using the storm's Saffir-Simpson category at landfall as lookup key.
+      See METHODS.md "SLOSH MOM Surge Hazard" for full rationale.
 
   - feature_name: slosh_category
-    temporal_class: event_window
+    temporal_class: invariant
     scenarios: [southwest_florida]
     source_type: derived
-    source_dataset: noaa_slosh
-    raw_s3_path: raw/noaa_slosh/{event}/
+    source_dataset: noaa_slosh_mom
+    raw_s3_path: raw/noaa_slosh/mom_national/
     processed_s3_path: (embedded in southwest_florida_event_features.parquet)
     build_function: build_slosh_features
     output_column: slosh_category
@@ -154,8 +157,9 @@ features:
     field_status_behavior: missing_source_data
     version_target: v24.002
     notes: >
-      Saffir-Simpson surge category (1-5) derived from slosh_max_surge_m thresholds.
-      Same build function as slosh_max_surge_m.
+      Saffir-Simpson category used for MOM lookup. Determined by storm's
+      actual category at landfall (Ian=Cat4, Milton=Cat3, Helene=Cat4).
+      Same build function and source as slosh_max_surge_m.
 
   - feature_name: coastal_distance_m
     temporal_class: invariant
