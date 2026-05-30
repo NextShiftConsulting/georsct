@@ -48,7 +48,7 @@ SCENARIOS = [
 #   southwest_florida:   3 events x ~525 grib2 files
 #   new_orleans:         1 event but large HRRR grid overlay
 #   ar_flood_2023:       21-day window = ~504 grib2 files
-_LARGE_SCENARIOS = {"houston", "new_orleans", "southwest_florida", "ar_flood_2023"}
+_LARGE_SCENARIOS = {"houston", "new_orleans", "southwest_florida", "riverside_coachella"}
 
 # Scenarios that sample NLCD .img (Erdas Imagine HFA format).
 # pip-installed rasterio lacks the HFA driver; install libgdal-dev + GDAL
