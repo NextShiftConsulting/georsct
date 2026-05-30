@@ -357,11 +357,14 @@ def _mrms_spatial_aggregate(s3, file_keys: list[str], zcta_ids: list[str],
     import os
     from concurrent.futures import ProcessPoolExecutor, as_completed
 
-    n_workers = max(1, os.cpu_count() or 4)
+    # Cap workers at 4 to limit concurrent memory (each CONUS grid ~100 MB)
+    n_workers = min(4, max(1, os.cpu_count() or 4))
     log.info("MRMS parallel decode: %d files, %d workers", len(file_keys), n_workers)
 
-    hourly_arrays = []
+    # Accumulate running sum instead of storing all 168 grids (~16 GB)
+    total_mm = None
     lat_arr = lon_arr = None
+    n_valid = 0
 
     work_items = [(key, BUCKET) for key in file_keys]
     with ProcessPoolExecutor(max_workers=n_workers) as pool:
@@ -375,17 +378,20 @@ def _mrms_spatial_aggregate(s3, file_keys: list[str], zcta_ids: list[str],
             if result is None:
                 continue
             arr, lat, lon = result
-            hourly_arrays.append(arr)
+            if total_mm is None:
+                total_mm = np.where(np.isnan(arr), 0.0, arr)
+            else:
+                total_mm += np.where(np.isnan(arr), 0.0, arr)
+            n_valid += 1
             if lat_arr is None:
                 lat_arr = lat
                 lon_arr = lon
 
-    if not hourly_arrays:
+    if total_mm is None:
         return pd.DataFrame({"zcta_id": zcta_ids, "rainfall_total_mm": np.nan,
                              "obs_mrms_coverage_pct": 0.0})
 
-    total_mm = np.nansum(hourly_arrays, axis=0)
-    coverage = len(hourly_arrays) / max(len(file_keys), 1)
+    coverage = n_valid / max(len(file_keys), 1)
 
     # Flatten grid to points and assign to ZCTAs by nearest centroid
     flat_lat = lat_arr.flatten()

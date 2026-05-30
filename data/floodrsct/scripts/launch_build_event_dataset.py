@@ -23,7 +23,7 @@ SCENARIOS = [
 ]
 
 # Larger instance for Houston (3 events × ~18 days MRMS) and SW Florida
-_LARGE_SCENARIOS = {"houston", "southwest_florida", "ar_flood_2023"}
+_LARGE_SCENARIOS = {"houston", "new_orleans", "southwest_florida", "ar_flood_2023"}
 
 
 def main() -> None:
