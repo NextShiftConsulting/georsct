@@ -7,8 +7,29 @@ raw data pulls have completed for the target scenario.
 Data Lock A (June 1): --scenario houston
 Data Lock B (June 2): all remaining scenarios
 
-Instance: ml.m5.2xlarge (8 vCPU, 32 GB RAM) — MRMS spatial aggregation is
-the bottleneck; cfgrib loads entire grib2 grids into memory.
+Resource assumptions and calculations
+--------------------------------------
+Bottleneck: MRMS grib2 decode (ProcessPoolExecutor, N concurrent grids).
+Each CONUS grib2 grid decompresses to ~100 MB in memory.
+
+  ml.m5.2xlarge:  8 vCPU, 32 GB RAM  -> 4 workers x 100 MB = 0.4 GB concurrent
+  ml.m5.4xlarge: 16 vCPU, 64 GB RAM  -> 8 workers x 100 MB = 0.8 GB concurrent
+
+Large scenarios (houston: 3 events x ~18 days, sw_florida: 3 events x ~7 days)
+produce 400-500 grib2 files total. At 8 workers, wall-clock is ~15 min/event
+for MRMS alone.
+
+SLOSH MOM GeoTIFF: 318K x 224K pixels (1.2 GB on disk, 66 GB uncompressed).
+Sampled via rasterio.sample() at ZCTA centroids -- no full-raster load.
+Memory cost: negligible (~1 MB for coordinate arrays).
+
+Volume: 50 GB is sufficient. Grib2 files are streamed from S3, decoded in
+memory, accumulated into a running sum, then discarded. Only one grid plus
+the running sum array (~200 MB) live simultaneously per worker.
+
+Image: PyTorch 2.5.1 CPU (SageMaker-managed). Spatial packages (rasterio,
+geopandas, cfgrib) pip-installed at boot (~3 min). No custom image needed
+at current job frequency.
 """
 
 import argparse
@@ -22,7 +43,11 @@ SCENARIOS = [
     "houston", "new_orleans", "nyc", "riverside_coachella", "southwest_florida"
 ]
 
-# Larger instance for Houston (3 events × ~18 days MRMS) and SW Florida
+# ml.m5.4xlarge (16 vCPU, 64 GB) for scenarios with high MRMS file counts:
+#   houston:             3 events x ~540 grib2 files
+#   southwest_florida:   3 events x ~525 grib2 files
+#   new_orleans:         1 event but large HRRR grid overlay
+#   ar_flood_2023:       21-day window = ~504 grib2 files
 _LARGE_SCENARIOS = {"houston", "new_orleans", "southwest_florida", "ar_flood_2023"}
 
 
@@ -42,7 +67,10 @@ def main() -> None:
         job_script="build_event_dataset.py",
         job_args=["--scenario", args.scenario],
         instance_type=instance_type,
-        volume_size_gb=100,  # grib2 scratch space
+        # Grib2 files are streamed from S3 and decoded in memory (not cached
+        # on disk). SLOSH GeoTIFF is the largest temp file (~1.2 GB). 50 GB
+        # covers pip installs (~2 GB) + temp files + safety margin.
+        volume_size_gb=50,
         pip_packages="geopandas pyogrio rasterio cfgrib xarray eccodes scikit-learn xgboost",
         dry_run=args.dry_run,
     )

@@ -358,8 +358,11 @@ def _mrms_spatial_aggregate(s3, file_keys: list[str], zcta_ids: list[str],
     import os
     from concurrent.futures import ProcessPoolExecutor, as_completed
 
-    # Cap workers at 4 to limit concurrent memory (each CONUS grid ~100 MB)
-    n_workers = min(4, max(1, os.cpu_count() or 4))
+    # Each CONUS grib2 decompresses to ~100 MB. Cap at half the vCPUs so
+    # the main process + accumulator have headroom. On ml.m5.4xlarge (16
+    # vCPU, 64 GB): 8 workers x 100 MB = 0.8 GB concurrent -- well within
+    # memory. On ml.m5.2xlarge (8 vCPU, 32 GB): 4 workers x 100 MB = 0.4 GB.
+    n_workers = min(os.cpu_count() // 2, max(1, os.cpu_count() or 4))
     log.info("MRMS parallel decode: %d files, %d workers", len(file_keys), n_workers)
 
     # Accumulate running sum instead of storing all 168 grids (~16 GB)
@@ -1423,7 +1426,32 @@ def _build_slosh_from_mom_geotiff(
     s3, mom_key: str, cat: int, centroids: pd.DataFrame,
     zcta_ids: list[str], event: str,
 ) -> Optional[pd.DataFrame]:
-    """Sample national MOM GeoTIFF at ZCTA centroids. Returns DataFrame or None."""
+    """Sample national MOM GeoTIFF at ZCTA centroids. Returns DataFrame or None.
+
+    Resource assumptions:
+        - GeoTIFF is 318,457 x 223,758 px (uint8). Uncompressed = 66.4 GB.
+          MUST NOT call src.read(1). Use src.sample() for point queries.
+        - On-disk file is ~1.2 GB (LZW compressed). Downloaded to /tmp.
+        - src.sample() reads only the disk blocks containing the queried
+          pixels via GDAL's virtual filesystem -- memory cost is ~1 MB for
+          coordinate arrays + GDAL block cache (default 5% of RAM).
+
+    Value semantics (from NHC XML metadata):
+        - 0:       no inundation (land above surge)
+        - 1-98:    surge depth in feet above ground (NAVD88 datum)
+        - 99:      levee-protected area -- NOT a valid depth; treated as NaN
+        - nodata:  outside SLOSH basin coverage (open ocean, far inland)
+
+    Unit conversion:
+        - Raw values are in feet. Converted to meters via FT_TO_M = 0.3048.
+        - Output column: slosh_max_surge_m (meters above ground).
+
+    Basin coverage (SW Florida events):
+        - ian2022:     Cat 4, basin FTM (Fort Myers)
+        - helene2024:  Cat 4, basin APF (Apalachicola-Fort Myers)
+        - milton2024:  Cat 3, basin TBW (Tampa Bay)
+        National MOM covers all basins; category selects the GeoTIFF layer.
+    """
     try:
         import rasterio
     except ImportError:
