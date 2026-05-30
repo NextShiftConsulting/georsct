@@ -50,7 +50,7 @@ IBTRACS_URL = (
 # Storms of interest for the flood-cert study
 STORMS_OF_INTEREST = {
     "AL092017",  # Harvey
-    "AL132019",  # Imelda
+    "AL112019",  # Imelda
     "AL082021",  # Henri (NYC)
     "AL092021",  # Ida (NOLA + NYC)
     "AL092022",  # Ian (SW Florida)
