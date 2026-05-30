@@ -441,9 +441,20 @@ features:
     missing_behavior: "NaN — field_status = missing_source_data"
     field_status_behavior: missing_source_data
     version_target: v24.003
+    surge_method: >
+      Two methods, first non-null wins per station:
+        1. prediction-based: surge_m = observed_m - predicted_m
+           (when CO-OPS predictions available for station+datum)
+        2. anomaly-based: surge_m = observed_m - median(observed_m[0:24h])
+           (fallback when predictions unavailable; first 24h of event window
+           is pre-landfall by design, providing a stable baseline)
+      Both methods can coexist within the same event across different stations.
+      See METHODS.md for full derivation and limitations.
     notes: >
-      Maximum tidal surge residual (observed - predicted) during event window.
-      Assigned to ZCTAs by nearest-station. Currently uniform (no interpolation).
+      Maximum tidal surge during event window per station, broadcast to all ZCTAs
+      (max across stations). Currently uniform — no spatial interpolation.
+      Gulf stations (NOLA) typically lack NAVD/STND predictions; anomaly method
+      fills the gap. Atlantic/Gulf coast stations with predictions use method 1.
 
   - feature_name: storm_distance_km
     temporal_class: event_window
