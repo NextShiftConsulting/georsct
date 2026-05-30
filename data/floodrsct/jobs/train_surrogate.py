@@ -60,22 +60,37 @@ SCENARIOS = [
     "houston", "new_orleans", "nyc", "riverside_coachella", "southwest_florida"
 ]
 
-# Static + event-level features used by both models
+# Static + event-level features used by both models.
+# Column names MUST match FEATURE_CONTRACT.yaml and georsct_schema.json.
+# See DOE_LOCKED.md for R0 bundle definition.
 STATIC_FEATURES = [
-    "pct_flood_zone_ae", "pct_flood_zone_x",
-    "twi_mean", "slope_mean",
+    # Flood zone exposure (FEMA NFHL via geocertdb2026)
+    "flood_pct_zone_a", "flood_pct_zone_x", "flood_pct_zone_x500",
+    # Terrain (DEM-derived via geocertdb2026)
+    "twi_twi", "slope_mean_pct",
+    # Social vulnerability (CDC/ATSDR SVI 2022)
     "svi_overall",
-    "median_household_income", "pct_below_poverty",
-    "pct_renter_occupied", "housing_units_per_sq_mi",
-    "nfip_policy_count", "nfip_claim_count",
+    # Demographics (ACS 2022 5-year)
+    "acs_median_hh_income", "acs_pct_below_poverty",
+    "acs_pct_renter_occupied", "acs_pct_vacant",
+    "acs_median_home_value", "acs_median_year_built",
+    # Historical NFIP exposure (static, all-time per ZCTA)
+    "nfip_claim_count", "nfip_total_loss",
+    # Impervious surface (NLCD 2021, houston/nyc only)
+    "impervious_pct",
 ]
 
+# Event-level features: measured DURING the event window.
+# NOTE: peak_stage_ft and peak_flow_cfs are event-time observations
+# correlated with flood damage. They are NOT pre-event predictors.
+# Included here for the surrogate nowcast model (event-in-progress).
+# For pre-event R0/R1 forecasts, use train_r0_baseline.py instead.
 EVENT_FEATURES = [
-    "peak_stage_ft", "peak_flow_cfs",
-    "mrms_total_mm", "mrms_max_hourly_mm",
+    "rainfall_total_mm",
     "obs_gauge_count", "obs_gauge_distance_km",
     "obs_mrms_coverage_pct",
-    "storm_distance_km",
+    "storm_min_dist_km",
+    "storm_landfall_category",
 ]
 
 TARGET_COL = "obs_nfip_event_claims"  # proxy label: event-year DR claim count

@@ -27,6 +27,11 @@ def main() -> None:
     args = parser.parse_args()
 
     job_name = make_job_name(f"r0-baseline-{args.scenario.replace('_', '-')}")
+
+    # generate_folds.py is imported by train_r0_baseline.py but not
+    # underscore-prefixed, so it isn't auto-included by upload_code.
+    extra = [str(Path(__file__).parent.parent / "jobs" / "generate_folds.py")]
+
     launch_processing_job(
         job_name=job_name,
         job_script="train_r0_baseline.py",
@@ -34,6 +39,7 @@ def main() -> None:
         instance_type="ml.m5.xlarge",
         volume_size_gb=10,
         pip_packages="scikit-learn scipy",
+        extra_files=extra,
         dry_run=args.dry_run,
     )
 

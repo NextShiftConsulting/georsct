@@ -29,6 +29,385 @@
 
 features:
 
+  # ═══════════════════════════════════════════════════════════════════════════
+  # GeoCertDB2026 Static Features — ZCTA-level, invariant or slow_drift
+  # Source: copy_geocertdb2026.py copies from geocert/v24 to s035 bucket.
+  # These form the R0 tabular baseline backbone.
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  # ─── ACS Demographics (Census Bureau, 2017-2021 5-year) ──────────────────
+
+  - feature_name: acs_total_pop
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: acs_total_pop
+    notes: Total population. Base denominator for per-capita features.
+
+  - feature_name: acs_median_hh_income
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: acs_median_hh_income
+    notes: Median household income ($).
+
+  - feature_name: acs_pct_below_poverty
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: acs_pct_below_poverty
+    notes: Percent population below poverty line.
+
+  - feature_name: acs_pct_renter_occupied
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: acs_pct_renter_occupied
+    notes: Percent renter-occupied housing units.
+
+  - feature_name: acs_pct_owner_occupied
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: acs_pct_owner_occupied
+    notes: Percent owner-occupied housing units.
+
+  - feature_name: acs_pct_vacant
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: acs_pct_vacant
+    notes: Percent vacant housing units.
+
+  - feature_name: acs_pct_no_vehicle
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: acs_pct_no_vehicle
+    notes: Percent households with no vehicle. Evacuation vulnerability proxy.
+
+  - feature_name: acs_median_home_value
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: acs_median_home_value
+    notes: Median home value ($). Correlated with NFIP penetration.
+
+  - feature_name: acs_median_year_built
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: acs_median_year_built
+    notes: Median year structure built. Proxy for building code vintage.
+
+  - feature_name: acs_median_age
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: acs_median_age
+    notes: Median age of population.
+
+  - feature_name: acs_pct_over_65
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: acs_pct_over_65
+    notes: Percent population age 65+. Vulnerability indicator.
+
+  - feature_name: acs_pct_under_18
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: acs_pct_under_18
+    notes: Percent population under 18.
+
+  - feature_name: acs_pct_no_insurance
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: acs_pct_no_insurance
+    notes: Percent uninsured population.
+
+  - feature_name: acs_unemployment_rate
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: acs_unemployment_rate
+    notes: Unemployment rate.
+
+  - feature_name: acs_gini_index
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: acs_gini_index
+    notes: Gini coefficient of income inequality.
+
+  # Remaining ACS columns (acs_pct_hispanic, acs_pct_black, acs_pct_white,
+  # acs_pct_asian, acs_pct_foreign_born, acs_pct_english_only,
+  # acs_pct_no_hs, acs_pct_bachelors, acs_pct_graduate,
+  # acs_pct_food_stamps, acs_pct_veterans, acs_pct_female,
+  # acs_pct_drive_alone, acs_pct_transit, acs_pct_walk_bike,
+  # acs_pct_wfh, acs_mean_commute_min, acs_median_rent)
+  # follow same pattern: temporal_class=slow_drift, source=geocertdb2026.
+  # Not individually listed to keep contract concise — all are present
+  # in geocertdb2026 and passthrough-copied by copy_geocertdb2026.py.
+
+  # ─── SVI (CDC Social Vulnerability Index, 2020) ──────────────────────────
+
+  - feature_name: svi_overall
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: svi_overall
+    notes: CDC SVI overall percentile (0-1). Composite vulnerability.
+
+  - feature_name: svi_socioeconomic
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: svi_socioeconomic
+    notes: SVI Theme 1 — socioeconomic status percentile.
+
+  - feature_name: svi_household_disability
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: svi_household_disability
+    notes: SVI Theme 2 — household composition & disability percentile.
+
+  - feature_name: svi_minority_language
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: svi_minority_language
+    notes: SVI Theme 3 — minority status & language percentile.
+
+  - feature_name: svi_housing_transport
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: svi_housing_transport
+    notes: SVI Theme 4 — housing type & transportation percentile.
+
+  # ─── FEMA Flood Zones (NFHL, periodically updated) ──────────────────────
+
+  - feature_name: flood_pct_zone_a
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: flood_pct_zone_a
+    notes: Percent ZCTA area in SFHA Zone A (1% annual flood risk).
+
+  - feature_name: flood_pct_zone_x
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: flood_pct_zone_x
+    notes: Percent ZCTA area in Zone X (minimal flood hazard).
+
+  - feature_name: flood_pct_zone_x500
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: flood_pct_zone_x500
+    notes: Percent ZCTA area in Zone X-500 (0.2% annual flood risk).
+
+  - feature_name: flood_sfha
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: flood_sfha
+    notes: Whether any SFHA zone intersects the ZCTA (boolean/categorical).
+
+  # ─── NOAA Storm Events (historical flood record) ────────────────────────
+
+  - feature_name: flood_event_count
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: flood_event_count
+    notes: Total historical flood events touching this ZCTA (NOAA Storm Events DB).
+
+  - feature_name: flood_event_count_5y
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: flood_event_count_5y
+    notes: Flood events in most recent 5-year window.
+
+  - feature_name: flood_events_per_year
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: flood_events_per_year
+    notes: Annualized flood event rate.
+
+  - feature_name: flood_property_damage_k
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: flood_property_damage_k
+    notes: Cumulative property damage ($K) from historical floods.
+
+  - feature_name: flood_crop_damage_k
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: flood_crop_damage_k
+    notes: Cumulative crop damage ($K) from historical floods.
+
+  # ─── Terrain (derived in geocertdb2026 from NED/3DEP) ───────────────────
+
+  - feature_name: slope_mean_pct
+    temporal_class: invariant
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: slope_mean_pct
+    notes: Mean slope (percent rise) within ZCTA.
+
+  - feature_name: twi_twi
+    temporal_class: invariant
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: twi_twi
+    notes: Topographic Wetness Index — ln(contributing_area / tan(slope)).
+
+  # ─── NFIP Historical Insurance (OpenFEMA, cumulative pre-event) ─────────
+
+  - feature_name: nfip_claim_count
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: nfip_claim_count
+    notes: >
+      Cumulative historical NFIP claims in this ZCTA (all years pre-event).
+      NOT the per-event claim count (that is obs_nfip_event_claims, a label).
+
+  - feature_name: nfip_total_loss
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: nfip_total_loss
+    notes: Cumulative historical NFIP total loss ($) in this ZCTA.
+
+  - feature_name: nfip_mean_loss_per_claim
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: nfip_mean_loss_per_claim
+    notes: Mean loss per claim ($). nfip_total_loss / nfip_claim_count.
+
+  # ─── HIFLD Infrastructure ──────────────────────────────────────────────
+
+  - feature_name: hifld_nearest_hospital_km
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: hifld_nearest_hospital_km
+    notes: Distance (km) to nearest hospital from ZCTA centroid.
+
+  - feature_name: hifld_n_hospitals
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: hifld_n_hospitals
+    notes: Count of hospitals within ZCTA boundary.
+
+  - feature_name: population
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: population
+    notes: >
+      Total population (may differ slightly from acs_total_pop due to
+      vintage or source differences in geocertdb2026).
+
+  # ─── Geographic / Accessibility ────────────────────────────────────────
+
+  - feature_name: latitude
+    temporal_class: invariant
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: latitude
+    notes: ZCTA centroid latitude.
+
+  - feature_name: longitude
+    temporal_class: invariant
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: longitude
+    notes: ZCTA centroid longitude.
+
+  # ─── Observability Metadata ────────────────────────────────────────────
+  # These describe measurement coverage, not flood outcomes.
+
+  - feature_name: obs_gauge_count
+    temporal_class: event_window
+    scenarios: all
+    source_type: derived
+    source_dataset: usgs_nwis
+    output_column: obs_gauge_count
+    notes: Number of USGS stream gauges within or near ZCTA during event.
+
+  - feature_name: obs_mrms_coverage_pct
+    temporal_class: event_window
+    scenarios: all
+    source_type: derived
+    source_dataset: noaa_mrms
+    output_column: obs_mrms_coverage_pct
+    notes: Fraction of event hours with valid MRMS data for this ZCTA.
+
+  - feature_name: obs_missing_sensor_flag
+    temporal_class: event_window
+    scenarios: all
+    source_type: derived
+    source_dataset: multiple
+    output_column: obs_missing_sensor_flag
+    notes: True if key sensor data (gauge or MRMS) is missing for this ZCTA+event.
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Scenario-Specific Derived Features
+  # ═══════════════════════════════════════════════════════════════════════════
+
   # ─── NLCD Impervious Surface ──────────────────────────────────────────────
 
   - feature_name: impervious_pct
@@ -527,3 +906,531 @@ features:
     notes: >
       Count of NFIP flood insurance claims filed per ZCTA for this specific disaster declaration.
       LABEL/OUTCOME — do not use as model input. Used for certificate validation only.
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # GEOCERTDB2026 STATIC FEATURES (backbone of R0)
+  # Source: raw/geocertdb2026/zcta_features_labels.parquet
+  # Loaded by: load_geocert_static() in build_event_dataset.py
+  # Schema: hf_files/georsct_schema.json (authoritative column list)
+  #
+  # These are ZCTA-level tabular features that do not vary by event.
+  # temporal_class = slow_drift for census/survey data (ACS 2022, SVI 2022)
+  # temporal_class = slow_drift for FEMA flood zone maps (NFHL 2024)
+  # temporal_class = invariant for terrain/watershed (DEM-derived TWI/slope)
+  #
+  # CAUSAL BOUNDARY: All features below are slow_drift or invariant --
+  # safe as model inputs at any temporal class boundary.
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  # ─── ACS (American Community Survey 2022 5-year) ──────────────────────────
+
+  - feature_name: acs_total_pop
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: acs_total_pop
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: Total population (ACS 2022 5-year estimate).
+
+  - feature_name: acs_median_hh_income
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: acs_median_hh_income
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: Median household income in dollars.
+
+  - feature_name: acs_median_home_value
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: acs_median_home_value
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: Median home value in dollars.
+
+  - feature_name: acs_median_year_built
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: acs_median_year_built
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: Median year housing units were built.
+
+  - feature_name: acs_pct_below_poverty
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: acs_pct_below_poverty
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: Fraction of population below poverty line (0-1).
+
+  - feature_name: acs_pct_renter_occupied
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: acs_pct_renter_occupied
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: Fraction of occupied housing units that are renter-occupied (0-1).
+
+  - feature_name: acs_pct_owner_occupied
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: acs_pct_owner_occupied
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: Fraction of occupied housing units that are owner-occupied (0-1).
+
+  - feature_name: acs_pct_vacant
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: acs_pct_vacant
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: Fraction of housing units that are vacant (0-1).
+
+  - feature_name: acs_pct_no_vehicle
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: acs_pct_no_vehicle
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: Fraction of households with no vehicle (0-1).
+
+  - feature_name: acs_median_age
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: acs_median_age
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: Median age of population.
+
+  - feature_name: acs_median_rent
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: acs_median_rent
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: Median gross rent in dollars.
+
+  - feature_name: acs_gini_index
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: acs_gini_index
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: Gini coefficient of income inequality (0-1).
+
+  - feature_name: acs_unemployment_rate
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: acs_unemployment_rate
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: Unemployment rate (0-1).
+
+  - feature_name: acs_pct_food_stamps
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: acs_pct_food_stamps
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: Fraction receiving food assistance (SNAP/EBT) (0-1).
+
+  - feature_name: acs_pct_no_insurance
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: acs_pct_no_insurance
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: Fraction without health insurance (0-1).
+
+  - feature_name: acs_mean_commute_min
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: acs_mean_commute_min
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: Mean commute time in minutes.
+
+  # ─── CDC/ATSDR SVI (Social Vulnerability Index 2022) ──────────────────────
+
+  - feature_name: svi_overall
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: svi_overall
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: Overall Social Vulnerability Index percentile rank (0-1).
+
+  - feature_name: svi_socioeconomic
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: svi_socioeconomic
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: SVI Theme 1 -- socioeconomic status (0-1).
+
+  - feature_name: svi_household_disability
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: svi_household_disability
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: SVI Theme 2 -- household characteristics and disability (0-1).
+
+  - feature_name: svi_minority_language
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: svi_minority_language
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: SVI Theme 3 -- racial/ethnic minority status and language isolation (0-1).
+
+  - feature_name: svi_housing_transport
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: svi_housing_transport
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: SVI Theme 4 -- housing type and transportation (0-1).
+
+  # ─── FEMA Flood Zones (NFHL 2024) ────────────────────────────────────────
+
+  - feature_name: flood_pct_zone_a
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: flood_pct_zone_a
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: Percent of ZCTA area in SFHA Zone A (100-year/1% annual chance floodplain).
+
+  - feature_name: flood_pct_zone_x
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: flood_pct_zone_x
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: Percent of ZCTA area in Zone X (minimal flood risk, outside SFHA).
+
+  - feature_name: flood_pct_zone_x500
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: flood_pct_zone_x500
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: Percent of ZCTA area in Zone X500 (500-year/0.2% annual chance floodplain).
+
+  - feature_name: flood_sfha
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: flood_sfha
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: Total SFHA coverage fraction (Zone A + AE + VE + AO, etc.).
+
+  - feature_name: flood_event_count
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: flood_event_count
+    missing_behavior: "0"
+    version_target: v24.002
+    notes: Historical count of NOAA Storm Events flood records overlapping this ZCTA.
+
+  - feature_name: flood_event_count_5y
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: flood_event_count_5y
+    missing_behavior: "0"
+    version_target: v24.002
+    notes: Flood event count in most recent 5-year window.
+
+  - feature_name: flood_property_damage_k
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: flood_property_damage_k
+    missing_behavior: "0"
+    version_target: v24.002
+    notes: Cumulative property damage from historical flood events in thousands of dollars.
+
+  # ─── TWI and Watershed Terrain (DEM-derived) ─────────────────────────────
+
+  - feature_name: twi_twi
+    temporal_class: invariant
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: twi_twi
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: Topographic Wetness Index mean value. Higher = wetter terrain, more flood-prone.
+
+  - feature_name: slope_mean_pct
+    temporal_class: invariant
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: slope_mean_pct
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: Mean slope in percent (0-100). Lower = flatter = more flood-prone.
+
+  - feature_name: slope_basin_slope
+    temporal_class: invariant
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: slope_basin_slope
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: Basin-average slope from DEM.
+
+  - feature_name: slope_stream_slope
+    temporal_class: invariant
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: slope_stream_slope
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: Stream channel slope from DEM.
+
+  # ─── NFIP Historical Claims (static, all-time per ZCTA) ──────────────────
+
+  - feature_name: nfip_claim_count
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: nfip_claim_count
+    missing_behavior: "0"
+    version_target: v24.002
+    notes: >
+      Total historical NFIP flood insurance claim count per ZCTA (all years).
+      This is a STATIC feature (prior exposure), NOT event-level claims.
+      Distinct from obs_nfip_event_claims (post_event label).
+
+  - feature_name: nfip_total_loss
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: nfip_total_loss
+    missing_behavior: "0"
+    version_target: v24.002
+    notes: Total historical NFIP loss in dollars per ZCTA (all years). Static feature.
+
+  - feature_name: nfip_mean_loss_per_claim
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: nfip_mean_loss_per_claim
+    missing_behavior: "0"
+    version_target: v24.002
+    notes: Mean loss per claim in dollars. Static feature.
+
+  # ─── HIFLD Critical Infrastructure ───────────────────────────────────────
+
+  - feature_name: hifld_n_hospitals
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: hifld_n_hospitals
+    missing_behavior: "0"
+    version_target: v24.002
+    notes: Count of hospitals within ZCTA.
+
+  - feature_name: hifld_nearest_hospital_km
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    output_column: hifld_nearest_hospital_km
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: Distance to nearest hospital in km.
+
+  # ─── Observability / Data Quality Flags ──────────────────────────────────
+
+  - feature_name: obs_gauge_count
+    temporal_class: event_window
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: derived
+    source_dataset: usgs_nwis
+    build_function: aggregate_nwis
+    output_column: obs_gauge_count
+    missing_behavior: "0"
+    version_target: v24.002
+    notes: Count of USGS NWIS gauges within/near the ZCTA during event.
+
+  - feature_name: obs_gauge_distance_km
+    temporal_class: event_window
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: derived
+    source_dataset: usgs_nwis
+    build_function: aggregate_nwis
+    output_column: obs_gauge_distance_km
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: Distance to nearest active USGS gauge in km.
+
+  - feature_name: obs_mrms_coverage_pct
+    temporal_class: event_window
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: derived
+    source_dataset: noaa_mrms
+    build_function: aggregate_mrms_rainfall
+    output_column: obs_mrms_coverage_pct
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: Fraction of event-window hours with MRMS data present in S3 (0-1).
+
+  - feature_name: obs_feature_modal_frac
+    temporal_class: derived
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: derived
+    build_function: compute_observability_flags
+    output_column: obs_feature_modal_frac
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: >
+      Fraction of flood-primary features vs total non-null features (alpha input).
+      Computed from presence of peak_stage_ft, peak_flow_cfs, rainfall_total_mm,
+      hwm_count, flood_pct_zone_a, twi_twi, max_surge_m vs proxy ACS/SVI columns.
+
+  - feature_name: obs_missing_sensor_flag
+    temporal_class: derived
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: derived
+    build_function: compute_observability_flags
+    output_column: obs_missing_sensor_flag
+    missing_behavior: "True"
+    version_target: v24.002
+    notes: >
+      True if both peak_stage_ft AND rainfall_total_mm are NaN.
+      Indicates no primary flood sensor data available for this (ZCTA, event).
+
+  # ─── NWIS Gauge Observations ─────────────────────────────────────────────
+  # WARNING: peak_stage and peak_flow are event-time observations.
+  # Correlated with flood damage. Using as predictors in a pre-event forecast
+  # model is label leakage. Safe only for nowcast (event-in-progress) models.
+
+  - feature_name: peak_stage_ft
+    temporal_class: event_window
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: derived
+    source_dataset: usgs_nwis
+    build_function: aggregate_nwis
+    output_column: peak_stage_ft
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: >
+      Maximum USGS gauge stage (ft) during event window.
+      NOT a pre-event predictor. Do NOT use in R0/R1 feature sets.
+
+  - feature_name: peak_flow_cfs
+    temporal_class: event_window
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: derived
+    source_dataset: usgs_nwis
+    build_function: aggregate_nwis
+    output_column: peak_flow_cfs
+    missing_behavior: "NaN"
+    version_target: v24.002
+    notes: >
+      Maximum USGS gauge streamflow (cfs) during event window.
+      NOT a pre-event predictor. Do NOT use in R0/R1 feature sets.
