@@ -1089,15 +1089,30 @@ def build_impervious_features(s3, zcta_ids: list[str]) -> pd.DataFrame:
     log.info("build_impervious_features: downloading %s (this may take a few minutes)", nlcd_key)
     s3.download_file(BUCKET, nlcd_key, local_raster)
 
-    # .img (Erdas Imagine HFA) may not be readable by pip-installed rasterio
-    # (lacks HFA driver). Use osgeo.gdal to sample directly if rasterio fails.
-    try:
-        _test_ds = rasterio.open(local_raster)
-        _test_ds.close()
-        _use_gdal_fallback = False
-    except Exception:
-        log.warning("build_impervious_features: rasterio cannot open .img; trying osgeo.gdal fallback")
-        _use_gdal_fallback = True
+    # .img (Erdas Imagine HFA) is not readable by pip-installed rasterio and
+    # causes segfault via python GDAL bindings. Convert to GeoTIFF using
+    # gdal_translate (CLI), which reads HFA reliably. The output .tif is
+    # readable by pip-installed rasterio without any driver issues.
+    _use_gdal_fallback = False
+    if local_raster.endswith(".img"):
+        import subprocess
+        tif_path = local_raster.replace(".img", ".tif")
+        log.info("build_impervious_features: converting .img -> .tif via gdal_translate")
+        result = subprocess.run(
+            ["gdal_translate", "-of", "GTiff", "-co", "COMPRESS=LZW",
+             local_raster, tif_path],
+            capture_output=True, text=True, timeout=1800,
+        )
+        if result.returncode == 0 and Path(tif_path).exists():
+            log.info("build_impervious_features: conversion OK (%.1f GB)",
+                     Path(tif_path).stat().st_size / 1e9)
+            # Remove original .img to free disk space
+            Path(local_raster).unlink(missing_ok=True)
+            local_raster = tif_path
+        else:
+            log.error("build_impervious_features: gdal_translate failed: %s",
+                      result.stderr[:500])
+            return empty
 
     # Use windowed reads per ZCTA centroid (avoids loading full 26 GB into RAM)
     # NLCD is in EPSG:5070 (Albers Equal Area, meters) -- must reproject centroid

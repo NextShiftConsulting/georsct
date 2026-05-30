@@ -330,6 +330,56 @@ Key observations:
 
 ---
 
+## NLCD Impervious Surface
+
+### Source
+
+NLCD 2021 Impervious Surface (CONUS), published by MRLC. The national raster
+covers the lower 48 states at 30m resolution in EPSG:5070 (Albers Equal Area).
+
+- **Raw file**: `nlcd_2021_impervious_l48.img` (26 GB, Erdas Imagine HFA format)
+- **S3 path**: `raw/nlcd/impervious_2021/`
+- **Scenarios**: houston, nyc
+
+### Format Conversion
+
+The source raster is distributed in Erdas Imagine HFA format (`.img`). Pip-installed
+rasterio links against a minimal GDAL build that does not include the HFA driver.
+The python GDAL bindings (`osgeo.gdal`) segfault when reading `.img` directly in
+the SageMaker container environment (Ubuntu 22.04, pytorch-training image).
+
+The build pipeline converts `.img` to GeoTIFF at runtime using `gdal_translate`:
+
+```
+gdal_translate -of GTiff -co COMPRESS=LZW input.img output.tif
+```
+
+This is a **lossless format conversion** — pixel values, CRS (EPSG:5070), nodata
+value, data type (uint8), and resolution (30m) are all preserved exactly. LZW is
+lossless compression (like zip). The only change is the container format: HFA → GeoTIFF.
+The resulting `.tif` is natively readable by pip-installed rasterio without additional
+drivers.
+
+The original `.img` is deleted from `/tmp` after conversion to free disk space
+(26 GB `.img` + converted `.tif` would exceed volume on smaller instances).
+
+### Method
+
+For each ZCTA centroid:
+1. Reproject centroid from EPSG:4326 (WGS84) to EPSG:5070 (raster native CRS)
+2. Extract a 1 km buffer window (500m in each direction) around the centroid
+3. Compute mean impervious percentage from valid pixels (0-100, excluding nodata=127)
+4. Output: `impervious_pct` (0-100 scale, percentage of impervious surface)
+
+### Limitations
+
+- Centroid-based sampling may not capture the full heterogeneity of large ZCTAs
+- NLCD 2021 vintage may not reflect post-2021 development
+- The 30m resolution is coarser than building-level impervious data but appropriate
+  for ZCTA-level analysis
+
+---
+
 ## NFIP Claims
 
 Disaster-specific NFIP claims are joined to ZCTAs by the `reportedZipcode` field

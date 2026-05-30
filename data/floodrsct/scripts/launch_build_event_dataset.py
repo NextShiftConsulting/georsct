@@ -66,15 +66,15 @@ def main() -> None:
         "ml.m5.4xlarge" if args.scenario in _LARGE_SCENARIOS else "ml.m5.2xlarge"
     )
 
-    # NLCD scenarios need GDAL system libs for .img (HFA) format.
-    # pip-installed rasterio lacks the HFA driver. Install libgdal-dev
-    # and the GDAL python package (version-matched to system libgdal)
-    # so the osgeo.gdal fallback path works.
+    # NLCD .img (Erdas Imagine HFA) needs gdal_translate to convert to GeoTIFF
+    # before rasterio can read it. The apt gdal-bin on Ubuntu 22.04 includes
+    # HFA read support -- but the python GDAL bindings crash (segfault) when
+    # reading .img directly. Converting to .tif via gdal_translate avoids this:
+    # the subprocess reads HFA, writes GeoTIFF, and rasterio reads the .tif.
     pre_install = None
     if args.scenario in _NLCD_SCENARIOS:
         pre_install = (
-            "apt-get update -qq && apt-get install -y -qq libgdal-dev gdal-bin > /dev/null 2>&1 && "
-            "pip install -q GDAL==$(gdal-config --version)"
+            "apt-get update -qq && apt-get install -y -qq gdal-bin > /dev/null 2>&1"
         )
 
     job_name = make_job_name(f"build-events-{args.scenario.replace('_', '-')}")
