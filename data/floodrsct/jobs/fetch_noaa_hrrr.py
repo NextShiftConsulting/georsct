@@ -99,6 +99,10 @@ EVENT_WINDOWS: dict[str, dict] = {
         "start": datetime(2023, 8, 19, 0, tzinfo=timezone.utc),
         "end": datetime(2023, 8, 24, 0, tzinfo=timezone.utc),
     },
+    "henri2021": {
+        "start": datetime(2021, 8, 20, 0, tzinfo=timezone.utc),
+        "end": datetime(2021, 8, 24, 0, tzinfo=timezone.utc),
+    },
     "ar_flood_2023": {
         "start": datetime(2023, 3, 1, 0, tzinfo=timezone.utc),
         "end": datetime(2023, 3, 24, 0, tzinfo=timezone.utc),

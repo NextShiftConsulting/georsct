@@ -74,6 +74,22 @@ EVENT_WINDOWS = {
         "start": datetime(2023, 8, 19, tzinfo=timezone.utc),
         "end": datetime(2023, 8, 23, tzinfo=timezone.utc),
     },
+    "helene2024": {
+        "start": datetime(2024, 9, 24, tzinfo=timezone.utc),
+        "end": datetime(2024, 10, 1, tzinfo=timezone.utc),
+    },
+    "milton2024": {
+        "start": datetime(2024, 10, 5, tzinfo=timezone.utc),
+        "end": datetime(2024, 10, 12, tzinfo=timezone.utc),
+    },
+    "henri2021": {
+        "start": datetime(2021, 8, 20, tzinfo=timezone.utc),
+        "end": datetime(2021, 8, 24, tzinfo=timezone.utc),
+    },
+    "ar_flood_2023": {
+        "start": datetime(2023, 1, 7, tzinfo=timezone.utc),
+        "end": datetime(2023, 1, 28, tzinfo=timezone.utc),
+    },
 }
 
 # URL templates -- Iowa State Mesonet archive (gzip-compressed GRIB2, ~700KB each)

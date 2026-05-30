@@ -88,7 +88,10 @@ EVENT_WINDOWS = {
     "ida2021_nola": {"start": "20210826", "end": "20210902", "scenario": "new_orleans"},
     "ida2021_nyc": {"start": "20210901", "end": "20210904", "scenario": "nyc_nj"},
     "ian2022": {"start": "20220923", "end": "20221001", "scenario": "southwest_florida"},
+    "helene2024": {"start": "20240924", "end": "20241001", "scenario": "southwest_florida"},
+    "milton2024": {"start": "20241005", "end": "20241012", "scenario": "southwest_florida"},
     "hilary2023": {"start": "20230819", "end": "20230823", "scenario": "southern_california"},
+    "henri2021": {"start": "20210820", "end": "20210824", "scenario": "nyc_nj"},
 }
 
 PRODUCTS = ["hourly_height", "predictions"]
@@ -115,26 +118,38 @@ def fetch_product(
     Returns:
         Raw JSON response as dict.
     """
-    params = {
-        "begin_date": begin_date,
-        "end_date": end_date,
-        "station": station_id,
-        "product": product,
-        "datum": "NAVD",
-        "units": "metric",
-        "time_zone": "gmt",
-        "format": "json",
-        "application": "swarm_floodrsct",
-    }
+    datums_to_try = ["NAVD", "STND"]
     log.info("  Fetching %s for station %s (%s - %s)",
              product, station_id, begin_date, end_date)
 
-    resp = requests.get(API_URL, params=params, timeout=120)
+    for datum in datums_to_try:
+        params = {
+            "begin_date": begin_date,
+            "end_date": end_date,
+            "station": station_id,
+            "product": product,
+            "datum": datum,
+            "units": "metric",
+            "time_zone": "gmt",
+            "format": "json",
+            "application": "swarm_floodrsct",
+        }
 
-    if resp.status_code == 400:
-        log.warning("  HTTP 400 for station %s/%s -- station may not support "
-                    "NAVD datum or date range. Skipping.", station_id, product)
-        return {"error": {"message": f"HTTP 400 for station {station_id}"}}
+        resp = requests.get(API_URL, params=params, timeout=120)
+
+        if resp.status_code == 400:
+            if datum == datums_to_try[-1]:
+                log.warning("  HTTP 400 for station %s/%s on all datums (%s). Skipping.",
+                            station_id, product, ", ".join(datums_to_try))
+                return {"error": {"message": f"HTTP 400 for station {station_id}"}}
+            log.info("  HTTP 400 with datum=%s for station %s, trying next datum...",
+                     datum, station_id)
+            continue
+
+        # Success on this datum
+        if datum != "NAVD":
+            log.info("  Station %s responded on datum=%s (NAVD unsupported)", station_id, datum)
+        break
 
     resp.raise_for_status()
     payload = resp.json()

@@ -48,6 +48,14 @@ EVENTS = {
         "start": date(2017, 8, 22),
         "end": date(2017, 9, 2),
     },
+    "imelda2019": {
+        "start": date(2019, 9, 14),
+        "end": date(2019, 9, 21),
+    },
+    "beryl2024": {
+        "start": date(2024, 7, 4),
+        "end": date(2024, 7, 12),
+    },
     "ida2021_nola": {
         "start": date(2021, 8, 26),
         "end": date(2021, 9, 1),
@@ -56,6 +64,10 @@ EVENTS = {
         "start": date(2021, 8, 29),
         "end": date(2021, 9, 4),
     },
+    "henri2021": {
+        "start": date(2021, 8, 18),
+        "end": date(2021, 8, 24),
+    },
     "hilary2023": {
         "start": date(2023, 8, 17),
         "end": date(2023, 8, 22),
@@ -63,6 +75,14 @@ EVENTS = {
     "ian2022": {
         "start": date(2022, 9, 25),
         "end": date(2022, 9, 29),
+    },
+    "helene2024": {
+        "start": date(2024, 9, 22),
+        "end": date(2024, 9, 28),
+    },
+    "milton2024": {
+        "start": date(2024, 10, 5),
+        "end": date(2024, 10, 11),
     },
 }
 

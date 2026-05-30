@@ -57,9 +57,12 @@ EVENT_REGISTRY = {
     "harvey2017": (180, "TX"),
     "imelda2019": (None, "TX"),  # No STN deployment for Imelda
     "ian2022": (325, "FL"),
+    "ida2021_nola": (312, "LA"),
     "ida2021_nyc": (312, "NY"),
     "beryl2024": (342, "TX"),
     "hilary2023": (335, "CA"),
+    "helene2024": (345, "FL"),
+    "milton2024": (348, "FL"),
 }
 
 # Existing S3 parquets (pre-uploaded)

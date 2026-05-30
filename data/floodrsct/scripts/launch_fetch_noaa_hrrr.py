@@ -20,7 +20,8 @@ def main() -> None:
         choices=[
             "harvey2017", "imelda2019", "beryl2024",
             "ida2021_nola", "ida2021_nyc",
-            "ian2022", "helene2024", "milton2024", "hilary2023", "ar_flood_2023",
+            "ian2022", "helene2024", "milton2024", "hilary2023",
+            "henri2021", "ar_flood_2023",
         ],
     )
     parser.add_argument("--dry-run", action="store_true")

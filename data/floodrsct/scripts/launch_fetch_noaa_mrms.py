@@ -29,6 +29,7 @@ EVENT_INSTANCES = {
     "helene2024":  "ml.m5.large",
     "milton2024":  "ml.m5.large",
     "hilary2023":  "ml.m5.large",
+    "henri2021":   "ml.m5.large",
     "ar_flood_2023": "ml.m5.xlarge",  # ~22 days
 }
 

@@ -71,17 +71,27 @@ HARMONY_TIMEOUT       = 900  # seconds before giving up on async job
 # Bounding boxes per event (lon_min, lat_min, lon_max, lat_max)
 EVENT_BBOX = {
     "harvey2017":       (-96.5, 29.0, -94.5, 30.5),   # Houston metro
+    "imelda2019":       (-96.5, 29.0, -94.5, 30.5),   # Houston metro
+    "beryl2024":        (-96.5, 29.0, -94.5, 30.5),   # Houston metro
     "ida2021_nola":     (-90.5, 29.5, -89.0, 30.5),   # NOLA core
+    "henri2021":        (-74.5, 40.0, -73.5, 41.5),   # NYC/NJ
     "hilary2023":       (-117.5, 33.0, -115.0, 34.5), # Riverside-Coachella
     "ian2022":          (-82.5, 25.5, -81.0, 27.5),   # SW Florida
+    "helene2024":       (-84.0, 25.5, -81.0, 30.5),   # SW Florida (wider for Helene track)
+    "milton2024":       (-82.5, 25.5, -81.0, 27.5),   # SW Florida
 }
 
 # 7-day antecedent windows (inclusive start..end, 7 days each)
 EVENTS = {
-    "harvey2017":  {"start": date(2017, 8, 18), "end": date(2017, 8, 24)},
+    "harvey2017":   {"start": date(2017, 8, 18), "end": date(2017, 8, 24)},
+    "imelda2019":   {"start": date(2019, 9, 10), "end": date(2019, 9, 16)},
+    "beryl2024":    {"start": date(2024, 6, 30), "end": date(2024, 7, 6)},
     "ida2021_nola": {"start": date(2021, 8, 22), "end": date(2021, 8, 28)},
-    "hilary2023":  {"start": date(2023, 8, 13), "end": date(2023, 8, 19)},
-    "ian2022":     {"start": date(2022, 9, 21), "end": date(2022, 9, 27)},
+    "henri2021":    {"start": date(2021, 8, 13), "end": date(2021, 8, 19)},
+    "hilary2023":   {"start": date(2023, 8, 13), "end": date(2023, 8, 19)},
+    "ian2022":      {"start": date(2022, 9, 21), "end": date(2022, 9, 27)},
+    "helene2024":   {"start": date(2024, 9, 17), "end": date(2024, 9, 23)},
+    "milton2024":   {"start": date(2024, 9, 28), "end": date(2024, 10, 4)},
 }
 
 
