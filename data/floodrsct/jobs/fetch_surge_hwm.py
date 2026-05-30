@@ -61,8 +61,8 @@ EVENT_REGISTRY = {
     "ida2021_nyc": (312, "NY"),
     "beryl2024": (342, "TX"),
     "hilary2023": (335, "CA"),
-    "helene2024": (345, "FL"),
-    "milton2024": (348, "FL"),
+    "helene2024": (346, "FL"),
+    "milton2024": (347, "FL"),
 }
 
 # Existing S3 parquets (pre-uploaded)
