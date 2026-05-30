@@ -26,6 +26,11 @@ import boto3
 import pandas as pd
 import yaml
 
+# Add repo root to path for registry import
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+sys.path.insert(0, str(REPO_ROOT))
+from db.scripts.scenario_registry import get_registry
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
@@ -163,18 +168,10 @@ EXPECTED_RAW_COLUMNS = {
 }
 
 
-# Scenario -> concrete event names (matches build_event_dataset.py event_map dicts)
-# NOTE: build_event_dataset.py uses "ida2021" internally for both NYC and NOLA,
-# but MRMS/tides fetchers stored data under "ida2021_nyc". The NYC builder
-# remaps "ida2021" -> "ida2021_nyc" for MRMS (line 796). NOLA builder does NOT
-# call MRMS at all. This mapping uses the S3 event keys (what the fetchers wrote).
-SCENARIO_EVENTS = {
-    "houston": ["harvey2017", "imelda2019", "beryl2024"],
-    "new_orleans": ["ida2021"],
-    "nyc": ["ida2021", "ida2021_nyc"],  # 311 uses "ida2021"; MRMS/tides use "ida2021_nyc"
-    "riverside_coachella": ["hilary2023"],
-    "southwest_florida": ["ian2022"],
-}
+# Scenario events and output keys are sourced from the scenario registry
+# (db/schema/006_scenario_pipeline.sql) via get_registry().
+_REG = get_registry()
+SCENARIO_EVENTS = _REG.event_map()
 
 
 def _resolve_raw_paths(raw_path: str, scenario: str) -> list[str]:
@@ -464,13 +461,7 @@ def validate_layer2(
 # Layer 3: Data Lock Validation (standalone reconciliation)
 # ---------------------------------------------------------------------------
 
-OUTPUT_KEYS = {
-    "houston": "processed/houston/houston_event_features.parquet",
-    "new_orleans": "processed/new_orleans/no_event_features.parquet",
-    "nyc": "processed/nyc/nyc_event_features.parquet",
-    "riverside_coachella": "processed/riverside_coachella/rc_event_features.parquet",
-    "southwest_florida": "processed/southwest_florida/swfl_event_features.parquet",
-}
+OUTPUT_KEYS = _REG.output_keys()
 
 
 def validate_layer3(
