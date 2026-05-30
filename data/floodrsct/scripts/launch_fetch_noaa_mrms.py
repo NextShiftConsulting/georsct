@@ -23,6 +23,7 @@ EVENT_INSTANCES = {
     "harvey2017":  "ml.m5.xlarge",  # ~17 days, ~408 files
     "imelda2019":  "ml.m5.large",
     "beryl2024":   "ml.m5.large",
+    "ida2021_nola": "ml.m5.large",   # ~8 days
     "ida2021_nyc": "ml.m5.large",
     "ian2022":     "ml.m5.xlarge",  # ~9 days
     "helene2024":  "ml.m5.large",
