@@ -72,6 +72,8 @@ STATIONS = {
     "new_orleans": [
         {"id": "8761724", "name": "Grand Isle"},
         {"id": "8761927", "name": "New Canal Station"},
+        {"id": "8760922", "name": "Michoud Canal ICWW"},
+        {"id": "8762075", "name": "Port Sulphur"},
     ],
     "southern_california": [
         {"id": "9410230", "name": "La Jolla"},
