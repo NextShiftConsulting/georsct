@@ -75,22 +75,28 @@ SCENARIO (e.g. southwest_florida)
  |  |   -> evidence/qa/strat_sampler_seed{N}.json       |
  |  +---------------------------------------------------+
  |
- |  STAGE 5: STRATIFIED COVERAGE (sufficiency)
+ |  STAGE 5: STRATIFIED COVERAGE (sufficiency + quality)
  |  +---------------------------------------------------+
  |  | stratified_coverage_audit.py                       |
  |  |   --scenario southwest_florida                     |
  |  |                                                   |
- |  |  Gates whether each probe can run, not whether    |
- |  |  the data is clean. A parquet can pass Stage 4    |
- |  |  while all non-null values sit in one stratum.    |
+ |  |  12 audits in two families:                       |
  |  |                                                   |
- |  |  Six audits mapped to six decision geometries:    |
- |  |    A1. Per-event support (transfer probe)         |
- |  |    A2. Coastal vs inland balance (ranking probe)  |
- |  |    A3. Levee-protected vs unprotected (ranking)   |
- |  |    A4. County group sizes (rel. propagation)      |
+ |  |  PROBE-MAPPED (stratum sufficiency):              |
+ |  |    A1. Per-event support (transfer)               |
+ |  |    A2. Coastal vs inland (ranking)                |
+ |  |    A3. Levee-protected vs not (ranking)           |
+ |  |    A4. County group sizes (hierarchical)          |
  |  |    A5. Adjacency coverage (rel. propagation)      |
  |  |    A6. Outcome signal per stratum (all probes)    |
+ |  |                                                   |
+ |  |  GEORSCT FAILURE MODES (data quality):            |
+ |  |    A1. Autocorrelation leakage (split bias)       |
+ |  |    B2. Scale mismatch (broadcast/coarse)          |
+ |  |    B3. Crosswalk gap (join hit rates)             |
+ |  |    C1. Vintage drift (feature age vs event)       |
+ |  |    C3. Spatial missingness bias (systematic NaN)  |
+ |  |    D3. Interp/extrap mismatch (distribution gap)  |
  |  |                                                   |
  |  |  -> evidence/qa/coverage_audit_{scenario}.json    |
  |  +---------------------------------------------------+
