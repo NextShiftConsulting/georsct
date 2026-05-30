@@ -65,7 +65,7 @@ INSERT OR IGNORE INTO scenario_events VALUES
 
     -- New Orleans
     ('orleans_jefferson_protected_basin', 'ida2021', 4611, 'AL092021',
-     '2021-08-29', '2021-09-01', 'ida2021_nyc'),  -- S3 key differs from event_name
+     '2021-08-29', '2021-09-01', 'ida2021_nola'),  -- S3 key: NOLA-specific Ida fetch
 
     -- NYC
     ('nyc_nj_urban_cloudburst', 'ida2021_nyc', 4615, 'AL092021',

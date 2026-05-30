@@ -17,6 +17,7 @@ Usage:
     python fetch_noaa_hrrr.py --event harvey2017
     python fetch_noaa_hrrr.py --event imelda2019
     python fetch_noaa_hrrr.py --event beryl2024
+    python fetch_noaa_hrrr.py --event ida2021_nola
     python fetch_noaa_hrrr.py --event ida2021_nyc
     python fetch_noaa_hrrr.py --event ian2022
     python fetch_noaa_hrrr.py --event helene2024
@@ -73,6 +74,10 @@ EVENT_WINDOWS: dict[str, dict] = {
     "beryl2024": {
         "start": datetime(2024, 7, 8, 0, tzinfo=timezone.utc),
         "end": datetime(2024, 7, 13, 0, tzinfo=timezone.utc),
+    },
+    "ida2021_nola": {
+        "start": datetime(2021, 8, 26, 0, tzinfo=timezone.utc),
+        "end": datetime(2021, 9, 2, 0, tzinfo=timezone.utc),
     },
     "ida2021_nyc": {
         "start": datetime(2021, 9, 1, 0, tzinfo=timezone.utc),

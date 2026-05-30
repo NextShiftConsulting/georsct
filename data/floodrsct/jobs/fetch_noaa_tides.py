@@ -83,6 +83,7 @@ EVENT_WINDOWS = {
     "harvey2017": {"start": "20170817", "end": "20170904", "scenario": "houston"},
     "imelda2019": {"start": "20190917", "end": "20190922", "scenario": "houston"},
     "beryl2024": {"start": "20240707", "end": "20240713", "scenario": "houston"},
+    "ida2021_nola": {"start": "20210826", "end": "20210902", "scenario": "new_orleans"},
     "ida2021_nyc": {"start": "20210901", "end": "20210904", "scenario": "nyc_nj"},
     "ian2022": {"start": "20220923", "end": "20221001", "scenario": "southwest_florida"},
     "hilary2023": {"start": "20230819", "end": "20230823", "scenario": "southern_california"},

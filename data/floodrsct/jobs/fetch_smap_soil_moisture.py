@@ -71,7 +71,7 @@ HARMONY_TIMEOUT       = 900  # seconds before giving up on async job
 # Bounding boxes per event (lon_min, lat_min, lon_max, lat_max)
 EVENT_BBOX = {
     "harvey2017":       (-96.5, 29.0, -94.5, 30.5),   # Houston metro
-    "ida2021":          (-90.5, 29.5, -89.0, 30.5),   # NOLA core (antecedent window same for both sub-events)
+    "ida2021_nola":     (-90.5, 29.5, -89.0, 30.5),   # NOLA core
     "hilary2023":       (-117.5, 33.0, -115.0, 34.5), # Riverside-Coachella
     "ian2022":          (-82.5, 25.5, -81.0, 27.5),   # SW Florida
 }
@@ -79,7 +79,7 @@ EVENT_BBOX = {
 # 7-day antecedent windows (inclusive start..end, 7 days each)
 EVENTS = {
     "harvey2017":  {"start": date(2017, 8, 18), "end": date(2017, 8, 24)},
-    "ida2021":     {"start": date(2021, 8, 22), "end": date(2021, 8, 28)},
+    "ida2021_nola": {"start": date(2021, 8, 22), "end": date(2021, 8, 28)},
     "hilary2023":  {"start": date(2023, 8, 13), "end": date(2023, 8, 19)},
     "ian2022":     {"start": date(2022, 9, 21), "end": date(2022, 9, 27)},
 }

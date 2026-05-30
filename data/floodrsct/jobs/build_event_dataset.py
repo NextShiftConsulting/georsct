@@ -737,20 +737,23 @@ def build_new_orleans(s3, cfg: dict) -> pd.DataFrame:
 
     event_map = {
         "ida2021": {"dr": 4611, "storm_id": "AL092021",
-                    "peak_window": ("2021-08-29", "2021-09-01")},
+                    "peak_window": ("2021-08-29", "2021-09-01"),
+                    "s3_event_key": "ida2021_nola"},
     }
 
     rows = []
     for event_name, ev in event_map.items():
-        log.info("New Orleans event: %s", event_name)
+        s3_key = ev.get("s3_event_key", event_name)
+        log.info("New Orleans event: %s (S3 key: %s)", event_name, s3_key)
         nwis   = aggregate_nwis(s3, "new_orleans", event_name, no_zctas, cfg)
-        tides  = aggregate_tides(s3, "raw/noaa_tides/", event_name, no_zctas)
+        mrms   = aggregate_mrms_rainfall(s3, s3_key, no_zctas)
+        tides  = aggregate_tides(s3, "raw/noaa_tides/", s3_key, no_zctas)
         nfip   = load_nfip_event_claims(s3, ev["dr"], no_zctas)
         storm  = compute_storm_proximity(s3, ev["storm_id"], ev["peak_window"], no_zctas)
 
         base = pd.DataFrame({"zcta_id": no_zctas, "event": event_name,
                               "scenario": "new_orleans"})
-        base = _safe_merge_parts(base, [nwis, tides, nfip, storm, levee_feats, elevation, pump_op])
+        base = _safe_merge_parts(base, [nwis, mrms, tides, nfip, storm, levee_feats, elevation, pump_op])
         if not static.empty:
             base = _safe_merge_parts(base, [static])
         # Attach pump evidence for Ida 2021 (hand-coded override for pump_station_status)
@@ -790,17 +793,18 @@ def build_nyc(s3, cfg: dict) -> pd.DataFrame:
 
     event_map = {
         "ida2021":   {"dr": 4615, "storm_id": "AL092021",
-                      "peak_window": ("2021-09-01", "2021-09-02")},
+                      "peak_window": ("2021-09-01", "2021-09-02"),
+                      "s3_event_key": "ida2021_nyc"},
         "henri2021": {"dr": None, "storm_id": "AL082021",
                       "peak_window": ("2021-08-21", "2021-08-22")},
     }
 
     rows = []
     for event_name, ev in event_map.items():
-        log.info("NYC event: %s", event_name)
+        s3_key = ev.get("s3_event_key", event_name)
+        log.info("NYC event: %s (S3 key: %s)", event_name, s3_key)
         nwis  = aggregate_nwis(s3, "nyc", event_name, nyc_zctas, cfg)
-        mrms  = aggregate_mrms_rainfall(s3, f"ida2021_nyc" if "ida" in event_name else event_name,
-                                        nyc_zctas)
+        mrms  = aggregate_mrms_rainfall(s3, s3_key, nyc_zctas)
         s311  = aggregate_311(s3, "nyc", event_name, nyc_zctas)
         storm = compute_storm_proximity(s3, ev["storm_id"], ev["peak_window"], nyc_zctas)
         nfip  = (load_nfip_event_claims(s3, ev["dr"], nyc_zctas)

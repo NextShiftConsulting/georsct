@@ -54,6 +54,10 @@ EVENT_WINDOWS = {
         "start": datetime(2024, 7, 7, tzinfo=timezone.utc),
         "end": datetime(2024, 7, 13, tzinfo=timezone.utc),
     },
+    "ida2021_nola": {
+        "start": datetime(2021, 8, 26, tzinfo=timezone.utc),
+        "end": datetime(2021, 9, 2, tzinfo=timezone.utc),
+    },
     "ida2021_nyc": {
         "start": datetime(2021, 9, 1, tzinfo=timezone.utc),
         "end": datetime(2021, 9, 4, tzinfo=timezone.utc),
