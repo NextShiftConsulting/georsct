@@ -393,9 +393,13 @@ def _mrms_spatial_aggregate(s3, file_keys: list[str], zcta_ids: list[str],
 
     coverage = n_valid / max(len(file_keys), 1)
 
-    # Flatten grid to points and assign to ZCTAs by nearest centroid
-    flat_lat = lat_arr.flatten()
-    flat_lon = lon_arr.flatten()
+    # cfgrib returns 1D coordinate arrays; meshgrid to match 2D precip grid
+    if lat_arr.ndim == 1 and lon_arr.ndim == 1:
+        lon_2d, lat_2d = np.meshgrid(lon_arr, lat_arr)
+    else:
+        lat_2d, lon_2d = lat_arr, lon_arr
+    flat_lat = lat_2d.flatten()
+    flat_lon = lon_2d.flatten()
     flat_val = total_mm.flatten()
 
     # Load ZCTA centroids from geocertdb2026
