@@ -200,6 +200,12 @@ def build_surge_df(
 ) -> pd.DataFrame:
     """Combine observed and predicted into a surge residual DataFrame.
 
+    Surge is computed two ways (first non-null wins):
+      1. predicted-based: observed_m - predicted_m (if predictions available)
+      2. anomaly-based:   observed_m - median(first 24h of observed)
+         The first 24h of the event window is pre-landfall in every scenario,
+         so the median is a stable pre-storm baseline.
+
     Returns:
         DataFrame with columns: timestamp, observed_m, predicted_m, surge_m.
     """
@@ -216,7 +222,18 @@ def build_surge_df(
 
     merged = pd.merge(obs, pred, on="timestamp", how="outer")
     merged = merged.sort_values("timestamp").reset_index(drop=True)
+
+    # Primary: prediction-based surge
     merged["surge_m"] = merged["observed_m"] - merged["predicted_m"]
+
+    # Fallback: anomaly from pre-storm baseline (first 24h median)
+    n_null_surge = merged["surge_m"].isna().sum()
+    if n_null_surge > 0 and merged["observed_m"].notna().any():
+        baseline = merged["observed_m"].iloc[:24].median()
+        anomaly = merged["observed_m"] - baseline
+        merged["surge_m"] = merged["surge_m"].fillna(anomaly)
+        log.info("  Surge fallback: anomaly from 24h baseline (%.3f m), filled %d rows",
+                 baseline, n_null_surge)
 
     return merged
 
