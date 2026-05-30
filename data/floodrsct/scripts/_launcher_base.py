@@ -57,6 +57,9 @@ def upload_code(job_name: str, job_script: str, extra_files: list[str] | None = 
     files_to_upload: list[Path] = [JOBS_DIR / job_script]
     for helper in sorted(JOBS_DIR.glob("_*.py")):
         files_to_upload.append(helper)
+    # Vendored wheels (e.g. swarm_auth)
+    for whl in sorted(JOBS_DIR.glob("*.whl")):
+        files_to_upload.append(whl)
     if extra_files:
         for f in extra_files:
             p = Path(f)
@@ -95,6 +98,7 @@ def launch_processing_job(
     volume_size_gb: int = 50,
     pip_packages: str | None = None,
     image_uri: str | None = None,
+    env_overrides: dict[str, str] | None = None,
     dry_run: bool = False,
 ) -> str:
     """Upload code and launch a SageMaker Processing job.
@@ -105,6 +109,9 @@ def launch_processing_job(
             jobs.  None means base packages only.
         image_uri: Override the default PYTORCH_CPU image. Pass PYTORCH_GPU
             for jobs that require a CUDA forward pass (e.g. Prithvi smoke test).
+        env_overrides: Additional environment variables to inject into the
+            container (e.g. {"EARTHDATA_TOKEN": token}).  Merged on top of
+            the default environment; caller-supplied values take precedence.
     """
     code_prefix = upload_code(job_name, job_script, extra_files)
 
@@ -134,6 +141,8 @@ def launch_processing_job(
         (
             "pip install --quiet --upgrade "
             f"--root-user-action=ignore {packages} && "
+            "pip install --quiet --root-user-action=ignore "
+            "/opt/ml/processing/input/code/*.whl 2>/dev/null; "
             "cd /opt/ml/processing/input/code && "
             f"python -u {job_script} {args_str}"
         ),
@@ -161,6 +170,7 @@ def launch_processing_job(
             # Route all HF Hub + Datasets cache to EBS (/tmp), not root fs (~20 GB limit)
             "HF_HOME": "/tmp/hf_cache",
             "HF_DATASETS_CACHE": "/tmp/hf_cache/datasets",
+            **(env_overrides or {}),
         },
         "StoppingCondition": {"MaxRuntimeInSeconds": 7200},
     }
