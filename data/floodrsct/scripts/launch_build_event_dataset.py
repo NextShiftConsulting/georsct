@@ -33,7 +33,7 @@ def main() -> None:
     args = parser.parse_args()
 
     instance_type = (
-        "ml.m5.2xlarge" if args.scenario in _LARGE_SCENARIOS else "ml.m5.xlarge"
+        "ml.m5.4xlarge" if args.scenario in _LARGE_SCENARIOS else "ml.m5.2xlarge"
     )
 
     job_name = make_job_name(f"build-events-{args.scenario.replace('_', '-')}")
