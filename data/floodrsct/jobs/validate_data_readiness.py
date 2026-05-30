@@ -185,7 +185,7 @@ class CellStatus:
     event: str
     dataset: str
     s3_prefix: str
-    status: str  # missing | fetched | not_applicable | source_empty
+    status: str  # missing | fetched | not_applicable | source_empty | built | not_built
     record_count: int
     missing_reason: str
     action: str = ""
@@ -283,6 +283,24 @@ def main() -> None:
         for scenario in spec["scenarios"]:
             results.append(check_static_dataset(s3, scenario, dataset, spec))
 
+    # Processed outputs (assembled event feature tables)
+    PROCESSED_OUTPUTS = {
+        "houston": "processed/houston/houston_event_features.parquet",
+        "new_orleans": "processed/new_orleans/no_event_features.parquet",
+        "nyc": "processed/nyc/nyc_event_features.parquet",
+        "riverside_coachella": "processed/riverside_coachella/rc_event_features.parquet",
+        "southwest_florida": "processed/southwest_florida/swfl_event_features.parquet",
+    }
+    for scenario, key in PROCESSED_OUTPUTS.items():
+        count = count_s3_objects(s3, key)
+        status = "built" if count > 0 else "not_built"
+        results.append(CellStatus(
+            scenario=scenario, event="(processed)", dataset="event_features",
+            s3_prefix=f"s3://{BUCKET}/{key}",
+            status=status, record_count=count,
+            missing_reason="" if count > 0 else "Run build_event_dataset.py --scenario " + scenario,
+        ))
+
     # Sort by scenario, event, dataset
     results.sort(key=lambda r: (r.scenario, r.event, r.dataset))
 
@@ -307,8 +325,12 @@ def main() -> None:
     missing = sum(1 for r in results if r.status == "missing")
     not_applicable = sum(1 for r in results if r.status == "not_applicable")
     source_empty = sum(1 for r in results if r.status == "source_empty")
+    built = sum(1 for r in results if r.status == "built")
+    not_built = sum(1 for r in results if r.status == "not_built")
     print(f"\n--- Summary: {fetched}/{total} fetched, {missing} missing, "
           f"{not_applicable} not_applicable, {source_empty} source_empty ---")
+    if built + not_built > 0:
+        print(f"--- Processed: {built}/{built + not_built} built ---")
 
     if missing > 0:
         print("\n--- MISSING ---")
@@ -354,6 +376,8 @@ def _print_table(results: list[CellStatus]) -> None:
             "missing": "** MISSING **",
             "not_applicable": "N/A",
             "source_empty": "SRC EMPTY",
+            "built": "BUILT",
+            "not_built": "** NOT BUILT **",
         }.get(r.status, r.status)
 
         print(f"  {r.event:<20} {r.dataset:<15} {status_marker:<20} {r.record_count:>6}  {r.missing_reason}")

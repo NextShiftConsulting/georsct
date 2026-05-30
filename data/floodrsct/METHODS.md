@@ -302,6 +302,24 @@ lookup key (e.g., Ian = Cat 4, Milton = Cat 3, Helene = Cat 4).
 
 All three basins are covered by the national MOM grid.
 
+### Validation (2026-05-30)
+
+End-to-end validation on SageMaker (`ml.m5.4xlarge`, job
+`s035-build-events-southwest-florida-20260530-030117`):
+
+| Event | Category | GeoTIFF | Centroids Sampled | ZCTA Coverage | Notes |
+|-------|----------|---------|-------------------|---------------|-------|
+| ian2022 | Cat 4 | us_Category4_MOM_Inundation_HIGH.tif | 198 | 56.4% (114/202) | Higher coverage — Cat 4 inundates more coastline |
+| helene2024 | Cat 4 | us_Category4_MOM_Inundation_HIGH.tif | 198 | 56.4% (114/202) | Same GeoTIFF as Ian (MOM is invariant) |
+| milton2024 | Cat 3 | us_Category3_MOM_Inundation_HIGH.tif | 198 | 39.1% (79/202) | Lower coverage — Cat 3 surge envelope is smaller |
+
+Key observations:
+- `src.sample()` reads only queried pixels; no full-raster load (66 GB uncompressed).
+- Value >= 99 correctly guarded as NaN (levee-protected areas per NHC metadata).
+- Cat 4 > Cat 3 coverage is physically expected (stronger storms push surge further inland).
+- 202 ZCTAs total, 198 with valid centroids in geocertdb2026. 4 ZCTAs lack centroid coordinates.
+- Output: 606 rows x 152 columns in `swfl_event_features.parquet`.
+
 ---
 
 ## NFIP Claims
