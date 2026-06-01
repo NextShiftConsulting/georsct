@@ -1042,6 +1042,172 @@ features:
       Requires both HRRR QPF and MRMS to be computed first.
       Key forecast-skill feature for surrogate model training.
 
+  # ═══════════════════════════════════════════════════════════════════════════
+  # GeoParquet Geometry — DOE Amendment v1.2 Change 12
+  # All output parquets carry a Point geometry column (ZCTA centroid, EPSG:4326).
+  # Written via geopandas GeoDataFrame.to_parquet() with RFC-compliant metadata.
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - feature_name: geometry
+    temporal_class: invariant
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: derived
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
+    processed_s3_path: (embedded in {scenario}_event_features.parquet)
+    build_function: build_event_dataset._attach_geometry
+    output_column: geometry
+    missing_behavior: "null Point — row retained without geometry"
+    version_target: v24.005
+    notes: >
+      ZCTA centroid as shapely Point(longitude, latitude), CRS EPSG:4326.
+      Constructed from existing latitude/longitude columns in geocertdb2026.
+      Makes output a GeoParquet file readable by geopandas, kepler.gl, QGIS.
+      See DOE Amendment v1.2 Change 12.
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Spatial W-Matrix Features — DOE Amendment v1.2 Change 13
+  # Derived from Queen's contiguity W-matrix (zcta_adjacency.parquet).
+  # Row-standardized: wlag_X at ZCTA i = mean(X) across queen-contiguous neighbors.
+  # These encode spatial structure missing from R0/R1 point attributes.
+  #
+  # CAUSAL BOUNDARY: wlag of slow_drift/invariant features are safe model inputs.
+  # wlag of event_window features are safe for nowcast models only.
+  # wlag_nfip_claims is a spatial lag of the TARGET — leakage risk managed
+  # per-fold (computed from training set only; see DOE Amendment Change 13).
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - feature_name: zcta_degree
+    temporal_class: invariant
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: derived
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_adjacency.parquet
+    processed_s3_path: (embedded in {scenario}_event_features.parquet)
+    build_function: build_event_dataset.compute_w_matrix_features
+    output_column: zcta_degree
+    missing_behavior: "0 — isolated ZCTA (no queen-contiguous neighbors)"
+    version_target: v24.005
+    notes: >
+      Count of queen-contiguous neighbor ZCTAs. Measures connectivity:
+      low degree = edge/rural ZCTA, high degree = interior/dense urban.
+      Safe as model input at all temporal boundaries.
+
+  - feature_name: zcta_mean_neighbor_dist_km
+    temporal_class: invariant
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: derived
+    source_dataset: geocertdb2026
+    raw_s3_path: raw/geocertdb2026/zcta_adjacency.parquet
+    processed_s3_path: (embedded in {scenario}_event_features.parquet)
+    build_function: build_event_dataset.compute_w_matrix_features
+    output_column: zcta_mean_neighbor_dist_km
+    missing_behavior: "NaN — isolated ZCTA"
+    version_target: v24.005
+    notes: >
+      Mean haversine distance (km) from this ZCTA centroid to centroids of all
+      queen-contiguous neighbors. Proxy for spatial density of urban fabric.
+      Safe as model input at all temporal boundaries.
+
+  - feature_name: wlag_flood_zone_pct
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: derived
+    source_dataset: geocertdb2026 + zcta_adjacency
+    raw_s3_path: raw/geocertdb2026/zcta_adjacency.parquet
+    processed_s3_path: (embedded in {scenario}_event_features.parquet)
+    build_function: build_event_dataset.compute_w_matrix_features
+    output_column: wlag_flood_zone_pct
+    missing_behavior: "NaN — isolated ZCTA or missing source"
+    version_target: v24.005
+    notes: >
+      Row-standardized spatial lag of flood_pct_zone_a (SFHA percentage).
+      W * flood_zone_pct = mean flood zone density of queen-contiguous neighbors.
+      Safe as model input — slow_drift.
+
+  - feature_name: wlag_population_density
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: derived
+    source_dataset: geocertdb2026 + zcta_adjacency
+    raw_s3_path: raw/geocertdb2026/zcta_adjacency.parquet
+    processed_s3_path: (embedded in {scenario}_event_features.parquet)
+    build_function: build_event_dataset.compute_w_matrix_features
+    output_column: wlag_population_density
+    missing_behavior: "NaN — isolated ZCTA or missing source"
+    version_target: v24.005
+    notes: >
+      Row-standardized spatial lag of acs_population_density.
+      Neighborhood urbanization context.
+      Safe as model input — slow_drift.
+
+  - feature_name: wlag_median_income
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: derived
+    source_dataset: geocertdb2026 + zcta_adjacency
+    raw_s3_path: raw/geocertdb2026/zcta_adjacency.parquet
+    processed_s3_path: (embedded in {scenario}_event_features.parquet)
+    build_function: build_event_dataset.compute_w_matrix_features
+    output_column: wlag_median_income
+    missing_behavior: "NaN — isolated ZCTA or missing source"
+    version_target: v24.005
+    notes: >
+      Row-standardized spatial lag of acs_median_hh_income.
+      Neighborhood socioeconomic context.
+      Safe as model input — slow_drift.
+
+  - feature_name: wlag_impervious_pct
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: derived
+    source_dataset: geocertdb2026 + zcta_adjacency
+    raw_s3_path: raw/geocertdb2026/zcta_adjacency.parquet
+    processed_s3_path: (embedded in {scenario}_event_features.parquet)
+    build_function: build_event_dataset.compute_w_matrix_features
+    output_column: wlag_impervious_pct
+    missing_behavior: "NaN — isolated ZCTA or missing source"
+    version_target: v24.005
+    notes: >
+      Row-standardized spatial lag of impervious_pct.
+      Neighborhood runoff potential — key for ambient/pluvial flood types.
+      Safe as model input — slow_drift.
+
+  - feature_name: wlag_rainfall_mm
+    temporal_class: event_window
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: derived
+    source_dataset: noaa_mrms + zcta_adjacency
+    raw_s3_path: raw/geocertdb2026/zcta_adjacency.parquet
+    processed_s3_path: (embedded in {scenario}_event_features.parquet)
+    build_function: build_event_dataset.compute_w_matrix_features
+    output_column: wlag_rainfall_mm
+    missing_behavior: "NaN — isolated ZCTA or missing MRMS"
+    version_target: v24.005
+    notes: >
+      Row-standardized spatial lag of total_rainfall_mm (MRMS).
+      W * rainfall = mean rainfall at queen-contiguous neighbors.
+      Captures spatial extent of rain field beyond the local ZCTA.
+      Event-window — safe for nowcast models only.
+
+  - feature_name: wlag_nfip_claims
+    temporal_class: post_event
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: derived
+    source_dataset: openfema + zcta_adjacency
+    raw_s3_path: raw/geocertdb2026/zcta_adjacency.parquet
+    processed_s3_path: (embedded in {scenario}_event_features.parquet)
+    build_function: build_event_dataset.compute_w_matrix_features
+    output_column: wlag_nfip_claims
+    missing_behavior: "NaN — isolated ZCTA or missing NFIP"
+    version_target: v24.005
+    notes: >
+      Row-standardized spatial lag of nfip_event_claims (TARGET).
+      LABEL LEAKAGE RISK — spatial lag of the outcome variable.
+      Must be computed per-fold from training set only (see DOE Change 13).
+      Static column here uses full dataset; experiment scripts recompute per-fold.
+      Report with AND without as ablation.
+
   # ─── Post-Event Features (LABELS — not inputs to models) ───────────────────
   # CAUTION: These are outcomes/ground truth. Using as model inputs = label leakage.
 

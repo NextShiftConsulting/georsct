@@ -38,8 +38,10 @@ from typing import Optional
 
 import boto3
 from swarm_auth import get_aws_credentials
+import geopandas as gpd
 import numpy as np
 import pandas as pd
+from shapely.geometry import Point
 import yaml
 
 logging.basicConfig(
@@ -123,9 +125,32 @@ def s3_read(s3, key: str) -> Optional[pd.DataFrame]:
 
 def s3_upload(df: pd.DataFrame, key: str, s3) -> None:
     local = f"/tmp/{Path(key).name}"
-    df.to_parquet(local, index=False)
+    if isinstance(df, gpd.GeoDataFrame):
+        df.to_parquet(local, index=False)
+        log.info("Writing GeoParquet (CRS=%s)", df.crs)
+    else:
+        df.to_parquet(local, index=False)
     s3.upload_file(local, BUCKET, key)
     log.info("Uploaded %d rows x %d cols to s3://%s/%s", len(df), len(df.columns), BUCKET, key)
+
+
+def _attach_geometry(df: pd.DataFrame) -> gpd.GeoDataFrame:
+    """Convert assembled DataFrame to GeoDataFrame with Point geometry from centroids.
+
+    Uses existing latitude/longitude columns. Returns GeoDataFrame with
+    EPSG:4326 CRS and RFC-compliant GeoParquet metadata when written.
+    (DOE Amendment v1.2 Change 12)
+    """
+    if "latitude" not in df.columns or "longitude" not in df.columns:
+        log.warning("No lat/lon columns -- returning plain DataFrame (no geometry)")
+        return df
+    geometry = [
+        Point(lon, lat) if pd.notna(lat) and pd.notna(lon) else None
+        for lat, lon in zip(df["latitude"], df["longitude"])
+    ]
+    gdf = gpd.GeoDataFrame(df, geometry=geometry, crs="EPSG:4326")
+    log.info("Attached Point geometry to %d rows (CRS=EPSG:4326)", len(gdf))
+    return gdf
 
 
 # ---------------------------------------------------------------------------
@@ -149,6 +174,192 @@ def load_geocert_static(s3, scenario: str, zcta_ids: list[str]) -> pd.DataFrame:
         df = df.rename(columns={zcta_col: "zcta_id"}) if zcta_col != "zcta_id" else df
     log.info("Geocert static: %d ZCTAs loaded", len(df))
     return df
+
+
+# ---------------------------------------------------------------------------
+# Spatial W-Matrix Features (DOE Amendment v1.2 Change 13)
+# ---------------------------------------------------------------------------
+
+_ADJ_CACHE: Optional[pd.DataFrame] = None
+
+
+def _load_adjacency(s3) -> Optional[pd.DataFrame]:
+    """Load ZCTA Queen's contiguity adjacency edge list from S3 (cached)."""
+    global _ADJ_CACHE
+    if _ADJ_CACHE is not None:
+        return _ADJ_CACHE
+    for key in [
+        "raw/geocertdb2026/zcta_adjacency.parquet",
+        "raw/geocert/zcta_adjacency.parquet",
+    ]:
+        adj = s3_read(s3, key)
+        if adj is not None:
+            log.info("Loaded adjacency from %s: %d edges", key, len(adj))
+            _ADJ_CACHE = adj
+            return adj
+    log.warning("zcta_adjacency.parquet not found on S3 -- W-matrix features will be NaN")
+    return None
+
+
+def _build_w_neighbors(adj_df: pd.DataFrame, zcta_ids: list[str]) -> dict[str, list[str]]:
+    """Build queen-contiguity neighbor dict from adjacency edge list."""
+    # Determine column names (zcta_id_1/zcta_id_2 or zcta_from/zcta_to)
+    cols = adj_df.columns.tolist()
+    if "zcta_id_1" in cols and "zcta_id_2" in cols:
+        c1, c2 = "zcta_id_1", "zcta_id_2"
+    elif "zcta_from" in cols and "zcta_to" in cols:
+        c1, c2 = "zcta_from", "zcta_to"
+    else:
+        c1, c2 = cols[0], cols[1]
+
+    zcta_set = set(zcta_ids)
+    # Filter to scenario ZCTAs on both sides
+    mask = adj_df[c1].isin(zcta_set) & adj_df[c2].isin(zcta_set)
+    sub = adj_df[mask]
+
+    neighbors: dict[str, list[str]] = {z: [] for z in zcta_ids}
+    for _, row in sub.iterrows():
+        a, b = str(row[c1]), str(row[c2])
+        if a in neighbors:
+            neighbors[a].append(b)
+        if b in neighbors:
+            neighbors[b].append(a)
+
+    # Deduplicate
+    for z in neighbors:
+        neighbors[z] = list(set(neighbors[z]))
+
+    n_with = sum(1 for v in neighbors.values() if v)
+    log.info("W-matrix: %d/%d ZCTAs have neighbors", n_with, len(zcta_ids))
+    return neighbors
+
+
+def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Haversine distance in km between two points."""
+    R = 6371.0
+    dlat = np.radians(lat2 - lat1)
+    dlon = np.radians(lon2 - lon1)
+    a = (np.sin(dlat / 2) ** 2 +
+         np.cos(np.radians(lat1)) * np.cos(np.radians(lat2)) * np.sin(dlon / 2) ** 2)
+    return R * 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
+
+
+def compute_w_matrix_features(
+    s3, zcta_ids: list[str], static_df: pd.DataFrame,
+    event_df: Optional[pd.DataFrame] = None,
+) -> pd.DataFrame:
+    """Compute spatial W-matrix features from Queen's contiguity adjacency.
+
+    Returns DataFrame with columns:
+      zcta_degree, zcta_mean_neighbor_dist_km,
+      wlag_flood_zone_pct, wlag_population_density, wlag_median_income,
+      wlag_impervious_pct, wlag_rainfall_mm (if event_df provided),
+      wlag_nfip_claims (if event_df provided)
+
+    (DOE Amendment v1.2 Change 13)
+    """
+    adj_df = _load_adjacency(s3)
+    if adj_df is None:
+        return _empty_w_features(zcta_ids)
+
+    neighbors = _build_w_neighbors(adj_df, zcta_ids)
+
+    # Build centroid lookup from static features
+    centroids = {}
+    if "latitude" in static_df.columns and "longitude" in static_df.columns:
+        for _, row in static_df.iterrows():
+            zid = str(row.get("zcta_id", ""))
+            if zid and pd.notna(row["latitude"]) and pd.notna(row["longitude"]):
+                centroids[zid] = (row["latitude"], row["longitude"])
+
+    # Build value lookup for spatial lag source columns
+    static_lookup = {}
+    for _, row in static_df.iterrows():
+        zid = str(row.get("zcta_id", ""))
+        if zid:
+            static_lookup[zid] = row
+
+    event_lookup = {}
+    if event_df is not None:
+        for _, row in event_df.iterrows():
+            zid = str(row.get("zcta_id", ""))
+            if zid:
+                event_lookup[zid] = row
+
+    # Spatial lag source columns (static)
+    STATIC_LAG_MAP = {
+        "wlag_flood_zone_pct": "flood_pct_zone_a",
+        "wlag_population_density": "acs_population_density",
+        "wlag_median_income": "acs_median_hh_income",
+        "wlag_impervious_pct": "impervious_pct",
+    }
+    # Spatial lag source columns (event)
+    EVENT_LAG_MAP = {
+        "wlag_rainfall_mm": "total_rainfall_mm",
+        "wlag_nfip_claims": "nfip_event_claims",
+    }
+
+    rows = []
+    for zcta in zcta_ids:
+        nbrs = neighbors.get(zcta, [])
+        degree = len(nbrs)
+
+        # Mean neighbor distance
+        mean_dist = np.nan
+        if degree > 0 and zcta in centroids:
+            lat0, lon0 = centroids[zcta]
+            dists = []
+            for nb in nbrs:
+                if nb in centroids:
+                    dists.append(_haversine_km(lat0, lon0, *centroids[nb]))
+            if dists:
+                mean_dist = float(np.mean(dists))
+
+        rec = {"zcta_id": zcta, "zcta_degree": degree,
+               "zcta_mean_neighbor_dist_km": mean_dist}
+
+        # Row-standardized spatial lag of static features
+        for out_col, src_col in STATIC_LAG_MAP.items():
+            rec[out_col] = _compute_lag(nbrs, static_lookup, src_col)
+
+        # Row-standardized spatial lag of event features
+        for out_col, src_col in EVENT_LAG_MAP.items():
+            rec[out_col] = _compute_lag(nbrs, event_lookup, src_col)
+
+        rows.append(rec)
+
+    return pd.DataFrame(rows)
+
+
+def _compute_lag(
+    neighbors: list[str], lookup: dict, col: str,
+) -> float:
+    """Row-standardized spatial lag: mean of col across neighbors."""
+    if not neighbors or not lookup:
+        return np.nan
+    vals = []
+    for nb in neighbors:
+        row = lookup.get(nb)
+        if row is not None:
+            v = row.get(col)
+            if v is not None and pd.notna(v):
+                vals.append(float(v))
+    return float(np.mean(vals)) if vals else np.nan
+
+
+def _empty_w_features(zcta_ids: list[str]) -> pd.DataFrame:
+    """Return empty W-matrix feature DataFrame when adjacency is unavailable."""
+    return pd.DataFrame({
+        "zcta_id": zcta_ids,
+        "zcta_degree": 0,
+        "zcta_mean_neighbor_dist_km": np.nan,
+        "wlag_flood_zone_pct": np.nan,
+        "wlag_population_density": np.nan,
+        "wlag_median_income": np.nan,
+        "wlag_impervious_pct": np.nan,
+        "wlag_rainfall_mm": np.nan,
+        "wlag_nfip_claims": np.nan,
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -754,12 +965,14 @@ def build_houston(s3, cfg: dict) -> pd.DataFrame:
                                         impervious, catchments, levees, elevation, drainage_op])
         if not static.empty:
             base = _safe_merge_parts(base, [static])
+        w_feats = compute_w_matrix_features(s3, harris_zctas, static, base)
+        base = _safe_merge_parts(base, [w_feats])
         base = compute_observability_flags(base)
         rows.append(base)
 
     df = pd.concat(rows, ignore_index=True)
     _add_certificate_slots(df)
-    return df
+    return _attach_geometry(df)
 
 
 def build_new_orleans(s3, cfg: dict) -> pd.DataFrame:
@@ -819,12 +1032,14 @@ def build_new_orleans(s3, cfg: dict) -> pd.DataFrame:
                 {True: "operational", False: "degraded", 1: "operational", 0: "degraded"}
             ).fillna("unknown")
             base.loc[has_data, "_fs_pump_station_status"] = "present"
+        w_feats = compute_w_matrix_features(s3, no_zctas, static, base)
+        base = _safe_merge_parts(base, [w_feats])
         base = compute_observability_flags(base)
         rows.append(base)
 
     df = pd.concat(rows, ignore_index=True)
     _add_certificate_slots(df)
-    return df
+    return _attach_geometry(df)
 
 
 def build_nyc(s3, cfg: dict) -> pd.DataFrame:
@@ -875,12 +1090,14 @@ def build_nyc(s3, cfg: dict) -> pd.DataFrame:
             flooded = subway_evidence[subway_evidence["flooding_observed"] == True]
             # TODO: spatial join flooded stations to ZCTAs when station coords available
             base["subway_flooded_count_nearby"] = 0  # placeholder until spatial join
+        w_feats = compute_w_matrix_features(s3, nyc_zctas, static, base)
+        base = _safe_merge_parts(base, [w_feats])
         base = compute_observability_flags(base)
         rows.append(base)
 
     df = pd.concat(rows, ignore_index=True)
     _add_certificate_slots(df)
-    return df
+    return _attach_geometry(df)
 
 
 def build_riverside_coachella(s3, cfg: dict) -> pd.DataFrame:
@@ -927,12 +1144,14 @@ def build_riverside_coachella(s3, cfg: dict) -> pd.DataFrame:
                                         burn_scars, catchments, elevation, road_op])
         if not static.empty:
             base = _safe_merge_parts(base, [static])
+        w_feats = compute_w_matrix_features(s3, rc_zctas, static, base)
+        base = _safe_merge_parts(base, [w_feats])
         base = compute_observability_flags(base)
         rows.append(base)
 
     df = pd.concat(rows, ignore_index=True)
     _add_certificate_slots(df)
-    return df
+    return _attach_geometry(df)
 
 
 def build_southwest_florida(s3, cfg: dict) -> pd.DataFrame:
@@ -983,12 +1202,14 @@ def build_southwest_florida(s3, cfg: dict) -> pd.DataFrame:
                                         slosh, elevation, coastal_dist, levee_feats, evac_op])
         if not static.empty:
             base = _safe_merge_parts(base, [static])
+        w_feats = compute_w_matrix_features(s3, swfl_zctas, static, base)
+        base = _safe_merge_parts(base, [w_feats])
         base = compute_observability_flags(base)
         rows.append(base)
 
     df = pd.concat(rows, ignore_index=True)
     _add_certificate_slots(df)
-    return df
+    return _attach_geometry(df)
 
 
 # ---------------------------------------------------------------------------
