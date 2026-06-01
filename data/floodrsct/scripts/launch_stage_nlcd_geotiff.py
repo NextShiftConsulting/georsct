@@ -28,7 +28,7 @@ def main() -> None:
         job_args=["--upload"],
         instance_type="ml.m5.xlarge",
         volume_size_gb=80,
-        pre_install_cmd="conda install -y -c conda-forge rasterio libstdcxx-ng",
+        pip_packages="rasterio",
         dry_run=args.dry_run,
     )
 
