@@ -44,11 +44,13 @@ PARAM_CODES = "00060,00065"  # discharge (cfs), gauge height (ft)
 PAGE_SLEEP = 1.0  # seconds between requests
 
 # Config files are uploaded alongside this script by the launcher
-CONFIG_DIR = Path("/opt/ml/processing/input/config")
+# Launcher uploads configs to the same S3 prefix as code, so they land
+# in /opt/ml/processing/input/code/ (not a separate /config/ channel).
+CODE_DIR = Path("/opt/ml/processing/input/code")
 
 
 def load_config(scenario: str) -> dict:
-    path = CONFIG_DIR / f"{scenario}.yaml"
+    path = CODE_DIR / f"{scenario}.yaml"
     with open(path) as f:
         return yaml.safe_load(f)
 

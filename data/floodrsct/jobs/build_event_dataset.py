@@ -52,7 +52,9 @@ logging.getLogger("botocore.credentials").setLevel(logging.WARNING)
 log = logging.getLogger(__name__)
 
 BUCKET = "swarm-floodrsct-data"
-CONFIG_DIR = Path("/opt/ml/processing/input/config")
+# Launcher uploads configs alongside code into the same S3 prefix,
+# so they land in /opt/ml/processing/input/code/ on the container.
+CONFIG_DIR = Path("/opt/ml/processing/input/code")
 
 # MRMS requires cfgrib + geopandas for spatial aggregation
 # If not available, rainfall_total_mm will be NaN (flagged in obs_mrms_coverage_pct)
