@@ -66,8 +66,16 @@ def fetch_site_list(county_fips: str) -> list[str]:
         "hasDataTypeCd": "iv",
     }
     log.info("Querying site list for county %s", county_fips)
-    resp = requests.get(url, params=params, timeout=60)
-    resp.raise_for_status()
+    for attempt in range(3):
+        try:
+            resp = requests.get(url, params=params, timeout=300)
+            resp.raise_for_status()
+            break
+        except requests.exceptions.ReadTimeout:
+            log.warning("Site list timeout (attempt %d/3)", attempt + 1)
+            if attempt == 2:
+                raise
+            time.sleep(10)
 
     sites = []
     for line in resp.text.splitlines():
@@ -98,7 +106,15 @@ def fetch_iv_data(sites: list[str], start: str, end: str) -> pd.DataFrame:
             "endDT": end,
         }
         log.info("Fetching IV data: sites %d-%d, %s to %s", i, i + len(chunk), start, end)
-        resp = requests.get(NWIS_BASE, params=params, timeout=120)
+        for attempt in range(3):
+            try:
+                resp = requests.get(NWIS_BASE, params=params, timeout=300)
+                break
+            except requests.exceptions.ReadTimeout:
+                log.warning("IV data timeout (attempt %d/3)", attempt + 1)
+                if attempt == 2:
+                    raise
+                time.sleep(10)
         if resp.status_code == 400:
             log.warning("Bad request for chunk %d; skipping. Response: %s", i, resp.text[:200])
             time.sleep(PAGE_SLEEP)

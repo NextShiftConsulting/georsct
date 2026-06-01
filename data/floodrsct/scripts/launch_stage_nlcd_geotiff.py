@@ -28,7 +28,7 @@ def main() -> None:
         job_args=["--upload"],
         instance_type="ml.m5.xlarge",
         volume_size_gb=80,
-        pre_install_cmd="apt-get update -qq && apt-get install -y -qq gdal-bin > /dev/null 2>&1",
+        pre_install_cmd="conda install -y -c conda-forge gdal",
         dry_run=args.dry_run,
     )
 
