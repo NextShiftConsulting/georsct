@@ -985,6 +985,63 @@ features:
       Negative = surge peaks first (storm surge precedes rainfall).
       Requires both tide and MRMS temporal data.
 
+  # ─── R2 Temporal Features (HRRR QPF — forecast rainfall) ────────────────────
+  # Added v1.2 amendment (2026-06-01) for s035-model-ladder R2 bundle.
+  # Raw data: 367 grib2 files across 11 events (51.6 GB on S3).
+  # HRRR is 3-km CONUS NWP; files are 6-hourly inits, fhr=01 (1-hour forecast).
+
+  - feature_name: hrrr_qpf_total_mm
+    temporal_class: event_window
+    scenarios: [houston, nyc, riverside_coachella, southwest_florida, new_orleans]
+    source_type: derived
+    source_dataset: noaa_hrrr
+    raw_s3_path: raw/noaa_hrrr/{event}/
+    processed_s3_path: processed/{scenario}/{scenario}_r2_supplement.parquet
+    build_function: build_r2_features.compute_hrrr_temporal
+    output_column: hrrr_qpf_total_mm
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.004
+    notes: >
+      Cumulative HRRR QPF (mm) at ZCTA centroid over all 6-hourly init times
+      during event window. Each value is APCP fhr=01 (1-hour accumulated precip
+      forecast). Sparser than hourly MRMS (4 samples/day vs 24) but represents
+      NWP forecast skill.
+
+  - feature_name: hrrr_qpf_peak_mm
+    temporal_class: event_window
+    scenarios: [houston, nyc, riverside_coachella, southwest_florida, new_orleans]
+    source_type: derived
+    source_dataset: noaa_hrrr
+    raw_s3_path: raw/noaa_hrrr/{event}/
+    processed_s3_path: processed/{scenario}/{scenario}_r2_supplement.parquet
+    build_function: build_r2_features.compute_hrrr_temporal
+    output_column: hrrr_qpf_peak_mm
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.004
+    notes: >
+      Maximum single-init HRRR QPF (mm) at ZCTA centroid during event window.
+      Captures peak forecast rainfall intensity at 6-hourly resolution.
+
+  - feature_name: hrrr_forecast_bias_mm
+    temporal_class: event_window
+    scenarios: [houston, nyc, riverside_coachella, southwest_florida, new_orleans]
+    source_type: derived
+    source_dataset: noaa_hrrr + noaa_mrms
+    raw_s3_path: raw/noaa_hrrr/{event}/ + raw/noaa_mrms/{event}/
+    processed_s3_path: processed/{scenario}/{scenario}_r2_supplement.parquet
+    build_function: build_r2_features.compute_hrrr_temporal
+    output_column: hrrr_forecast_bias_mm
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.004
+    notes: >
+      hrrr_qpf_total_mm minus total_rainfall_mm (MRMS observed).
+      Positive = HRRR overforecast; negative = underforecast.
+      Requires both HRRR QPF and MRMS to be computed first.
+      Key forecast-skill feature for surrogate model training.
+
   # ─── Post-Event Features (LABELS — not inputs to models) ───────────────────
   # CAUTION: These are outcomes/ground truth. Using as model inputs = label leakage.
 

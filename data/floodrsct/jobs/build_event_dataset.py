@@ -497,7 +497,7 @@ def aggregate_311(s3, source: str, event: str, zcta_ids: list[str]) -> pd.DataFr
         key = f"raw/nyc_311/{event}_flooding_311.parquet"
 
     reports = s3_read(s3, key)
-    empty = pd.DataFrame({"zcta_id": zcta_ids, "complaints_311_count": 0,
+    empty = pd.DataFrame({"zcta_id": zcta_ids, "flood_311_count": 0,
                            "obs_has_311": False})
     if reports is None or reports.empty:
         return empty
@@ -506,12 +506,12 @@ def aggregate_311(s3, source: str, event: str, zcta_ids: list[str]) -> pd.DataFr
         return empty
 
     agg = (reports.groupby("zcta_id").size()
-           .reset_index(name="complaints_311_count"))
+           .reset_index(name="flood_311_count"))
     agg["obs_has_311"] = True
 
     all_zctas = pd.DataFrame({"zcta_id": zcta_ids})
     result = all_zctas.merge(agg, on="zcta_id", how="left")
-    result["complaints_311_count"] = result["complaints_311_count"].fillna(0).astype(int)
+    result["flood_311_count"] = result["flood_311_count"].fillna(0).astype(int)
     result["obs_has_311"] = result["obs_has_311"].fillna(False)
     return result
 
@@ -791,12 +791,13 @@ def build_new_orleans(s3, cfg: dict) -> pd.DataFrame:
         nwis   = aggregate_nwis(s3, "new_orleans", event_name, no_zctas, cfg)
         mrms   = aggregate_mrms_rainfall(s3, s3_key, no_zctas)
         tides  = aggregate_tides(s3, "raw/noaa_tides/", s3_key, no_zctas)
+        hwm    = aggregate_hwm(s3, s3_key, no_zctas)
         nfip   = load_nfip_event_claims(s3, ev["dr"], no_zctas)
         storm  = compute_storm_proximity(s3, ev["storm_id"], ev["peak_window"], no_zctas)
 
         base = pd.DataFrame({"zcta_id": no_zctas, "event": event_name,
                               "scenario": "new_orleans"})
-        base = _safe_merge_parts(base, [nwis, mrms, tides, nfip, storm, levee_feats, elevation, pump_op])
+        base = _safe_merge_parts(base, [nwis, mrms, tides, hwm, nfip, storm, levee_feats, elevation, pump_op])
         if not static.empty:
             base = _safe_merge_parts(base, [static])
         # Attach pump evidence for Ida 2021 (hand-coded override for pump_station_status)

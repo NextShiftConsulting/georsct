@@ -6,10 +6,16 @@ Reads existing hourly MRMS grib2 files and tide gauge parquets from S3.
 Produces per-ZCTA temporal statistics for the R2 representation bundle.
 
 R2 features (all event_window temporal class):
+  MRMS observed rainfall:
   - peak_1h_mm, peak_3h_mm, peak_6h_mm: rolling-max rainfall at ZCTA centroid
   - storm_duration_h: hours where rainfall exceeds 1 mm
   - time_to_peak_h: hours from first rain to peak rain
   - rainfall_intensity_cv: CV of hourly rainfall during storm hours
+  HRRR QPF (forecast rainfall):
+  - hrrr_qpf_total_mm: cumulative HRRR forecast precip at ZCTA centroid
+  - hrrr_qpf_peak_mm: max single-init HRRR QPF
+  - hrrr_forecast_bias_mm: QPF total minus MRMS observed total
+  Tide/surge:
   - tide_peak_m: max observed water level from nearest tide station
   - surge_rain_lag_h: hours between peak rainfall and peak surge
 
@@ -58,7 +64,7 @@ SCENARIO_EVENTS = {
     "houston": ["harvey2017", "imelda2019", "beryl2024"],
     "southwest_florida": ["ian2022", "milton2024", "helene2024"],
     "nyc": ["ida2021_nyc", "henri2021"],
-    "riverside_coachella": ["hilary2023"],
+    "riverside_coachella": ["hilary2023", "ar_flood_2023"],
     "new_orleans": ["ida2021_nola"],
 }
 
@@ -135,8 +141,13 @@ def build_centroid_index(lat_1d: np.ndarray, lon_1d: np.ndarray,
 
 def compute_mrms_temporal(s3, event: str, zcta_ids: list[str],
                           centroid_lats: np.ndarray,
-                          centroid_lons: np.ndarray) -> pd.DataFrame:
-    """Build per-ZCTA temporal rainfall features from hourly MRMS grib2 files."""
+                          centroid_lons: np.ndarray) -> tuple[pd.DataFrame, dict]:
+    """Build per-ZCTA temporal rainfall features from hourly MRMS grib2 files.
+
+    Returns:
+        (df, peak_rain_hours): DataFrame of temporal stats and dict mapping
+        zcta_id -> datetime of peak rainfall hour (for surge-rain lag).
+    """
     prefix = f"raw/noaa_mrms/{event}/"
     resp = s3.list_objects_v2(Bucket=BUCKET, Prefix=prefix, MaxKeys=1000)
     all_keys = [o["Key"] for o in resp.get("Contents", [])
@@ -150,7 +161,7 @@ def compute_mrms_temporal(s3, event: str, zcta_ids: list[str],
 
     if not all_keys:
         log.warning("No MRMS files for event %s", event)
-        return _empty_r2(zcta_ids)
+        return _empty_r2(zcta_ids), {}
 
     # Sort by timestamp
     keyed = []
@@ -202,7 +213,7 @@ def compute_mrms_temporal(s3, event: str, zcta_ids: list[str],
 
     if grid_index is None:
         log.error("No MRMS files decoded successfully for %s", event)
-        return _empty_r2(zcta_ids)
+        return _empty_r2(zcta_ids), {}
 
     # Compute temporal features from the rainfall matrix
     # Replace NaN columns (missing hours) with 0 for rolling computations
@@ -215,8 +226,19 @@ def compute_mrms_temporal(s3, event: str, zcta_ids: list[str],
         results.append(_compute_temporal_stats(ts, zcta_ids[i]))
 
     df = pd.DataFrame(results)
-    log.info("R2 temporal features computed for event %s: %d ZCTAs", event, len(df))
-    return df
+
+    # Build peak-rain-hour lookup: zcta_id -> datetime of peak rainfall
+    peak_rain_hours = {}
+    for i, zcta in enumerate(zcta_ids):
+        h = np.nan_to_num(rainfall_matrix[i, :], nan=0.0)
+        if np.any(h > RAIN_THRESHOLD_MM):
+            peak_idx = int(np.argmax(h))
+            if peak_idx < len(timestamps):
+                peak_rain_hours[zcta] = timestamps[peak_idx]
+
+    log.info("R2 temporal features computed for event %s: %d ZCTAs, %d with peak rain time",
+             event, len(df), len(peak_rain_hours))
+    return df, peak_rain_hours
 
 
 def _compute_temporal_stats(hourly: np.ndarray, zcta_id: str) -> dict:
@@ -283,6 +305,176 @@ def _empty_r2(zcta_ids: list[str]) -> pd.DataFrame:
         "storm_duration_h": np.nan,
         "time_to_peak_h": np.nan,
         "rainfall_intensity_cv": np.nan,
+    })
+
+
+def parse_hrrr_timestamp(filename: str) -> datetime:
+    """Extract datetime from HRRR filename like hrrr.20170817.t00z.wrfsfcf01.grib2"""
+    match = re.search(r"hrrr\.(\d{8})\.t(\d{2})z", filename)
+    if not match:
+        return None
+    return datetime.strptime(match.group(1) + match.group(2), "%Y%m%d%H")
+
+
+def _decode_one_hrrr(args: tuple):
+    """Worker: download + decode one HRRR grib2 file.
+
+    HRRR grib2 files are ~100 MB with hundreds of variables. We filter to
+    APCP (accumulated precipitation) only via cfgrib backend_kwargs.
+    Returns (precip_2d, lat_2d, lon_2d) or None.
+    """
+    key, bucket = args
+    import boto3
+    s3w = boto3.client("s3", region_name="us-east-1")
+
+    with tempfile.NamedTemporaryFile(suffix=".grib2", delete=False) as f:
+        s3w.download_fileobj(bucket, key, f)
+        f.flush()
+        tmp_path = f.name
+
+    try:
+        import cfgrib
+        # Filter to APCP only — avoids indexing all ~100+ messages
+        ds = cfgrib.open_dataset(
+            tmp_path, indexpath=None,
+            backend_kwargs={"filter_by_keys": {"shortName": "tp"}},
+        )
+        precip_var = next(
+            (v for v in ["tp", "unknown", "apcp", "APCP"] if v in ds), None
+        )
+        if precip_var is None:
+            # Fallback: try without filter
+            ds = cfgrib.open_dataset(tmp_path, indexpath=None)
+            precip_var = next(
+                (v for v in ["tp", "unknown", "apcp", "APCP"] if v in ds), None
+            )
+            if precip_var is None:
+                return None
+        return (ds[precip_var].values, ds["latitude"].values, ds["longitude"].values)
+    except Exception:
+        return None
+    finally:
+        try:
+            Path(tmp_path).unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+def compute_hrrr_temporal(s3, event: str, zcta_ids: list[str],
+                          centroid_lats: np.ndarray,
+                          centroid_lons: np.ndarray,
+                          mrms_total: dict | None = None) -> pd.DataFrame:
+    """Build per-ZCTA HRRR QPF features from 6-hourly grib2 files.
+
+    Args:
+        s3: boto3 S3 client.
+        event: Event name (e.g. 'harvey2017').
+        zcta_ids: List of ZCTA IDs.
+        centroid_lats, centroid_lons: ZCTA centroid coordinates.
+        mrms_total: Optional dict of zcta_id -> MRMS total_rainfall_mm
+            for computing forecast bias. If None, bias column is NaN.
+
+    Returns:
+        DataFrame with columns: zcta_id, hrrr_qpf_total_mm,
+        hrrr_qpf_peak_mm, hrrr_forecast_bias_mm.
+    """
+    prefix = f"raw/noaa_hrrr/{event}/"
+    resp = s3.list_objects_v2(Bucket=BUCKET, Prefix=prefix, MaxKeys=1000)
+    all_keys = [o["Key"] for o in resp.get("Contents", [])
+                if o["Key"].endswith(".grib2")]
+    while resp.get("IsTruncated"):
+        resp = s3.list_objects_v2(Bucket=BUCKET, Prefix=prefix, MaxKeys=1000,
+                                  ContinuationToken=resp["NextContinuationToken"])
+        all_keys.extend(o["Key"] for o in resp.get("Contents", [])
+                        if o["Key"].endswith(".grib2"))
+
+    if not all_keys:
+        log.warning("No HRRR files for event %s", event)
+        return _empty_hrrr(zcta_ids)
+
+    # Sort by timestamp
+    keyed = []
+    for k in all_keys:
+        ts = parse_hrrr_timestamp(k.split("/")[-1])
+        if ts:
+            keyed.append((ts, k))
+    keyed.sort(key=lambda x: x[0])
+    sorted_keys = [k for _, k in keyed]
+    n_inits = len(sorted_keys)
+    n_zctas = len(zcta_ids)
+    log.info("HRRR QPF: event=%s, %d init times, %d ZCTAs", event, n_inits, n_zctas)
+
+    # Decode in parallel — HRRR files are large (~100 MB) so limit workers
+    n_workers = min(os.cpu_count() // 2 or 2, 4)
+    grid_index = None
+    qpf_matrix = np.full((n_zctas, n_inits), np.nan, dtype=np.float32)
+
+    work_items = [(k, BUCKET) for k in sorted_keys]
+    key_to_idx = {k: i for i, k in enumerate(sorted_keys)}
+
+    with ProcessPoolExecutor(max_workers=n_workers) as pool:
+        futures = {pool.submit(_decode_one_hrrr, item): item for item in work_items}
+        done_count = 0
+        for fut in as_completed(futures):
+            done_count += 1
+            if done_count % 10 == 0:
+                log.info("HRRR decode progress: %d/%d", done_count, n_inits)
+                sys.stdout.flush()
+
+            result = fut.result()
+            if result is None:
+                continue
+
+            arr, lat, lon = result
+            key_used = futures[fut][0]
+            init_idx = key_to_idx[key_used]
+
+            if grid_index is None:
+                grid_index = build_centroid_index(lat, lon, centroid_lats, centroid_lons)
+                log.info("HRRR grid index built: %d centroids mapped", len(grid_index))
+
+            flat_vals = arr.flatten()
+            qpf_vals = flat_vals[grid_index]
+            qpf_matrix[:, init_idx] = np.where(np.isnan(qpf_vals), 0.0, qpf_vals)
+
+    if grid_index is None:
+        log.error("No HRRR files decoded successfully for %s", event)
+        return _empty_hrrr(zcta_ids)
+
+    valid_inits = (~np.all(np.isnan(qpf_matrix), axis=0)).sum()
+    log.info("HRRR valid init times: %d/%d", valid_inits, n_inits)
+
+    # Compute per-ZCTA QPF stats
+    results = []
+    for i in range(n_zctas):
+        h = np.nan_to_num(qpf_matrix[i, :], nan=0.0)
+        total = float(np.sum(h))
+        peak = float(np.max(h)) if len(h) > 0 else np.nan
+
+        bias = np.nan
+        if mrms_total and zcta_ids[i] in mrms_total:
+            obs = mrms_total[zcta_ids[i]]
+            if not np.isnan(obs):
+                bias = total - obs
+
+        results.append({
+            "zcta_id": zcta_ids[i],
+            "hrrr_qpf_total_mm": total,
+            "hrrr_qpf_peak_mm": peak,
+            "hrrr_forecast_bias_mm": bias,
+        })
+
+    df = pd.DataFrame(results)
+    log.info("HRRR QPF features computed for event %s: %d ZCTAs", event, len(df))
+    return df
+
+
+def _empty_hrrr(zcta_ids: list[str]) -> pd.DataFrame:
+    return pd.DataFrame({
+        "zcta_id": zcta_ids,
+        "hrrr_qpf_total_mm": np.nan,
+        "hrrr_qpf_peak_mm": np.nan,
+        "hrrr_forecast_bias_mm": np.nan,
     })
 
 
@@ -407,20 +599,23 @@ def main() -> None:
     for event in events:
         log.info("Processing event: %s", event)
 
-        # MRMS temporal features
-        mrms = compute_mrms_temporal(s3, event, zcta_order, clats, clons)
+        # MRMS temporal features + peak rain timestamps for surge-rain lag
+        mrms, peak_rain_hour = compute_mrms_temporal(s3, event, zcta_order, clats, clons)
 
-        # Build peak-rain-hour lookup for surge-rain lag
-        # (hour index only; absolute times would require keeping timestamps)
-        peak_rain_hour = {}
-        for _, row in mrms.iterrows():
-            peak_rain_hour[row["zcta_id"]] = None  # simplified: no absolute time
+        # HRRR QPF features (needs MRMS totals for forecast bias)
+        mrms_total_lookup = dict(zip(mrms["zcta_id"], mrms["peak_1h_mm"]))
+        # Use existing total_rainfall_mm from assembled parquet if available
+        event_rows = df[df.get("event", pd.Series()) == event] if "event" in df.columns else pd.DataFrame()
+        if not event_rows.empty and "total_rainfall_mm" in event_rows.columns:
+            mrms_total_lookup = dict(zip(event_rows["zcta_id"], event_rows["total_rainfall_mm"]))
+        hrrr = compute_hrrr_temporal(s3, event, zcta_order, clats, clons, mrms_total_lookup)
 
         # Tide gauge features
         tide = compute_tide_features(s3, event, zcta_order, clats, clons, peak_rain_hour)
 
-        # Merge MRMS + tide
-        r2 = mrms.merge(tide, on="zcta_id", how="outer")
+        # Merge MRMS + HRRR + tide
+        r2 = mrms.merge(hrrr, on="zcta_id", how="outer")
+        r2 = r2.merge(tide, on="zcta_id", how="outer")
         r2["event"] = event
         event_results.append(r2)
 
