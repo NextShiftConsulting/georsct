@@ -1909,6 +1909,7 @@ def build_sewershed_features(s3, zcta_ids: list[str]) -> pd.DataFrame:
     Returns DataFrame: zcta_id, sewer_shed_id, _fs_sewer_shed_id.
     """
     empty = pd.DataFrame({"zcta_id": zcta_ids, "sewer_shed_id": None,
+                           "sewershed_name": None,
                            "_fs_sewer_shed_id": _FS_MISSING})
 
     if not HAS_GEO:
@@ -1926,15 +1927,21 @@ def build_sewershed_features(s3, zcta_ids: list[str]) -> pd.DataFrame:
         log.warning("build_sewershed_features: sewershed parquet not found; returning null")
         return empty
 
-    # Find the ID column
+    # Find the ID and name columns
     id_col = next((c for c in sewer_df.columns
                    if any(k in c.lower() for k in ["shed_id", "drainage_id", "district", "id"])),
                   sewer_df.columns[0])
+    name_col = next((c for c in sewer_df.columns
+                     if any(k in c.lower() for k in ["name", "shed_name", "drainage_name"])),
+                    None)
     geom_col = "geometry" if "geometry" in sewer_df.columns else None
     if geom_col is None:
         log.warning("build_sewershed_features: no geometry column in sewershed parquet; returning null")
         return empty
 
+    join_cols = [id_col, geom_col]
+    if name_col:
+        join_cols.insert(1, name_col)
     sewer_gdf = gpd.GeoDataFrame(sewer_df, geometry=geom_col, crs="EPSG:4326")
 
     # Load ZCTA centroids
@@ -1957,10 +1964,16 @@ def build_sewershed_features(s3, zcta_ids: list[str]) -> pd.DataFrame:
         crs="EPSG:4326",
     )
 
-    joined = gpd.sjoin(centroid_gdf, sewer_gdf[[id_col, geom_col]],
+    joined = gpd.sjoin(centroid_gdf, sewer_gdf[join_cols],
                        how="left", predicate="within")
-    joined = joined.rename(columns={id_col: "sewer_shed_id"})
-    out = joined[["zcta_id", "sewer_shed_id"]].drop_duplicates("zcta_id")
+    rename_map = {id_col: "sewer_shed_id"}
+    if name_col:
+        rename_map[name_col] = "sewershed_name"
+    joined = joined.rename(columns=rename_map)
+    out_cols = ["zcta_id", "sewer_shed_id"]
+    if "sewershed_name" in joined.columns:
+        out_cols.append("sewershed_name")
+    out = joined[out_cols].drop_duplicates("zcta_id")
     out = pd.DataFrame({"zcta_id": zcta_ids}).merge(out, on="zcta_id", how="left")
     out["_fs_sewer_shed_id"] = np.where(out["sewer_shed_id"].notna(), "present", _FS_MISSING)
     log.info("build_sewershed_features: %d ZCTAs, %.1f%% matched",
@@ -2047,7 +2060,7 @@ def build_levee_features(s3, zcta_ids: list[str], scenario: str) -> pd.DataFrame
     Returns DataFrame: zcta_id, levee_condition_rating, _fs_levee_condition_rating.
     """
     empty = pd.DataFrame({"zcta_id": zcta_ids, "levee_condition_rating": np.nan,
-                          "canal_proximity_m": np.nan,
+                          "levee_nearest_km": np.nan, "canal_proximity_m": np.nan,
                           "_fs_levee_condition_rating": _FS_MISSING})
 
     levee_key = f"raw/usace_levees/{scenario}_levees.parquet"
@@ -2099,6 +2112,7 @@ def build_levee_features(s3, zcta_ids: list[str], scenario: str) -> pd.DataFrame
         rows.append({
             "zcta_id": crow["zcta_id"],
             "levee_condition_rating": rating,
+            "levee_nearest_km": float(dists_km[nearest_idx]) if lat_col and lon_col else np.nan,
             "canal_proximity_m": nearest_dist_m,
         })
 

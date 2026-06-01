@@ -18,6 +18,8 @@ R2 features (all event_window temporal class):
   Tide/surge:
   - tide_peak_m: max observed water level from nearest tide station
   - surge_rain_lag_h: hours between peak rainfall and peak surge
+  Storm dynamics:
+  - storm_approach_speed_kph: TC forward speed at closest approach (HURDAT2)
 
 Approach:
   1. Decode ONE grib2 to get grid coordinates
@@ -47,9 +49,12 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import yaml
 
 sys.path.insert(0, str(Path(__file__).parent))
 from _coverage_common import BUCKET, SCENARIOS, get_s3_client, load_processed_parquet
+
+CODE_DIR = Path("/opt/ml/processing/input/code")
 
 logging.basicConfig(
     level=logging.INFO,
@@ -555,6 +560,107 @@ def compute_tide_features(s3, event: str, zcta_ids: list[str],
     return pd.DataFrame(results)
 
 
+def compute_storm_approach_speed(
+    s3, event: str, storm_id: str,
+    peak_window: tuple[str, str],
+    zcta_ids: list[str],
+    centroid_lats: np.ndarray, centroid_lons: np.ndarray,
+) -> pd.DataFrame:
+    """Compute TC forward speed (km/h) at closest approach to scenario centroid.
+
+    Uses consecutive HURDAT2 6-hourly fixes. Forward speed = haversine distance
+    between fixes / time delta. Returns the speed at the fix closest to the
+    mean scenario centroid during the peak window.
+
+    Returns DataFrame: zcta_id, storm_approach_speed_kph (same value for all ZCTAs
+    in a scenario — this is a storm-level, not ZCTA-level, feature).
+    """
+    empty = pd.DataFrame({"zcta_id": zcta_ids, "storm_approach_speed_kph": np.nan})
+
+    if not storm_id:
+        return empty
+
+    obj = s3.get_object(Bucket=BUCKET, Key="raw/hurdat2/storm_tracks.parquet")
+    hurdat = pd.read_parquet(io.BytesIO(obj["Body"].read()))
+    if hurdat.empty:
+        return empty
+
+    # Filter to this storm + peak window
+    ts_col = hurdat["timestamp"]
+    if ts_col.dt.tz is None:
+        ts_col = ts_col.dt.tz_localize("UTC")
+    mask = (
+        (hurdat["storm_id"] == storm_id) &
+        (ts_col >= pd.Timestamp(peak_window[0], tz="UTC")) &
+        (ts_col <= pd.Timestamp(peak_window[1], tz="UTC"))
+    )
+    track = hurdat[mask].sort_values("timestamp").reset_index(drop=True)
+    if len(track) < 2:
+        log.warning("storm_approach_speed: < 2 fixes for %s in peak window", storm_id)
+        return empty
+
+    # Scenario centroid (mean of all ZCTA centroids)
+    sc_lat = float(np.nanmean(centroid_lats))
+    sc_lon = float(np.nanmean(centroid_lons))
+
+    # Find the fix closest to scenario centroid
+    R = 6371.0
+    best_idx = 0
+    best_dist = np.inf
+    for i, row in track.iterrows():
+        if pd.isna(row["lat"]) or pd.isna(row["lon"]):
+            continue
+        dlat = np.radians(row["lat"] - sc_lat)
+        dlon = np.radians(row["lon"] - sc_lon)
+        a = (np.sin(dlat / 2) ** 2 +
+             np.cos(np.radians(sc_lat)) * np.cos(np.radians(row["lat"])) *
+             np.sin(dlon / 2) ** 2)
+        d = R * 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
+        if d < best_dist:
+            best_dist = d
+            best_idx = i
+
+    # Compute forward speed between closest fix and adjacent fix
+    # Use the segment ending at closest fix (or starting, if closest is first)
+    if best_idx == 0:
+        idx_a, idx_b = 0, 1
+    else:
+        idx_a, idx_b = best_idx - 1, best_idx
+
+    fix_a = track.loc[idx_a]
+    fix_b = track.loc[idx_b]
+    if pd.isna(fix_a["lat"]) or pd.isna(fix_b["lat"]):
+        return empty
+
+    # Haversine between consecutive fixes
+    dlat = np.radians(fix_b["lat"] - fix_a["lat"])
+    dlon = np.radians(fix_b["lon"] - fix_a["lon"])
+    a = (np.sin(dlat / 2) ** 2 +
+         np.cos(np.radians(fix_a["lat"])) * np.cos(np.radians(fix_b["lat"])) *
+         np.sin(dlon / 2) ** 2)
+    dist_km = R * 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
+
+    # Time delta in hours
+    t_a = pd.Timestamp(fix_a["timestamp"])
+    t_b = pd.Timestamp(fix_b["timestamp"])
+    if t_a.tz is None:
+        t_a = t_a.tz_localize("UTC")
+    if t_b.tz is None:
+        t_b = t_b.tz_localize("UTC")
+    dt_hours = (t_b - t_a).total_seconds() / 3600
+    if dt_hours <= 0:
+        return empty
+
+    speed_kph = float(dist_km / dt_hours)
+    log.info("storm_approach_speed: %s closest at %.0f km, speed=%.1f kph",
+             storm_id, best_dist, speed_kph)
+
+    return pd.DataFrame({
+        "zcta_id": zcta_ids,
+        "storm_approach_speed_kph": speed_kph,
+    })
+
+
 def load_zcta_centroids(s3, zcta_ids: list[str]):
     """Load ZCTA centroids from geocertdb2026."""
     obj = s3.get_object(Bucket=BUCKET, Key="raw/geocertdb2026/zcta_features_labels.parquet")
@@ -582,6 +688,11 @@ def main() -> None:
     log.info("build_r2_features: scenario=%s, events=%s", scenario, events)
 
     s3 = get_s3_client()
+
+    # Load scenario config for storm IDs
+    cfg_path = CODE_DIR / f"{scenario}.yaml"
+    cfg = yaml.safe_load(cfg_path.read_text()) if cfg_path.exists() else {}
+    cfg_events = cfg.get("events", {})
 
     # Load assembled parquet for ZCTA IDs and event assignment
     df = load_processed_parquet(s3, scenario)
@@ -613,9 +724,27 @@ def main() -> None:
         # Tide gauge features
         tide = compute_tide_features(s3, event, zcta_order, clats, clons, peak_rain_hour)
 
-        # Merge MRMS + HRRR + tide
+        # Storm approach speed from HURDAT2
+        # Map S3 event key back to config event name (e.g., ida2021_nyc -> ida2021)
+        cfg_event_key = next(
+            (k for k in cfg_events if event.startswith(k)), None
+        )
+        if cfg_event_key and cfg_events[cfg_event_key].get("nhc_storm_id"):
+            ev_cfg = cfg_events[cfg_event_key]
+            storm_speed = compute_storm_approach_speed(
+                s3, event, ev_cfg["nhc_storm_id"],
+                tuple(ev_cfg["peak_window"]),
+                zcta_order, clats, clons,
+            )
+        else:
+            storm_speed = pd.DataFrame({
+                "zcta_id": zcta_order, "storm_approach_speed_kph": np.nan,
+            })
+
+        # Merge MRMS + HRRR + tide + storm speed
         r2 = mrms.merge(hrrr, on="zcta_id", how="outer")
         r2 = r2.merge(tide, on="zcta_id", how="outer")
+        r2 = r2.merge(storm_speed, on="zcta_id", how="outer")
         r2["event"] = event
         event_results.append(r2)
 
