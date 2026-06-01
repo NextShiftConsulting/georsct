@@ -27,8 +27,8 @@ def main() -> None:
         job_script="stage_nlcd_geotiff.py",
         job_args=["--upload"],
         instance_type="ml.m5.xlarge",
-        volume_size_gb=80,
-        pre_install_cmd="conda create -y -n geo -c conda-forge python=3.11 rasterio boto3 && export PATH=/opt/conda/envs/geo/bin:$PATH && export LD_LIBRARY_PATH=/opt/conda/envs/geo/lib:$LD_LIBRARY_PATH",
+        volume_size_gb=100,
+        pre_install_cmd="conda create -y -n geo -c conda-forge python=3.11 rasterio boto3 requests && export PATH=/opt/conda/envs/geo/bin:$PATH && export LD_LIBRARY_PATH=/opt/conda/envs/geo/lib:$LD_LIBRARY_PATH",
         dry_run=args.dry_run,
     )
 
