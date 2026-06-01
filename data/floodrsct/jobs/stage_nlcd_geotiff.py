@@ -19,7 +19,6 @@ Usage:
 import argparse
 import hashlib
 import logging
-import subprocess
 import sys
 from pathlib import Path
 
@@ -61,17 +60,25 @@ def main() -> None:
     img_size = Path(local_img).stat().st_size
     log.info("Downloaded: %.1f GB", img_size / 1e9)
 
-    # Convert via gdal_translate
-    log.info("Converting .img -> .tif via gdal_translate (LZW compression)...")
-    result = subprocess.run(
-        ["gdal_translate", "-of", "GTiff", "-co", "COMPRESS=LZW",
-         "-co", "TILED=YES", "-co", "BIGTIFF=YES",
-         local_img, local_tif],
-        capture_output=True, text=True, timeout=3600,
-    )
-    if result.returncode != 0:
-        log.error("gdal_translate failed: %s", result.stderr[:1000])
-        sys.exit(1)
+    # Convert via rasterio windowed I/O (161K x 105K uint8 = 16 GB, won't fit in RAM)
+    import rasterio
+    log.info("Converting .img -> .tif via rasterio (LZW, tiled, windowed)...")
+    with rasterio.open(local_img) as src:
+        profile = src.profile.copy()
+        profile.update(
+            driver="GTiff",
+            compress="lzw",
+            tiled=True,
+            bigtiff="YES",
+        )
+        log.info("Source: %d x %d, %d band(s), dtype=%s", src.width, src.height, src.count, src.dtypes[0])
+        with rasterio.open(local_tif, "w", **profile) as dst:
+            windows = list(src.block_windows(1))
+            for i, (_, window) in enumerate(windows):
+                data = src.read(1, window=window)
+                dst.write(data, 1, window=window)
+                if (i + 1) % 500 == 0:
+                    log.info("  block %d / %d", i + 1, len(windows))
 
     tif_size = Path(local_tif).stat().st_size
     log.info("Conversion complete: %.1f GB (%.0f%% of original)",

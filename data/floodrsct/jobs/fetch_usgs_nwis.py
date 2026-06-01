@@ -71,8 +71,8 @@ def fetch_site_list(county_fips: str) -> list[str]:
             resp = requests.get(url, params=params, timeout=300)
             resp.raise_for_status()
             break
-        except requests.exceptions.ReadTimeout:
-            log.warning("Site list timeout (attempt %d/3)", attempt + 1)
+        except (requests.exceptions.ReadTimeout, requests.exceptions.SSLError, requests.exceptions.ConnectionError) as e:
+            log.warning("Site list request failed (attempt %d/3): %s", attempt + 1, type(e).__name__)
             if attempt == 2:
                 raise
             time.sleep(10)
@@ -93,7 +93,7 @@ def fetch_iv_data(sites: list[str], start: str, end: str) -> pd.DataFrame:
 
     NWIS IV service has a ~300-site limit per request; chunk accordingly.
     """
-    chunk_size = 100
+    chunk_size = 25  # smaller chunks reduce SSL/timeout risk on large queries
     frames = []
 
     for i in range(0, len(sites), chunk_size):
@@ -110,8 +110,8 @@ def fetch_iv_data(sites: list[str], start: str, end: str) -> pd.DataFrame:
             try:
                 resp = requests.get(NWIS_BASE, params=params, timeout=300)
                 break
-            except requests.exceptions.ReadTimeout:
-                log.warning("IV data timeout (attempt %d/3)", attempt + 1)
+            except (requests.exceptions.ReadTimeout, requests.exceptions.SSLError, requests.exceptions.ConnectionError) as e:
+                log.warning("IV data request failed (attempt %d/3): %s", attempt + 1, type(e).__name__)
                 if attempt == 2:
                     raise
                 time.sleep(10)
