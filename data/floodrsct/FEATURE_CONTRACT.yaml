@@ -855,6 +855,136 @@ features:
       Minimum distance (km) from ZCTA centroid to storm track during peak window.
       Derived from HURDAT2 best-track 6-hourly positions.
 
+  # ─── R2 Temporal Features (derived from existing MRMS + tide raw data) ─────
+  # Added v1.2 amendment (2026-06-01) for s035-model-ladder R2 bundle.
+  # Source data already on S3; these are temporal aggregations not yet computed.
+
+  - feature_name: peak_1h_mm
+    temporal_class: event_window
+    scenarios: [houston, nyc, riverside_coachella, southwest_florida, new_orleans]
+    source_type: derived
+    source_dataset: noaa_mrms
+    raw_s3_path: raw/noaa_mrms/{event}/
+    processed_s3_path: processed/{scenario}/{scenario}_r2_supplement.parquet
+    build_function: build_r2_features.compute_mrms_temporal
+    output_column: peak_1h_mm
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.004
+    notes: >
+      Maximum single-hour MRMS Stage IV rainfall (mm) at ZCTA centroid during event window.
+      Requires hourly rainfall matrix (n_zctas x n_hours) from grib2 decoding.
+
+  - feature_name: peak_3h_mm
+    temporal_class: event_window
+    scenarios: [houston, nyc, riverside_coachella, southwest_florida, new_orleans]
+    source_type: derived
+    source_dataset: noaa_mrms
+    raw_s3_path: raw/noaa_mrms/{event}/
+    processed_s3_path: processed/{scenario}/{scenario}_r2_supplement.parquet
+    build_function: build_r2_features.compute_mrms_temporal
+    output_column: peak_3h_mm
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.004
+    notes: Max 3-hour rolling sum of hourly rainfall at ZCTA centroid.
+
+  - feature_name: peak_6h_mm
+    temporal_class: event_window
+    scenarios: [houston, nyc, riverside_coachella, southwest_florida, new_orleans]
+    source_type: derived
+    source_dataset: noaa_mrms
+    raw_s3_path: raw/noaa_mrms/{event}/
+    processed_s3_path: processed/{scenario}/{scenario}_r2_supplement.parquet
+    build_function: build_r2_features.compute_mrms_temporal
+    output_column: peak_6h_mm
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.004
+    notes: Max 6-hour rolling sum of hourly rainfall at ZCTA centroid.
+
+  - feature_name: storm_duration_h
+    temporal_class: event_window
+    scenarios: [houston, nyc, riverside_coachella, southwest_florida, new_orleans]
+    source_type: derived
+    source_dataset: noaa_mrms
+    raw_s3_path: raw/noaa_mrms/{event}/
+    processed_s3_path: processed/{scenario}/{scenario}_r2_supplement.parquet
+    build_function: build_r2_features.compute_mrms_temporal
+    output_column: storm_duration_h
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.004
+    notes: >
+      Count of hours where MRMS rainfall exceeds 1 mm at ZCTA centroid.
+      Threshold: 1 mm/h (trace rainfall excluded).
+
+  - feature_name: time_to_peak_h
+    temporal_class: event_window
+    scenarios: [houston, nyc, riverside_coachella, southwest_florida, new_orleans]
+    source_type: derived
+    source_dataset: noaa_mrms
+    raw_s3_path: raw/noaa_mrms/{event}/
+    processed_s3_path: processed/{scenario}/{scenario}_r2_supplement.parquet
+    build_function: build_r2_features.compute_mrms_temporal
+    output_column: time_to_peak_h
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.004
+    notes: >
+      Hours from first rainfall (>1 mm) to peak hourly rainfall at ZCTA centroid.
+      Captures storm ramp-up dynamics.
+
+  - feature_name: rainfall_intensity_cv
+    temporal_class: event_window
+    scenarios: [houston, nyc, riverside_coachella, southwest_florida, new_orleans]
+    source_type: derived
+    source_dataset: noaa_mrms
+    raw_s3_path: raw/noaa_mrms/{event}/
+    processed_s3_path: processed/{scenario}/{scenario}_r2_supplement.parquet
+    build_function: build_r2_features.compute_mrms_temporal
+    output_column: rainfall_intensity_cv
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.004
+    notes: >
+      Coefficient of variation of hourly rainfall during storm hours (>1 mm).
+      High CV = burst-type rainfall; low CV = sustained rainfall.
+
+  - feature_name: tide_peak_m
+    temporal_class: event_window
+    scenarios: [houston, new_orleans, southwest_florida, nyc]
+    source_type: derived
+    source_dataset: noaa_tides
+    raw_s3_path: raw/noaa_tides/{event}/
+    processed_s3_path: processed/{scenario}/{scenario}_r2_supplement.parquet
+    build_function: build_r2_features.compute_tide_features
+    output_column: tide_peak_m
+    missing_behavior: "NaN — field_status = missing_source_data (inland ZCTAs)"
+    field_status_behavior: missing_source_data
+    version_target: v24.004
+    notes: >
+      Peak observed water level (m) from nearest NOAA CO-OPS tide station.
+      Coastal ZCTAs only; inland ZCTAs get NaN.
+
+  - feature_name: surge_rain_lag_h
+    temporal_class: event_window
+    scenarios: [houston, new_orleans, southwest_florida, nyc]
+    source_type: derived
+    source_dataset: noaa_tides + noaa_mrms
+    raw_s3_path: raw/noaa_tides/{event}/ + raw/noaa_mrms/{event}/
+    processed_s3_path: processed/{scenario}/{scenario}_r2_supplement.parquet
+    build_function: build_r2_features.compute_tide_features
+    output_column: surge_rain_lag_h
+    missing_behavior: "NaN — field_status = missing_source_data (inland or no overlap)"
+    field_status_behavior: missing_source_data
+    version_target: v24.004
+    notes: >
+      Hours between peak rainfall and peak surge at nearest tide station.
+      Positive = surge peaks after rain (compound flooding risk).
+      Negative = surge peaks first (storm surge precedes rainfall).
+      Requires both tide and MRMS temporal data.
+
   # ─── Post-Event Features (LABELS — not inputs to models) ───────────────────
   # CAUTION: These are outcomes/ground truth. Using as model inputs = label leakage.
 

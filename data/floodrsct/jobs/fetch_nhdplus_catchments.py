@@ -12,8 +12,11 @@ Source: NHDPlus V2 national seamless dataset
   Or per-VPU (Vector Processing Unit) downloads which are smaller.
 
 Target VPUs (Vector Processing Units):
-  18  — California (covers Riverside-Coachella / Salton Sea / Mojave)
+  02  — Mid-Atlantic (covers NYC/NJ)
+  03S — South Atlantic Gulf South (covers SW Florida)
+  08  — Lower Mississippi (covers New Orleans)
   12  — Texas Gulf (covers Houston / Harris County)
+  18  — California (covers Riverside-Coachella / Salton Sea / Mojave)
 
 Output:
   s3://swarm-floodrsct-data/raw/nhdplus/catchments/v2/catchments_{vpu}.parquet
@@ -53,18 +56,41 @@ DATASET = "nhdplus_v2_catchments"
 # NHDPlus V2 VPU download URLs (EPA S3 open data)
 # Each VPU zip contains NHDPlusCatchment shapefile + NHDFlowline + attributes
 VPU_DOWNLOADS = {
-    "18": {
-        "name": "California",
+    "02": {
+        "name": "Mid-Atlantic",
         "url": (
             "https://dmap-data-commons-ow.s3.amazonaws.com/NHDPlusV21/"
-            "Data/NHDPlusCA/NHDPlusV21_CA_18_NHDPlusCatchment_01.7z"
+            "Data/NHDPlusMA/NHDPlusV21_MA_02_NHDPlusCatchment_01.7z"
         ),
-        # Fallback to NHDPlus HR API or alternative
         "fallback_url": (
             "https://prd-tnm.s3.amazonaws.com/StagedProducts/Hydrography/"
-            "NHD/HU4/HighResolution/Shape/NHD_H_1807_HU4_Shape.zip"
+            "NHD/HU4/HighResolution/Shape/NHD_H_0202_HU4_Shape.zip"
         ),
-        "bbox": {"minx": -118.5, "miny": 33.0, "maxx": -114.0, "maxy": 35.5},
+        "bbox": {"minx": -75.5, "miny": 39.5, "maxx": -73.0, "maxy": 41.5},
+    },
+    "03S": {
+        "name": "South Atlantic Gulf South",
+        "url": (
+            "https://dmap-data-commons-ow.s3.amazonaws.com/NHDPlusV21/"
+            "Data/NHDPlusSA/NHDPlusV21_SA_03S_NHDPlusCatchment_01.7z"
+        ),
+        "fallback_url": (
+            "https://prd-tnm.s3.amazonaws.com/StagedProducts/Hydrography/"
+            "NHD/HU4/HighResolution/Shape/NHD_H_0309_HU4_Shape.zip"
+        ),
+        "bbox": {"minx": -83.0, "miny": 25.0, "maxx": -80.0, "maxy": 28.0},
+    },
+    "08": {
+        "name": "Lower Mississippi",
+        "url": (
+            "https://dmap-data-commons-ow.s3.amazonaws.com/NHDPlusV21/"
+            "Data/NHDPlusMS/NHDPlusV21_MS_08_NHDPlusCatchment_01.7z"
+        ),
+        "fallback_url": (
+            "https://prd-tnm.s3.amazonaws.com/StagedProducts/Hydrography/"
+            "NHD/HU4/HighResolution/Shape/NHD_H_0809_HU4_Shape.zip"
+        ),
+        "bbox": {"minx": -91.0, "miny": 29.0, "maxx": -89.0, "maxy": 30.5},
     },
     "12": {
         "name": "Texas Gulf",
@@ -77,6 +103,18 @@ VPU_DOWNLOADS = {
             "NHD/HU4/HighResolution/Shape/NHD_H_1204_HU4_Shape.zip"
         ),
         "bbox": {"minx": -96.0, "miny": 29.0, "maxx": -94.5, "maxy": 30.5},
+    },
+    "18": {
+        "name": "California",
+        "url": (
+            "https://dmap-data-commons-ow.s3.amazonaws.com/NHDPlusV21/"
+            "Data/NHDPlusCA/NHDPlusV21_CA_18_NHDPlusCatchment_01.7z"
+        ),
+        "fallback_url": (
+            "https://prd-tnm.s3.amazonaws.com/StagedProducts/Hydrography/"
+            "NHD/HU4/HighResolution/Shape/NHD_H_1807_HU4_Shape.zip"
+        ),
+        "bbox": {"minx": -118.5, "miny": 33.0, "maxx": -114.0, "maxy": 35.5},
     },
 }
 
@@ -207,7 +245,8 @@ def main() -> None:
         record_count=total_uploaded,
         license_="Public Domain — USGS/EPA NHDPlus",
         notes=(
-            "NHDPlus V2 catchment polygons for VPU 18 (CA) and VPU 12 (TX Gulf). "
+            "NHDPlus V2 catchment polygons for VPU 02 (Mid-Atlantic), 03S (South Atlantic), "
+            "08 (Lower Mississippi), 12 (Texas Gulf), 18 (California). "
             "ZCTA catchment joins (upstream_catchment_km2, wash_segment_id, bayou_segment_id) "
             "computed in build_event_dataset.py via build_catchment_features()."
         ),
