@@ -54,6 +54,13 @@ usace_levee_systems:
   - "Newtown Creek"
   - "Coney Island Creek"
 
+regime:
+  type: "urban_pluvial_compound"
+  spatial_autocorrelation_range_km: 10  # sewershed/subway catchment scale
+  dominant_mechanism: "extreme_rainfall_combined_sewer_overflow"
+  infrastructure_stressor: "combined_sewer_and_subway_drainage"
+  hypothesized_active_gate: "R"  # relevance of rainfall + sewershed capacity
+
 # Minimum viable dataset criteria
 mvd:
   min_sewersheds: 100
@@ -61,7 +68,7 @@ mvd:
     - sewershed_id
     - event
     - rainfall_total_mm
-    - complaints_311_count
+    - flood_311_count
     - nfip_claim_count
     - acsE_total_pop
     - svi_overall

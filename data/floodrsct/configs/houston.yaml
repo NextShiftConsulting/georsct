@@ -43,6 +43,13 @@ houston_311_service_types:
   - "Flooded Street"
   - "Flooded Yard or Ditch"
 
+regime:
+  type: "urban_pluvial_tropical"
+  spatial_autocorrelation_range_km: 20  # bayou watershed scale
+  dominant_mechanism: "extreme_rainfall_bayou_overflow"
+  infrastructure_stressor: "bayou_channel_capacity_and_reservoir_ops"
+  hypothesized_active_gate: "R"  # relevance of rainfall intensity features
+
 # Minimum viable dataset criteria
 mvd:
   min_zctas: 100

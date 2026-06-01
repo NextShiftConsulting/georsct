@@ -43,6 +43,13 @@ nws_lmrfc_url: "https://www.weather.gov/lmrfc"
 # Populated from hand-coded evidence/no_pump_stations_ida2021.csv
 pump_station_evidence: "evidence/no_pump_stations_ida2021.csv"
 
+regime:
+  type: "compound_surge_pluvial"
+  spatial_autocorrelation_range_km: 25  # levee-protected basin scale
+  dominant_mechanism: "tropical_cyclone_surge_plus_rainfall_plus_pump_failure"
+  infrastructure_stressor: "levee_system_and_pump_station_capacity"
+  hypothesized_active_gate: "S"  # stability under compound surge + rain
+
 # Minimum viable dataset criteria
 mvd:
   min_districts: 30

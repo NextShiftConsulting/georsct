@@ -729,6 +729,7 @@ def build_houston(s3, cfg: dict) -> pd.DataFrame:
     impervious = build_impervious_features(s3, harris_zctas)
     catchments = build_catchment_features(s3, harris_zctas, vpu="12")
     levees     = build_levee_features(s3, harris_zctas, "houston")
+    elevation  = build_elevation_features(s3, harris_zctas, "houston")
     # drainage_capacity_status: operational — not available from public archive
     drainage_op = _operational_unknown(
         pd.DataFrame({"zcta_id": harris_zctas}),
@@ -742,14 +743,15 @@ def build_houston(s3, cfg: dict) -> pd.DataFrame:
         nwis  = aggregate_nwis(s3, "houston", event_name, harris_zctas, cfg)
         mrms  = aggregate_mrms_rainfall(s3, event_name, harris_zctas)
         hwm   = aggregate_hwm(s3, event_name, harris_zctas)
+        tides = aggregate_tides(s3, "raw/noaa_tides/", event_name, harris_zctas)
         s311  = aggregate_311(s3, "houston", event_name, harris_zctas)
         nfip  = load_nfip_event_claims(s3, ev["dr"], harris_zctas)
         storm = compute_storm_proximity(s3, ev["storm_id"], ev["peak_window"], harris_zctas)
 
         base = pd.DataFrame({"zcta_id": harris_zctas, "event": event_name,
                               "scenario": "houston"})
-        base = _safe_merge_parts(base, [nwis, mrms, hwm, s311, nfip, storm,
-                                        impervious, catchments, levees, drainage_op])
+        base = _safe_merge_parts(base, [nwis, mrms, hwm, tides, s311, nfip, storm,
+                                        impervious, catchments, levees, elevation, drainage_op])
         if not static.empty:
             base = _safe_merge_parts(base, [static])
         base = compute_observability_flags(base)
@@ -769,8 +771,9 @@ def build_new_orleans(s3, cfg: dict) -> pd.DataFrame:
     static = load_geocert_static(s3, "new_orleans", no_zctas)
 
     # Feature contract derived fields
-    levee_feats = build_levee_features(s3, no_zctas, "new_orleans")
-    elevation   = build_elevation_features(s3, no_zctas, "new_orleans")
+    levee_feats  = build_levee_features(s3, no_zctas, "new_orleans")
+    elevation    = build_elevation_features(s3, no_zctas, "new_orleans")
+    coastal_dist = build_coastal_distance_features(s3, no_zctas)
     # pump_station_status: operational (Ida 2021 partially hand-coded)
     pump_evidence = _load_local_evidence("/opt/ml/processing/input/evidence/no_pump_stations_ida2021.csv")
     # pump_station_status for non-Ida events: operational_unknown
@@ -796,10 +799,12 @@ def build_new_orleans(s3, cfg: dict) -> pd.DataFrame:
         hwm    = aggregate_hwm(s3, s3_key, no_zctas)
         nfip   = load_nfip_event_claims(s3, ev["dr"], no_zctas)
         storm  = compute_storm_proximity(s3, ev["storm_id"], ev["peak_window"], no_zctas)
+        slosh  = build_slosh_features(s3, s3_key, no_zctas)
 
         base = pd.DataFrame({"zcta_id": no_zctas, "event": event_name,
                               "scenario": "new_orleans"})
-        base = _safe_merge_parts(base, [nwis, mrms, tides, hwm, nfip, storm, levee_feats, elevation, pump_op])
+        base = _safe_merge_parts(base, [nwis, mrms, tides, hwm, nfip, storm,
+                                        slosh, levee_feats, elevation, coastal_dist, pump_op])
         if not static.empty:
             base = _safe_merge_parts(base, [static])
         # Attach pump evidence for Ida 2021 (hand-coded override for pump_station_status)
@@ -832,8 +837,9 @@ def build_nyc(s3, cfg: dict) -> pd.DataFrame:
     static = load_geocert_static(s3, "nyc", nyc_zctas)
 
     # Feature contract derived fields
-    impervious  = build_impervious_features(s3, nyc_zctas)
-    sewer_feats = build_sewershed_features(s3, nyc_zctas)
+    impervious   = build_impervious_features(s3, nyc_zctas)
+    elevation    = build_elevation_features(s3, nyc_zctas, "nyc")
+    sewer_feats  = build_sewershed_features(s3, nyc_zctas)
     subway_feats = build_subway_features(s3, nyc_zctas)
     subway_evidence = _load_local_evidence("/opt/ml/processing/input/evidence/nyc_subway_flooding_ida2021.csv")
 
@@ -851,6 +857,8 @@ def build_nyc(s3, cfg: dict) -> pd.DataFrame:
         log.info("NYC event: %s (S3 key: %s)", event_name, s3_key)
         nwis  = aggregate_nwis(s3, "nyc", event_name, nyc_zctas, cfg)
         mrms  = aggregate_mrms_rainfall(s3, s3_key, nyc_zctas)
+        tides = aggregate_tides(s3, "raw/noaa_tides/", s3_key, nyc_zctas)
+        hwm   = aggregate_hwm(s3, s3_key, nyc_zctas)
         s311  = aggregate_311(s3, "nyc", event_name, nyc_zctas)
         storm = compute_storm_proximity(s3, ev["storm_id"], ev["peak_window"], nyc_zctas)
         nfip  = (load_nfip_event_claims(s3, ev["dr"], nyc_zctas)
@@ -858,8 +866,8 @@ def build_nyc(s3, cfg: dict) -> pd.DataFrame:
 
         base = pd.DataFrame({"zcta_id": nyc_zctas, "event": event_name,
                               "scenario": "nyc"})
-        base = _safe_merge_parts(base, [nwis, mrms, s311, nfip, storm,
-                                        impervious, sewer_feats, subway_feats])
+        base = _safe_merge_parts(base, [nwis, mrms, tides, hwm, s311, nfip, storm,
+                                        impervious, elevation, sewer_feats, subway_feats])
         if not static.empty:
             base = _safe_merge_parts(base, [static])
         # Subway flooding evidence (hand-coded Ida 2021 overlay)
@@ -887,6 +895,7 @@ def build_riverside_coachella(s3, cfg: dict) -> pd.DataFrame:
     # Feature contract derived fields
     burn_scars  = build_burn_scar_features(s3, rc_zctas)
     catchments  = build_catchment_features(s3, rc_zctas, vpu="18")
+    elevation   = build_elevation_features(s3, rc_zctas, "riverside_coachella")
     # road_access_status: operational — not available from public archive
     road_op = _operational_unknown(
         pd.DataFrame({"zcta_id": rc_zctas}),
@@ -906,6 +915,7 @@ def build_riverside_coachella(s3, cfg: dict) -> pd.DataFrame:
         log.info("Riverside-Coachella event: %s", event_name)
         nwis  = aggregate_nwis(s3, "riverside_coachella", event_name, rc_zctas, cfg)
         mrms  = aggregate_mrms_rainfall(s3, event_name, rc_zctas)
+        hwm   = aggregate_hwm(s3, event_name, rc_zctas)
         nfip  = (load_nfip_event_claims(s3, ev["dr"], rc_zctas)
                  if ev["dr"] else pd.DataFrame({"zcta_id": rc_zctas}))
         storm = (compute_storm_proximity(s3, ev["storm_id"], ev["peak_window"], rc_zctas)
@@ -913,7 +923,8 @@ def build_riverside_coachella(s3, cfg: dict) -> pd.DataFrame:
 
         base = pd.DataFrame({"zcta_id": rc_zctas, "event": event_name,
                               "scenario": "riverside_coachella"})
-        base = _safe_merge_parts(base, [nwis, mrms, nfip, storm, burn_scars, catchments, road_op])
+        base = _safe_merge_parts(base, [nwis, mrms, hwm, nfip, storm,
+                                        burn_scars, catchments, elevation, road_op])
         if not static.empty:
             base = _safe_merge_parts(base, [static])
         base = compute_observability_flags(base)
@@ -960,6 +971,7 @@ def build_southwest_florida(s3, cfg: dict) -> pd.DataFrame:
         nwis  = aggregate_nwis(s3, "southwest_florida", event_name, swfl_zctas, cfg)
         mrms  = aggregate_mrms_rainfall(s3, event_name, swfl_zctas)
         tides = aggregate_tides(s3, "raw/noaa_tides/", event_name, swfl_zctas)
+        hwm   = aggregate_hwm(s3, event_name, swfl_zctas)
         nfip  = load_nfip_event_claims(s3, ev["dr"], swfl_zctas)
         storm = compute_storm_proximity(s3, ev["storm_id"], ev["peak_window"], swfl_zctas)
 
@@ -967,7 +979,7 @@ def build_southwest_florida(s3, cfg: dict) -> pd.DataFrame:
 
         base = pd.DataFrame({"zcta_id": swfl_zctas, "event": event_name,
                               "scenario": "southwest_florida"})
-        base = _safe_merge_parts(base, [nwis, mrms, tides, nfip, storm,
+        base = _safe_merge_parts(base, [nwis, mrms, tides, hwm, nfip, storm,
                                         slosh, elevation, coastal_dist, levee_feats, evac_op])
         if not static.empty:
             base = _safe_merge_parts(base, [static])
