@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
 """
-train_r0_baseline.py -- Phase 1: Fold generation + R0 tabular baseline.
+train_r2_temporal.py -- Phase 3: R2 representation (R1 + temporal event dynamics).
 
-Single SageMaker job that:
-  1. Loads assembled parquet + crosswalk
-  2. Generates deterministic fold assignments (random, spatial-blocked, leave-event-out)
-  3. Trains HistGBDT + Ridge on R0 static features across 3 targets x 3 splits
-  4. Uploads folds, metrics, and predictions to S3
+Loads R0 folds (from Phase 1) + R1 supplement + R2 supplement parquets.
+Trains the same solvers, targets, and splits as R0/R1 -- only the feature set changes.
 
-R0 features are STATIC only (ZCTA-level, invariant across events).
-Event-level features (rainfall, storm track) are R2.
+R2 adds event-dynamic columns from MRMS hourly rainfall and tide gauges:
+  - peak_1h_mm, peak_3h_mm, peak_6h_mm: rolling rainfall maxima
+  - storm_duration_h: hours with rainfall > 1mm
+  - time_to_peak_h: hours from first rain to peak
+  - rainfall_intensity_cv: coefficient of variation of hourly rainfall
+  - tide_peak_m: peak water level from nearest tide station
+  - surge_rain_lag_h: hours between peak rainfall and peak surge
 
-Targets with zero variance or all-null in a scenario are skipped.
+DOE constraint: same folds, same solver hyperparameters, same targets as R0/R1.
 
 Usage:
-    python train_r0_baseline.py --scenario houston --upload
-    python train_r0_baseline.py --scenario southwest_florida --upload
+    python train_r2_temporal.py --scenario houston --upload
 """
 
 import argparse
@@ -32,9 +33,8 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent))
 from _coverage_common import (
-    BUCKET, SCENARIOS, get_s3_client, load_processed_parquet, load_crosswalk,
+    BUCKET, SCENARIOS, get_s3_client, load_processed_parquet,
 )
-from generate_folds import generate_folds
 
 logging.basicConfig(
     level=logging.INFO,
@@ -48,30 +48,23 @@ SEED = 42
 RESULTS_PREFIX = "results/s035"
 
 # ---------------------------------------------------------------------------
-# R0 feature list: STATIC ZCTA features only.
-# These do NOT vary by event. Order doesn't matter; missing columns are dropped.
-# See MODELS.md for rationale.
+# R0 features (identical to train_r0_baseline.py)
 # ---------------------------------------------------------------------------
 R0_FEATURES = [
-    # Flood zone exposure
     "flood_pct_zone_a",
     "flood_pct_zone_x",
     "flood_pct_zone_x500",
-    # Historical flood record
     "flood_event_count",
     "flood_event_count_5y",
     "flood_events_per_year",
     "flood_property_damage_k",
     "flood_crop_damage_k",
-    # Terrain
     "elevation_m_msl",
     "slope_mean_pct",
     "twi_twi",
-    # Coastal / geographic
     "coastal_distance_m",
     "latitude",
     "longitude",
-    # Demographics (ACS)
     "acs_total_pop",
     "acs_median_hh_income",
     "acs_pct_below_poverty",
@@ -81,33 +74,74 @@ R0_FEATURES = [
     "acs_pct_no_vehicle",
     "acs_median_home_value",
     "acs_median_year_built",
-    # Social vulnerability (SVI)
     "svi_overall",
     "svi_socioeconomic",
     "svi_household_disability",
     "svi_minority_language",
     "svi_housing_transport",
-    # NFIP insurance (historical, not event-level)
     "nfip_claim_count",
     "nfip_total_loss",
     "nfip_mean_loss_per_claim",
-    # Infrastructure
     "hifld_nearest_hospital_km",
     "hifld_n_hospitals",
     "population",
-    # Storm track (event-level but static per event row)
     "storm_min_dist_km",
     "storm_landfall_category",
 ]
 
-# Targets: (column_name, task_type, transform)
+# ---------------------------------------------------------------------------
+# R1 features (identical to train_r1_hydrology.py)
+# ---------------------------------------------------------------------------
+R1_UNIVERSAL = [
+    "nhd_catchment_area_km2",
+    "slope_basin_slope",
+    "slope_stream_slope",
+    "twi_acc_twi",
+    "twi_tot_twi",
+    "drive_min_to_county_centroid",
+    "drive_min_to_county_seat",
+    "drive_min_to_nearest_hospital",
+    "hifld_n_hospital_beds",
+    "hifld_n_pharmacies",
+    "hifld_nearest_pharmacy_km",
+    "hifld_nearest_trauma_center_km",
+    "flood_deaths",
+    "flood_injuries",
+    "nfip_total_building_loss",
+    "nfip_total_contents_loss",
+]
+
+R1_SCENARIO_SPECIFIC = [
+    "upstream_catchment_km2",
+    "hcfcd_drainage_district",
+    "levee_nearest_km",
+    "levee_condition_rating",
+    "sewershed_name",
+    "slosh_max_surge_m",
+]
+
+# ---------------------------------------------------------------------------
+# R2 temporal features (from build_r2_features.py)
+# ---------------------------------------------------------------------------
+R2_TEMPORAL = [
+    "peak_1h_mm",
+    "peak_3h_mm",
+    "peak_6h_mm",
+    "storm_duration_h",
+    "time_to_peak_h",
+    "rainfall_intensity_cv",
+    "tide_peak_m",
+    "surge_rain_lag_h",
+]
+
+R2_FEATURES = R0_FEATURES + R1_UNIVERSAL + R1_SCENARIO_SPECIFIC + R2_TEMPORAL
+
 TARGETS = [
     ("obs_nfip_event_claims", "regression", "log1p"),
     ("obs_has_311",           "classification", None),
     ("obs_has_hwm",           "classification", None),
 ]
 
-# Split column names in the folds parquet
 SPLITS = {
     "random": "fold_random",
     "spatial_blocked": "fold_spatial_blocked",
@@ -128,20 +162,61 @@ class RunResult:
     metrics: dict
     naive_baseline: dict
     features_used: int
+    features_from_r1_supplement: int
+    features_from_r2_supplement: int
     timestamp: str
 
 
-def _available_features(df: pd.DataFrame) -> list[str]:
-    """Return R0 features that exist in df and have at least some non-null values."""
+def _load_supplement(s3, scenario: str, level: str) -> pd.DataFrame:
+    """Load R1 or R2 supplement parquet from S3."""
+    key = f"processed/{scenario}/{scenario}_{level}_supplement.parquet"
+    try:
+        resp = s3.get_object(Bucket=BUCKET, Key=key)
+        df = pd.read_parquet(io.BytesIO(resp["Body"].read()))
+        log.info("%s supplement: %d rows x %d cols from %s",
+                 level.upper(), len(df), len(df.columns), key)
+        return df
+    except Exception as exc:
+        log.warning("No %s supplement for %s: %s", level, scenario, exc)
+        return pd.DataFrame()
+
+
+def _load_folds(s3, scenario: str) -> pd.DataFrame:
+    key = f"folds/{scenario}_folds.parquet"
+    resp = s3.get_object(Bucket=BUCKET, Key=key)
+    df = pd.read_parquet(io.BytesIO(resp["Body"].read()))
+    log.info("Folds: %d rows from %s", len(df), key)
+    return df
+
+
+def _encode_categoricals(df: pd.DataFrame, features: list[str]) -> pd.DataFrame:
+    for col in features:
+        if col in df.columns and df[col].dtype == object:
+            codes, _ = pd.factorize(df[col])
+            df[col] = codes.astype(np.float32)
+            df.loc[df[col] < 0, col] = np.nan
+    return df
+
+
+def _available_features(df: pd.DataFrame) -> tuple[list[str], int, int]:
+    """Return R2 features present in df. Track R1 and R2 supplement counts."""
     available = []
-    for f in R0_FEATURES:
+    r1_supp_names = {"nhd_catchment_area_km2", "levee_nearest_km",
+                     "levee_condition_rating", "sewershed_name"}
+    r2_supp_names = set(R2_TEMPORAL)
+    r1_count = 0
+    r2_count = 0
+    for f in R2_FEATURES:
         if f in df.columns and df[f].notna().any():
             available.append(f)
-    return available
+            if f in r1_supp_names:
+                r1_count += 1
+            if f in r2_supp_names:
+                r2_count += 1
+    return available, r1_count, r2_count
 
 
 def _check_target(df: pd.DataFrame, col: str, task: str) -> bool:
-    """Return True if target is usable (exists, has variation, not all-null)."""
     if col not in df.columns:
         log.warning("Target %s not in columns, skipping", col)
         return False
@@ -150,18 +225,20 @@ def _check_target(df: pd.DataFrame, col: str, task: str) -> bool:
         log.warning("Target %s has only %d non-null values, skipping", col, len(valid))
         return False
     if valid.nunique() < 2:
-        log.warning("Target %s has no variation (all=%s), skipping", col, valid.iloc[0])
+        log.warning("Target %s has no variation, skipping", col)
         return False
     return True
 
 
+# ---------------------------------------------------------------------------
+# Solvers: IDENTICAL to R0/R1 (same hyperparams, same code)
+# ---------------------------------------------------------------------------
+
 def _train_histgbdt(X_train, y_train, X_test, y_test, task: str) -> tuple:
-    """Train HistGradientBoosting and return (predictions, metrics)."""
     from sklearn.ensemble import (
         HistGradientBoostingRegressor,
         HistGradientBoostingClassifier,
     )
-
     if task == "classification":
         model = HistGradientBoostingClassifier(
             max_iter=200, max_depth=6, learning_rate=0.1, random_state=SEED,
@@ -182,7 +259,6 @@ def _train_histgbdt(X_train, y_train, X_test, y_test, task: str) -> tuple:
 
 
 def _train_ridge(X_train, y_train, X_test, y_test, task: str) -> tuple:
-    """Train Ridge pipeline (impute + scale + model) and return (predictions, metrics)."""
     from sklearn.impute import SimpleImputer
     from sklearn.linear_model import Ridge, RidgeClassifier
     from sklearn.pipeline import Pipeline
@@ -196,7 +272,6 @@ def _train_ridge(X_train, y_train, X_test, y_test, task: str) -> tuple:
         ])
         pipe.fit(X_train, y_train)
         y_pred = pipe.predict(X_test)
-        # RidgeClassifier has decision_function, not predict_proba
         y_score = pipe.decision_function(X_test)
         metrics = _classification_metrics(y_test, y_pred, y_score)
         return y_score, metrics
@@ -230,16 +305,18 @@ def _classification_metrics(y_true, y_pred, y_score) -> dict:
     try:
         m["roc_auc"] = float(roc_auc_score(y_true, y_score))
     except ValueError:
-        m["roc_auc"] = None  # single class in test fold
+        m["roc_auc"] = None
     return m
 
 
 def _naive_baseline(y_train, y_test, task: str) -> dict:
-    """Compute naive baseline: mean predictor (regression) or majority class (classification)."""
     if task == "classification":
         majority = int(np.round(y_train.mean()))
         y_naive = np.full_like(y_test, majority)
-        return _classification_metrics(y_test, y_naive, np.full_like(y_test, y_train.mean(), dtype=float))
+        return _classification_metrics(
+            y_test, y_naive,
+            np.full_like(y_test, y_train.mean(), dtype=float),
+        )
     else:
         mean_pred = np.full_like(y_test, y_train.mean(), dtype=float)
         return _regression_metrics(y_test, mean_pred)
@@ -255,6 +332,8 @@ def run_split(
     df: pd.DataFrame,
     folds_df: pd.DataFrame,
     features: list[str],
+    r1_supp_count: int,
+    r2_supp_count: int,
     target_col: str,
     task: str,
     transform: str | None,
@@ -263,23 +342,14 @@ def run_split(
     scenario: str,
     prediction_rows: list[dict] | None = None,
 ) -> list[RunResult]:
-    """Run one (target, solver, split) combination across all folds.
-
-    If prediction_rows is not None and split_name == "spatial_blocked",
-    appends per-row predictions for kappa diagnostics (Moran's I).
-    """
     ts = datetime.now(timezone.utc).isoformat()
     fold_col = SPLITS[split_name]
     solver_fn = SOLVERS[solver_name]
 
-    # Merge folds with data
     merged = df.merge(folds_df[["zcta_id", "event", fold_col]], on=["zcta_id", "event"])
-
-    # Drop rows with null target
     valid_mask = merged[target_col].notna()
     merged = merged[valid_mask].copy()
 
-    # Apply target transform
     y_col = target_col
     if transform == "log1p":
         merged["_y"] = np.log1p(merged[target_col].clip(lower=0).astype(float))
@@ -287,23 +357,18 @@ def run_split(
 
     X_all = merged[features].values.astype(np.float32)
     y_all = merged[y_col].values.astype(np.float32)
-
-    # Get fold IDs
     fold_ids = sorted(merged[fold_col].unique())
     results = []
 
     for fold_id in fold_ids:
         test_mask = merged[fold_col] == fold_id
         train_mask = ~test_mask
-
         X_train, y_train = X_all[train_mask], y_all[train_mask]
         X_test, y_test = X_all[test_mask], y_all[test_mask]
 
         if len(X_test) == 0 or len(X_train) == 0:
             log.warning("Empty fold %s in split %s, skipping", fold_id, split_name)
             continue
-
-        # Check target variation in train
         if len(np.unique(y_train)) < 2 and task == "classification":
             log.warning("No target variation in train fold %s, skipping", fold_id)
             continue
@@ -323,10 +388,11 @@ def run_split(
             metrics=metrics,
             naive_baseline=naive,
             features_used=len(features),
+            features_from_r1_supplement=r1_supp_count,
+            features_from_r2_supplement=r2_supp_count,
             timestamp=ts,
         ))
 
-        # Save per-row predictions for spatial_blocked (kappa diagnostics)
         if prediction_rows is not None and split_name == "spatial_blocked":
             test_idx = merged.index[test_mask]
             for i, idx in enumerate(test_idx):
@@ -346,7 +412,7 @@ def run_split(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Phase 1: Generate folds + train R0 baseline"
+        description="Phase 3: R2 temporal event dynamics training"
     )
     parser.add_argument("--scenario", required=True, choices=SCENARIOS)
     parser.add_argument("--seed", type=int, default=SEED)
@@ -357,61 +423,66 @@ def main() -> None:
     scenario = args.scenario
 
     print(f"\n{'='*60}")
-    print(f"  S035 PHASE 1: R0 BASELINE -- {scenario}")
+    print(f"  S035 PHASE 3: R2 TEMPORAL -- {scenario}")
     print(f"{'='*60}\n")
 
-    # --- Load data ---
+    # --- Load assembled parquet ---
     df = load_processed_parquet(s3, scenario)
     df["zcta_id"] = df["zcta_id"].astype(str)
     if "event" in df.columns:
         df["event"] = df["event"].astype(str)
+    log.info("Assembled: %d rows x %d cols", len(df), len(df.columns))
 
-    log.info("Loaded %d rows x %d columns", len(df), len(df.columns))
+    # --- Load R1 supplement and join ---
+    r1_supp = _load_supplement(s3, scenario, "r1")
+    if not r1_supp.empty:
+        r1_supp["zcta_id"] = r1_supp["zcta_id"].astype(str)
+        df = df.merge(r1_supp, on="zcta_id", how="left")
+        log.info("After R1 join: %d cols", len(df.columns))
 
-    # --- Load crosswalk ---
-    try:
-        xwalk = load_crosswalk(s3)
-        xwalk["zcta_id"] = xwalk["zcta_id"].astype(str)
-        zcta_county = dict(zip(xwalk["zcta_id"], xwalk["county_fips"].astype(str)))
-    except Exception as e:
-        log.warning("Crosswalk unavailable (%s), blocking on ZIP3 only", e)
-        zcta_county = {}
+    # --- Load R2 supplement and join ---
+    r2_supp = _load_supplement(s3, scenario, "r2")
+    if not r2_supp.empty:
+        r2_supp["zcta_id"] = r2_supp["zcta_id"].astype(str)
+        # R2 supplement is event-level (one row per zcta_id x event)
+        join_cols = ["zcta_id"]
+        if "event" in r2_supp.columns:
+            r2_supp["event"] = r2_supp["event"].astype(str)
+            join_cols.append("event")
+        pre_cols = set(df.columns)
+        df = df.merge(r2_supp, on=join_cols, how="left")
+        new_cols = set(df.columns) - pre_cols
+        log.info("R2 supplement added %d columns: %s", len(new_cols), sorted(new_cols))
+    else:
+        log.warning("No R2 supplement -- training with R0+R1 features only")
 
-    # --- Generate folds ---
-    folds_df, fold_meta = generate_folds(df, zcta_county, args.seed)
-    log.info("Folds: strategy=%s, %d rows", fold_meta["block_strategy"], len(folds_df))
+    # --- Encode categoricals ---
+    df = _encode_categoricals(df, R1_SCENARIO_SPECIFIC)
 
-    # Upload folds
-    if args.upload:
-        buf = io.BytesIO()
-        folds_df.to_parquet(buf, index=False)
-        buf.seek(0)
-        fold_key = f"folds/{scenario}_folds.parquet"
-        s3.put_object(Bucket=BUCKET, Key=fold_key, Body=buf.read())
-        s3.put_object(
-            Bucket=BUCKET,
-            Key=f"folds/{scenario}_folds_meta.json",
-            Body=json.dumps(fold_meta, indent=2).encode(),
-            ContentType="application/json",
-        )
-        log.info("Uploaded folds to s3://%s/%s", BUCKET, fold_key)
+    # --- Load folds from Phase 1 ---
+    folds_df = _load_folds(s3, scenario)
+    folds_df["zcta_id"] = folds_df["zcta_id"].astype(str)
+    if "event" in folds_df.columns:
+        folds_df["event"] = folds_df["event"].astype(str)
 
     # --- Identify usable features ---
-    features = _available_features(df)
-    log.info("R0 features: %d / %d available", len(features), len(R0_FEATURES))
-    log.info("  Available: %s", features)
-    missing = [f for f in R0_FEATURES if f not in features]
+    features, r1_supp_count, r2_supp_count = _available_features(df)
+    r0_count = sum(1 for f in features if f in R0_FEATURES)
+    r1_count = sum(1 for f in features if f in R1_UNIVERSAL + R1_SCENARIO_SPECIFIC)
+    log.info("R2 features: %d total (%d R0 + %d R1 + %d R2-temporal)",
+             len(features), r0_count, r1_count, r2_supp_count)
+
+    missing = [f for f in R2_FEATURES if f not in features]
     if missing:
-        log.info("  Missing: %s", missing)
+        log.info("Missing R2 features: %s", missing)
 
     # --- Train all combinations ---
     all_results: list[RunResult] = []
-    prediction_rows: list[dict] = []  # Per-row predictions for kappa diagnostics
+    prediction_rows: list[dict] = []
 
     for target_col, task, transform in TARGETS:
         if not _check_target(df, target_col, task):
             continue
-
         log.info("\n--- Target: %s (%s, transform=%s) ---", target_col, task, transform)
 
         for solver_name in SOLVERS:
@@ -420,76 +491,49 @@ def main() -> None:
                 try:
                     results = run_split(
                         df, folds_df, features,
+                        r1_supp_count, r2_supp_count,
                         target_col, task, transform,
                         solver_name, split_name, scenario,
                         prediction_rows=prediction_rows,
                     )
                     all_results.extend(results)
-
-                    # Summarize
                     if results:
                         primary = "roc_auc" if task == "classification" else "rmse"
-                        vals = [r.metrics.get(primary) for r in results if r.metrics.get(primary) is not None]
+                        vals = [r.metrics.get(primary) for r in results
+                                if r.metrics.get(primary) is not None]
                         if vals:
-                            log.info("    %s: mean=%.4f (n_folds=%d)", primary, np.mean(vals), len(vals))
+                            log.info("    %s: mean=%.4f (n_folds=%d)",
+                                     primary, np.mean(vals), len(vals))
                 except Exception as e:
                     log.error("    FAILED: %s", e)
 
     # --- Summary ---
     print(f"\n{'='*60}")
-    print(f"  R0 SUMMARY: {scenario}")
+    print(f"  R2 SUMMARY: {scenario}")
     print(f"  Total runs: {len(all_results)}")
+    print(f"  Features: {len(features)} ({r0_count} R0 + {r1_count} R1 + {r2_supp_count} R2)")
     print(f"{'='*60}\n")
-
-    # Group by target+solver+split for summary table
-    summary_rows = []
-    for r in all_results:
-        primary = "roc_auc" if r.task == "classification" else "rmse"
-        naive_primary = r.naive_baseline.get(primary)
-        model_primary = r.metrics.get(primary)
-
-        if r.task == "regression" and naive_primary and naive_primary > 0:
-            skill_ratio = model_primary / naive_primary
-        elif r.task == "classification" and naive_primary is not None:
-            skill_ratio = model_primary  # AUC is absolute
-        else:
-            skill_ratio = None
-
-        summary_rows.append({
-            "target": r.target,
-            "solver": r.solver,
-            "split": r.split,
-            "fold": r.fold,
-            "metric": primary,
-            "model_value": model_primary,
-            "naive_value": naive_primary,
-            "skill_ratio": skill_ratio,
-            "n_train": r.n_train,
-            "n_test": r.n_test,
-        })
-
-    if summary_rows:
-        summary_df = pd.DataFrame(summary_rows)
-        print(summary_df.to_string(index=False))
 
     # --- Upload results ---
     results_payload = {
         "experiment": "s035-model-ladder",
-        "phase": "r0_baseline",
+        "phase": "r2_temporal",
         "scenario": scenario,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "seed": args.seed,
-        "representation": "R0",
+        "representation": "R2",
         "features_used": features,
         "features_missing": missing,
-        "fold_metadata": fold_meta,
+        "r0_feature_count": r0_count,
+        "r1_feature_count": r1_count,
+        "r2_temporal_feature_count": r2_supp_count,
         "runs": [asdict(r) for r in all_results],
     }
 
     results_json = json.dumps(results_payload, indent=2, default=str)
 
     if args.upload:
-        key = f"{RESULTS_PREFIX}/r0_{scenario}.json"
+        key = f"{RESULTS_PREFIX}/r2_{scenario}.json"
         s3.put_object(
             Bucket=BUCKET, Key=key,
             Body=results_json.encode(),
@@ -497,18 +541,17 @@ def main() -> None:
         )
         log.info("Uploaded results to s3://%s/%s", BUCKET, key)
 
-        # Upload predictions parquet (spatial_blocked only, for kappa diagnostics)
         if prediction_rows:
             pred_df = pd.DataFrame(prediction_rows)
             buf = io.BytesIO()
             pred_df.to_parquet(buf, index=False)
             buf.seek(0)
-            pred_key = f"{RESULTS_PREFIX}/r0_{scenario}_predictions.parquet"
+            pred_key = f"{RESULTS_PREFIX}/r2_{scenario}_predictions.parquet"
             s3.put_object(Bucket=BUCKET, Key=pred_key, Body=buf.getvalue())
             log.info("Uploaded %d prediction rows to s3://%s/%s",
                      len(pred_df), BUCKET, pred_key)
     else:
-        local = f"/tmp/r0_{scenario}.json"
+        local = f"/tmp/r2_{scenario}.json"
         Path(local).write_text(results_json)
         log.info("Wrote %s", local)
 

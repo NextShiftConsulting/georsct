@@ -299,6 +299,184 @@ Total modelable cells: 7 (scenario × target combinations with sufficient data).
 
 ---
 
+## Change 7: Progressive Kappa Cascade (replaces one-shot kappa design in Change 3)
+
+### Motivation
+
+Change 3 computed kappa diagnostics from R0 only. A PhD reviewer should be able
+to verify: (1) the diagnostic predicted the fix BEFORE the fix was applied, and
+(2) the diagnostic changed AFTER the fix — not just that uplift correlated with
+a post-hoc metric. Progressive recomputation at each level provides both the
+prediction and the confirmation.
+
+### Cascade Protocol
+
+Kappa diagnostics are computed THREE times — once per representation level:
+
+| Phase | Input | Output | What It Proves |
+|-------|-------|--------|----------------|
+| 4a | R0 predictions | `kappa_diagnostics_r0.json` | Pre-registered predictions: which scenarios should benefit from R1 |
+| 4b | R1 predictions | `kappa_diagnostics_r1.json` | Confirmation: did R1 fix the flagged spatial issues? |
+| 4c | R2 predictions | `kappa_diagnostics_r2.json` | Confirmation: did R2 fix the flagged temporal issues? |
+
+### Diagnostic Movement Table (paper Figure 3)
+
+Each row = one (scenario, target) cell. Shows kappa values moving through levels:
+
+```
+scenario | target | kappa_leak_R0 | kappa_leak_R1 | kappa_leak_R2 | kappa_xfer_R0 | kappa_xfer_R1 | kappa_xfer_R2 | kappa_resid_R0 | kappa_resid_R1 | kappa_resid_R2
+```
+
+**Expected behavior if the cascade works:**
+
+| Diagnostic | R0 -> R1 expected | R1 -> R2 expected | Interpretation |
+|-----------|-------------------|-------------------|----------------|
+| kappa_leakage | INCREASE (spatial structure now captured) | STABLE (R2 doesn't target spatial) | R1 fixed the spatial autocorrelation exploitation |
+| kappa_transfer | STABLE (R1 doesn't target temporal) | INCREASE (event dynamics now captured) | R2 fixed the cross-event generalization failure |
+| kappa_residual_spatial | INCREASE (errors decorrelate) | STABLE or INCREASE | R1 removed geographic clustering of errors |
+| kappa_solver | INCREASE or STABLE | INCREASE or STABLE | Feature addition resolves model disagreement |
+
+**Disconfirmation patterns (equally reportable):**
+- kappa_leakage doesn't increase after R1: spatial features didn't address the autocorrelation
+- kappa_transfer doesn't increase after R2: temporal features didn't help generalization
+- Kappa goes DOWN: added features introduced noise or new failure modes
+
+### Revised Experiment Matrix (replaces Change 4)
+
+| Phase | Script | Input | Output | Prereqs |
+|-------|--------|-------|--------|---------|
+| 1 | `train_r0_baseline.py` | Assembled parquet | R0 metrics + predictions parquet | None |
+| 4a | `compute_kappa_diagnostics.py --level r0` | R0 predictions | `kappa_diagnostics_r0.json` | Phase 1 |
+| 2 | `train_r1_hydrology.py` | Assembled + R1 supplement + R0 folds | R1 metrics + predictions parquet | Data team + Phase 1 |
+| 4b | `compute_kappa_diagnostics.py --level r1` | R1 predictions | `kappa_diagnostics_r1.json` | Phase 2 |
+| 3 | `train_r2_temporal.py` | Assembled + R1 + R2 supplements + R0 folds | R2 metrics + predictions parquet | Data team + Phase 2 |
+| 4c | `compute_kappa_diagnostics.py --level r2` | R2 predictions | `kappa_diagnostics_r2.json` | Phase 3 |
+| 5 | `compute_uplift_table.py` | All results + all kappa files | Money table + cascade table + H2-H4 evidence | All above |
+
+### Critical Path (revised)
+
+```
+Phase 1 (R0) -> Phase 4a (kappa R0) -> Phase 2 (R1) -> Phase 4b (kappa R1) -> Phase 3 (R2) -> Phase 4c (kappa R2) -> Phase 5
+```
+
+Phases are now SEQUENTIAL by design. This is intentional: each kappa computation
+must complete before the next training phase starts, to establish the temporal
+ordering that proves predictions were not post-hoc.
+
+**S3 timestamps prove ordering.** Each kappa file's S3 LastModified timestamp
+precedes the training run that tests its predictions.
+
+---
+
+## Change 8: Anti-Cherry-Picking Protocol
+
+### Motivation
+
+With 7 cells, 4 kappa proxies, and 2 uplift measurements (R0->R1, R1->R2), a
+reviewer should be confident results are not cherry-picked from 8+ possible
+correlations. This protocol makes cherry-picking structurally impossible.
+
+### Pre-Registration (before each training phase)
+
+Before R1 trains, `kappa_diagnostics_r0.json` is uploaded to S3 with:
+
+```json
+{
+  "level": "r0",
+  "timestamp": "ISO-8601 (proves this precedes R1)",
+  "predictions": {
+    "r1_should_help_most": ["houston", "nyc"],
+    "r1_should_help_least": ["southwest_florida"],
+    "ordering_criterion": "kappa_leakage ascending (lowest = most predicted uplift)"
+  },
+  "kappa_values": { ... },
+  "flag_threshold": "median_split"
+}
+```
+
+Similarly, before R2 trains, `kappa_diagnostics_r1.json` predicts which scenarios
+should benefit from R2 (based on kappa_transfer).
+
+### Flag Threshold: Median Split (pre-committed)
+
+No threshold tuning. For each kappa proxy:
+- Cells with kappa BELOW median = "flagged" (predicted to benefit from the fix)
+- Cells with kappa ABOVE median = "unflagged" (predicted to not benefit)
+
+Median split is chosen because:
+- With n=7, any fixed threshold risks having 0 or 7 cells in one group
+- Median guarantees 3-4 in each group
+- No degrees of freedom for the researcher to exploit
+
+### All-Cells Reporting (mandatory)
+
+The money table reports EVERY cell, not just those that confirm the hypothesis.
+Required columns:
+
+```
+scenario | target | flagged_by | predicted_uplift | observed_uplift | correct?
+```
+
+Where `correct?` = (flagged AND uplift > median) OR (unflagged AND uplift <= median).
+
+**Hit rate** = fraction of cells where prediction matched. Report with exact
+binomial CI. For n=7, even 7/7 correct has wide CI — report honestly.
+
+### Multiple Comparison Correction
+
+8 tests: 4 kappa proxies x 2 uplifts (R0->R1, R1->R2). Report:
+
+1. **All 8 Spearman correlations** with individual bootstrap 95% CIs
+2. **Holm-Bonferroni corrected p-values** for the 8-test family
+3. **Primary hypothesis** (declared in advance): kappa_leakage predicts R0->R1 uplift.
+   This is the ONE test the paper headline rests on. The other 7 are exploratory.
+4. **False discovery rate** (Benjamini-Hochberg) as a secondary check
+
+### Negative Results Protocol
+
+If the primary hypothesis fails (kappa_leakage does not predict R0->R1 uplift):
+
+- **DO report** the null result with effect size and CI
+- **DO report** whether any of the 7 exploratory tests showed signal
+- **DO report** whether the cascade movement table shows expected patterns
+  (kappas improving after fixes) even if the prediction-uplift correlation is weak
+- **DO NOT** switch the primary hypothesis post-hoc
+- **Frame as:** "The diagnostic cascade shows interpretable movement, but the
+  prediction-uplift link requires more scenarios to confirm"
+
+### Prediction Parquets (new output from training scripts)
+
+All training scripts save per-row predictions for Moran's I computation:
+
+```
+results/s035/{level}_{scenario}_predictions.parquet
+```
+
+Schema:
+- `zcta_id`: str
+- `event`: str
+- `target`: str (column name)
+- `solver`: str
+- `split`: str (spatial_blocked only — reference split)
+- `fold`: str
+- `y_true`: float
+- `y_pred`: float
+
+Only spatial_blocked split predictions are saved (the reference split for all
+kappa computations). Random and leave-event-out metrics are used for kappa
+formulas but their per-row predictions are not needed.
+
+### Kappa Formula Standardization
+
+All kappa formulas use a "higher is better" primary metric:
+- Regression targets: R2 score
+- Classification targets: ROC-AUC
+
+This avoids sign confusion with RMSE (lower = better). R2 can be negative
+(worse than mean predictor), which is informative, not problematic.
+
+---
+
 ## Change Control
 
 | Version | Date | Changes |
@@ -306,3 +484,4 @@ Total modelable cells: 7 (scenario × target combinations with sufficient data).
 | v1.0 | 2026-05-29 | Initial DOE (DRAFT) |
 | v1.1 | 2026-05-29 | LOCKED for execution |
 | v1.2 | 2026-06-01 | Verified R1/R2 features from S3 inventory; added kappa proxy design; downgraded NOLA; added assembly job specs |
+| v1.3 | 2026-06-01 | Progressive kappa cascade; anti-cherry-picking protocol; prediction parquets; sequential phase ordering; multiple comparison correction |
