@@ -331,6 +331,36 @@ features:
     output_column: nfip_mean_loss_per_claim
     notes: Mean loss per claim ($). nfip_total_loss / nfip_claim_count.
 
+  - feature_name: nfip_total_contents_loss
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: nfip_total_contents_loss
+    notes: >
+      Cumulative historical NFIP contents loss ($) in this ZCTA.
+      Distinct from nfip_total_loss (building loss). R1 universal feature.
+
+  - feature_name: flood_deaths
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: flood_deaths
+    notes: >
+      Historical flood fatality count in this ZCTA (NOAA Storm Events DB).
+      R1 universal feature. Measures historical severity of flood hazard.
+
+  - feature_name: flood_injuries
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: flood_injuries
+    notes: >
+      Historical flood injury count in this ZCTA (NOAA Storm Events DB).
+      R1 universal feature. Measures historical severity of flood hazard.
+
   # ─── HIFLD Infrastructure ──────────────────────────────────────────────
 
   - feature_name: hifld_nearest_hospital_km
@@ -576,6 +606,22 @@ features:
       Raw sewersheds already fetched by fetch_nyc_sewersheds.py.
       Derive: build_sewershed_features() spatial join in build_event_dataset.py.
 
+  - feature_name: sewershed_name
+    temporal_class: invariant
+    scenarios: [nyc]
+    source_type: derived
+    source_dataset: nyc_sewersheds
+    raw_s3_path: raw/nyc_sewersheds/nyc_sewersheds.gpkg
+    processed_s3_path: (embedded in nyc_event_features.parquet)
+    build_function: build_sewershed_features
+    output_column: sewershed_name
+    missing_behavior: "null — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.005
+    notes: >
+      NYC DEP sewershed name (label-encoded for models).
+      R1 scenario-specific feature. Captures drainage system grouping.
+
   # ─── MTA Subway Stations ─────────────────────────────────────────────────
 
   - feature_name: subway_station_count
@@ -626,6 +672,23 @@ features:
     notes: >
       USACE levee inspection condition rating nearest to each ZCTA centroid.
       Raw levees already fetched by fetch_usace_levees.py.
+      Derive: build_levee_features() spatial proximity join in build_event_dataset.py.
+
+  - feature_name: levee_nearest_km
+    temporal_class: slow_drift
+    scenarios: [new_orleans, nyc]
+    source_type: derived
+    source_dataset: usace_levees
+    raw_s3_path: raw/usace_levees/{scenario}_levees.parquet
+    processed_s3_path: (embedded in {scenario}_event_features.parquet)
+    build_function: build_levee_features
+    output_column: levee_nearest_km
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.005
+    notes: >
+      Haversine distance (km) from ZCTA centroid to nearest USACE levee segment.
+      R1 scenario-specific feature for coastal scenarios with levee infrastructure.
       Derive: build_levee_features() spatial proximity join in build_event_dataset.py.
 
   # ─── Land Subsidence (New Orleans) ───────────────────────────────────────
@@ -1042,6 +1105,25 @@ features:
       Requires both HRRR QPF and MRMS to be computed first.
       Key forecast-skill feature for surrogate model training.
 
+  - feature_name: storm_approach_speed_kph
+    temporal_class: event_window
+    scenarios: [houston, southwest_florida, new_orleans, nyc]
+    source_type: derived
+    source_dataset: hurdat2
+    raw_s3_path: raw/hurdat2/{storm_id}.parquet
+    processed_s3_path: processed/{scenario}/{scenario}_r2_supplement.parquet
+    build_function: build_r2_features.compute_storm_approach_speed
+    output_column: storm_approach_speed_kph
+    missing_behavior: "NaN — no tropical cyclone track (e.g., AR events)"
+    field_status_behavior: missing_source_data
+    version_target: v24.005
+    notes: >
+      Forward speed of tropical cyclone (km/h) at closest approach to scenario
+      centroid during peak window. Computed from HURDAT2 6-hourly track fixes.
+      Slower storms = longer exposure = more rainfall accumulation.
+      NaN for non-TC events (e.g., riverside_coachella ar_flood_2023).
+      R2 temporal feature.
+
   # ═══════════════════════════════════════════════════════════════════════════
   # GeoParquet Geometry — DOE Amendment v1.2 Change 12
   # All output parquets carry a Point geometry column (ZCTA centroid, EPSG:4326).
@@ -1207,6 +1289,114 @@ features:
       Must be computed per-fold from training set only (see DOE Change 13).
       Static column here uses full dataset; experiment scripts recompute per-fold.
       Report with AND without as ablation.
+
+  - feature_name: spatial_lag_residual_R0
+    temporal_class: derived
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: derived
+    source_dataset: R0 out-of-fold predictions + zcta_adjacency
+    raw_s3_path: results/s035/r0_{scenario}_predictions.parquet
+    processed_s3_path: (computed at training time, not in assembled parquet)
+    build_function: train_r1_hydrology.compute_residual_lag
+    output_column: spatial_lag_residual_R0
+    missing_behavior: "NaN — R0 predictions not available"
+    version_target: v24.005
+    notes: >
+      W * residual(R0, HistGBDT) — spatial error correction from R0 predictions.
+      The SEM insight encoded as a feature: "how wrong was R0 for my neighbors?"
+      Computed at R1 training time (Phase 2), NOT in build_event_dataset.py,
+      because it requires R0 out-of-fold predictions from Phase 1.
+      Uses out-of-fold residuals only (no leakage from in-fold predictions).
+      If R0 errors cluster spatially (low kappa_residual_spatial), this feature
+      captures the pattern R0 missed.
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # FEMA FAST Engineering Features — DOE Change 11 (R1.5, conditional on NSI)
+  # Source: NSI 2.0 building inventory + FloodSimBench/SLOSH depth rasters
+  # Computed by: run_fast_zcta.py (HazPy depth-damage per structure → ZCTA agg)
+  # CONDITIONAL: Only populated if NSI 2.0 is on S3 before launch.
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - feature_name: fast_mean_loss_per_sqft
+    temporal_class: invariant
+    scenarios: [houston, nyc, southwest_florida]
+    source_type: derived
+    source_dataset: nsi_v2 + floodsimbench
+    raw_s3_path: raw/nsi/v2/{scenario}_structures.parquet
+    processed_s3_path: processed/{scenario}/{scenario}_fast_zcta.parquet
+    build_function: run_fast_zcta.aggregate_fast_to_zcta
+    output_column: fast_mean_loss_per_sqft
+    missing_behavior: "NaN — NSI not available or no structures in ZCTA"
+    version_target: v24.006
+    notes: >
+      Mean(structure_loss / sqft) per ZCTA from FAST (Hazus depth-damage).
+      100-yr return period depth grid (FloodSimBench for Houston/NYC,
+      SLOSH MOM Cat 3 for SW Florida). Average damage intensity.
+
+  - feature_name: fast_max_loss_usd
+    temporal_class: invariant
+    scenarios: [houston, nyc, southwest_florida]
+    source_type: derived
+    source_dataset: nsi_v2 + floodsimbench
+    raw_s3_path: raw/nsi/v2/{scenario}_structures.parquet
+    processed_s3_path: processed/{scenario}/{scenario}_fast_zcta.parquet
+    build_function: run_fast_zcta.aggregate_fast_to_zcta
+    output_column: fast_max_loss_usd
+    missing_behavior: "NaN"
+    version_target: v24.006
+    notes: Max(structure_loss) per ZCTA. Worst-case single structure.
+
+  - feature_name: fast_pct_damaged
+    temporal_class: invariant
+    scenarios: [houston, nyc, southwest_florida]
+    source_type: derived
+    source_dataset: nsi_v2 + floodsimbench
+    raw_s3_path: raw/nsi/v2/{scenario}_structures.parquet
+    processed_s3_path: processed/{scenario}/{scenario}_fast_zcta.parquet
+    build_function: run_fast_zcta.aggregate_fast_to_zcta
+    output_column: fast_pct_damaged
+    missing_behavior: "NaN"
+    version_target: v24.006
+    notes: Count(loss > 0) / Count(all structures) per ZCTA. Damage penetration rate.
+
+  - feature_name: fast_total_loss_usd
+    temporal_class: invariant
+    scenarios: [houston, nyc, southwest_florida]
+    source_type: derived
+    source_dataset: nsi_v2 + floodsimbench
+    raw_s3_path: raw/nsi/v2/{scenario}_structures.parquet
+    processed_s3_path: processed/{scenario}/{scenario}_fast_zcta.parquet
+    build_function: run_fast_zcta.aggregate_fast_to_zcta
+    output_column: fast_total_loss_usd
+    missing_behavior: "NaN"
+    version_target: v24.006
+    notes: Sum(structure_loss) per ZCTA. Total ZCTA economic exposure.
+
+  - feature_name: fast_median_depth_ft
+    temporal_class: invariant
+    scenarios: [houston, nyc, southwest_florida]
+    source_type: derived
+    source_dataset: nsi_v2 + floodsimbench
+    raw_s3_path: raw/nsi/v2/{scenario}_structures.parquet
+    processed_s3_path: processed/{scenario}/{scenario}_fast_zcta.parquet
+    build_function: run_fast_zcta.aggregate_fast_to_zcta
+    output_column: fast_median_depth_ft
+    missing_behavior: "NaN"
+    version_target: v24.006
+    notes: Median(flood_depth_at_structure) per ZCTA. Typical inundation depth.
+
+  - feature_name: fast_n_structures
+    temporal_class: invariant
+    scenarios: [houston, nyc, southwest_florida]
+    source_type: derived
+    source_dataset: nsi_v2
+    raw_s3_path: raw/nsi/v2/{scenario}_structures.parquet
+    processed_s3_path: processed/{scenario}/{scenario}_fast_zcta.parquet
+    build_function: run_fast_zcta.aggregate_fast_to_zcta
+    output_column: fast_n_structures
+    missing_behavior: "0"
+    version_target: v24.006
+    notes: Count of NSI 2.0 structures per ZCTA. Building density proxy.
 
   # ─── Post-Event Features (LABELS — not inputs to models) ───────────────────
   # CAUTION: These are outcomes/ground truth. Using as model inputs = label leakage.
