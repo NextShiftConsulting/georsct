@@ -127,7 +127,7 @@ def fetch_iv_data(sites: list[str], start: str, end: str) -> pd.DataFrame:
             site_code = ts["sourceInfo"]["siteCode"][0]["value"]
             param = ts["variable"]["variableCode"][0]["value"]
             unit = ts["variable"]["unit"]["unitCode"]
-            values = ts["timeSeries"][0]["values"][0]["value"] if ts.get("timeSeries") else []
+            values = ts["values"][0]["value"] if ts.get("values") else []
             for v in values:
                 frames.append({
                     "site_no": site_code,
