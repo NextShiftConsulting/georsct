@@ -249,10 +249,10 @@ scenario | target | ... existing R0-R2 columns ... | rho_claude | rho_gemini | r
 
 | Column | Description |
 |--------|-------------|
-| `rho_gemini` | Spearman(gemini_risk_score, obs_nfip_claims) |
-| `rho_jina` | Spearman(jina_risk_score, obs_nfip_claims) |
-| `rho_nova` | Spearman(nova_risk_score, obs_nfip_claims) |
-| `rho_qwen` | Spearman(qwen_risk_score, obs_nfip_claims) |
+| `rho_gemini` | Spearman(gemini_risk_score, obs_nfip_event_claims) |
+| `rho_jina` | Spearman(jina_risk_score, obs_nfip_event_claims) |
+| `rho_nova` | Spearman(nova_risk_score, obs_nfip_event_claims) |
+| `rho_qwen` | Spearman(qwen_risk_score, obs_nfip_event_claims) |
 | `vlm_agreement` | Mean pairwise Spearman across 4 VLMs |
 | `vlm_vs_r2_delta` | max(rho_vlm) - rho(pred_R2, obs) |
 

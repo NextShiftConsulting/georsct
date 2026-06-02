@@ -1,20 +1,25 @@
 # Phase 1: Fold Generation
-# Create 3 deterministic fold assignment columns
+# Create deterministic fold assignment columns
+#
+# NOTE: This config is a DESIGN DOCUMENT, not runtime config.
+# Fold generation is handled by train_r0_baseline.py generate_folds().
 
 scenarios:
   - houston
+  - southwest_florida
+  - nyc
+  - riverside_coachella
+  - new_orleans
 
 seed: 42
-n_folds_blocked: 5     # county-blocked CV folds
 
 splits:
   random:
     test_fraction: 0.2
     stratify_by: null   # pure random for A.1 leakage diagnostic
-  county_blocked:
+  spatial_blocked:
     n_folds: 5
     method: greedy_bin_packing  # balance fold sizes by ZCTA count
-  leave_event_out:
-    method: hold_one_event      # each event is one fold
+    fallback: zip3_blocking     # if < 5 counties, block by ZIP3 prefix
 
 # Output: s3://swarm-floodrsct-data/folds/{scenario}_folds.parquet
