@@ -1208,6 +1208,7 @@ features, R1 explicitly encodes spatial structure:
 | v1.6 | 2026-06-01 | GeoParquet standardization (all spatial outputs); W-matrix spatial features in R1 (spatial lag, residual correction); libpysal dependency; dead config cleanup |
 | v1.7 | 2026-06-02 | Pre-registered primary outcomes; NFIP temporal gate (IBNR boundary); storm features moved to R2; fold-level Wilcoxon as primary test; random-features ablation; git provenance in launchers |
 | v1.8 | 2026-06-02 | Kappa independence: geometry-only kappa (Phase 0.5); model-derived diagnostics demoted to diagnostic fields, not kappa inputs; causal boundary guard on training features; R1/R2 supplements required |
+| v1.9 | 2026-06-02 | Statistical reporting framework: three-axis distinction (RSN simplex / kappa_geom / bootstrap CI); cell-level bootstrap CIs on aggregate uplift and certificate signals; bootstrap framed as uncertainty not inference |
 
 ---
 
@@ -1306,3 +1307,83 @@ Phase 1 results are examined.
 - R0 with `--random-features`: same fold structure, same targets, same solvers,
   but feature matrix replaced with N(0,1) noise. If random-features R0 matches
   real-features R0, the features carry no signal.
+
+---
+
+## Statistical Reporting Framework (v1.9)
+
+### Three Diagnostic Axes
+
+The paper reports results along three orthogonal axes.  Each measures a
+different quantity at a different stage of the pipeline.  They must not
+be conflated.
+
+**Axis 1: RSN simplex (observed model behavior)**
+
+R + S_sup + N = 1.  Computed AFTER model training and validation.
+Summarizes how much signal (R), leakage (S_sup), and noise (N) the
+model exhibits under spatial-blocked cross-validation.  This is an
+empirical decomposition of solver performance — it changes when the
+representation or solver changes.
+
+**Axis 2: kappa_geom (pre-training geometric compatibility)**
+
+Computed in Phase 0.5, BEFORE any model trains.  Measures how
+geometrically amenable the (scenario, target) cell is to the
+representation, based on spatial connectivity, feature coverage,
+scale stability, and administrative alignment.  Has zero computational
+dependency on RSN coordinates, fold metrics, predictions, or residuals.
+See v1.8 for full specification and runtime guard.
+
+**Axis 3: Bootstrap CIs (uncertainty on reported aggregate effects)**
+
+Non-parametric bootstrap over (scenario x target) experiment cells.
+Reports 95% confidence intervals on mean aggregate uplift and on mean
+certificate signals.  These are **uncertainty intervals on effect size**,
+not a replacement for the pre-registered fold-level Wilcoxon primary
+test (v1.7).
+
+### Role of Each Axis in the Paper
+
+| Axis | Role | Where Reported |
+|------|------|----------------|
+| RSN simplex | Describes what the model does | Certificate tables (Figures 4, Appendix) |
+| kappa_geom | Predicts which cells are hard, before training | Geometry kappa table (Appendix H) |
+| Bootstrap CI | Quantifies how uncertain the aggregate effects are | Money table, certificate summary, Appendix |
+
+### What Bootstrap CIs Do and Do Not Claim
+
+The bootstrap resamples experiment cells (scenario x target), not
+individual rows or folds.  The decision object is the cell — each cell
+contributes one uplift value.
+
+**Do report:**
+- Mean uplift with 95% CI (e.g., "R0->R1 mean uplift = 12.3%, 95% CI [4.1%, 20.5%]")
+- Fraction of bootstrap samples with positive mean (directional evidence)
+- Certificate signal means with 95% CIs (e.g., "mean R = 0.42, 95% CI [0.35, 0.49]")
+- n_cells, n_bootstrap, seed for reproducibility
+
+**Do NOT claim:**
+- That the CI constitutes a hypothesis test (it does not)
+- That the CI replaces the pre-registered Wilcoxon test (it does not)
+- Population-level inference from n=7 cells (report as observed uncertainty)
+
+### Paper Language
+
+> We report three orthogonal diagnostic quantities.  The RSN simplex
+> (R, S_sup, N) decomposes observed model performance after validation.
+> The geometric compatibility index kappa_geom is computed before model
+> training from spatial structure and data support alone.  Bootstrap
+> 95% confidence intervals over experiment cells quantify uncertainty on
+> aggregate effects.  Primary inference follows from the pre-registered
+> fold-level Wilcoxon signed-rank test; the bootstrap CI characterizes
+> effect-size uncertainty for reporting purposes.
+
+### Implementation
+
+- `compute_uplift_table.py`: `bootstrap_cell_uplift()` produces
+  `cell_bootstrap_ci` block in `money_table.json`, with per-transition
+  (R0->R1, R1->R2) mean, CI, n_cells, pct_positive.
+- `compute_certificates.py`: `summary_bootstrap_ci` block with per-signal
+  (R, S_sup, N, alpha, omega, kappa, tau, sigma) mean and 95% CI.
+- Both use n_bootstrap=10000, seed=42, percentile method.
