@@ -29,11 +29,24 @@ scripts:
       - "Align S3 key patterns with existing _coverage_common conventions"
     rationale: "Simplest script (pure scipy, no yrsn deps) -- good first test of MMAR code generation workflow"
 
-  # --- Phase 6: DGM routing (pending) ---
-  # - path: jobs/compute_dgm_routing.py
-  #   phase: "6"
-  #   generator: TBD
-  #   status: pending
+  # --- Phase 6: DGM routing ---
+  - path: jobs/compute_dgm_routing.py
+    phase: "6"
+    generator: kimi (Moonshot AI)
+    generator_via: OpenRouter (free tier)
+    draft_date: 2026-06-02
+    cleanup_by: Martin
+    cleanup_date: 2026-06-02
+    changes:
+      - "Fix upload_json_result signature: needs (s3, BUCKET, key, payload) not (payload, key)"
+      - "Split process_all_cells (>50 lines) into routing + best-arm + summary"
+      - "Cache certificate/result loads instead of re-fetching per cell"
+      - "Fix REPAIR/PRUNING returning invalid arm strings -- use None"
+      - "Add shebang, docstring, dry-run gate, timezone-aware timestamp"
+      - "Align logging setup with template (stdout handler, force=True)"
+      - "Add thresholds dict to output for reproducibility"
+      - "Handle MorphType.RE_ENCODE safely (hasattr guard)"
+    rationale: "Most complex script (yrsn DGM import); routing tree from DOE_certificate_dgm.md"
 
   # --- R4.1: ZCTA map rendering (pending) ---
   # - path: jobs/render_zcta_maps.py
