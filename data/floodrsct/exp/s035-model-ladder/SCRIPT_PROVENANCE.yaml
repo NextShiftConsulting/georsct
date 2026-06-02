@@ -54,11 +54,24 @@ scripts:
   #   generator: TBD
   #   status: pending
 
-  # --- R4.2: ZCTA evidence builder (pending) ---
-  # - path: jobs/build_zcta_evidence.py
-  #   phase: "R4.2"
-  #   generator: TBD
-  #   status: pending
+  # --- R4.2: ZCTA evidence builder ---
+  - path: jobs/build_zcta_evidence.py
+    phase: "R4.2"
+    generator: deepseek-r1 (DeepSeek)
+    generator_via: OpenRouter (free tier)
+    draft_date: 2026-06-02
+    cleanup_by: Martin
+    cleanup_date: 2026-06-02
+    changes:
+      - "Fix flood zone column names: flood_pct_zone_a not flood_zone_pct_AE"
+      - "Fix upload_json_result signature: needs (s3, BUCKET, key, payload)"
+      - "Move S3 client from module-level to main()"
+      - "Add shebang, docstring, logging setup (stdout handler, force=True)"
+      - "obs_has_311 is binary (Yes/No), not a count"
+      - "Add dry-run early exit gate"
+      - "Fix local output path to use Path(__file__).parent.parent"
+      - "Remove provenance header injection into .txt output files"
+    rationale: "Text assembly script, no yrsn deps, unblocks R4.3 VLM assessment"
 
   # --- R4.3: VLM assessment (pending) ---
   # - path: jobs/run_vlm_assessment.py
