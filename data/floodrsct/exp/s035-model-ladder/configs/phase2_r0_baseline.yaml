@@ -1,8 +1,16 @@
 # Phase 2: R0 Tabular Baseline
 # HistGBDT + Ridge on ZCTA tabular features
+#
+# NOTE: This config is a DESIGN DOCUMENT, not runtime config.
+# Training scripts (train_r0_baseline.py) use hardcoded target definitions.
+# Keep in sync with train_r0_baseline.py TARGETS list.
 
 scenarios:
   - houston
+  - southwest_florida
+  - nyc
+  - riverside_coachella
+  - new_orleans
 
 representation: R0
 
@@ -11,14 +19,14 @@ targets:
     column: obs_nfip_event_claims
     transform: log1p
     task: regression
-    metric: rmse
+    metric: r2
   report_311:
-    column: obs_311_flood_reports
-    transform: log1p
-    task: regression
-    metric: rmse
+    column: obs_has_311
+    transform: null
+    task: classification
+    metric: roc_auc
   hwm_presence:
-    column: obs_hwm_present
+    column: obs_has_hwm
     transform: null
     task: classification
     metric: roc_auc
@@ -42,11 +50,10 @@ solvers:
 
 splits:
   - random
-  - county_blocked
-  - leave_event_out
+  - spatial_blocked
 
-# Features: STATIC_FEATURES from _coverage_common.py
+# Features: R0_FEATURES from train_r0_baseline.py
 # NaN handling: HistGBDT native; Ridge via SimpleImputer(strategy=median)
 
-# Output: s3://swarm-floodrsct-data/results/s035/r0_{scenario}_{target}_{solver}_{split}.json
+# Output: s3://swarm-floodrsct-data/results/s035/r0_{scenario}.json
 #         s3://swarm-floodrsct-data/results/s035/r0_{scenario}_predictions.parquet

@@ -61,15 +61,16 @@ R5:   evidence     — VLA/agent: evidence + action choice [demo/action layer]
 
 ## Scenarios
 
-| Scenario | Rows | Targets | FAST Tier |
-|----------|------|---------|-----------|
-| Houston | 396 | 3 (NFIP, 311, HWM) | Primary |
-| SW Florida | 606 | 1 (NFIP) | Stretch |
-| NYC | 422 | 2 (NFIP, 311) | Primary |
-| Riverside | 172 | 1 (NFIP) | Excluded |
-| New Orleans | 20 | 2 (NFIP, HWM) | N/A |
+| Scenario | Rows | Targets | Tier | Notes |
+|----------|------|---------|------|-------|
+| Houston | 396 | 3 (NFIP, 311, HWM) | Primary | |
+| SW Florida | 606 | 1 (NFIP) | Primary | |
+| NYC | 422 | 2 (NFIP, 311) | Primary | |
+| Riverside | 172 | 1 (NFIP) | Stretch | NFIP-only, ~50% coverage |
+| New Orleans | 20 | 2 (NFIP, HWM) | Illustrative | n=20, 1 event, 4 rows/test fold |
 
-Total modelable cells: 9 (scenario x target)
+Primary modelable cells: 7 (3 primary scenarios x targets)
+Total modelable cells: 9 (all 5 scenarios x targets, but NOLA/Riverside have caveats)
 
 ## Key Files
 

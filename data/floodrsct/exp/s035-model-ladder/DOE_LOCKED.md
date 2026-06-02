@@ -116,8 +116,8 @@ audit passes.
 | Target | Transform | Bias Profile | Split Sensitivity |
 |--------|-----------|--------------|-------------------|
 | NFIP loss (obs_nfip_event_claims) | log1p | Insurance penetration, wealth | Primary |
-| 311 count (obs_311_flood_reports) | log1p | Reporting culture, phone access | Secondary |
-| HWM presence (obs_hwm_present) | binary | Physical ground truth, sparse | Validation |
+| 311 presence (obs_has_311) | binary | Reporting culture, phone access | Secondary |
+| HWM presence (obs_has_hwm) | binary | Physical ground truth, sparse | Validation |
 
 ---
 
