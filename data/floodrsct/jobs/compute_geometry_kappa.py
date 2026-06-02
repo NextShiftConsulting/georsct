@@ -39,6 +39,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from _coverage_common import (
     BUCKET, SCENARIOS, get_s3_client, load_processed_parquet, load_crosswalk,
 )
+from _s3_result import upload_json_result
 
 logging.basicConfig(
     level=logging.INFO,
@@ -336,12 +337,7 @@ def main() -> None:
 
     if args.upload:
         key = f"{RESULTS_PREFIX}/geometry_kappa.json"
-        s3.put_object(
-            Bucket=BUCKET, Key=key,
-            Body=json.dumps(payload, indent=2).encode(),
-            ContentType="application/json",
-        )
-        log.info("Uploaded: s3://%s/%s", BUCKET, key)
+        upload_json_result(s3, BUCKET, key, payload)
 
     # Summary
     n = len(payload["cells"])

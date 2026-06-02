@@ -163,14 +163,14 @@ def find_floodsimbench_rasters(s3, scenario: str, return_period: str) -> list[st
         return []
 
     s3_prefix = "raw/floodsimbench/6hr_max/"
-    resp = s3.list_objects_v2(Bucket=BUCKET, Prefix=s3_prefix, MaxKeys=1000)
-
     tiles = []
-    for obj in resp.get("Contents", []):
-        key = obj["Key"]
-        name = key.split("/")[-1]
-        if name.startswith(tile_prefix) and f"{rain_mm}mm" in name:
-            tiles.append(key)
+    paginator = s3.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=BUCKET, Prefix=s3_prefix):
+        for obj in page.get("Contents", []):
+            key = obj["Key"]
+            name = key.split("/")[-1]
+            if name.startswith(tile_prefix) and f"{rain_mm}mm" in name:
+                tiles.append(key)
 
     log.info("FloodSimBench %s/%s: %d tiles found", scenario, return_period, len(tiles))
     return sorted(tiles)

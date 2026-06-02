@@ -43,6 +43,8 @@ def main() -> None:
         volume_size_gb=10,
         pip_packages="scikit-learn scipy",
         dry_run=args.dry_run,
+        phase_id="r1_hydrology",
+        scenario=args.scenario,
     )
 
 

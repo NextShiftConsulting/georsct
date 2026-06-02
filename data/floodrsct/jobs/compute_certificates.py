@@ -25,6 +25,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent))
 from _coverage_common import BUCKET, get_s3_client
+from _s3_result import upload_json_result
 
 # rsct service layer -- the actual certification logic
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -246,12 +247,7 @@ def run_certificates(s3, level: str, upload: bool = False) -> dict:
 
     if upload:
         json_key = f"{RESULTS_PREFIX}/certificates_{level}.json"
-        s3.put_object(
-            Bucket=BUCKET, Key=json_key,
-            Body=output_json.encode(),
-            ContentType="application/json",
-        )
-        log.info("Uploaded s3://%s/%s", BUCKET, json_key)
+        upload_json_result(s3, BUCKET, json_key, payload)
 
         if all_certs:
             df = pd.DataFrame(all_certs)

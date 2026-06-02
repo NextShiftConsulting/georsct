@@ -32,6 +32,7 @@ from scipy import stats
 
 sys.path.insert(0, str(Path(__file__).parent))
 from _coverage_common import BUCKET, get_s3_client
+from _s3_result import upload_json_result
 
 # rsct service layer for experiment certification
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -771,12 +772,7 @@ def main() -> None:
 
     if args.upload:
         key = f"{RESULTS_PREFIX}/money_table.json"
-        s3.put_object(
-            Bucket=BUCKET, Key=key,
-            Body=output_json.encode(),
-            ContentType="application/json",
-        )
-        log.info("Uploaded s3://%s/%s", BUCKET, key)
+        upload_json_result(s3, BUCKET, key, payload)
 
         # Also upload individual evidence files for H2-H4
         for h_key in ("h2_evidence", "h3_evidence", "h4_evidence"):

@@ -1,30 +1,30 @@
 #!/usr/bin/env python3
 """
-compute_kappa_diagnostics.py -- Phase 4: progressive kappa diagnostics.
+compute_diagnostics.py -- Phase 4: progressive representation diagnostics.
 
-Runs at each representation level (R0, R1, R2) to compute 4 kappa proxies
-that diagnose where the next representation fix should help.
+Runs at each representation level (R0, R1, R2) to compute 4 diagnostic
+proxies that predict where the next representation fix should help.
 
-Kappa proxies:
-  1. kappa_leakage:          random vs spatial metric gap (A.1 autocorrelation)
-  2. kappa_transfer:         leave-event-out vs spatial metric ratio (D.3 transfer)
-  3. kappa_solver:           HistGBDT vs Ridge agreement
-  4. kappa_residual_spatial: Moran's I on spatial_blocked residuals (A.2/B.1)
+Diagnostic proxies (NOT RSCT kappa -- see ADR-020 namespace restriction):
+  1. diag_leakage:          random vs spatial metric gap (A.1 autocorrelation)
+  2. diag_transfer:         leave-event-out vs spatial metric ratio (D.3 transfer)
+  3. diag_solver:           HistGBDT vs Ridge agreement
+  4. diag_residual_spatial: Moran's I on spatial_blocked residuals (A.2/B.1)
 
-Uses yrsn.core.kappa.spatial.compute.compute_kappa_spatial for Moran's I.
-Uses _coverage_common.load_adjacency for ZCTA adjacency graph.
+Uses yrsn.core.kappa.spatial.compute.compute_kappa_spatial for Moran's I
+(yrsn's kappa_spatial is a canonical RSCT metric; we consume it as input).
 
-All kappa formulas use "higher is better" primary metric:
+All diagnostic formulas use "higher is better" primary metric:
   - Regression: R2 score
   - Classification: ROC-AUC
 
-Pre-registration: kappa_diagnostics_{level}.json is uploaded to S3 BEFORE
+Pre-registration: diagnostics_{level}.json is uploaded to S3 BEFORE
 the next level trains, establishing temporal ordering proof.
 
 Usage:
-    python compute_kappa_diagnostics.py --level r0 --upload
-    python compute_kappa_diagnostics.py --level r1 --upload
-    python compute_kappa_diagnostics.py --level r2 --upload
+    python compute_diagnostics.py --level r0 --upload
+    python compute_diagnostics.py --level r1 --upload
+    python compute_diagnostics.py --level r2 --upload
 """
 
 import argparse
@@ -40,6 +40,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent))
 from _coverage_common import BUCKET, SCENARIOS, get_s3_client, load_adjacency
+from _s3_result import upload_json_result
 
 # Import Moran's I from yrsn (not reinvented)
 try:
@@ -139,8 +140,8 @@ def _mean_metric(runs: list[dict], split: str, solver: str | None,
     return float(np.mean(vals)) if vals else None
 
 
-def compute_kappa_leakage(runs: list[dict], target: str, task_type: str) -> float | None:
-    """kappa_leakage = 1 - (metric_random - metric_spatial) / max(metric_random, 0.01)
+def compute_diag_leakage(runs: list[dict], target: str, task_type: str) -> float | None:
+    """diag_leakage = 1 - (metric_random - metric_spatial) / max(metric_random, 0.01)
 
     Uses HistGBDT as reference solver (nonlinear, more sensitive to leakage).
     Low = random split inflated by spatial autocorrelation -> R1 should help.
@@ -153,8 +154,8 @@ def compute_kappa_leakage(runs: list[dict], target: str, task_type: str) -> floa
     return 1.0 - (m_random - m_spatial) / denom
 
 
-def compute_kappa_transfer(runs: list[dict], target: str, task_type: str) -> float | None:
-    """kappa_transfer = max(0, metric_leave_event / max(metric_spatial, 0.01))
+def compute_diag_transfer(runs: list[dict], target: str, task_type: str) -> float | None:
+    """diag_transfer = max(0, metric_leave_event / max(metric_spatial, 0.01))
 
     Uses HistGBDT as reference solver.
     Low = can't generalize across events -> R2 should help.
@@ -167,8 +168,8 @@ def compute_kappa_transfer(runs: list[dict], target: str, task_type: str) -> flo
     return max(0.0, m_leo / denom)
 
 
-def compute_kappa_solver(runs: list[dict], target: str, task_type: str) -> float | None:
-    """kappa_solver = 1 - |metric_hgbdt - metric_ridge| / max(|both|, 0.01)
+def compute_diag_solver(runs: list[dict], target: str, task_type: str) -> float | None:
+    """diag_solver = 1 - |metric_hgbdt - metric_ridge| / max(|both|, 0.01)
 
     Uses spatial_blocked as reference split.
     Low = solvers disagree -> complex structure R0 misses.
@@ -181,20 +182,20 @@ def compute_kappa_solver(runs: list[dict], target: str, task_type: str) -> float
     return 1.0 - abs(m_hgbdt - m_ridge) / denom
 
 
-def compute_kappa_residual_spatial(
+def compute_diag_residual_spatial(
     predictions_df: pd.DataFrame,
     adj_dict: dict[int, list[int]],
     zcta_ids: list[str],
     target: str,
 ) -> float | None:
-    """kappa_residual_spatial via Moran's I on HistGBDT residuals.
+    """diag_residual_spatial via Moran's I on HistGBDT residuals.
 
     Uses yrsn.core.kappa.spatial.compute.compute_kappa_spatial.
     Convention: HIGH kappa_spatial from yrsn = clustered errors.
-    We INVERT: kappa_residual_spatial = 1 - kappa_spatial (high = good = no clustering).
+    We INVERT: diag_residual_spatial = 1 - kappa_spatial (high = good = no clustering).
     """
     if compute_kappa_spatial is None:
-        log.warning("yrsn not available -- skipping kappa_residual_spatial")
+        log.warning("yrsn not available -- skipping diag_residual_spatial")
         return None
 
     if predictions_df.empty:
@@ -250,7 +251,7 @@ def _determine_task_type(runs: list[dict], target: str) -> str | None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Phase 4: progressive kappa diagnostics"
+        description="Phase 4: progressive representation diagnostics"
     )
     parser.add_argument("--level", required=True, choices=["r0", "r1", "r2"])
     parser.add_argument("--upload", action="store_true")
@@ -260,7 +261,7 @@ def main() -> None:
     s3 = get_s3_client()
 
     print(f"\n{'='*60}")
-    print(f"  S035 PHASE 4: KAPPA DIAGNOSTICS -- {level.upper()}")
+    print(f"  S035 PHASE 4: REPRESENTATION DIAGNOSTICS -- {level.upper()}")
     print(f"{'='*60}\n")
 
     # Load adjacency once (shared across scenarios)
@@ -268,7 +269,7 @@ def main() -> None:
         adj_df = load_adjacency(s3)
         log.info("Adjacency edge list: %d rows", len(adj_df))
     except FileNotFoundError:
-        log.warning("No adjacency data -- kappa_residual_spatial will be null")
+        log.warning("No adjacency data -- diag_residual_spatial will be null")
         adj_df = pd.DataFrame()
 
     all_cells = []
@@ -307,10 +308,10 @@ def main() -> None:
                 "target": target,
                 "task_type": task_type,
                 "level": level,
-                "kappa_leakage": compute_kappa_leakage(runs, target, task_type),
-                "kappa_transfer": compute_kappa_transfer(runs, target, task_type),
-                "kappa_solver": compute_kappa_solver(runs, target, task_type),
-                "kappa_residual_spatial": compute_kappa_residual_spatial(
+                "diag_leakage": compute_diag_leakage(runs, target, task_type),
+                "diag_transfer": compute_diag_transfer(runs, target, task_type),
+                "diag_solver": compute_diag_solver(runs, target, task_type),
+                "diag_residual_spatial": compute_diag_residual_spatial(
                     predictions_df, adj_dict, zcta_ids, target,
                 ),
             }
@@ -325,18 +326,18 @@ def main() -> None:
             all_cells.append(cell)
             log.info("  %s / %s: leak=%.3f xfer=%.3f solver=%.3f resid=%s",
                      scenario, target,
-                     cell["kappa_leakage"] or float("nan"),
-                     cell["kappa_transfer"] or float("nan"),
-                     cell["kappa_solver"] or float("nan"),
-                     f"{cell['kappa_residual_spatial']:.3f}"
-                     if cell["kappa_residual_spatial"] is not None else "N/A")
+                     cell["diag_leakage"] or float("nan"),
+                     cell["diag_transfer"] or float("nan"),
+                     cell["diag_solver"] or float("nan"),
+                     f"{cell['diag_residual_spatial']:.3f}"
+                     if cell["diag_residual_spatial"] is not None else "N/A")
 
     # --- Pre-registration predictions ---
     # Median split: cells below median kappa are "flagged" (predicted to benefit)
     predictions = {}
     if level in ("r0", "r1"):
         next_level = "r1" if level == "r0" else "r2"
-        kappa_key = "kappa_leakage" if next_level == "r1" else "kappa_transfer"
+        kappa_key = "diag_leakage" if next_level == "r1" else "diag_transfer"
 
         valid_vals = [c[kappa_key] for c in all_cells if c[kappa_key] is not None]
         if valid_vals:
@@ -358,19 +359,19 @@ def main() -> None:
     # --- Output ---
     payload = {
         "experiment": "s035-model-ladder",
-        "phase": f"kappa_diagnostics_{level}",
+        "phase": f"diagnostics_{level}",
         "level": level,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "n_cells": len(all_cells),
         "cells": all_cells,
         "predictions": predictions,
         "methodology": {
-            "kappa_leakage": "1 - (metric_random - metric_spatial) / max(|metric_random|, 0.01)",
-            "kappa_transfer": "max(0, metric_leave_event / max(|metric_spatial|, 0.01))",
-            "kappa_solver": "1 - |metric_hgbdt - metric_ridge| / max(|both|, 0.01)",
-            "kappa_residual_spatial": "1 - kappa_spatial(yrsn) where kappa_spatial uses Moran's I",
+            "diag_leakage": "1 - (metric_random - metric_spatial) / max(|metric_random|, 0.01)",
+            "diag_transfer": "max(0, metric_leave_event / max(|metric_spatial|, 0.01))",
+            "diag_solver": "1 - |metric_hgbdt - metric_ridge| / max(|both|, 0.01)",
+            "diag_residual_spatial": "1 - kappa_spatial(yrsn) where kappa_spatial uses Moran's I",
             "primary_metric": "R2 for regression, ROC-AUC for classification",
-            "reference_solver": "histgbdt (except kappa_solver which uses both)",
+            "reference_solver": "histgbdt (except diag_solver which uses both)",
             "flag_threshold": "median split (pre-committed, no tuning)",
         },
     }
@@ -378,15 +379,10 @@ def main() -> None:
     output_json = json.dumps(payload, indent=2, default=str)
 
     if args.upload:
-        key = f"{RESULTS_PREFIX}/kappa_diagnostics_{level}.json"
-        s3.put_object(
-            Bucket=BUCKET, Key=key,
-            Body=output_json.encode(),
-            ContentType="application/json",
-        )
-        log.info("Uploaded s3://%s/%s", BUCKET, key)
+        key = f"{RESULTS_PREFIX}/diagnostics_{level}.json"
+        upload_json_result(s3, BUCKET, key, payload)
     else:
-        local = f"/tmp/kappa_diagnostics_{level}.json"
+        local = f"/tmp/diagnostics_{level}.json"
         Path(local).write_text(output_json)
         log.info("Wrote %s", local)
 

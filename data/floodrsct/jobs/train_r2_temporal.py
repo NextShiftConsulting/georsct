@@ -32,6 +32,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent))
+from _s3_result import upload_json_result
 from _validate_contract import check_causal_boundary
 from _coverage_common import (
     BUCKET, SCENARIOS, get_s3_client, load_processed_parquet,
@@ -551,12 +552,7 @@ def main() -> None:
 
     if args.upload:
         key = f"{RESULTS_PREFIX}/r2_{scenario}.json"
-        s3.put_object(
-            Bucket=BUCKET, Key=key,
-            Body=results_json.encode(),
-            ContentType="application/json",
-        )
-        log.info("Uploaded results to s3://%s/%s", BUCKET, key)
+        upload_json_result(s3, BUCKET, key, results_payload)
 
         if prediction_rows:
             pred_df = pd.DataFrame(prediction_rows)

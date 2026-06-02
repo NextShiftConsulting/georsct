@@ -41,6 +41,8 @@ def main() -> None:
         pip_packages="scikit-learn scipy",
         extra_files=extra,
         dry_run=args.dry_run,
+        phase_id="r0_baseline",
+        scenario=args.scenario,
     )
 
 

@@ -489,9 +489,13 @@ def compute_tide_features(s3, event: str, zcta_ids: list[str],
                           zcta_peak_rain_hour: dict) -> pd.DataFrame:
     """Load tide gauge parquets, compute surge timing features."""
     prefix = f"raw/noaa_tides/{event}/"
-    resp = s3.list_objects_v2(Bucket=BUCKET, Prefix=prefix, MaxKeys=100)
-    surge_keys = [o["Key"] for o in resp.get("Contents", [])
-                  if o["Key"].endswith(".parquet") and "tidal_surge" in o["Key"]]
+    surge_keys = []
+    paginator = s3.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=BUCKET, Prefix=prefix):
+        surge_keys.extend(
+            o["Key"] for o in page.get("Contents", [])
+            if o["Key"].endswith(".parquet") and "tidal_surge" in o["Key"]
+        )
 
     if not surge_keys:
         log.info("No tide gauge data for event %s", event)
