@@ -9,9 +9,18 @@ pandas>=2.0
 # Data I/O
 pyarrow>=14.0
 boto3>=1.28
+geopandas>=1.1  # GeoParquet output (DOE Change 12)
 
 # Metrics + stats
 scipy>=1.11
+
+# Measurement plane (Phase 4/4.5/6)
+# yrsn: kappa spatial, certificates, DGM routing
+# Installed from vendored wheel on SageMaker
+
+# Flood analysis (Phase 7 only)
+# floodcaster: NSI fetch + Hazus via sphere + ZCTA aggregation
+# Installed from vendored wheel on SageMaker
 
 # Credential management (launcher only, NOT container)
 # swarm-auth  # launcher-side only; container uses IAM role

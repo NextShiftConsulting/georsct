@@ -79,10 +79,10 @@ the same folds, targets, and splits.
 beyond engineered features + graph topology?
 
 **Kappa diagnostic predictions:**
-- High `kappa_solver` (HistGBDT agrees with Ridge) + high `kappa_residual_spatial`
+- High `diag_solver` (HistGBDT agrees with Ridge) + high `diag_residual_spatial`
   (no error clustering) → LLM embeddings unlikely to help (existing features
   already capture the signal)
-- Low `kappa_solver` + low `kappa_residual_spatial` → complex spatially-structured
+- Low `diag_solver` + low `diag_residual_spatial` → complex spatially-structured
   signal that neither linear nor tree models capture → LLM semantics may help
   if the missing signal is in text
 
@@ -111,16 +111,18 @@ should help more. But that's a separate hypothesis.
 
 ---
 
-## Why Not VLA / VLM / JEPA
+## VLA / VLM / JEPA Status
 
-| Model Family | Applicable? | Why / Why Not |
-|-------------|-------------|---------------|
-| **VLA** (Vision-Language-Action) | No | No action space in ZCTA flood prediction |
-| **VLM** (Vision-Language Model) | Deferred | Needs satellite imagery pipeline (Sentinel-2 tiles per ZCTA). Different data modality, not just a different solver. Separate experiment. |
+| Model Family | Status | Details |
+|-------------|--------|---------|
+| **VLM** (Vision-Language Model) | **PROMOTED to R4 arm** | Three adapters implemented in `yrsn/adapters/outbound/vlm.py`: Claude Opus (`ClaudeVisionAdapter`), Gemini Flash (`GeminiVisionAdapter`), Qwen2.5-VL-72B (`Qwen2VLAdapter`). Does NOT need satellite imagery — uses rendered FEMA flood zone maps + structured text evidence. Full DOE in `DOE_R4_vlm.md`. rsct-vision proves the pattern works for embedded hardware. |
+| **VLA** (Vision-Language-Action) | Deferred (R5) | No action space in ZCTA flood prediction. Demo/explanation layer only. |
 | **JEPA** (Joint Embedding Predictive Architecture) | Deferred | Self-supervised spatial representation learning. Interesting but needs training from scratch on ZCTA spatial context. No existing code or pretrained model for this domain. |
 
-These are future representation sources, not s035 scope. Each requires its own
-data pipeline and would be a separate column in the ablation matrix.
+VLM was promoted because: (1) rsct-vision demonstrated the camera→VLM→structured-output
+pattern works without training a domain-specific CNN, (2) adapters already exist in
+the yrsn hex arch, (3) rendered flood maps + FEMA text is a cheaper input pipeline
+than satellite imagery, (4) the three-way comparison tests solver robustness at ~$29 total.
 
 ---
 
