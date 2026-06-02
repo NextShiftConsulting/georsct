@@ -99,6 +99,60 @@ def features_for_scenario(contract: list[dict], scenario: str) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Causal boundary enforcement
+# ---------------------------------------------------------------------------
+
+# temporal_class values that MUST NOT be used as training features.
+# See FEATURE_CONTRACT.yaml header: post_event and operational are
+# labels/outcomes or unknowable at forecast time.
+FORBIDDEN_TEMPORAL_CLASSES = frozenset({"post_event", "operational"})
+
+
+def check_causal_boundary(feature_names: list[str],
+                          contract: Optional[list[dict]] = None) -> list[str]:
+    """Reject features that violate the causal boundary.
+
+    Args:
+        feature_names: columns the training script intends to use.
+        contract: loaded FEATURE_CONTRACT entries (loads from disk if None).
+
+    Returns:
+        List of violations (empty if clean).
+
+    Raises:
+        ValueError: if any feature violates the causal boundary.
+    """
+    if contract is None:
+        contract = load_contract()
+
+    # Build lookup: column_name -> temporal_class
+    col_to_temporal = {}
+    for feat in contract:
+        col = feat.get("output_column") or feat.get("feature_name")
+        tc = feat.get("temporal_class")
+        if col and tc:
+            col_to_temporal[col] = tc
+
+    violations = []
+    for name in feature_names:
+        tc = col_to_temporal.get(name)
+        if tc in FORBIDDEN_TEMPORAL_CLASSES:
+            violations.append(
+                f"{name} (temporal_class={tc}): causal boundary violation"
+            )
+
+    if violations:
+        msg = (
+            "CAUSAL BOUNDARY VIOLATION -- these features are post-event "
+            "labels or operational telemetry and cannot be used as training "
+            "inputs:\n  " + "\n  ".join(violations)
+        )
+        raise ValueError(msg)
+
+    return violations
+
+
+# ---------------------------------------------------------------------------
 # S3 helpers
 # ---------------------------------------------------------------------------
 

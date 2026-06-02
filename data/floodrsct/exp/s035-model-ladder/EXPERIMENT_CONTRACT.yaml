@@ -1,0 +1,505 @@
+# EXPERIMENT_CONTRACT.yaml -- Machine-readable pre-flight contract for s035.
+#
+# Each phase declares four validation layers:
+#   packages:      pip packages that must be importable
+#   features:      columns that must exist in the input parquet
+#   s3_artifacts:  S3 keys that must exist before launch (inputs)
+#   outputs:       S3 keys this phase produces (downstream dependencies)
+#
+# validate_experiment_readiness.py reads this file and gates --dry-run.
+
+experiment: s035-model-ladder
+bucket: swarm-floodrsct-data
+version: "1.0"
+
+# Modelable scenarios (NOLA excluded, n=20)
+modelable_scenarios: &modelable
+  - houston
+  - southwest_florida
+  - nyc
+  - riverside_coachella
+
+phases:
+
+  # ── Phase 0.5: Geometry Kappa (pre-training) ──────────────────────────
+  # Computes kappa from problem geometry ONLY.  Zero dependency on RSN,
+  # fold metrics, predictions, residuals, or model scores.
+  - phase_id: geometry_kappa
+    script: compute_geometry_kappa.py
+    description: "Phase 0.5: geometry-only kappa (runs before any model training)"
+    per_scenario: false
+
+    packages:
+      - numpy
+      - pandas
+      - pyarrow
+
+    s3_artifacts:
+      - key: assembled_parquet
+        description: "Assembled event features parquet"
+      - key: "raw/geocertdb2026/zcta_adjacency.parquet"
+        description: "ZCTA adjacency edge list"
+        optional: true
+      - key: "raw/geocertdb2026/zcta_county_crosswalk.parquet"
+        description: "ZCTA-county crosswalk"
+        optional: true
+
+    outputs:
+      - key: "results/s035/geometry_kappa.json"
+        description: "Geometry-only kappa per (scenario, target) cell"
+
+  # ── Phase 1: R0 Baseline ──────────────────────────────────────────────
+  - phase_id: r0_baseline
+    script: train_r0_baseline.py
+    description: "Phase 1: R0 tabular baseline (folds + HistGBDT + Ridge)"
+    per_scenario: true
+
+    packages:
+      - scikit-learn
+      - numpy
+      - pandas
+      - pyarrow
+      - scipy
+
+    features:
+      source: assembled_parquet  # resolved via OUTPUT_KEYS[scenario]
+      required:
+        - zcta_id
+        - event
+        - flood_pct_zone_a
+        - flood_pct_zone_ae
+        - elevation_m_msl
+        - acs_total_pop
+        - acs_median_household_income
+        - svi_overall
+      targets:
+        - obs_nfip_event_claims
+        - obs_has_311
+        - obs_has_hwm
+
+    s3_artifacts:
+      - key: assembled_parquet
+        description: "Assembled event features parquet"
+      - key: "raw/geocertdb2026/zcta_county_crosswalk.parquet"
+        description: "ZCTA-county crosswalk for spatial blocking"
+        optional: true
+
+    outputs:
+      - key: "results/s035/r0_{scenario}.json"
+        description: "R0 results: RunResult[] per (target x solver x split x fold)"
+        per_scenario: true
+        schema: &arm_result_schema
+          experiment: "s035-model-ladder"
+          phase: str
+          scenario: str
+          timestamp: ISO-8601
+          seed: int
+          representation: "R0|R1|R2"
+          features_used: "[str]"
+          features_missing: "[str]"
+          fold_metadata: dict
+          runs: "RunResult[]"
+        run_result_schema: &run_result
+          scenario: str
+          target: str
+          task: "regression|binary"
+          solver: str
+          split: "random|spatial_blocked"
+          fold: "fold_0..fold_4"
+          n_train: int
+          n_test: int
+          metrics: "{rmse, r2, mae, ...}"
+          naive_baseline: "{rmse, r2, mae, ...}"
+          features_used: int
+          timestamp: ISO-8601
+      - key: "results/s035/r0_{scenario}_predictions.parquet"
+        description: "Per-ZCTA predictions (spatial_blocked, for Moran's I)"
+        per_scenario: true
+        columns: [zcta_id, target, solver, fold, y_true, y_pred]
+      - key: "folds/{scenario}_folds.parquet"
+        description: "Fold assignments (reused by R1, R2)"
+        per_scenario: true
+        columns: [zcta_id, random_fold, spatial_fold]
+
+  # ── Phase 4a: Diagnostics R0 ──────────────────────────────────────────
+  - phase_id: diagnostics_r0
+    script: compute_diagnostics.py
+    description: "Phase 4a: diag proxies from R0 outputs"
+    per_scenario: false
+
+    packages:
+      - numpy
+      - pandas
+      - pyarrow
+
+    features: null
+
+    s3_artifacts:
+      - key: "results/s035/r0_{scenario}.json"
+        description: "R0 results JSON"
+        per_scenario: true
+        scenarios: *modelable
+      - key: "results/s035/r0_{scenario}_predictions.parquet"
+        description: "R0 per-row predictions for Moran's I"
+        per_scenario: true
+        scenarios: *modelable
+        optional: true
+      - key: "raw/geocertdb2026/zcta_adjacency.parquet"
+        description: "ZCTA adjacency edge list"
+        optional: true
+
+  # ── Phase 4.5a: Certificates R0 ───────────────────────────────────────
+  - phase_id: certificates_r0
+    script: compute_certificates.py
+    description: "Phase 4.5a: RSN certificates from R0 results"
+    per_scenario: false
+
+    packages:
+      - numpy
+      - pandas
+      - pyarrow
+
+    features: null
+
+    s3_artifacts:
+      - key: "results/s035/r0_{scenario}.json"
+        per_scenario: true
+        scenarios: *modelable
+      - key: "results/s035/diagnostics_r0.json"
+        description: "R0 diagnostics (from Phase 4a)"
+
+  # ── Phase 2: R1 Hydrology ─────────────────────────────────────────────
+  - phase_id: r1_hydrology
+    script: train_r1_hydrology.py
+    description: "Phase 2: R1 tabular + hydro + W-matrix features"
+    per_scenario: true
+
+    packages:
+      - scikit-learn
+      - numpy
+      - pandas
+      - pyarrow
+      - scipy
+
+    features:
+      source: assembled_parquet
+      required:
+        - zcta_id
+        - event
+
+    s3_artifacts:
+      - key: assembled_parquet
+        description: "Assembled event features parquet"
+      - key: "folds/{scenario}_folds.parquet"
+        description: "Fold assignments from R0"
+      - key: "processed/{scenario}/{scenario_key}_r1_supplement.parquet"
+        description: "R1 hydrology supplement"
+        optional: false
+
+  # ── Phase 4b: Diagnostics R1 ──────────────────────────────────────────
+  - phase_id: diagnostics_r1
+    script: compute_diagnostics.py
+    description: "Phase 4b: diag proxies from R1 outputs"
+    per_scenario: false
+
+    packages:
+      - numpy
+      - pandas
+      - pyarrow
+
+    features: null
+
+    s3_artifacts:
+      - key: "results/s035/r1_{scenario}.json"
+        per_scenario: true
+        scenarios: *modelable
+      - key: "results/s035/r1_{scenario}_predictions.parquet"
+        per_scenario: true
+        scenarios: *modelable
+        optional: true
+      - key: "raw/geocertdb2026/zcta_adjacency.parquet"
+        optional: true
+
+  # ── Phase 4.5b: Certificates R1 ───────────────────────────────────────
+  - phase_id: certificates_r1
+    script: compute_certificates.py
+    description: "Phase 4.5b: RSN certificates from R1 results"
+    per_scenario: false
+
+    packages:
+      - numpy
+      - pandas
+      - pyarrow
+
+    features: null
+
+    s3_artifacts:
+      - key: "results/s035/r1_{scenario}.json"
+        per_scenario: true
+        scenarios: *modelable
+      - key: "results/s035/diagnostics_r1.json"
+
+  # ── Phase 3: R2 Temporal ───────────────────────────────────────────────
+  - phase_id: r2_temporal
+    script: train_r2_temporal.py
+    description: "Phase 3: R2 tabular + hydro + temporal features"
+    per_scenario: true
+
+    packages:
+      - scikit-learn
+      - numpy
+      - pandas
+      - pyarrow
+      - scipy
+
+    features:
+      source: assembled_parquet
+      required:
+        - zcta_id
+        - event
+
+    s3_artifacts:
+      - key: assembled_parquet
+        description: "Assembled event features parquet"
+      - key: "folds/{scenario}_folds.parquet"
+        description: "Fold assignments from R0"
+      - key: "processed/{scenario}/{scenario_key}_r2_supplement.parquet"
+        description: "R2 temporal supplement"
+        optional: false
+
+  # ── Phase 4c + 4.5c: Diagnostics + Certificates R2 ────────────────────
+  - phase_id: diagnostics_r2
+    script: compute_diagnostics.py
+    description: "Phase 4c: diag proxies from R2 outputs"
+    per_scenario: false
+
+    packages:
+      - numpy
+      - pandas
+      - pyarrow
+
+    features: null
+
+    s3_artifacts:
+      - key: "results/s035/r2_{scenario}.json"
+        per_scenario: true
+        scenarios: *modelable
+      - key: "results/s035/r2_{scenario}_predictions.parquet"
+        per_scenario: true
+        scenarios: *modelable
+        optional: true
+      - key: "raw/geocertdb2026/zcta_adjacency.parquet"
+        optional: true
+
+  - phase_id: certificates_r2
+    script: compute_certificates.py
+    description: "Phase 4.5c: RSN certificates from R2 results"
+    per_scenario: false
+
+    packages:
+      - numpy
+      - pandas
+      - pyarrow
+
+    features: null
+
+    s3_artifacts:
+      - key: "results/s035/r2_{scenario}.json"
+        per_scenario: true
+        scenarios: *modelable
+      - key: "results/s035/diagnostics_r2.json"
+
+  # ── Phase 5: Money Table ───────────────────────────────────────────────
+  - phase_id: uplift_table
+    script: compute_uplift_table.py
+    description: "Phase 5: money table + hypothesis tests"
+    per_scenario: false
+
+    packages:
+      - numpy
+      - pandas
+      - pyarrow
+      - scipy
+
+    features: null
+
+    s3_artifacts:
+      - key: "results/s035/r0_{scenario}.json"
+        per_scenario: true
+        scenarios: *modelable
+      - key: "results/s035/r1_{scenario}.json"
+        per_scenario: true
+        scenarios: *modelable
+      - key: "results/s035/r2_{scenario}.json"
+        per_scenario: true
+        scenarios: *modelable
+      - key: "results/s035/diagnostics_r0.json"
+      - key: "results/s035/diagnostics_r1.json"
+      - key: "results/s035/diagnostics_r2.json"
+
+  # ── Phase 6: DGM Routing ──────────────────────────────────────────────
+  - phase_id: dgm_routing
+    script: compute_dgm_routing.py
+    description: "Phase 6: DGM morph routing analysis"
+    per_scenario: false
+
+    packages:
+      - numpy
+      - pandas
+      - pyarrow
+
+    features: null
+
+    s3_artifacts:
+      - key: "results/s035/certificates_r0.json"
+      - key: "results/s035/certificates_r1.json"
+      - key: "results/s035/certificates_r2.json"
+      - key: "results/s035/r0_{scenario}.json"
+        per_scenario: true
+        scenarios: *modelable
+      - key: "results/s035/r1_{scenario}.json"
+        per_scenario: true
+        scenarios: *modelable
+      - key: "results/s035/r2_{scenario}.json"
+        per_scenario: true
+        scenarios: *modelable
+
+  # ── Phase R4.1-R4.2: VLM Input Preparation ─────────────────────────────
+  - phase_id: r4_render_maps
+    script: render_zcta_maps.py
+    description: "Phase R4.1: Render ZCTA flood zone maps as PNG"
+    per_scenario: true
+
+    packages:
+      - geopandas
+      - matplotlib
+      - pyarrow
+
+    features:
+      source: assembled_parquet
+      required:
+        - zcta_id
+        - centroid_lat
+        - centroid_lon
+
+    s3_artifacts:
+      - key: assembled_parquet
+        description: "Assembled event features parquet"
+      - key: "raw/fema_nfhl/{scenario}_nfhl.parquet"
+        description: "FEMA NFHL flood zone polygons"
+        optional: true
+
+  - phase_id: r4_build_evidence
+    script: build_zcta_evidence.py
+    description: "Phase R4.2: Build structured text evidence per ZCTA"
+    per_scenario: true
+
+    packages:
+      - pandas
+      - pyarrow
+
+    features:
+      source: assembled_parquet
+      required:
+        - zcta_id
+
+    s3_artifacts:
+      - key: assembled_parquet
+        description: "Assembled event features parquet"
+
+  # ── Phase R4.3: VLM Assessment ────────────────────────────────────────
+  - phase_id: r4_vlm_assessment
+    script: run_vlm_assessment.py
+    description: "Phase R4.3: Run 3-way VLM comparison (Claude/Gemini/Qwen)"
+    per_scenario: true
+
+    packages:
+      - pandas
+      - pyarrow
+      - anthropic
+      - openai
+      - google-generativeai
+
+    features: null
+
+    s3_artifacts:
+      - key: "maps/{scenario}/"
+        description: "Rendered ZCTA map PNGs"
+        prefix: true
+      - key: "evidence/{scenario}/"
+        description: "Structured text evidence"
+        prefix: true
+
+  # ── Phase R4.4-R4.5: VLM Quality Scoring + Comparison ─────────────────
+  - phase_id: r4_vlm_comparison
+    script: compute_vlm_comparison.py
+    description: "Phase R4.5: VLM money table + H7-H9 evidence"
+    per_scenario: false
+
+    packages:
+      - numpy
+      - pandas
+      - pyarrow
+      - scipy
+
+    features: null
+
+    s3_artifacts:
+      - key: "results/s035/r4_{vlm}_{scenario}.parquet"
+        description: "VLM assessment results"
+        per_scenario: true
+        scenarios: *modelable
+      - key: "results/s035/r0_{scenario}.json"
+        description: "R0 results for kappa comparison"
+        per_scenario: true
+        scenarios: *modelable
+      - key: "results/s035/diagnostics_r0.json"
+        description: "R0 diagnostics for H9"
+
+  # ── Phase 7a: FAST ZCTA Features ──────────────────────────────────────
+  - phase_id: fast_zcta
+    script: run_fast_zcta.py
+    description: "Phase 7a: FAST engineering features via floodcaster"
+    per_scenario: true
+
+    packages:
+      - numpy
+      - pandas
+      - pyarrow
+      - geopandas
+      - rasterio
+
+    features: null
+
+    s3_artifacts:
+      - key: "raw/nsi/v2/{scenario}_structures.parquet"
+        description: "NSI 2.0 building inventory"
+      - key: "raw/floodsimbench/6hr_max/"
+        description: "FloodSimBench depth rasters"
+        prefix: true
+
+  # ── Phase 7b: FAST External Validation ─────────────────────────────────
+  - phase_id: fast_validation
+    script: compute_fast_validation.py
+    description: "Phase 7b: Spearman correlation with FAST estimates"
+    per_scenario: false
+
+    packages:
+      - numpy
+      - pandas
+      - pyarrow
+      - scipy
+
+    features: null
+
+    s3_artifacts:
+      - key: "processed/{scenario}/{scenario_key}_fast_zcta.parquet"
+        description: "FAST ZCTA aggregates"
+        per_scenario: true
+        scenarios: [houston, nyc]
+      - key: "results/s035/r0_{scenario}_predictions.parquet"
+        per_scenario: true
+        scenarios: [houston, nyc]
+      - key: "results/s035/r2_{scenario}_predictions.parquet"
+        per_scenario: true
+        scenarios: [houston, nyc]

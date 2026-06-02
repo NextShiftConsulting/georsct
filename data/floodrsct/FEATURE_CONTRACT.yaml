@@ -330,14 +330,28 @@ features:
       before the target event's incidentBeginDate.  Zero if no prior claims.
 
   - feature_name: nfip_total_contents_loss
-    temporal_class: slow_drift
+    temporal_class: post_event
     scenarios: all
     source_type: public_fetch
     source_dataset: geocertdb2026
     output_column: nfip_total_contents_loss
     notes: >
       Cumulative historical NFIP contents loss ($) in this ZCTA.
-      Distinct from nfip_total_loss (building loss). R1 universal feature.
+      CAUSAL BOUNDARY VIOLATION: geocertdb2026 snapshot includes claims from
+      the target event itself. Cannot be used as a training feature.
+      Retained in dataset for descriptive analysis only.
+
+  - feature_name: nfip_total_building_loss
+    temporal_class: post_event
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: geocertdb2026
+    output_column: nfip_total_building_loss
+    notes: >
+      Cumulative historical NFIP building loss ($) in this ZCTA.
+      CAUSAL BOUNDARY VIOLATION: geocertdb2026 snapshot includes claims from
+      the target event itself. Cannot be used as a training feature.
+      Retained in dataset for descriptive analysis only.
 
   - feature_name: flood_deaths
     temporal_class: slow_drift

@@ -1207,6 +1207,75 @@ features, R1 explicitly encodes spatial structure:
 | v1.5 | 2026-06-01 | FEMA FAST scoped to Houston (primary) + NYC (primary) + SW Florida (stretch); verified depth rasters on S3 (FloodSimBench + SLOSH MOM); NSI 2.0 only missing data |
 | v1.6 | 2026-06-01 | GeoParquet standardization (all spatial outputs); W-matrix spatial features in R1 (spatial lag, residual correction); libpysal dependency; dead config cleanup |
 | v1.7 | 2026-06-02 | Pre-registered primary outcomes; NFIP temporal gate (IBNR boundary); storm features moved to R2; fold-level Wilcoxon as primary test; random-features ablation; git provenance in launchers |
+| v1.8 | 2026-06-02 | Kappa independence: geometry-only kappa (Phase 0.5); model-derived diagnostics demoted to diagnostic fields, not kappa inputs; causal boundary guard on training features; R1/R2 supplements required |
+
+---
+
+## Kappa Independence (v1.8)
+
+**Principle:** kappa measures geometric compatibility (D*/D), not model
+quality.  It must have **zero computational dependency** on the RSN
+simplex (R, S_sup, N), fold metrics, predictions, residuals, or model
+scores.
+
+### What changed
+
+The prior design computed kappa from `diag_leakage`, which is
+`1 - (random_metric - spatial_metric) / |random_metric|` — a monotone
+transform of S_sup.  This made kappa algebraically dependent on the
+simplex, defeating its purpose as an independent diagnostic axis.
+
+### New design
+
+kappa is computed in **Phase 0.5** (`compute_geometry_kappa.py`), which
+runs **before any model training**.  It reads only:
+
+| Input | Source | Model-free? |
+|-------|--------|-------------|
+| Adjacency graph | `zcta_adjacency.parquet` | Yes |
+| County crosswalk | `zcta_county_crosswalk.parquet` | Yes |
+| Feature coverage | assembled parquet (column nullity) | Yes |
+| Target availability | assembled parquet (target nullity) | Yes |
+
+The current implementation uses four compatibility terms, all scaled so
+that 1 = more compatible and 0 = less compatible:
+
+| Term | Measures | Safe inputs |
+|------|----------|-------------|
+| `spatial_connectivity` | Connectedness of scenario ZCTAs in adjacency graph | Adjacency graph only |
+| `support_coverage` | Feature and target observability for eligible rows | Parquet schema + nullity |
+| `scale_stability` | Aggregation stability proxy (ZCTA vs county variance) | Feature values + crosswalk |
+| `administrative_alignment` | ZCTA-county boundary alignment (admin proxy) | Crosswalk only |
+
+`kappa_geom = mean(available compatibility terms)`
+
+The current `scale_stability` and `administrative_alignment` terms are
+conservative proxies.  Future versions may replace or supplement them
+with hydrologic topology, basin/catchment alignment, or explicit MAUP
+sensitivity tests.
+
+### What is NOT kappa
+
+The following remain as **diagnostic fields** in `compute_diagnostics.py`
+but are explicitly excluded from kappa computation:
+
+- `diag_leakage` — random vs spatial metric gap (model-derived)
+- `diag_transfer` — leave-event-out vs spatial ratio (model-derived)
+- `diag_solver` — HistGBDT vs Ridge agreement (model-derived)
+- `diag_residual_spatial` — Moran's I on residuals (model-derived)
+
+These are useful for understanding model behavior.  They are not
+geometric compatibility.
+
+### Paper language
+
+> We distinguish model-quality decomposition from geometric compatibility.
+> The RSN simplex summarizes observed model behavior under validation.
+> In contrast, kappa is computed from pre-evaluation problem geometry and
+> data-support structure, before model training or scoring.  It is not a
+> function of RSN coordinates, validation scores, fold gaps, predictions,
+> or residuals.  This separation prevents kappa from becoming a disguised
+> quality metric and preserves its role as an independent diagnostic axis.
 
 ---
 

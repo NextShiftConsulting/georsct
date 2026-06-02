@@ -242,7 +242,7 @@ def build_money_table(
                     spatial_metric=r0_cert.get("spatial_metric"),
                     random_metric=r0_cert.get("random_metric"),
                     task_type=r0_cert.get("task_type", "regression"),
-                    diag_kappa=r0_cert.get("kappa"),
+                    kappa_geom=r0_cert.get("kappa"),
                 )
                 if live_cert.diagnosis_label:
                     cert_signals["degradation_label_r0"] = live_cert.diagnosis_label

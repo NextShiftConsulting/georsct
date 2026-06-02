@@ -34,6 +34,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from _coverage_common import (
     BUCKET, SCENARIOS, get_s3_client, load_processed_parquet, load_crosswalk,
 )
+from _validate_contract import check_causal_boundary
 from generate_folds import generate_folds
 
 logging.basicConfig(
@@ -368,6 +369,9 @@ def main() -> None:
 
     s3 = get_s3_client()
     scenario = args.scenario
+
+    # Hard gate: reject any feature that violates the causal boundary
+    check_causal_boundary(R0_FEATURES)
 
     print(f"\n{'='*60}")
     print(f"  S035 PHASE 1: R0 BASELINE -- {scenario}")
