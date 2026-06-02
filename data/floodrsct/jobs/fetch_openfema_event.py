@@ -42,6 +42,10 @@ S035_DISASTERS = [
     {"dr": "DR-4332-TX", "number": 4332, "state": "TX", "start": "2017-08-17", "end": "2017-09-30", "event": "Harvey 2017"},
     {"dr": "DR-4466-TX", "number": 4466, "state": "TX", "start": "2019-09-17", "end": "2019-10-31", "event": "Imelda 2019"},
     {"dr": "DR-4781-TX", "number": 4781, "state": "TX", "start": "2024-07-08", "end": "2024-08-31", "event": "Beryl 2024"},
+    # New Orleans metro (expanded: Katrina, Isaac, Barry, Ida)
+    {"dr": "DR-1603-LA", "number": 1603, "state": "LA", "start": "2005-08-29", "end": "2006-02-28", "event": "Katrina 2005"},
+    {"dr": "DR-4080-LA", "number": 4080, "state": "LA", "start": "2012-08-26", "end": "2012-09-30", "event": "Isaac 2012"},
+    {"dr": "DR-4458-LA", "number": 4458, "state": "LA", "start": "2019-07-10", "end": "2019-08-15", "event": "Barry 2019"},
     {"dr": "DR-4611-LA", "number": 4611, "state": "LA", "start": "2021-08-26", "end": "2021-10-31", "event": "Ida 2021 LA"},
     {"dr": "DR-4615-NY", "number": 4615, "state": "NY", "start": "2021-09-01", "end": "2021-10-31", "event": "Ida 2021 NY"},
     # Southwest Florida

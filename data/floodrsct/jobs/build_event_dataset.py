@@ -989,8 +989,11 @@ def build_houston(s3, cfg: dict) -> pd.DataFrame:
 def build_new_orleans(s3, cfg: dict) -> pd.DataFrame:
     """Assemble New Orleans (zcta, event) table."""
     xwalk = s3_read(s3, "raw/geocertdb2026/zcta_county_crosswalk.parquet")
-    no_zctas = xwalk[xwalk["county_fips"] == "22071"]["zcta_id"].tolist()
-    log.info("New Orleans: %d Orleans Parish ZCTAs", len(no_zctas))
+    # 5-parish Greater New Orleans metro: Orleans, Jefferson, Plaquemines,
+    # St. Bernard, St. Tammany (~66 ZCTAs, up from 20 Orleans-only)
+    metro_fips = ["22051", "22071", "22075", "22087", "22103"]
+    no_zctas = xwalk[xwalk["county_fips"].isin(metro_fips)]["zcta_id"].tolist()
+    log.info("New Orleans metro: %d ZCTAs across %d parishes", len(no_zctas), len(metro_fips))
 
     static = load_geocert_static(s3, "new_orleans", no_zctas)
 
@@ -1008,9 +1011,18 @@ def build_new_orleans(s3, cfg: dict) -> pd.DataFrame:
     )
 
     event_map = {
-        "ida2021": {"dr": 4611, "storm_id": "AL092021",
-                    "peak_window": ("2021-08-29", "2021-09-01"),
-                    "s3_event_key": "ida2021_nola"},
+        "katrina2005": {"dr": 1603, "storm_id": "AL122005",
+                        "peak_window": ("2005-08-29", "2005-08-30"),
+                        "s3_event_key": "katrina2005_nola"},
+        "isaac2012":   {"dr": 4080, "storm_id": "AL092012",
+                        "peak_window": ("2012-08-28", "2012-08-30"),
+                        "s3_event_key": "isaac2012_nola"},
+        "barry2019":   {"dr": 4458, "storm_id": "AL022019",
+                        "peak_window": ("2019-07-12", "2019-07-14"),
+                        "s3_event_key": "barry2019_nola"},
+        "ida2021":     {"dr": 4611, "storm_id": "AL092021",
+                        "peak_window": ("2021-08-29", "2021-09-01"),
+                        "s3_event_key": "ida2021_nola"},
     }
 
     rows = []

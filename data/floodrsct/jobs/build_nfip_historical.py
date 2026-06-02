@@ -53,13 +53,18 @@ SCENARIO_EVENTS = {
         {"event": "beryl2024",   "dr": 4781, "start_date": "2024-07-08"},
     ],
     "new_orleans": [
+        {"event": "katrina2005", "dr": 1603, "start_date": "2005-08-29"},
+        {"event": "isaac2012",   "dr": 4080, "start_date": "2012-08-28"},
+        {"event": "barry2019",   "dr": 4458, "start_date": "2019-07-11"},
         {"event": "ida2021",     "dr": 4611, "start_date": "2021-08-26"},
     ],
     "nyc": [
+        {"event": "henri2021",   "dr": 4615, "start_date": "2021-08-22"},
         {"event": "ida2021",     "dr": 4615, "start_date": "2021-09-01"},
     ],
     "riverside_coachella": [
-        {"event": "hilary2023",  "dr": 4699, "start_date": "2023-08-20"},
+        {"event": "hilary2023",    "dr": 4699, "start_date": "2023-08-20"},
+        {"event": "ar_flood_2023", "dr": 4699, "start_date": "2023-01-09"},
     ],
     "southwest_florida": [
         {"event": "ian2022",     "dr": 4673, "start_date": "2022-09-23"},
@@ -68,18 +73,31 @@ SCENARIO_EVENTS = {
     ],
 }
 
-# All DR numbers across all scenarios -- used to load the full claims corpus.
-ALL_DR_NUMBERS = sorted({
-    ev["dr"]
-    for events in SCENARIO_EVENTS.values()
-    for ev in events
-})
+
+def _discover_all_dr_parquets(s3) -> list[int]:
+    """Scan S3 for all available NFIP claims parquets (any DR)."""
+    import re
+    dr_numbers = []
+    paginator = s3.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=BUCKET, Prefix="raw/openfema/nfip_claims_dr"):
+        for obj in page.get("Contents", []):
+            m = re.search(r"nfip_claims_dr(\d+)\.parquet$", obj["Key"])
+            if m:
+                dr_numbers.append(int(m.group(1)))
+    return sorted(dr_numbers)
 
 
 def load_all_claims(s3) -> pd.DataFrame:
-    """Load and concatenate all per-DR NFIP claim parquets from S3."""
+    """Load and concatenate all per-DR NFIP claim parquets from S3.
+
+    Scans S3 for all available DR parquets rather than using a hardcoded
+    list, so that pre-event historical claims are always available even
+    for single-event scenarios.
+    """
+    all_drs = _discover_all_dr_parquets(s3)
+    log.info("Discovered %d DR parquets on S3: %s", len(all_drs), all_drs)
     frames = []
-    for dr in ALL_DR_NUMBERS:
+    for dr in all_drs:
         key = f"raw/openfema/nfip_claims_dr{dr}.parquet"
         try:
             resp = s3.get_object(Bucket=BUCKET, Key=key)

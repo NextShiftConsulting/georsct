@@ -39,7 +39,7 @@ BUCKET = "swarm-floodrsct-data"
 # ---------------------------------------------------------------------------
 SCENARIOS = {
     "houston": ["harvey2017", "imelda2019", "beryl2024"],
-    "new_orleans": ["ida2021_nola"],
+    "new_orleans": ["katrina2005_nola", "isaac2012_nola", "barry2019_nola", "ida2021_nola"],
     "nyc": ["ida2021_nyc", "henri2021"],
     "southwest_florida": ["ian2022", "helene2024", "milton2024"],
     "riverside_coachella": ["hilary2023", "ar_flood_2023"],

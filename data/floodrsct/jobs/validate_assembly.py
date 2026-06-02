@@ -475,7 +475,7 @@ def validate_data_lock(
 
 SCENARIO_EVENTS = {
     "houston": ["harvey2017", "imelda2019", "beryl2024"],
-    "new_orleans": ["ida2021"],
+    "new_orleans": ["katrina2005", "isaac2012", "barry2019", "ida2021"],
     "nyc": ["ida2021_nyc", "henri2021"],
     "riverside_coachella": ["hilary2023", "tropical_storm_2023_03"],
     "southwest_florida": ["ian2022", "helene2024", "milton2024"],

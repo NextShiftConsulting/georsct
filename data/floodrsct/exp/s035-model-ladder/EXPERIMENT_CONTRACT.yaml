@@ -26,15 +26,16 @@ observation_unit:
   primary_key: [zcta_id, event]
   unit_definition: "ZCTA = ZIP Code Tabulation Area (Census TIGER/Line 2022)"
 
-# Modelable scenarios (4 metros, n=172-606 ZCTAs; NOLA is illustrative only)
+# Modelable scenarios (5 metros, n=172-606 ZCTAs)
+# New Orleans expanded from Orleans Parish (n=20) to 5-parish metro
+# (Orleans, Jefferson, St. Bernard, Plaquemines, St. Tammany; n=66)
+# with 4 events (Katrina 2005, Isaac 2012, Barry 2019, Ida 2021)
+# giving 264 rows — borderline modelable, strong pre/post-levee signal.
 modelable_scenarios: &modelable
   - houston
   - southwest_florida
   - nyc
   - riverside_coachella
-
-# Illustrative only — too few ZCTAs for meaningful ML (n=20)
-illustrative_scenarios: &illustrative
   - new_orleans
 
 # ── Canonical Targets ──────────────────────────────────────────────────
@@ -46,7 +47,7 @@ targets:
     transform: log1p
     metric: r2
     role: primary
-    scenarios: [houston, southwest_florida, nyc, riverside_coachella]
+    scenarios: [houston, southwest_florida, nyc, riverside_coachella, new_orleans]
 
   - column: obs_has_311
     task: binary_classification
