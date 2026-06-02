@@ -619,6 +619,72 @@ def run_hypothesis_tests(money_table: list[dict], all_results: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Cell-level bootstrap CIs
+# ---------------------------------------------------------------------------
+
+def bootstrap_cell_uplift(
+    money_table: list[dict],
+    n_boot: int = N_BOOTSTRAP,
+    seed: int = SEED,
+) -> dict:
+    """Bootstrap 95% CIs over (scenario, target) cells for aggregate uplift.
+
+    The decision object is the experiment cell, not the individual fold or row.
+    This is an uncertainty interval on the reported aggregate effect, not a
+    replacement for the pre-registered primary test (fold-level Wilcoxon).
+
+    Returns dict with per-transition (R0->R1, R1->R2) bootstrap summaries.
+    """
+    rng = np.random.default_rng(seed)
+
+    # Extract per-cell uplifts
+    r0_r1 = [row["uplift_r0_r1_pct"] for row in money_table
+             if row.get("uplift_r0_r1_pct") is not None]
+    r1_r2 = [row["uplift_r1_r2_pct"] for row in money_table
+             if row.get("uplift_r1_r2_pct") is not None]
+
+    result = {
+        "bootstrap_unit": "experiment_cell (scenario x target)",
+        "n_bootstrap": n_boot,
+        "seed": seed,
+        "confidence_level": 0.95,
+    }
+
+    for label, vals in [("r0_r1", r0_r1), ("r1_r2", r1_r2)]:
+        arr = np.array(vals, dtype=float)
+        n = len(arr)
+        if n < 2:
+            result[label] = {
+                "n_cells": n,
+                "note": "too few cells for bootstrap",
+            }
+            continue
+
+        observed_mean = float(np.mean(arr))
+
+        boot_means = np.empty(n_boot)
+        for i in range(n_boot):
+            idx = rng.choice(n, size=n, replace=True)
+            boot_means[i] = np.mean(arr[idx])
+
+        ci_lower = float(np.percentile(boot_means, 2.5))
+        ci_upper = float(np.percentile(boot_means, 97.5))
+
+        # Fraction of bootstrap samples where mean > 0 (directional evidence)
+        pct_positive = float(np.mean(boot_means > 0))
+
+        result[label] = {
+            "n_cells": n,
+            "observed_mean_uplift_pct": observed_mean,
+            "ci_lower_95": ci_lower,
+            "ci_upper_95": ci_upper,
+            "pct_bootstrap_positive": pct_positive,
+        }
+
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Diagnostic movement table
 # ---------------------------------------------------------------------------
 
@@ -730,6 +796,11 @@ def main() -> None:
     # Hypothesis tests
     hypothesis_evidence = run_hypothesis_tests(money_table, all_results)
 
+    # Cell-level bootstrap CIs on aggregate uplift (uncertainty reporting)
+    cell_bootstrap = bootstrap_cell_uplift(money_table)
+    log.info("Bootstrap CIs: %s", {k: v for k, v in cell_bootstrap.items()
+                                    if k in ("r0_r1", "r1_r2")})
+
     # Pre-registration check
     preregistration = verify_preregistration(all_kappas, money_table)
 
@@ -741,6 +812,7 @@ def main() -> None:
         "money_table": money_table,
         "movement_table": movement_table,
         "hypothesis_evidence": hypothesis_evidence,
+        "cell_bootstrap_ci": cell_bootstrap,
         "preregistration_verification": preregistration,
         "methodology": {
             "primary_metric": "R2 for regression, ROC-AUC for classification",
@@ -751,6 +823,12 @@ def main() -> None:
             "effect_size": "Cohen's d on paired fold deltas",
             "exploratory_test": "Cell-level Spearman (kappa vs uplift); n~8, underpowered, "
                                 "reported as observed associations only",
+            "cell_bootstrap": (
+                "Non-parametric bootstrap over (scenario x target) cells. "
+                "Reports 95% CI on mean aggregate uplift. This is an "
+                "uncertainty interval on the effect size, not a replacement "
+                "for the pre-registered fold-level Wilcoxon primary test."
+            ),
             "correction": "Holm-Bonferroni for exploratory Spearman family",
             "verdict_criteria": {
                 "PASS": "Wilcoxon p < 0.05 AND Cohen's d > 0.2",
@@ -808,6 +886,17 @@ def main() -> None:
         d_str = f"d={d:.2f}" if isinstance(d, float) else f"d={d}"
         p_str = f"p={p:.4f}" if isinstance(p, float) else f"p={p}"
         print(f"  {h}: {ev.get('verdict', 'N/A')}  ({d_str}, {p_str})")
+
+    print(f"\n--- CELL-LEVEL BOOTSTRAP CIs (uncertainty on aggregate effect) ---")
+    for trans in ("r0_r1", "r1_r2"):
+        cb = cell_bootstrap.get(trans, {})
+        if "observed_mean_uplift_pct" in cb:
+            print(f"  {trans}: mean={cb['observed_mean_uplift_pct']:.1f}%  "
+                  f"95% CI=[{cb['ci_lower_95']:.1f}%, {cb['ci_upper_95']:.1f}%]  "
+                  f"n_cells={cb['n_cells']}  "
+                  f"pct_positive={cb['pct_bootstrap_positive']:.1%}")
+        else:
+            print(f"  {trans}: {cb.get('note', 'no data')}")
 
     print(f"\n--- PRE-REGISTRATION ---")
     print(f"  Status: {preregistration.get('status')}")

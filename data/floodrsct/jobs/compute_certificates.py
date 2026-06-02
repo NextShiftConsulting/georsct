@@ -206,16 +206,37 @@ def run_certificates(s3, level: str, upload: bool = False) -> dict:
                 cert.alpha, cert.omega, cert.kappa, cert.tau,
             )
 
-    # Summary statistics
+    # Summary statistics + cell-level bootstrap CIs
+    cert_summary = {}
     if all_certs:
-        rs = [c["R"] for c in all_certs]
-        alphas = [c["alpha"] for c in all_certs]
-        omegas = [c["omega"] for c in all_certs]
+        n_boot = 10_000
+        boot_seed = 42
+        rng = np.random.default_rng(boot_seed)
+        n_cells = len(all_certs)
+
+        for signal in ("R", "S_sup", "N", "alpha", "omega", "kappa", "tau", "sigma"):
+            vals = np.array([c.get(signal, float("nan")) for c in all_certs], dtype=float)
+            valid = vals[~np.isnan(vals)]
+            if len(valid) < 2:
+                continue
+            obs_mean = float(np.mean(valid))
+            boot_means = np.empty(n_boot)
+            for i in range(n_boot):
+                idx = rng.choice(len(valid), size=len(valid), replace=True)
+                boot_means[i] = np.mean(valid[idx])
+            cert_summary[signal] = {
+                "mean": obs_mean,
+                "ci_lower_95": float(np.percentile(boot_means, 2.5)),
+                "ci_upper_95": float(np.percentile(boot_means, 97.5)),
+                "n_cells": len(valid),
+            }
+
         log.info(
             "Certificate summary: n=%d, R=[%.3f, %.3f], alpha=[%.3f, %.3f], omega=[%.3f, %.3f]",
-            len(all_certs),
-            min(rs), max(rs), min(alphas), max(alphas),
-            min(omegas), max(omegas),
+            n_cells,
+            min(c["R"] for c in all_certs), max(c["R"] for c in all_certs),
+            min(c["alpha"] for c in all_certs), max(c["alpha"] for c in all_certs),
+            min(c["omega"] for c in all_certs), max(c["omega"] for c in all_certs),
         )
 
     payload = {
@@ -225,6 +246,15 @@ def run_certificates(s3, level: str, upload: bool = False) -> dict:
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "n_cells": len(all_certs),
         "certificates": all_certs,
+        "summary_bootstrap_ci": {
+            "description": (
+                "Cell-level bootstrap 95% CIs over (scenario x target) cells. "
+                "Uncertainty interval on reported aggregate certificate signals."
+            ),
+            "n_bootstrap": 10_000,
+            "seed": 42,
+            "signals": cert_summary,
+        },
         "methodology": {
             "service": "rsct.experiment_cert.certify_experiment_cell",
             "R_derivation": "clip(spatial_blocked_metric, 0, 1) for regression; "
