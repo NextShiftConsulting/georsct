@@ -24,6 +24,12 @@ SAGEMAKER_ROLE = f"arn:aws:iam::{ACCOUNT_ID}:role/SageMakerExecutionRole"
 DATA_BUCKET = "swarm-floodrsct-data"
 CODE_BUCKET = "swarm-floodrsct-data"
 
+# Ecosystem wheels (yrsn, rsct, etc.) built by preflight_wheels.py in
+# yrsn-experiments and uploaded to this prefix.  Mounted as a separate
+# SageMaker ProcessingInput -- matches the s018/s019 pattern.
+WHEELS_BUCKET = "swarm-yrsn-datasets"
+WHEELS_PREFIX = "rsct_code/wheels/20260506-162534"
+
 # SageMaker-managed PyTorch CPU image (no GPU needed for data pulls)
 PYTORCH_CPU = (
     f"763104351884.dkr.ecr.{REGION}.amazonaws.com/"
@@ -231,6 +237,15 @@ def launch_processing_job(
                 "S3InputMode": "File",
             },
         },
+        {
+            "InputName": "wheels",
+            "S3Input": {
+                "S3Uri": f"s3://{WHEELS_BUCKET}/{WHEELS_PREFIX}/",
+                "LocalPath": "/opt/ml/processing/input/wheels",
+                "S3DataType": "S3Prefix",
+                "S3InputMode": "File",
+            },
+        },
     ]
 
     # Jobs upload directly to S3 via boto3 during execution; no output mount needed.
@@ -245,6 +260,9 @@ def launch_processing_job(
         "#!/bin/bash\nset -e\n"
         f"{pre_cmd}"
         f"pip install -qU {packages}\n"
+        "# Ecosystem wheels (yrsn, rsct, etc.) from S3 mount\n"
+        "pip install -q /opt/ml/processing/input/wheels/*.whl 2>/dev/null || true\n"
+        "# Vendored wheels (swarm_auth etc.) bundled with code\n"
         "pip install -q /opt/ml/processing/input/code/*.whl 2>/dev/null || true\n"
         "cd /opt/ml/processing/input/code\n"
         f"python -u {job_script} {args_str}\n"
