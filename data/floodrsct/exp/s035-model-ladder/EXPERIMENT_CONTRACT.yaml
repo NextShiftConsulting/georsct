@@ -158,7 +158,7 @@ phases:
     s3_artifacts:
       - key: assembled_parquet
         description: "Assembled event features parquet"
-      - key: "processed/{scenario}/{scenario_key}_nfip_historical.parquet"
+      - key: "processed/{scenario}/{scenario}_nfip_historical.parquet"
         description: "Temporally-gated NFIP historical features (frequency + severity per zcta_id x event)"
         optional: false
         note: "Built by build_nfip_historical.py. Joined on [zcta_id, event] at training time."
