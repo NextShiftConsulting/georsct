@@ -263,6 +263,7 @@ def run_split(
     split_name: str,
     scenario: str,
     prediction_rows: list[dict] | None = None,
+    random_features: bool = False,
 ) -> list[RunResult]:
     """Run one (target, solver, split) combination across all folds.
 
@@ -287,6 +288,13 @@ def run_split(
         y_col = "_y"
 
     X_all = merged[features].values.astype(np.float32)
+    if random_features:
+        # Null ablation: replace real features with N(0,1) noise, same shape.
+        # This preserves everything else (folds, targets, solvers) so the only
+        # difference is whether *these specific features* carry signal.
+        rng = np.random.default_rng(SEED)
+        X_all = rng.standard_normal(X_all.shape).astype(np.float32)
+        log.info("RANDOM FEATURES MODE: replaced %d features with noise", X_all.shape[1])
     y_all = merged[y_col].values.astype(np.float32)
 
     # Get fold IDs
@@ -352,6 +360,10 @@ def main() -> None:
     parser.add_argument("--scenario", required=True, choices=SCENARIOS)
     parser.add_argument("--seed", type=int, default=SEED)
     parser.add_argument("--upload", action="store_true")
+    parser.add_argument(
+        "--random-features", action="store_true",
+        help="Replace R0 features with same-shape random noise (null ablation)",
+    )
     args = parser.parse_args()
 
     s3 = get_s3_client()
@@ -439,6 +451,7 @@ def main() -> None:
                         target_col, task, transform,
                         solver_name, split_name, scenario,
                         prediction_rows=prediction_rows,
+                        random_features=args.random_features,
                     )
                     all_results.extend(results)
 
@@ -489,13 +502,15 @@ def main() -> None:
         print(summary_df.to_string(index=False))
 
     # --- Upload results ---
+    level_tag = "r0_random" if args.random_features else "r0"
     results_payload = {
         "experiment": "s035-model-ladder",
-        "phase": "r0_baseline",
+        "phase": "r0_random_ablation" if args.random_features else "r0_baseline",
         "scenario": scenario,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "seed": args.seed,
-        "representation": "R0",
+        "representation": "R0_RANDOM" if args.random_features else "R0",
+        "random_features": args.random_features,
         "features_used": features,
         "features_missing": missing,
         "fold_metadata": fold_meta,
@@ -505,7 +520,7 @@ def main() -> None:
     results_json = json.dumps(results_payload, indent=2, default=str)
 
     if args.upload:
-        key = f"{RESULTS_PREFIX}/r0_{scenario}.json"
+        key = f"{RESULTS_PREFIX}/{level_tag}_{scenario}.json"
         s3.put_object(
             Bucket=BUCKET, Key=key,
             Body=results_json.encode(),
@@ -519,12 +534,12 @@ def main() -> None:
             buf = io.BytesIO()
             pred_df.to_parquet(buf, index=False)
             buf.seek(0)
-            pred_key = f"{RESULTS_PREFIX}/r0_{scenario}_predictions.parquet"
+            pred_key = f"{RESULTS_PREFIX}/{level_tag}_{scenario}_predictions.parquet"
             s3.put_object(Bucket=BUCKET, Key=pred_key, Body=buf.getvalue())
             log.info("Uploaded %d prediction rows to s3://%s/%s",
                      len(pred_df), BUCKET, pred_key)
     else:
-        local = f"/tmp/r0_{scenario}.json"
+        local = f"/tmp/{level_tag}_{scenario}.json"
         Path(local).write_text(results_json)
         log.info("Wrote %s", local)
 
