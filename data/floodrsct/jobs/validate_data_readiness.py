@@ -20,6 +20,7 @@ import logging
 import sys
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
+from pathlib import Path
 
 import boto3
 from swarm_auth import get_aws_credentials
@@ -147,6 +148,7 @@ STATIC_DATASETS = {
 
 # Known no-data cases -- distinguished by reason type:
 #   not_applicable:  feature category does not apply to this event type
+#   not_applicable_temporal: event predates source's operational start
 #   source_empty:    our specific data source returned zero records; other sources may exist
 NO_DATA = {
     ("beryl2024", "hwm"): {
@@ -177,6 +179,51 @@ NO_DATA = {
         ),
     },
 }
+
+
+def _load_availability_matrix():
+    """Load data_availability.json and auto-generate NO_DATA entries
+    for events that predate a source's temporal coverage."""
+    avail_path = (
+        Path(__file__).parent.parent
+        / "exp" / "s035-model-ladder" / "data_availability.json"
+    )
+    if not avail_path.exists():
+        log.warning("data_availability.json not found at %s", avail_path)
+        return
+    with open(avail_path) as f:
+        avail = json.load(f)
+
+    matrix = avail.get("availability_matrix", {})
+    sources = avail.get("sources", {})
+
+    for event, source_map in matrix.items():
+        if event.startswith("_"):
+            continue
+        for source, status in source_map.items():
+            if status == "not_applicable_temporal":
+                src_info = sources.get(source, {})
+                start = src_info.get("temporal_coverage", {}).get("start", "?")
+                NO_DATA[(event, source)] = {
+                    "status": "not_applicable",
+                    "reason": (
+                        f"Event predates {src_info.get('full_name', source)} "
+                        f"operational start ({start}). Not a data gap."
+                    ),
+                    "action": "Do not fetch. Feature columns will be null for this event.",
+                }
+            elif status == "not_applicable_type":
+                NO_DATA.setdefault((event, source), {
+                    "status": "not_applicable",
+                    "reason": f"Source not applicable to this event type.",
+                    "action": "Do not fetch. Feature columns will be null.",
+                })
+
+    added = sum(1 for k, v in NO_DATA.items() if "predates" in v.get("reason", ""))
+    log.info("Loaded data_availability.json: %d temporal exclusions added", added)
+
+
+_load_availability_matrix()
 
 
 @dataclass

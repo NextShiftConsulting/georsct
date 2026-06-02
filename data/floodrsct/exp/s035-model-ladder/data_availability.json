@@ -1,0 +1,126 @@
+{
+  "_description": "Temporal coverage of remote-sensing and reanalysis data sources. Events before a source's start date are not_applicable, not missing. This file is the single source of truth for validate_data_readiness.py.",
+  "_version": "1.0",
+  "_updated": "2026-06-02",
+
+  "sources": {
+    "mrms": {
+      "full_name": "NOAA Multi-Radar Multi-Sensor",
+      "temporal_coverage": {"start": "2012-01-01", "end": null},
+      "note": "MRMS v12 operational from 2012. Pre-2012 events have no MRMS coverage."
+    },
+    "hrrr": {
+      "full_name": "NOAA High-Resolution Rapid Refresh",
+      "temporal_coverage": {"start": "2014-09-30", "end": null},
+      "note": "HRRR v1 operational Sep 2014. Extended back to 2013 in some archives but not reliably. Pre-2014 events have no HRRR coverage."
+    },
+    "gpm_imerg": {
+      "full_name": "NASA GPM IMERG Final Run V07",
+      "temporal_coverage": {"start": "2000-06-01", "end": null},
+      "note": "IMERG v07 retrospectively processed back to Jun 2000 using TRMM-era calibration. All s035 events are within coverage."
+    },
+    "smap": {
+      "full_name": "NASA SMAP L3 Soil Moisture V008",
+      "temporal_coverage": {"start": "2015-03-31", "end": null},
+      "note": "SMAP launched Mar 2015. Pre-2015 events have no SMAP coverage."
+    },
+    "tides": {
+      "full_name": "NOAA CO-OPS Tide Gauge Observations",
+      "temporal_coverage": {"start": "1900-01-01", "end": null},
+      "note": "Individual station records vary. Coverage assumed for all s035 events near coastal gauges. Inland events marked not_applicable by event type, not by date."
+    },
+    "hurdat2": {
+      "full_name": "NOAA HURDAT2 Atlantic Best Track",
+      "temporal_coverage": {"start": "1851-01-01", "end": null},
+      "note": "Covers all Atlantic tropical/subtropical cyclones. Not applicable to non-tropical events (e.g., atmospheric rivers)."
+    },
+    "hwm": {
+      "full_name": "USGS Short-Term Network / High Water Marks",
+      "temporal_coverage": {"start": "1990-01-01", "end": null},
+      "note": "STN/FEV event-specific. Coverage depends on USGS deployment decisions per event. May be source_empty even within temporal range."
+    },
+    "openfema": {
+      "full_name": "FEMA OpenFEMA NFIP Claims",
+      "temporal_coverage": {"start": "1978-01-01", "end": null},
+      "note": "NFIP claims database. Coverage depends on DR declaration. All s035 DRs are within range."
+    }
+  },
+
+  "events": {
+    "katrina2005_nola": {"date": "2005-08-29", "type": "tropical_cyclone"},
+    "isaac2012_nola":   {"date": "2012-08-28", "type": "tropical_cyclone"},
+    "barry2019_nola":   {"date": "2019-07-11", "type": "tropical_cyclone"},
+    "ida2021_nola":     {"date": "2021-08-26", "type": "tropical_cyclone"},
+    "harvey2017":       {"date": "2017-08-17", "type": "tropical_cyclone"},
+    "imelda2019":       {"date": "2019-09-17", "type": "tropical_cyclone"},
+    "beryl2024":        {"date": "2024-07-08", "type": "tropical_cyclone"},
+    "ida2021_nyc":      {"date": "2021-09-01", "type": "tropical_cyclone"},
+    "henri2021":        {"date": "2021-08-22", "type": "tropical_cyclone"},
+    "ian2022":          {"date": "2022-09-23", "type": "tropical_cyclone"},
+    "helene2024":       {"date": "2024-09-24", "type": "tropical_cyclone"},
+    "milton2024":       {"date": "2024-10-07", "type": "tropical_cyclone"},
+    "hilary2023":       {"date": "2023-08-20", "type": "tropical_cyclone"},
+    "ar_flood_2023":    {"date": "2023-01-09", "type": "atmospheric_river"}
+  },
+
+  "availability_matrix": {
+    "_key_format": "event/source -> status",
+    "_statuses": {
+      "available": "Source covers this event date; fetch expected to succeed",
+      "not_applicable_temporal": "Event predates source's operational start; not a gap",
+      "not_applicable_type": "Source does not apply to this event type (e.g., HURDAT2 for AR events)",
+      "source_empty": "Source covers date but returned zero records for this event"
+    },
+
+    "katrina2005_nola": {
+      "mrms": "not_applicable_temporal",
+      "hrrr": "not_applicable_temporal",
+      "gpm_imerg": "available",
+      "smap": "not_applicable_temporal",
+      "tides": "available",
+      "hurdat2": "available",
+      "hwm": "available",
+      "openfema": "available"
+    },
+    "isaac2012_nola": {
+      "mrms": "available",
+      "hrrr": "not_applicable_temporal",
+      "gpm_imerg": "available",
+      "smap": "not_applicable_temporal",
+      "tides": "available",
+      "hurdat2": "available",
+      "hwm": "available",
+      "openfema": "available"
+    },
+    "barry2019_nola": {
+      "mrms": "available",
+      "hrrr": "available",
+      "gpm_imerg": "available",
+      "smap": "available",
+      "tides": "available",
+      "hurdat2": "available",
+      "hwm": "available",
+      "openfema": "available"
+    },
+    "ida2021_nola": {
+      "mrms": "available",
+      "hrrr": "available",
+      "gpm_imerg": "available",
+      "smap": "available",
+      "tides": "available",
+      "hurdat2": "available",
+      "hwm": "available",
+      "openfema": "available"
+    },
+    "ar_flood_2023": {
+      "mrms": "available",
+      "hrrr": "available",
+      "gpm_imerg": "available",
+      "smap": "available",
+      "tides": "not_applicable_type",
+      "hurdat2": "not_applicable_type",
+      "hwm": "available",
+      "openfema": "available"
+    }
+  }
+}
