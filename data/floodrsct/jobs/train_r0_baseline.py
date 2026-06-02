@@ -87,17 +87,17 @@ R0_FEATURES = [
     "svi_household_disability",
     "svi_minority_language",
     "svi_housing_transport",
-    # NFIP insurance (historical, not event-level)
-    "nfip_claim_count",
-    "nfip_total_loss",
-    "nfip_mean_loss_per_claim",
+    # NFIP insurance (temporally-gated historical base rate).
+    # Built by build_nfip_historical.py: claims with dateOfLoss < event start.
+    # Enforces IBNR temporal boundary -- same-event claims excluded.
+    "nfip_historical_frequency",
+    "nfip_historical_severity",
     # Infrastructure
     "hifld_nearest_hospital_km",
     "hifld_n_hospitals",
     "population",
-    # Storm track (event-level but static per event row)
-    "storm_min_dist_km",
-    "storm_landfall_category",
+    # NOTE: storm_min_dist_km and storm_landfall_category moved to R2
+    # (event-level features, not static). See DOE_R2_temporal.md.
 ]
 
 # Targets: (column_name, task_type, transform)
@@ -395,6 +395,21 @@ def main() -> None:
             ContentType="application/json",
         )
         log.info("Uploaded folds to s3://%s/%s", BUCKET, fold_key)
+
+    # --- Load NFIP historical supplement (temporally-gated) ---
+    nfip_key = f"processed/{scenario}/{scenario}_nfip_historical.parquet"
+    try:
+        resp = s3.get_object(Bucket=BUCKET, Key=nfip_key)
+        nfip_hist = pd.read_parquet(io.BytesIO(resp["Body"].read()))
+        nfip_hist["zcta_id"] = nfip_hist["zcta_id"].astype(str)
+        join_cols = ["zcta_id", "event"] if "event" in nfip_hist.columns else ["zcta_id"]
+        df = df.merge(nfip_hist, on=join_cols, how="left")
+        log.info("NFIP historical supplement merged: %d rows from %s", len(nfip_hist), nfip_key)
+    except Exception as exc:
+        raise RuntimeError(
+            f"NFIP historical supplement missing: {nfip_key}. "
+            f"Run build_nfip_historical.py --scenario {scenario} --upload first."
+        ) from exc
 
     # --- Identify usable features ---
     features = _available_features(df)

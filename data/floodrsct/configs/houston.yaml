@@ -59,7 +59,7 @@ mvd:
     - event
     - rainfall_total_mm
     - peak_stage_ft
-    - nfip_claim_count
+    - nfip_historical_frequency
     - hwm_count
     - acsE_total_pop
     - svi_overall

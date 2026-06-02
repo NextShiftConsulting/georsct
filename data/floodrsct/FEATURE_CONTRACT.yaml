@@ -303,33 +303,31 @@ features:
     output_column: twi_twi
     notes: Topographic Wetness Index — ln(contributing_area / tan(slope)).
 
-  # ─── NFIP Historical Insurance (OpenFEMA, cumulative pre-event) ─────────
+  # ─── NFIP Historical Insurance (OpenFEMA, temporally-gated pre-event) ───
 
-  - feature_name: nfip_claim_count
+  - feature_name: nfip_historical_frequency
     temporal_class: slow_drift
     scenarios: all
-    source_type: public_fetch
-    source_dataset: geocertdb2026
-    output_column: nfip_claim_count
+    source_type: derived
+    source_dataset: raw/openfema/nfip_claims_dr*.parquet
+    build_script: build_nfip_historical.py
+    output_column: nfip_historical_frequency
     notes: >
-      Cumulative historical NFIP claims in this ZCTA (all years pre-event).
-      NOT the per-event claim count (that is obs_nfip_event_claims, a label).
+      NFIP claim count per ZCTA from all claims with dateOfLoss strictly
+      before the target event's incidentBeginDate.  Enforces IBNR temporal
+      boundary: same-event claims excluded.  NOT the per-event count
+      (that is obs_nfip_event_claims, a label).
 
-  - feature_name: nfip_total_loss
+  - feature_name: nfip_historical_severity
     temporal_class: slow_drift
     scenarios: all
-    source_type: public_fetch
-    source_dataset: geocertdb2026
-    output_column: nfip_total_loss
-    notes: Cumulative historical NFIP total loss ($) in this ZCTA.
-
-  - feature_name: nfip_mean_loss_per_claim
-    temporal_class: slow_drift
-    scenarios: all
-    source_type: public_fetch
-    source_dataset: geocertdb2026
-    output_column: nfip_mean_loss_per_claim
-    notes: Mean loss per claim ($). nfip_total_loss / nfip_claim_count.
+    source_type: derived
+    source_dataset: raw/openfema/nfip_claims_dr*.parquet
+    build_script: build_nfip_historical.py
+    output_column: nfip_historical_severity
+    notes: >
+      Mean loss per claim ($) from all NFIP claims with dateOfLoss strictly
+      before the target event's incidentBeginDate.  Zero if no prior claims.
 
   - feature_name: nfip_total_contents_loss
     temporal_class: slow_drift
@@ -1307,7 +1305,7 @@ features:
       Computed at R1 training time (Phase 2), NOT in build_event_dataset.py,
       because it requires R0 out-of-fold predictions from Phase 1.
       Uses out-of-fold residuals only (no leakage from in-fold predictions).
-      If R0 errors cluster spatially (low kappa_residual_spatial), this feature
+      If R0 errors cluster spatially (low diag_residual_spatial), this feature
       captures the pattern R0 missed.
 
   # ═══════════════════════════════════════════════════════════════════════════
@@ -1825,43 +1823,37 @@ features:
     version_target: v24.002
     notes: Stream channel slope from DEM.
 
-  # ─── NFIP Historical Claims (static, all-time per ZCTA) ──────────────────
+  # ─── NFIP Historical Claims (temporally-gated, pre-event per ZCTA) ──────
+  # DEPRECATED: nfip_claim_count, nfip_total_loss, nfip_mean_loss_per_claim
+  # Replaced by temporally-gated features below. Old all-time aggregates
+  # remain in geocertdb2026 but are NOT used in s035 training.
 
-  - feature_name: nfip_claim_count
+  - feature_name: nfip_historical_frequency
     temporal_class: slow_drift
     scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
-    source_type: public_fetch
-    source_dataset: geocertdb2026
-    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
-    output_column: nfip_claim_count
+    source_type: derived
+    source_dataset: raw/openfema/nfip_claims_dr*.parquet
+    build_script: build_nfip_historical.py
+    output_s3_path: processed/{scenario}/{scenario}_nfip_historical.parquet
+    output_column: nfip_historical_frequency
     missing_behavior: "0"
-    version_target: v24.002
     notes: >
-      Total historical NFIP flood insurance claim count per ZCTA (all years).
-      This is a STATIC feature (prior exposure), NOT event-level claims.
-      Distinct from obs_nfip_event_claims (post_event label).
+      NFIP claim count per ZCTA from claims with dateOfLoss < event start.
+      Temporal gate enforces IBNR boundary. Joined at training time, not
+      baked into assembled parquet.
 
-  - feature_name: nfip_total_loss
+  - feature_name: nfip_historical_severity
     temporal_class: slow_drift
     scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
-    source_type: public_fetch
-    source_dataset: geocertdb2026
-    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
-    output_column: nfip_total_loss
+    source_type: derived
+    source_dataset: raw/openfema/nfip_claims_dr*.parquet
+    build_script: build_nfip_historical.py
+    output_s3_path: processed/{scenario}/{scenario}_nfip_historical.parquet
+    output_column: nfip_historical_severity
     missing_behavior: "0"
-    version_target: v24.002
-    notes: Total historical NFIP loss in dollars per ZCTA (all years). Static feature.
-
-  - feature_name: nfip_mean_loss_per_claim
-    temporal_class: slow_drift
-    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
-    source_type: public_fetch
-    source_dataset: geocertdb2026
-    raw_s3_path: raw/geocertdb2026/zcta_features_labels.parquet
-    output_column: nfip_mean_loss_per_claim
-    missing_behavior: "0"
-    version_target: v24.002
-    notes: Mean loss per claim in dollars. Static feature.
+    notes: >
+      Mean loss per claim ($) from claims with dateOfLoss < event start.
+      Zero if no prior claims at this ZCTA.
 
   # ─── HIFLD Critical Infrastructure ───────────────────────────────────────
 

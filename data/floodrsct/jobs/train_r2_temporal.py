@@ -79,14 +79,11 @@ R0_FEATURES = [
     "svi_household_disability",
     "svi_minority_language",
     "svi_housing_transport",
-    "nfip_claim_count",
-    "nfip_total_loss",
-    "nfip_mean_loss_per_claim",
+    "nfip_historical_frequency",
+    "nfip_historical_severity",
     "hifld_nearest_hospital_km",
     "hifld_n_hospitals",
     "population",
-    "storm_min_dist_km",
-    "storm_landfall_category",
 ]
 
 # ---------------------------------------------------------------------------
@@ -132,6 +129,9 @@ R2_TEMPORAL = [
     "rainfall_intensity_cv",
     "tide_peak_m",
     "surge_rain_lag_h",
+    # Storm track features (event-level, moved from R0 where they were mislabeled static)
+    "storm_min_dist_km",
+    "storm_landfall_category",
 ]
 
 R2_FEATURES = R0_FEATURES + R1_UNIVERSAL + R1_SCENARIO_SPECIFIC + R2_TEMPORAL
@@ -168,7 +168,7 @@ class RunResult:
 
 
 def _load_supplement(s3, scenario: str, level: str) -> pd.DataFrame:
-    """Load R1 or R2 supplement parquet from S3."""
+    """Load R1 or R2 supplement parquet from S3. Hard failure if missing."""
     key = f"processed/{scenario}/{scenario}_{level}_supplement.parquet"
     try:
         resp = s3.get_object(Bucket=BUCKET, Key=key)
@@ -177,8 +177,11 @@ def _load_supplement(s3, scenario: str, level: str) -> pd.DataFrame:
                  level.upper(), len(df), len(df.columns), key)
         return df
     except Exception as exc:
-        log.warning("No %s supplement for %s: %s", level, scenario, exc)
-        return pd.DataFrame()
+        raise RuntimeError(
+            f"{level.upper()} supplement missing: s3://{BUCKET}/{key}. "
+            f"Run build_{level}_features.py --scenario {scenario} --upload first. "
+            f"{level.upper()} arm is meaningless without its supplement features."
+        ) from exc
 
 
 def _load_folds(s3, scenario: str) -> pd.DataFrame:
@@ -433,28 +436,39 @@ def main() -> None:
         df["event"] = df["event"].astype(str)
     log.info("Assembled: %d rows x %d cols", len(df), len(df.columns))
 
+    # --- Load NFIP historical supplement (temporally-gated) ---
+    nfip_key = f"processed/{scenario}/{scenario}_nfip_historical.parquet"
+    try:
+        resp = s3.get_object(Bucket=BUCKET, Key=nfip_key)
+        nfip_hist = pd.read_parquet(io.BytesIO(resp["Body"].read()))
+        nfip_hist["zcta_id"] = nfip_hist["zcta_id"].astype(str)
+        join_cols = ["zcta_id", "event"] if "event" in nfip_hist.columns else ["zcta_id"]
+        df = df.merge(nfip_hist, on=join_cols, how="left")
+        log.info("NFIP historical supplement merged: %d rows from %s", len(nfip_hist), nfip_key)
+    except Exception as exc:
+        raise RuntimeError(
+            f"NFIP historical supplement missing: {nfip_key}. "
+            f"Run build_nfip_historical.py --scenario {scenario} --upload first."
+        ) from exc
+
     # --- Load R1 supplement and join ---
     r1_supp = _load_supplement(s3, scenario, "r1")
-    if not r1_supp.empty:
-        r1_supp["zcta_id"] = r1_supp["zcta_id"].astype(str)
-        df = df.merge(r1_supp, on="zcta_id", how="left")
-        log.info("After R1 join: %d cols", len(df.columns))
+    r1_supp["zcta_id"] = r1_supp["zcta_id"].astype(str)
+    df = df.merge(r1_supp, on="zcta_id", how="left")
+    log.info("After R1 join: %d cols", len(df.columns))
 
     # --- Load R2 supplement and join ---
     r2_supp = _load_supplement(s3, scenario, "r2")
-    if not r2_supp.empty:
-        r2_supp["zcta_id"] = r2_supp["zcta_id"].astype(str)
-        # R2 supplement is event-level (one row per zcta_id x event)
-        join_cols = ["zcta_id"]
-        if "event" in r2_supp.columns:
-            r2_supp["event"] = r2_supp["event"].astype(str)
-            join_cols.append("event")
-        pre_cols = set(df.columns)
-        df = df.merge(r2_supp, on=join_cols, how="left")
-        new_cols = set(df.columns) - pre_cols
-        log.info("R2 supplement added %d columns: %s", len(new_cols), sorted(new_cols))
-    else:
-        log.warning("No R2 supplement -- training with R0+R1 features only")
+    r2_supp["zcta_id"] = r2_supp["zcta_id"].astype(str)
+    # R2 supplement is event-level (one row per zcta_id x event)
+    join_cols = ["zcta_id"]
+    if "event" in r2_supp.columns:
+        r2_supp["event"] = r2_supp["event"].astype(str)
+        join_cols.append("event")
+    pre_cols = set(df.columns)
+    df = df.merge(r2_supp, on=join_cols, how="left")
+    new_cols = set(df.columns) - pre_cols
+    log.info("R2 supplement added %d columns: %s", len(new_cols), sorted(new_cols))
 
     # --- Encode categoricals ---
     df = _encode_categoricals(df, R1_SCENARIO_SPECIFIC)

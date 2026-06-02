@@ -7,9 +7,11 @@ Loads all results (R0/R1/R2) + all kappa diagnostics (R0/R1/R2) and produces:
 1. Money table: per (scenario, target) cell with metrics at each level,
    uplift percentages, and kappa values (paper Figure 2)
 2. Diagnostic movement table: kappa evolution across levels (paper Figure 3)
-3. H2-H4 hypothesis evidence with Spearman correlations, bootstrap CIs,
-   permutation p-values, and hit-rate analysis
-4. Anti-cherry-picking report: all 8 tests, Holm-Bonferroni correction,
+3. H2-H4 hypothesis evidence via fold-level paired tests (Wilcoxon signed-rank
+   on per-fold metric deltas) + effect sizes (Cohen's d).  Cell-level Spearman
+   retained as exploratory association only (n~8 cells, underpowered for
+   hypothesis testing).
+4. Anti-cherry-picking report: Holm-Bonferroni correction across all tests,
    pre-registration verification
 
 Usage:
@@ -30,6 +32,10 @@ from scipy import stats
 
 sys.path.insert(0, str(Path(__file__).parent))
 from _coverage_common import BUCKET, get_s3_client
+
+# rsct service layer for experiment certification
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from rsct.experiment_cert import certify_experiment_cell
 
 logging.basicConfig(
     level=logging.INFO,
@@ -79,10 +85,28 @@ def load_all_kappas(s3) -> dict[str, dict]:
     """Load kappa diagnostics at each level."""
     out = {}
     for level in ("r0", "r1", "r2"):
-        key = f"{RESULTS_PREFIX}/kappa_diagnostics_{level}.json"
+        key = f"{RESULTS_PREFIX}/diagnostics_{level}.json"
         data = _load_json(s3, key)
         if data:
             out[level] = data
+    return out
+
+
+def load_all_certificates(s3) -> dict[str, dict]:
+    """Load Phase 4.5 certificates, indexed by (level, scenario, target).
+
+    Returns dict keyed by '{level}_{scenario}_{target}' with certificate data.
+    """
+    out = {}
+    for level in ("r0", "r1", "r2"):
+        key = f"{RESULTS_PREFIX}/certificates_{level}.json"
+        data = _load_json(s3, key)
+        if not data:
+            continue
+        for cert in data.get("certificates", []):
+            idx = f"{level}_{cert['scenario']}_{cert['target']}"
+            out[idx] = cert
+    log.info("Loaded %d certificates", len(out))
     return out
 
 
@@ -137,8 +161,14 @@ def _per_fold_metrics(results: dict, target: str) -> list[float]:
 # Money table construction
 # ---------------------------------------------------------------------------
 
-def build_money_table(all_results: dict, all_kappas: dict) -> list[dict]:
-    """Build the money table: one row per (scenario, target) cell."""
+def build_money_table(
+    all_results: dict, all_kappas: dict, all_certs: dict,
+) -> list[dict]:
+    """Build the money table: one row per (scenario, target) cell.
+
+    Includes RSCT quality signals (alpha, omega, kappa, tau, sigma) from
+    Phase 4.5 certificates and degradation diagnosis per level.
+    """
     rows = []
 
     # Get all (scenario, target) cells from R0 results
@@ -175,10 +205,47 @@ def build_money_table(all_results: dict, all_kappas: dict) -> list[dict]:
                     continue
                 for cell in kappa_data.get("cells", []):
                     if cell["scenario"] == scenario and cell["target"] == target:
-                        for k in ("kappa_leakage", "kappa_transfer",
-                                  "kappa_solver", "kappa_residual_spatial"):
+                        for k in ("diag_leakage", "diag_transfer",
+                                  "diag_solver", "diag_residual_spatial"):
                             kappas[f"{k}_{level}"] = cell.get(k)
                         break
+
+            # RSCT quality signals from Phase 4.5 certificates
+            cert_signals = {}
+            for level in ("r0", "r1", "r2"):
+                cert = all_certs.get(f"{level}_{scenario}_{target}")
+                if not cert:
+                    continue
+                for sig in ("R", "S_sup", "N", "alpha", "omega",
+                            "kappa", "tau", "sigma"):
+                    cert_signals[f"cert_{sig}_{level}"] = cert.get(sig)
+
+                # Diagnosis label
+                diag = cert.get("diagnosis", {})
+                if diag:
+                    cert_signals[f"cert_diagnosis_{level}"] = diag.get("label")
+
+            # Compute alpha/omega deltas (improvement across levels)
+            for sig in ("alpha", "omega"):
+                r0_v = cert_signals.get(f"cert_{sig}_r0")
+                r1_v = cert_signals.get(f"cert_{sig}_r1")
+                r2_v = cert_signals.get(f"cert_{sig}_r2")
+                if r0_v is not None and r1_v is not None:
+                    cert_signals[f"cert_{sig}_delta_r0_r1"] = r1_v - r0_v
+                if r1_v is not None and r2_v is not None:
+                    cert_signals[f"cert_{sig}_delta_r1_r2"] = r2_v - r1_v
+
+            # Re-derive degradation label via rsct service (if R0 cert has metrics)
+            r0_cert = all_certs.get(f"r0_{scenario}_{target}")
+            if r0_cert:
+                live_cert = certify_experiment_cell(
+                    spatial_metric=r0_cert.get("spatial_metric"),
+                    random_metric=r0_cert.get("random_metric"),
+                    task_type=r0_cert.get("task_type", "regression"),
+                    diag_kappa=r0_cert.get("kappa"),
+                )
+                if live_cert.diagnosis_label:
+                    cert_signals["degradation_label_r0"] = live_cert.diagnosis_label
 
             row = {
                 "scenario": scenario,
@@ -189,6 +256,7 @@ def build_money_table(all_results: dict, all_kappas: dict) -> list[dict]:
                 "uplift_r0_r1_pct": uplift_r0_r1,
                 "uplift_r1_r2_pct": uplift_r1_r2,
                 **kappas,
+                **cert_signals,
             }
             rows.append(row)
 
@@ -300,16 +368,165 @@ def _hit_rate(kappa_vals: np.ndarray, uplift_vals: np.ndarray) -> dict:
     }
 
 
-def run_hypothesis_tests(money_table: list[dict]) -> dict:
-    """Run all 8 correlation tests with correction."""
+def _cohens_d(x: np.ndarray) -> float:
+    """Cohen's d for a one-sample (paired-difference) array."""
+    if len(x) < 2 or np.std(x, ddof=1) == 0:
+        return float("nan")
+    return float(np.mean(x) / np.std(x, ddof=1))
+
+
+def _paired_fold_test(
+    folds_a: list[float], folds_b: list[float],
+) -> dict:
+    """Wilcoxon signed-rank test on paired fold metrics (B - A).
+
+    Returns test result dict with statistic, p-value, effect size, and CI.
+    """
+    a = np.array(folds_a, dtype=float)
+    b = np.array(folds_b, dtype=float)
+    n = min(len(a), len(b))
+    if n < 3:
+        return {"n_folds": n, "note": "too few paired folds"}
+    a, b = a[:n], b[:n]
+    deltas = b - a
+
+    d = _cohens_d(deltas)
+    mean_delta = float(np.mean(deltas))
+
+    # Bootstrap 95% CI for the mean delta
+    rng = np.random.default_rng(SEED)
+    boot_means = []
+    for _ in range(N_BOOTSTRAP):
+        idx = rng.choice(n, size=n, replace=True)
+        boot_means.append(float(np.mean(deltas[idx])))
+    ci_lower = float(np.percentile(boot_means, 2.5))
+    ci_upper = float(np.percentile(boot_means, 97.5))
+
+    # Wilcoxon signed-rank (two-sided)
+    try:
+        stat, p_val = stats.wilcoxon(deltas, alternative="two-sided")
+        stat, p_val = float(stat), float(p_val)
+    except ValueError:
+        # All deltas are zero or too few non-zero
+        stat, p_val = float("nan"), 1.0
+
+    return {
+        "n_folds": n,
+        "mean_delta": mean_delta,
+        "ci_lower": ci_lower,
+        "ci_upper": ci_upper,
+        "cohens_d": d,
+        "wilcoxon_stat": stat,
+        "wilcoxon_p": p_val,
+        "all_positive": bool(np.all(deltas > 0)),
+        "all_negative": bool(np.all(deltas < 0)),
+    }
+
+
+def run_fold_level_tests(all_results: dict) -> dict:
+    """Primary hypothesis tests via fold-level paired comparisons.
+
+    For each (scenario, target):
+      H2: R1 folds vs R0 folds (spatial_blocked, histgbdt)
+      H3: R2 folds vs R1 folds (spatial_blocked, histgbdt)
+
+    Returns per-cell test results + pooled tests across all cells.
+    """
+    cell_tests = []
+    all_r0_r1_deltas = []
+    all_r1_r2_deltas = []
+
+    for scenario in ("houston", "southwest_florida", "nyc", "riverside_coachella"):
+        r0_data = all_results.get(f"r0_{scenario}")
+        r1_data = all_results.get(f"r1_{scenario}")
+        r2_data = all_results.get(f"r2_{scenario}")
+        if not r0_data:
+            continue
+
+        targets = sorted(set(r["target"] for r in r0_data.get("runs", [])))
+        for target in targets:
+            r0_folds = _per_fold_metrics(r0_data, target)
+            r1_folds = _per_fold_metrics(r1_data, target) if r1_data else []
+            r2_folds = _per_fold_metrics(r2_data, target) if r2_data else []
+
+            cell = {"scenario": scenario, "target": target}
+
+            if r0_folds and r1_folds:
+                test_r0_r1 = _paired_fold_test(r0_folds, r1_folds)
+                cell["h2_r0_r1"] = test_r0_r1
+                n = min(len(r0_folds), len(r1_folds))
+                deltas = [r1_folds[i] - r0_folds[i] for i in range(n)]
+                all_r0_r1_deltas.extend(deltas)
+
+            if r1_folds and r2_folds:
+                test_r1_r2 = _paired_fold_test(r1_folds, r2_folds)
+                cell["h3_r1_r2"] = test_r1_r2
+                n = min(len(r1_folds), len(r2_folds))
+                deltas = [r2_folds[i] - r1_folds[i] for i in range(n)]
+                all_r1_r2_deltas.extend(deltas)
+
+            cell_tests.append(cell)
+
+    # Pooled tests across all cells
+    pooled_h2 = {}
+    if len(all_r0_r1_deltas) >= 5:
+        arr = np.array(all_r0_r1_deltas)
+        d = _cohens_d(arr)
+        try:
+            stat, p_val = stats.wilcoxon(arr, alternative="greater")
+            stat, p_val = float(stat), float(p_val)
+        except ValueError:
+            stat, p_val = float("nan"), 1.0
+        pooled_h2 = {
+            "n_paired_folds": len(arr),
+            "mean_delta": float(np.mean(arr)),
+            "cohens_d": d,
+            "wilcoxon_stat": stat,
+            "wilcoxon_p_one_sided": p_val,
+            "verdict": "PASS" if (p_val < 0.05 and d > 0.2) else "INCONCLUSIVE",
+        }
+
+    pooled_h3 = {}
+    if len(all_r1_r2_deltas) >= 5:
+        arr = np.array(all_r1_r2_deltas)
+        d = _cohens_d(arr)
+        try:
+            stat, p_val = stats.wilcoxon(arr, alternative="greater")
+            stat, p_val = float(stat), float(p_val)
+        except ValueError:
+            stat, p_val = float("nan"), 1.0
+        pooled_h3 = {
+            "n_paired_folds": len(arr),
+            "mean_delta": float(np.mean(arr)),
+            "cohens_d": d,
+            "wilcoxon_stat": stat,
+            "wilcoxon_p_one_sided": p_val,
+            "verdict": "PASS" if (p_val < 0.05 and d > 0.2) else "INCONCLUSIVE",
+        }
+
+    return {
+        "method": "Fold-level paired Wilcoxon signed-rank + Cohen's d",
+        "reference_split": "spatial_blocked",
+        "reference_solver": "histgbdt",
+        "cell_tests": cell_tests,
+        "pooled_h2": pooled_h2,
+        "pooled_h3": pooled_h3,
+    }
+
+
+def run_exploratory_correlations(money_table: list[dict]) -> dict:
+    """Exploratory cell-level Spearman correlations (kappa vs uplift).
+
+    NOTE: n~8 cells, underpowered for hypothesis testing. Reported as
+    observed associations only, NOT used for PASS/FAIL verdicts.
+    """
     df = pd.DataFrame(money_table)
     if len(df) < 4:
-        return {"error": f"Too few cells ({len(df)}) for hypothesis testing"}
+        return {"note": f"Too few cells ({len(df)}) for correlation analysis"}
 
-    # Define the 8 tests (4 kappas x 2 uplifts)
     tests = []
-    for kappa_col in ("kappa_leakage_r0", "kappa_transfer_r0",
-                      "kappa_solver_r0", "kappa_residual_spatial_r0"):
+    for kappa_col in ("diag_leakage_r0", "diag_transfer_r0",
+                      "diag_solver_r0", "diag_residual_spatial_r0"):
         for uplift_col in ("uplift_r0_r1_pct", "uplift_r1_r2_pct"):
             if kappa_col not in df.columns or uplift_col not in df.columns:
                 continue
@@ -317,13 +534,8 @@ def run_hypothesis_tests(money_table: list[dict]) -> dict:
             x = df[kappa_col].values.astype(float)
             y = df[uplift_col].values.astype(float)
 
-            # For kappa, low = flagged = should benefit MORE
-            # So we expect NEGATIVE correlation (low kappa -> high uplift)
-            # Test uses absolute rho, reports sign
             rho, ci_lo, ci_hi, perm_p = _spearman_bootstrap(x, y, N_BOOTSTRAP, SEED)
             hr = _hit_rate(x, y)
-
-            is_primary = (kappa_col == "kappa_leakage_r0" and uplift_col == "uplift_r0_r1_pct")
 
             tests.append({
                 "kappa": kappa_col,
@@ -333,7 +545,6 @@ def run_hypothesis_tests(money_table: list[dict]) -> dict:
                 "ci_upper": ci_hi,
                 "perm_p_value": perm_p,
                 "hit_rate": hr,
-                "is_primary": is_primary,
                 "n_cells": int((~np.isnan(x) & ~np.isnan(y)).sum()),
             })
 
@@ -343,44 +554,65 @@ def run_hypothesis_tests(money_table: list[dict]) -> dict:
     for t, cp in zip(tests, corrected_p):
         t["corrected_p_value"] = cp
 
-    # H2: R1 > R0 when kappa_leakage is low
-    h2_test = next((t for t in tests if t["is_primary"]), None)
+    return {
+        "status": "EXPLORATORY",
+        "caveat": (
+            f"n={len(df)} cells; Spearman on n<10 has near-zero power. "
+            "These are observed associations, NOT hypothesis tests. "
+            "Fold-level paired tests are the primary evidence."
+        ),
+        "correction_method": "Holm-Bonferroni",
+        "n_tests": len(tests),
+        "tests": tests,
+    }
 
-    # H3: R2 > R1 when kappa_transfer is low
-    h3_test = next((t for t in tests
-                    if t["kappa"] == "kappa_transfer_r0"
-                    and t["uplift"] == "uplift_r1_r2_pct"), None)
 
-    # H4: audit flags predict representation uplift (any significant test)
-    h4_any_significant = any(t["corrected_p_value"] < 0.05 for t in tests
-                             if not np.isnan(t.get("corrected_p_value", float("nan"))))
+def run_hypothesis_tests(money_table: list[dict], all_results: dict) -> dict:
+    """Run all hypothesis tests: fold-level (primary) + cell-level (exploratory)."""
+
+    # PRIMARY: fold-level paired tests
+    fold_tests = run_fold_level_tests(all_results)
+
+    # EXPLORATORY: cell-level Spearman associations
+    exploratory = run_exploratory_correlations(money_table)
+
+    # H4: audit flags predict representation uplift
+    # Use fold-level direction consistency across cells
+    cell_tests = fold_tests.get("cell_tests", [])
+    h4_cells_helped = 0
+    h4_cells_total = 0
+    for ct in cell_tests:
+        h2 = ct.get("h2_r0_r1", {})
+        if h2.get("mean_delta") is not None:
+            h4_cells_total += 1
+            if h2["mean_delta"] > 0:
+                h4_cells_helped += 1
+
+    h2_verdict = fold_tests.get("pooled_h2", {}).get("verdict", "NO_DATA")
+    h3_verdict = fold_tests.get("pooled_h3", {}).get("verdict", "NO_DATA")
 
     return {
-        "all_tests": tests,
-        "n_tests": len(tests),
-        "correction_method": "Holm-Bonferroni",
-        "primary_test": {
-            "description": "kappa_leakage_r0 predicts R0->R1 uplift",
-            "result": h2_test,
-        },
+        "primary_method": "Fold-level paired Wilcoxon signed-rank + Cohen's d",
+        "exploratory_method": "Cell-level Spearman (underpowered, n~8)",
+        "fold_level_tests": fold_tests,
+        "exploratory_correlations": exploratory,
         "h2_evidence": {
-            "description": "R1 > R0 when kappa_leakage is low",
-            "test": h2_test,
-            "verdict": "PASS" if (h2_test and h2_test["rho"] < -0.3
-                                  and h2_test["ci_upper"] < 0) else "INCONCLUSIVE",
-        } if h2_test else {"verdict": "NO_DATA"},
+            "description": "R1 > R0 under spatial-blocked CV (fold-level paired test)",
+            "pooled": fold_tests.get("pooled_h2", {}),
+            "verdict": h2_verdict,
+        },
         "h3_evidence": {
-            "description": "R2 > R1 when kappa_transfer is low",
-            "test": h3_test,
-            "verdict": "PASS" if (h3_test and h3_test["rho"] < -0.3
-                                  and h3_test["ci_upper"] < 0) else "INCONCLUSIVE",
-        } if h3_test else {"verdict": "NO_DATA"},
+            "description": "R2 > R1 under spatial-blocked CV (fold-level paired test)",
+            "pooled": fold_tests.get("pooled_h3", {}),
+            "verdict": h3_verdict,
+        },
         "h4_evidence": {
-            "description": "Audit flags predict representation uplift (any corrected p < 0.05)",
-            "any_significant": h4_any_significant,
-            "verdict": "PASS" if h4_any_significant else "INCONCLUSIVE",
-            "caveat": f"n={len(df)} cells; Spearman on n<10 is marginal. "
-                      "Report observed associations; confirmation requires more scenarios.",
+            "description": "Representation uplift is consistent across cells",
+            "cells_with_positive_uplift": h4_cells_helped,
+            "cells_total": h4_cells_total,
+            "verdict": "PASS" if (h4_cells_total >= 4 and
+                                   h4_cells_helped / max(h4_cells_total, 1) >= 0.75)
+                       else "INCONCLUSIVE",
         },
     }
 
@@ -397,8 +629,8 @@ def build_movement_table(money_table: list[dict]) -> list[dict]:
             "scenario": cell["scenario"],
             "target": cell["target"],
         }
-        for kappa_name in ("kappa_leakage", "kappa_transfer",
-                           "kappa_solver", "kappa_residual_spatial"):
+        for kappa_name in ("diag_leakage", "diag_transfer",
+                           "diag_solver", "diag_residual_spatial"):
             for level in ("r0", "r1", "r2"):
                 key = f"{kappa_name}_{level}"
                 row[key] = cell.get(key)
@@ -486,14 +718,16 @@ def main() -> None:
     all_kappas = load_all_kappas(s3)
     log.info("Loaded %d kappa diagnostic files", len(all_kappas))
 
+    all_certs = load_all_certificates(s3)
+
     # Build tables
-    money_table = build_money_table(all_results, all_kappas)
+    money_table = build_money_table(all_results, all_kappas, all_certs)
     log.info("Money table: %d cells", len(money_table))
 
     movement_table = build_movement_table(money_table)
 
     # Hypothesis tests
-    hypothesis_evidence = run_hypothesis_tests(money_table)
+    hypothesis_evidence = run_hypothesis_tests(money_table, all_results)
 
     # Pre-registration check
     preregistration = verify_preregistration(all_kappas, money_table)
@@ -512,11 +746,24 @@ def main() -> None:
             "reference_split": "spatial_blocked",
             "reference_solver": "histgbdt",
             "bootstrap_resamples": N_BOOTSTRAP,
-            "correction": "Holm-Bonferroni for 8-test family",
-            "primary_hypothesis": "kappa_leakage_r0 predicts R0->R1 uplift",
-            "flag_threshold": "median split (pre-committed)",
-            "sample_size_caveat": "n=7 cells maximum; report observed associations, "
-                                  "confirmation requires more scenarios",
+            "primary_test": "Fold-level paired Wilcoxon signed-rank (one-sided for H2/H3)",
+            "effect_size": "Cohen's d on paired fold deltas",
+            "exploratory_test": "Cell-level Spearman (kappa vs uplift); n~8, underpowered, "
+                                "reported as observed associations only",
+            "correction": "Holm-Bonferroni for exploratory Spearman family",
+            "verdict_criteria": {
+                "PASS": "Wilcoxon p < 0.05 AND Cohen's d > 0.2",
+                "INCONCLUSIVE": "either condition not met",
+            },
+            "rsct_signals": {
+                "source": "Phase 4.5 certificates via rsct.experiment_cert",
+                "alpha": "R/(R+N) signal purity",
+                "omega": "1-S_sup reliability",
+                "tau": "1/(1+CV) temporal stability from per-fold variance",
+                "sigma": "std(fold_metrics) cross-fold volatility",
+                "diagnosis": "DegradationDiagnoser 3x3 grid (alpha x kappa)",
+                "service": "rsct.experiment_cert.certify_experiment_cell",
+            },
         },
     }
 
@@ -556,10 +803,15 @@ def main() -> None:
               f"R0->R1={'%.1f%%' % row['uplift_r0_r1_pct'] if row['uplift_r0_r1_pct'] is not None else 'N/A':>7s}")
 
     he = hypothesis_evidence
-    print(f"\n--- HYPOTHESIS VERDICTS ---")
+    print(f"\n--- HYPOTHESIS VERDICTS (fold-level paired tests) ---")
     for h in ("h2_evidence", "h3_evidence", "h4_evidence"):
         ev = he.get(h, {})
-        print(f"  {h}: {ev.get('verdict', 'N/A')}")
+        pooled = ev.get("pooled", {})
+        d = pooled.get("cohens_d", "N/A")
+        p = pooled.get("wilcoxon_p_one_sided", "N/A")
+        d_str = f"d={d:.2f}" if isinstance(d, float) else f"d={d}"
+        p_str = f"p={p:.4f}" if isinstance(p, float) else f"p={p}"
+        print(f"  {h}: {ev.get('verdict', 'N/A')}  ({d_str}, {p_str})")
 
     print(f"\n--- PRE-REGISTRATION ---")
     print(f"  Status: {preregistration.get('status')}")

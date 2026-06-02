@@ -6,6 +6,7 @@ All s035 launchers import from here. Do not run directly.
 
 import json
 import logging
+import subprocess
 import sys
 import time
 from datetime import datetime, timezone
@@ -37,6 +38,29 @@ PYTORCH_GPU = (
 SERIES_DIR = Path(__file__).parent.parent
 JOBS_DIR = SERIES_DIR / "jobs"
 CONFIGS_DIR = SERIES_DIR / "configs"
+
+
+def _get_git_info() -> dict[str, str]:
+    """Capture git commit hash and dirty status for traceability."""
+    info = {"git_hash": "unknown", "git_dirty": "unknown"}
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True, text=True, timeout=5,
+            cwd=str(SERIES_DIR),
+        )
+        if result.returncode == 0:
+            info["git_hash"] = result.stdout.strip()
+        result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            capture_output=True, text=True, timeout=5,
+            cwd=str(SERIES_DIR),
+        )
+        if result.returncode == 0:
+            info["git_dirty"] = "true" if result.stdout.strip() else "false"
+    except Exception:
+        pass
+    return info
 
 
 def make_job_name(prefix: str) -> str:
@@ -96,6 +120,21 @@ def _upload_bootstrap(code_prefix: str, script_content: str) -> None:
 _BASE_PACKAGES = "pyyaml pyarrow pandas requests boto3"
 
 
+def _run_preflight(phase_id: str, scenario: str | None = None) -> bool:
+    """Run experiment contract preflight. Returns True if no FAILs."""
+    sys.path.insert(0, str(JOBS_DIR))
+    try:
+        from validate_experiment_readiness import preflight
+        _, fails, _ = preflight(phase_id, scenario)
+        return fails == 0
+    except ImportError:
+        log.warning("validate_experiment_readiness.py not found; skipping preflight")
+        return True
+    finally:
+        if str(JOBS_DIR) in sys.path:
+            sys.path.remove(str(JOBS_DIR))
+
+
 def launch_processing_job(
     job_name: str,
     job_script: str,
@@ -108,6 +147,8 @@ def launch_processing_job(
     env_overrides: dict[str, str] | None = None,
     pre_install_cmd: str | None = None,
     dry_run: bool = False,
+    phase_id: str | None = None,
+    scenario: str | None = None,
 ) -> str:
     """Upload code and launch a SageMaker Processing job.
 
@@ -123,7 +164,37 @@ def launch_processing_job(
         pre_install_cmd: Shell command to run before pip install (e.g. apt-get
             for system-level dependencies like libgdal-dev).
     """
+    # Experiment contract preflight
+    if phase_id:
+        ok = _run_preflight(phase_id, scenario)
+        if not ok and not dry_run:
+            log.error("PREFLIGHT FAILED for phase=%s scenario=%s. Aborting.", phase_id, scenario)
+            sys.exit(1)
+        elif not ok:
+            log.warning("[DRY RUN] PREFLIGHT FAILED. Fix before real launch.")
+
+    # Capture git provenance
+    git_info = _get_git_info()
+    log.info("Git: %s (dirty=%s)", git_info["git_hash"][:12], git_info["git_dirty"])
+    if git_info["git_dirty"] == "true":
+        log.warning("Working tree is dirty. Commit before launch for reproducibility.")
+
     code_prefix = upload_code(job_name, job_script, extra_files)
+
+    # Write git provenance alongside code on S3
+    provenance = {
+        "job_name": job_name,
+        "job_script": job_script,
+        "launched_at": datetime.now(timezone.utc).isoformat(),
+        **git_info,
+    }
+    s3_prov = boto3.client("s3", **get_aws_credentials())
+    s3_prov.put_object(
+        Bucket=CODE_BUCKET,
+        Key=f"{code_prefix}provenance.json",
+        Body=json.dumps(provenance, indent=2).encode(),
+        ContentType="application/json",
+    )
 
     packages = _BASE_PACKAGES
     if pip_packages:
@@ -184,6 +255,8 @@ def launch_processing_job(
             "PYTHONUNBUFFERED": "1",
             "PIP_ROOT_USER_ACTION": "ignore",
             "AWS_DEFAULT_REGION": REGION,
+            "S035_GIT_HASH": git_info["git_hash"],
+            "S035_GIT_DIRTY": git_info["git_dirty"],
             # Route all HF Hub + Datasets cache to EBS (/tmp), not root fs (~20 GB limit)
             "HF_HOME": "/tmp/hf_cache",
             "HF_DATASETS_CACHE": "/tmp/hf_cache/datasets",

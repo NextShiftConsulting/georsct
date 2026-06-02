@@ -56,7 +56,7 @@ mvd:
   required_columns:
     - district_id
     - event
-    - nfip_claim_count
+    - nfip_historical_frequency
     - acsE_total_pop
     - svi_overall
     - levee_condition_rating

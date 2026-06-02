@@ -77,14 +77,11 @@ R0_FEATURES = [
     "svi_household_disability",
     "svi_minority_language",
     "svi_housing_transport",
-    "nfip_claim_count",
-    "nfip_total_loss",
-    "nfip_mean_loss_per_claim",
+    "nfip_historical_frequency",
+    "nfip_historical_severity",
     "hifld_nearest_hospital_km",
     "hifld_n_hospitals",
     "population",
-    "storm_min_dist_km",
-    "storm_landfall_category",
 ]
 
 # ---------------------------------------------------------------------------
@@ -155,7 +152,7 @@ class RunResult:
 
 
 def _load_r1_supplement(s3, scenario: str) -> pd.DataFrame:
-    """Load R1 supplement parquet from S3."""
+    """Load R1 supplement parquet from S3. Hard failure if missing."""
     key = f"processed/{scenario}/{scenario}_r1_supplement.parquet"
     try:
         resp = s3.get_object(Bucket=BUCKET, Key=key)
@@ -163,8 +160,11 @@ def _load_r1_supplement(s3, scenario: str) -> pd.DataFrame:
         log.info("R1 supplement: %d rows x %d cols from %s", len(df), len(df.columns), key)
         return df
     except Exception as exc:
-        log.warning("No R1 supplement for %s: %s", scenario, exc)
-        return pd.DataFrame()
+        raise RuntimeError(
+            f"R1 supplement missing: s3://{BUCKET}/{key}. "
+            f"Run build_r1_features.py --scenario {scenario} --upload first. "
+            f"R1 arm is meaningless without its supplement features."
+        ) from exc
 
 
 def _load_folds(s3, scenario: str) -> pd.DataFrame:
@@ -417,16 +417,28 @@ def main() -> None:
         df["event"] = df["event"].astype(str)
     log.info("Assembled: %d rows x %d cols", len(df), len(df.columns))
 
+    # --- Load NFIP historical supplement (temporally-gated) ---
+    nfip_key = f"processed/{scenario}/{scenario}_nfip_historical.parquet"
+    try:
+        resp = s3.get_object(Bucket=BUCKET, Key=nfip_key)
+        nfip_hist = pd.read_parquet(io.BytesIO(resp["Body"].read()))
+        nfip_hist["zcta_id"] = nfip_hist["zcta_id"].astype(str)
+        join_cols = ["zcta_id", "event"] if "event" in nfip_hist.columns else ["zcta_id"]
+        df = df.merge(nfip_hist, on=join_cols, how="left")
+        log.info("NFIP historical supplement merged: %d rows from %s", len(nfip_hist), nfip_key)
+    except Exception as exc:
+        raise RuntimeError(
+            f"NFIP historical supplement missing: {nfip_key}. "
+            f"Run build_nfip_historical.py --scenario {scenario} --upload first."
+        ) from exc
+
     # --- Load R1 supplement and join ---
     r1_supp = _load_r1_supplement(s3, scenario)
-    if not r1_supp.empty:
-        r1_supp["zcta_id"] = r1_supp["zcta_id"].astype(str)
-        pre_cols = set(df.columns)
-        df = df.merge(r1_supp, on="zcta_id", how="left")
-        new_cols = set(df.columns) - pre_cols
-        log.info("R1 supplement added %d columns: %s", len(new_cols), sorted(new_cols))
-    else:
-        log.warning("No R1 supplement -- training with assembled parquet columns only")
+    r1_supp["zcta_id"] = r1_supp["zcta_id"].astype(str)
+    pre_cols = set(df.columns)
+    df = df.merge(r1_supp, on="zcta_id", how="left")
+    new_cols = set(df.columns) - pre_cols
+    log.info("R1 supplement added %d columns: %s", len(new_cols), sorted(new_cols))
 
     # --- Encode categoricals ---
     df = _encode_categoricals(df, R1_SCENARIO_SPECIFIC)

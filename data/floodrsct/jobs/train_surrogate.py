@@ -74,8 +74,8 @@ STATIC_FEATURES = [
     "acs_median_hh_income", "acs_pct_below_poverty",
     "acs_pct_renter_occupied", "acs_pct_vacant",
     "acs_median_home_value", "acs_median_year_built",
-    # Historical NFIP exposure (static, all-time per ZCTA)
-    "nfip_claim_count", "nfip_total_loss",
+    # Historical NFIP exposure (temporally-gated, from build_nfip_historical.py)
+    "nfip_historical_frequency", "nfip_historical_severity",
     # Impervious surface (NLCD 2021, houston/nyc only)
     "impervious_pct",
 ]

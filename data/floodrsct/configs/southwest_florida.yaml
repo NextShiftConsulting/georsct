@@ -100,6 +100,6 @@ mvd:
     - zcta_id
     - event
     - max_surge_m         # from SLOSH or NOAA tides
-    - nfip_claim_count
+    - nfip_historical_frequency
     - acsE_total_pop
     - flood_pct_zone_a    # from geocertdb2026

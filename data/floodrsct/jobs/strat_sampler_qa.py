@@ -70,9 +70,9 @@ RANGE_CHECKS = [
     ("svi_overall",          0.0,    1.0,   "SVI percentile"),
     ("acs_total_pop",        0.0,  1e6,     "ZCTA population"),
     ("acs_median_hh_income", 0.0,  500000,  "median household income"),
-    # NFIP
-    ("nfip_claim_count",     0.0,  1e5,     "NFIP claims"),
-    ("nfip_total_loss",      0.0,  1e11,    "NFIP total loss $"),
+    # NFIP (temporally-gated historical)
+    ("nfip_historical_frequency", 0.0, 1e5,  "NFIP historical claim count"),
+    ("nfip_historical_severity",  0.0, 1e7,  "NFIP historical mean loss/claim $"),
     # Coverage
     ("obs_mrms_coverage_pct", 0.0,  1.0,    "MRMS coverage fraction"),
     # TWI
