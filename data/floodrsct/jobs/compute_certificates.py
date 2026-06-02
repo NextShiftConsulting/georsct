@@ -40,7 +40,7 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 RESULTS_PREFIX = "results/s035"
-MODELABLE = ["houston", "southwest_florida", "nyc", "riverside_coachella"]
+MODELABLE = ["houston", "southwest_florida", "nyc", "riverside_coachella", "new_orleans"]
 
 PRIMARY_METRIC = {
     "regression": "r2",

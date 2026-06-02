@@ -65,8 +65,7 @@ PRIMARY_METRIC = {
     "classification": "roc_auc",
 }
 
-# Modelable scenarios (NOLA excluded, n=20)
-MODELABLE = {"houston", "southwest_florida", "nyc", "riverside_coachella"}
+MODELABLE = {"houston", "southwest_florida", "nyc", "riverside_coachella", "new_orleans"}
 
 
 def _load_results(s3, level: str, scenario: str) -> dict | None:

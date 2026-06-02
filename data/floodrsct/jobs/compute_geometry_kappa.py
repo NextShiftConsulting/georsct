@@ -50,7 +50,7 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 RESULTS_PREFIX = "results/s035"
-MODELABLE = ["houston", "southwest_florida", "nyc", "riverside_coachella"]
+MODELABLE = ["houston", "southwest_florida", "nyc", "riverside_coachella", "new_orleans"]
 TARGETS = ["obs_nfip_event_claims", "obs_has_311", "obs_has_hwm"]
 
 # Features used per arm (R0 static only -- geometry doesn't change per arm)

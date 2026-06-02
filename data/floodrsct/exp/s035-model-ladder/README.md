@@ -67,9 +67,9 @@ R5:   evidence     — VLA/agent: evidence + action choice [demo/action layer]
 | SW Florida | 606 | 1 (NFIP) | Stretch |
 | NYC | 422 | 2 (NFIP, 311) | Primary |
 | Riverside | 172 | 1 (NFIP) | Excluded |
-| New Orleans | 20 | Illustrative only | N/A |
+| New Orleans | 20 | 2 (NFIP, HWM) | N/A |
 
-Total modelable cells: 7 (scenario x target)
+Total modelable cells: 9 (scenario x target)
 
 ## Key Files
 

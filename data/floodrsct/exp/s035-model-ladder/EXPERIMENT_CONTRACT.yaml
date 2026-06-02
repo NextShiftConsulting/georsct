@@ -12,12 +12,13 @@ experiment: s035-model-ladder
 bucket: swarm-floodrsct-data
 version: "1.0"
 
-# Modelable scenarios (NOLA excluded, n=20)
+# Modelable scenarios (5 metro areas, n=20-606 ZCTAs)
 modelable_scenarios: &modelable
   - houston
   - southwest_florida
   - nyc
   - riverside_coachella
+  - new_orleans
 
 phases:
 
