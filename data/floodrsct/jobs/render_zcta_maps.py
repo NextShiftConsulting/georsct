@@ -218,7 +218,8 @@ def main():
     log.info("Loading event features for %s...", scenario)
     event_df = _load_parquet(s3, OUTPUT_KEYS[scenario])
     event_df["zcta_id"] = event_df["zcta_id"].astype(str)
-    event_df = event_df.set_index("zcta_id")
+    # Deduplicate to one row per ZCTA (flood zone pcts are static across events)
+    event_df = event_df.drop_duplicates("zcta_id").set_index("zcta_id")
 
     out_dir = (
         Path(__file__).parent.parent

@@ -26,10 +26,13 @@ import boto3
 import pandas as pd
 import yaml
 
-# Add repo root to path for registry import
+# Add repo root to path for registry import (optional on SageMaker)
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT))
-from db.scripts.scenario_registry import get_registry
+try:
+    from db.scripts.scenario_registry import get_registry
+except ImportError:
+    get_registry = None
 
 logging.basicConfig(
     level=logging.INFO,
@@ -224,8 +227,13 @@ EXPECTED_RAW_COLUMNS = {
 
 # Scenario events and output keys are sourced from the scenario registry
 # (db/schema/006_scenario_pipeline.sql) via get_registry().
-_REG = get_registry()
-SCENARIO_EVENTS = _REG.event_map()
+# Falls back to _coverage_common on SageMaker where db/ is not available.
+if get_registry is not None:
+    _REG = get_registry()
+    SCENARIO_EVENTS = _REG.event_map()
+else:
+    from _coverage_common import SCENARIOS as _SCENARIOS
+    SCENARIO_EVENTS = {s: [] for s in _SCENARIOS}
 
 
 def _resolve_raw_paths(raw_path: str, scenario: str) -> list[str]:
