@@ -251,7 +251,7 @@ Every time-varying data source is collapsed to a single scalar per (ZCTA, event)
 | NOAA tides | Hourly (~400 records) | `max_surge_m` (single max) | Timing of peak surge, tidal phase, duration above flood stage |
 | HURDAT2 track | 6-hourly fixes | `storm_min_dist_km` (min distance) | Duration of exposure, approach speed, track curvature |
 | USGS gauges | 15-min to hourly | `peak_stage_ft` (max) | Time-to-peak, recession curve, duration above flood stage |
-| 311 reports | Individual timestamps | `complaints_311_count` (count) | Temporal distribution, onset delay relative to storm |
+| 311 reports | Individual timestamps | `flood_311_count` (count) | Temporal distribution, onset delay relative to storm |
 
 ### Why This Matters for Flood Prediction
 

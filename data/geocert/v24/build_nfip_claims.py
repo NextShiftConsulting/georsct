@@ -26,10 +26,41 @@ Source: FEMA OpenFEMA v2
   https://www.fema.gov/api/open/v2/fimaNfipClaims.csv
   Max 10000 records per page; ~2.4M total claims nationally.
 
+Temporal Separation (--exclude-year):
+  When NFIP historical features (nfip_claim_count, nfip_total_loss) are used
+  as input features alongside event-specific targets (obs_nfip_event_claims),
+  the all-time aggregate must exclude the event being predicted.  The
+  --exclude-year flag drops claims with yearOfLoss >= the specified year.
+
+  CAVEAT: NFIP claims filing is asynchronous.  A Hurricane Harvey (Aug 2017)
+  claim may appear as yearOfLoss=2017 or yearOfLoss=2018 depending on when
+  the loss was reported vs when FEMA processed it.  Conversely, a pre-Harvey
+  spring 2017 flood claim also has yearOfLoss=2017 but is legitimately
+  historical.  The yearOfLoss filter is therefore approximate:
+    - It removes the bulk of event-year contamination
+    - It may over-exclude (losing legitimate pre-event claims from the
+      same calendar year)
+    - It may under-exclude (missing delayed filings in year+1)
+
+  This is a known limitation.  The paper must:
+    1. Report R0 results WITH and WITHOUT nfip_* features as an ablation
+    2. Document the contamination window (~1-2 years around event)
+    3. Note that obs_nfip_event_claims (target) is DR-filtered by disaster
+       declaration number, which is exact -- only the historical features
+       have this ambiguity
+
+  Convention: obs_ prefix = event-specific targets (outcomes to predict).
+  No prefix = historical features (inputs).  This naming convention is
+  enforced in geocertdb and build_event_dataset.py.
+
+  Example: Houston/Harvey (2017) requires --exclude-year 2017 so that
+  nfip_claim_count reflects only pre-2017 base rates.
+
 Usage:
     python build_nfip_claims.py --dry-run
     python build_nfip_claims.py --upload
     python build_nfip_claims.py --state TX    # subset by state for testing
+    python build_nfip_claims.py --exclude-year 2017  # temporal separation for s035
 """
 
 import argparse
@@ -161,8 +192,19 @@ def fetch_all_claims(state: str | None = None) -> pd.DataFrame:
     return df
 
 
-def clean_and_aggregate(raw: pd.DataFrame) -> pd.DataFrame:
-    """Clean NFIP claims and aggregate to ZCTA."""
+def clean_and_aggregate(
+    raw: pd.DataFrame, exclude_year: int | None = None,
+) -> pd.DataFrame:
+    """Clean NFIP claims and aggregate to ZCTA.
+
+    Args:
+        raw: Raw NFIP claims from OpenFEMA.
+        exclude_year: If set, drop claims with yearOfLoss >= this value.
+            Used to enforce temporal separation: historical NFIP features
+            must not include the event being predicted.  For example,
+            Hurricane Harvey (2017) targets require exclude_year=2017 so
+            that nfip_claim_count reflects only pre-event base rates.
+    """
     log.info("Cleaning and aggregating %d records...", len(raw))
 
     # Normalize zip code to 5-digit ZCTA
@@ -178,6 +220,18 @@ def clean_and_aggregate(raw: pd.DataFrame) -> pd.DataFrame:
     # Drop clearly invalid zip codes
     raw = raw[raw["zcta_id"].str.match(r"^\d{5}$")].copy()
     raw = raw[raw["zcta_id"] != "00000"].copy()
+
+    # Temporal separation: exclude event year to prevent target leakage.
+    # Historical NFIP features (nfip_claim_count, nfip_total_loss) are used
+    # as R0 inputs while obs_nfip_event_claims is the prediction target.
+    # Without this filter, the all-time aggregate includes the event being
+    # predicted, creating partial leakage.
+    if exclude_year is not None:
+        raw["yearOfLoss"] = pd.to_numeric(raw.get("yearOfLoss"), errors="coerce")
+        n_before = len(raw)
+        raw = raw[raw["yearOfLoss"] < exclude_year].copy()
+        log.info("  Temporal filter: yearOfLoss < %d removed %d claims (%d -> %d)",
+                 exclude_year, n_before - len(raw), n_before, len(raw))
 
     # Parse financial columns
     for col in ("amountPaidOnBuildingClaim", "amountPaidOnContentsClaim"):
@@ -240,6 +294,9 @@ def main():
                         help="Path to zcta_county_crosswalk.parquet (local)")
     parser.add_argument("--state", default=None,
                         help="Filter to one state (2-letter abbrev, e.g. TX) for testing")
+    parser.add_argument("--exclude-year", type=int, default=None,
+                        help="Exclude claims with yearOfLoss >= this value "
+                             "(temporal separation for s035 DOE)")
     args = parser.parse_args()
 
     timestamp = datetime.now(timezone.utc).isoformat()
@@ -263,8 +320,8 @@ def main():
     if raw.empty:
         sys.exit(1)
 
-    # Clean and aggregate
-    claims = clean_and_aggregate(raw)
+    # Clean and aggregate (with temporal separation if specified)
+    claims = clean_and_aggregate(raw, exclude_year=args.exclude_year)
 
     # Zero-fill all ZCTAs
     result = fill_zero_zctas(claims, crosswalk_path)
@@ -288,7 +345,7 @@ def main():
 
     if args.upload:
         import boto3
-from swarm_auth import get_aws_credentials
+        from swarm_auth import get_aws_credentials
         key = f"{PREFIX}/nfip_claims_zcta.parquet"
         _aws = get_aws_credentials()
         s3 = boto3.client("s3", **_aws)
@@ -300,6 +357,7 @@ from swarm_auth import get_aws_credentials
             "timestamp": timestamp,
             "source": OPENFEMA_BASE,
             "state_filter": args.state,
+            "exclude_year": args.exclude_year,
             "n_zctas": len(result),
             "n_zctas_with_claims": int(result["nfip_has_claims"].sum()),
             "total_paid_claims": int(result["nfip_claim_count"].sum()),
