@@ -90,6 +90,14 @@ EVENT_WINDOWS = {
         "start": datetime(2023, 1, 7, tzinfo=timezone.utc),
         "end": datetime(2023, 1, 28, tzinfo=timezone.utc),
     },
+    "isaac2012_nola": {
+        "start": datetime(2012, 8, 26, tzinfo=timezone.utc),
+        "end": datetime(2012, 9, 2, tzinfo=timezone.utc),
+    },
+    "barry2019_nola": {
+        "start": datetime(2019, 7, 10, tzinfo=timezone.utc),
+        "end": datetime(2019, 7, 17, tzinfo=timezone.utc),
+    },
 }
 
 # URL templates -- Iowa State Mesonet archive (gzip-compressed GRIB2, ~700KB each)

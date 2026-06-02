@@ -88,6 +88,18 @@ EVENTS = {
         "start": date(2023, 1, 7),
         "end": date(2023, 1, 28),
     },
+    "katrina2005_nola": {
+        "start": date(2005, 8, 28),
+        "end": date(2005, 9, 5),
+    },
+    "isaac2012_nola": {
+        "start": date(2012, 8, 26),
+        "end": date(2012, 9, 2),
+    },
+    "barry2019_nola": {
+        "start": date(2019, 7, 10),
+        "end": date(2019, 7, 17),
+    },
 }
 
 

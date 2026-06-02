@@ -31,6 +31,8 @@ EVENT_INSTANCES = {
     "hilary2023":  "ml.m5.large",
     "henri2021":   "ml.m5.large",
     "ar_flood_2023": "ml.m5.xlarge",  # ~22 days
+    "isaac2012_nola": "ml.m5.large",
+    "barry2019_nola": "ml.m5.large",
 }
 
 

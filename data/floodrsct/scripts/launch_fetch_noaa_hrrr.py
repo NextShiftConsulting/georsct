@@ -22,6 +22,7 @@ def main() -> None:
             "ida2021_nola", "ida2021_nyc",
             "ian2022", "helene2024", "milton2024", "hilary2023",
             "henri2021", "ar_flood_2023",
+            "barry2019_nola",
         ],
     )
     parser.add_argument("--dry-run", action="store_true")

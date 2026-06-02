@@ -108,6 +108,10 @@ EVENT_WINDOWS: dict[str, dict] = {
         "end": datetime(2023, 3, 24, 0, tzinfo=timezone.utc),
         "note": "Atmospheric river series; ~22 days",
     },
+    "barry2019_nola": {
+        "start": datetime(2019, 7, 10, 0, tzinfo=timezone.utc),
+        "end": datetime(2019, 7, 17, 0, tzinfo=timezone.utc),
+    },
 }
 
 
