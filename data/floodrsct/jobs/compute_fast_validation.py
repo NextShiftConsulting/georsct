@@ -1,4 +1,12 @@
 #!/usr/bin/env python3
+# =============================================================================
+# PROVENANCE:
+#   generator: deepseek/deepseek-chat-v3.1 (via OpenRouter)
+#   cleanup_by: Martin
+#   cleanup_summary: Strip markdown fences, fix obs ceiling column mismatch,
+#       fix None format-string crash, genericize spearman_rho signature
+#   see: ../exp/s035-model-ladder/SCRIPT_PROVENANCE.yaml
+# =============================================================================
 """compute_fast_validation.py -- Phase 7b: FAST external validation.
 
 Compares s035 model-ladder predictions (R0/R1/R2) against FEMA FAST

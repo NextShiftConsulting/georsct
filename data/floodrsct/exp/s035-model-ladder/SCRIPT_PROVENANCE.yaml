@@ -1,0 +1,60 @@
+# SCRIPT_PROVENANCE.yaml
+# Provenance log for s035-model-ladder experiment scripts.
+#
+# Each entry tracks the LLM reviewer that produced the initial draft,
+# the human who cleaned it up, and what was changed.  Provenance lives
+# in this file and in per-script header comments -- never in git commit
+# messages (per no-AI-attribution policy).
+#
+# Machine-readable so validate_experiment_readiness.py can verify
+# every job script has a provenance entry.
+
+experiment: s035-model-ladder
+created: 2026-06-02
+
+scripts:
+
+  # --- Phase 7b: FAST external validation ---
+  - path: jobs/compute_fast_validation.py
+    phase: "7b"
+    generator: deepseek/deepseek-chat-v3.1
+    generator_via: OpenRouter (free tier)
+    draft_date: 2026-06-02
+    cleanup_by: Martin
+    cleanup_date: 2026-06-02
+    changes:
+      - "Strip markdown fences from raw LLM output"
+      - "Fix obs ceiling: generic spearman_rho() taking named Series instead of DataFrame with y_pred column"
+      - "Fix None format-string crash in log.info (conditional formatting)"
+      - "Align S3 key patterns with existing _coverage_common conventions"
+    rationale: "Simplest script (pure scipy, no yrsn deps) -- good first test of MMAR code generation workflow"
+
+  # --- Phase 6: DGM routing (pending) ---
+  # - path: jobs/compute_dgm_routing.py
+  #   phase: "6"
+  #   generator: TBD
+  #   status: pending
+
+  # --- R4.1: ZCTA map rendering (pending) ---
+  # - path: jobs/render_zcta_maps.py
+  #   phase: "R4.1"
+  #   generator: TBD
+  #   status: pending
+
+  # --- R4.2: ZCTA evidence builder (pending) ---
+  # - path: jobs/build_zcta_evidence.py
+  #   phase: "R4.2"
+  #   generator: TBD
+  #   status: pending
+
+  # --- R4.3: VLM assessment (pending) ---
+  # - path: jobs/run_vlm_assessment.py
+  #   phase: "R4.3"
+  #   generator: TBD
+  #   status: pending
+
+  # --- R4.5: VLM comparison (pending) ---
+  # - path: jobs/compute_vlm_comparison.py
+  #   phase: "R4.5"
+  #   generator: TBD
+  #   status: pending
