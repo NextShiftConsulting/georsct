@@ -193,8 +193,10 @@ def _check_s3_prefix(s3, prefix: str, schema: dict, event: str | None) -> dict:
     """Check files under an S3 prefix against schema expectations."""
     check = {"dataset": prefix, "status": "UNKNOWN", "details": []}
 
-    resp = s3.list_objects_v2(Bucket=BUCKET, Prefix=prefix)
-    contents = resp.get("Contents", [])
+    paginator = s3.get_paginator("list_objects_v2")
+    contents = []
+    for page in paginator.paginate(Bucket=BUCKET, Prefix=prefix):
+        contents.extend(page.get("Contents", []))
 
     if not contents:
         check["status"] = "MISSING"

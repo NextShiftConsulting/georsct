@@ -43,6 +43,7 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 SEED = 42
+np.random.seed(SEED)
 RESULTS_PREFIX = "results/s035"
 
 # ---------------------------------------------------------------------------

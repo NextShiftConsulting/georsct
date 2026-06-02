@@ -54,6 +54,17 @@ logging.getLogger("botocore.credentials").setLevel(logging.WARNING)
 log = logging.getLogger(__name__)
 
 BUCKET = "swarm-floodrsct-data"
+
+
+def _list_s3_keys(s3, prefix: str) -> list[dict]:
+    """Paginated list_objects_v2. Returns all Contents dicts under prefix."""
+    paginator = s3.get_paginator("list_objects_v2")
+    contents = []
+    for page in paginator.paginate(Bucket=BUCKET, Prefix=prefix):
+        contents.extend(page.get("Contents", []))
+    return contents
+
+
 # Launcher uploads configs alongside code into the same S3 prefix,
 # so they land in /opt/ml/processing/input/code/ on the container.
 CONFIG_DIR = Path("/opt/ml/processing/input/code")
@@ -487,8 +498,8 @@ def aggregate_mrms_rainfall(s3, event: str, zcta_ids: list[str]) -> pd.DataFrame
     Falls back to NaN + low coverage flag if libraries are unavailable.
     """
     prefix = f"raw/noaa_mrms/{event}/"
-    resp = s3.list_objects_v2(Bucket=BUCKET, Prefix=prefix)
-    files = [o["Key"] for o in resp.get("Contents", [])
+    all_objs = _list_s3_keys(s3, prefix)
+    files = [o["Key"] for o in all_objs
              if o["Key"].endswith(".grb2") or o["Key"].endswith(".grib2.gz")]
     log.info("MRMS: %d grib2 files for event %s", len(files), event)
 
@@ -850,8 +861,8 @@ def aggregate_tides(s3, prefix_pattern: str, event: str,
     Load all tide parquets matching prefix_pattern, compute peak surge per
     station, then average to ZCTA by nearest station.
     """
-    resp = s3.list_objects_v2(Bucket=BUCKET, Prefix=prefix_pattern)
-    keys = [o["Key"] for o in resp.get("Contents", [])
+    all_objs = _list_s3_keys(s3, prefix_pattern)
+    keys = [o["Key"] for o in all_objs
             if event in o["Key"] and o["Key"].endswith(".parquet")]
     empty = pd.DataFrame({"zcta_id": zcta_ids, "max_surge_m": np.nan,
                            "max_water_level_m": np.nan})
@@ -1292,8 +1303,8 @@ def build_impervious_features(s3, zcta_ids: list[str]) -> pd.DataFrame:
     nlcd_key = None
     _nlcd_img_fallback = None
     for prefix in ["raw/nlcd/impervious_2021/", "raw/nlcd/impervious/v2021/"]:
-        resp = s3.list_objects_v2(Bucket=BUCKET, Prefix=prefix)
-        for o in resp.get("Contents", []):
+        all_objs = _list_s3_keys(s3, prefix)
+        for o in all_objs:
             k = o["Key"]
             if k.endswith((".tif", ".tiff")):
                 nlcd_key = k
@@ -1464,8 +1475,8 @@ def build_elevation_features(s3, zcta_ids: list[str], region: str) -> pd.DataFra
     except ImportError:
         return empty
 
-    resp = s3.list_objects_v2(Bucket=BUCKET, Prefix=f"raw/dem/3dep/v1/{region}/")
-    tif_keys = [o["Key"] for o in resp.get("Contents", []) if o["Key"].endswith(".tif")]
+    all_objs = _list_s3_keys(s3, f"raw/dem/3dep/v1/{region}/")
+    tif_keys = [o["Key"] for o in all_objs if o["Key"].endswith(".tif")]
     if not tif_keys:
         log.warning("build_elevation_features: no 3DEP TIFs for region=%s; returning NaN", region)
         return empty
@@ -1838,8 +1849,8 @@ def _build_slosh_from_legacy_nc(
     s3, event: str, centroids: pd.DataFrame, zcta_ids: list[str],
 ) -> Optional[pd.DataFrame]:
     """Legacy fallback: read per-event SLOSH NetCDF files. Returns DataFrame or None."""
-    resp = s3.list_objects_v2(Bucket=BUCKET, Prefix=f"raw/noaa_slosh/{event}/")
-    slosh_keys = [o["Key"] for o in resp.get("Contents", [])
+    all_objs = _list_s3_keys(s3, f"raw/noaa_slosh/{event}/")
+    slosh_keys = [o["Key"] for o in all_objs
                   if not o["Key"].endswith("MANUAL_DOWNLOAD_REQUIRED.txt")]
     if not slosh_keys:
         return None
