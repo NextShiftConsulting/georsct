@@ -128,7 +128,11 @@ def analyze_scenario(s3, scenario: str) -> Dict[str, Any]:
     folds_df = _load_parquet(s3, folds_key)
     if folds_df is not None:
         folds_df["zcta_id"] = folds_df["zcta_id"].astype(str)
-        claims_df = claims_df.merge(folds_df, on="zcta_id", how="inner")
+        # Folds assigned at ZCTA level -- deduplicate and use spatial_blocked
+        # to match R0-R2 DOE fold structure
+        folds_dedup = folds_df.drop_duplicates("zcta_id")[["zcta_id", "fold_spatial_blocked"]]
+        folds_dedup = folds_dedup.rename(columns={"fold_spatial_blocked": "fold"})
+        claims_df = claims_df.merge(folds_dedup, on="zcta_id", how="inner")
     else:
         claims_df["fold"] = 0
 

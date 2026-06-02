@@ -10,7 +10,21 @@
 
 experiment: s035-model-ladder
 bucket: swarm-floodrsct-data
-version: "1.0"
+version: "1.1"
+
+# ── Observation Unit ──────────────────────────────────────────────────
+# Grain: (zcta_id, event) — one row per ZCTA per flood event.
+# "unit" throughout this experiment always means ZCTA (Census TIGER/Line 2022).
+# Houston has 3 events, NYC has 4, etc. The same ZCTA appears N times
+# for N events within a scenario. All features and targets are at this
+# grain. Temporally-gated features (e.g. nfip_historical) use the
+# event's start date as the cutoff, so the same ZCTA gets different
+# feature values per event.
+observation_unit:
+  grain: [zcta_id, event]
+  description: "One row per ZCTA per flood event within a scenario"
+  primary_key: [zcta_id, event]
+  unit_definition: "ZCTA = ZIP Code Tabulation Area (Census TIGER/Line 2022)"
 
 # Modelable scenarios (4 metros, n=172-606 ZCTAs; NOLA is illustrative only)
 modelable_scenarios: &modelable
@@ -143,6 +157,10 @@ phases:
     s3_artifacts:
       - key: assembled_parquet
         description: "Assembled event features parquet"
+      - key: "processed/{scenario}/{scenario_key}_nfip_historical.parquet"
+        description: "Temporally-gated NFIP historical features (frequency + severity per zcta_id x event)"
+        optional: false
+        note: "Built by build_nfip_historical.py. Joined on [zcta_id, event] at training time."
       - key: "raw/geocertdb2026/zcta_county_crosswalk.parquet"
         description: "ZCTA-county crosswalk for spatial blocking"
         optional: true

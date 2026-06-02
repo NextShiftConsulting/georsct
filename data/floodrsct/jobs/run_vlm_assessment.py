@@ -229,7 +229,10 @@ def main():
         resp = s3.get_object(Bucket=BUCKET, Key=folds_key)
         folds_df = pd.read_parquet(io.BytesIO(resp["Body"].read()))
         folds_df["zcta_id"] = folds_df["zcta_id"].astype(str)
-        zcta_folds = dict(zip(folds_df["zcta_id"], folds_df["fold"]))
+        # Folds assigned at ZCTA level -- deduplicate to one row per ZCTA
+        # and use spatial_blocked folds to match R0-R2 DOE
+        folds_dedup = folds_df.drop_duplicates("zcta_id")
+        zcta_folds = dict(zip(folds_dedup["zcta_id"], folds_dedup["fold_spatial_blocked"]))
     except Exception as exc:
         log.warning("Could not load folds from %s: %s -- using fold=0", folds_key, exc)
         zcta_folds = {}
