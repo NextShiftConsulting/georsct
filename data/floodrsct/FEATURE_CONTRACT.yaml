@@ -409,7 +409,9 @@ features:
     source_type: public_fetch
     source_dataset: geocertdb2026
     output_column: latitude
-    notes: ZCTA centroid latitude.
+    notes: >
+      ZCTA geometric centroid latitude (TIGER/Line 2022 polygon centroids,
+      NOT population-weighted). Alias: centroid_lat.
 
   - feature_name: longitude
     temporal_class: invariant
@@ -417,7 +419,31 @@ features:
     source_type: public_fetch
     source_dataset: geocertdb2026
     output_column: longitude
-    notes: ZCTA centroid longitude.
+    notes: >
+      ZCTA geometric centroid longitude (TIGER/Line 2022 polygon centroids,
+      NOT population-weighted). Alias: centroid_lon.
+
+  - feature_name: centroid_lat
+    temporal_class: invariant
+    scenarios: all
+    source_type: derived
+    source_dataset: geocertdb2026
+    output_column: centroid_lat
+    notes: >
+      Semantic alias for latitude. Added by build_event_dataset.py so
+      downstream consumers (render_zcta_maps, spatial validation) can
+      reference unambiguous centroid column names.
+
+  - feature_name: centroid_lon
+    temporal_class: invariant
+    scenarios: all
+    source_type: derived
+    source_dataset: geocertdb2026
+    output_column: centroid_lon
+    notes: >
+      Semantic alias for longitude. Added by build_event_dataset.py so
+      downstream consumers (render_zcta_maps, spatial validation) can
+      reference unambiguous centroid column names.
 
   # ─── Observability Metadata ────────────────────────────────────────────
   # These describe measurement coverage, not flood outcomes.

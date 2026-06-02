@@ -37,6 +37,8 @@ phases:
     s3_artifacts:
       - key: assembled_parquet
         description: "Assembled event features parquet"
+        per_scenario: true
+        scenarios: *modelable
       - key: "raw/geocertdb2026/zcta_adjacency.parquet"
         description: "ZCTA adjacency edge list"
         optional: true
@@ -67,10 +69,9 @@ phases:
         - zcta_id
         - event
         - flood_pct_zone_a
-        - flood_pct_zone_ae
-        - elevation_m_msl
+        - flood_sfha
         - acs_total_pop
-        - acs_median_household_income
+        - acs_median_hh_income
         - svi_overall
       targets:
         - obs_nfip_event_claims

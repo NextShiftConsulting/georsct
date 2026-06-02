@@ -2245,6 +2245,15 @@ def main() -> None:
     except ImportError:
         log.warning("validate_assembly not available -- skipping post-assembly validation")
 
+    # Semantic aliases: latitude/longitude are ZCTA geometric centroids
+    # (TIGER/Line 2022 polygon centroids, NOT population-weighted).
+    # Add explicit centroid_lat/centroid_lon so downstream consumers
+    # (render_zcta_maps, spatial validation) can reference unambiguous names.
+    if "latitude" in df.columns and "centroid_lat" not in df.columns:
+        df["centroid_lat"] = df["latitude"]
+    if "longitude" in df.columns and "centroid_lon" not in df.columns:
+        df["centroid_lon"] = df["longitude"]
+
     s3_upload(df, OUTPUT_KEYS[args.scenario], s3)
     log.info("build_event_dataset complete: %s", args.scenario)
 
