@@ -424,17 +424,23 @@ binomial CI. For n=7, even 7/7 correct has wide CI — report honestly.
 
 ### Multiple Comparison Correction
 
-8 tests: 4 kappa proxies x 2 uplifts (R0->R1, R1->R2). Report:
+> **AMENDED (v1.7/v1.8):** Primary test is now fold-level Wilcoxon (single
+> test, no correction needed). Cell-level associations are exploratory.
+
+**Primary test (H2a):** Single fold-level Wilcoxon signed-rank (R0 vs R1).
+No multiple comparison correction required.
+
+**Exploratory cell-level (H2b, H4):**
+8 associations: 4 diagnostics x 2 transitions. At n=7:
 
 1. **All 8 Spearman correlations** with individual bootstrap 95% CIs
-2. **Holm-Bonferroni corrected p-values** for the 8-test family
-3. **Primary hypothesis** (declared in advance): diag_leakage predicts R0->R1 uplift.
-   This is the ONE test the paper headline rests on. The other 7 are exploratory.
-4. **False discovery rate** (Benjamini-Hochberg) as a secondary check
+2. **Effect sizes and directional consistency** (fraction positive)
+3. **kappa_geom** (not diag_leakage) as the cell-level predictor for H2b
+4. **Holm-Bonferroni** reported for transparency but noted as decorative at n=7
 
 ### Negative Results Protocol
 
-If the primary hypothesis fails (diag_leakage does not predict R0->R1 uplift):
+If the primary hypothesis fails (H2a Wilcoxon p >= 0.05 or Cohen's d < 0.2):
 
 - **DO report** the null result with effect size and CI
 - **DO report** whether any of the 7 exploratory tests showed signal

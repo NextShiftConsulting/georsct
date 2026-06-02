@@ -9,11 +9,23 @@
 
 ## Hypothesis
 
-**H2:** When diag_leakage is low at R0 (flagged), R1 representation produces
-larger uplift than when diag_leakage is high (unflagged).
+**H2a (primary):** R1 representation improves over R0 on the primary target
+under spatial-blocked CV.
 
-**Primary test:** Spearman rho(diag_leakage_R0, uplift_R0_to_R1) < 0
-(lower diag_leakage = more uplift from R1). This is the HEADLINE result.
+**Primary test (v1.7):** Fold-level Wilcoxon signed-rank on paired
+(R0_fold_metric, R1_fold_metric) across ~35 fold observations pooled
+from all modelable cells. Requires both p < 0.05 AND Cohen's d > 0.2.
+
+**H2b (exploratory):** kappa_geom (computed pre-training, Phase 0.5)
+predicts which cells benefit more from R1. Spearman rho(kappa_geom, uplift)
+with bootstrap 95% CI. Reported as observed association (n=7 cells is
+marginal for inference).
+
+**Note (v1.8):** The original H2 used diag_leakage as predictor, but
+diag_leakage shares R0_spatial metric with the uplift calculation, creating
+a room-to-improve confound. kappa_geom has zero model dependency and
+replaces diag_leakage as the cell-level predictor. diag_leakage remains
+a diagnostic field reported in the cascade table.
 
 **Secondary:** diag_leakage increases R0→R1 (spatial autocorrelation captured
 by explicit features, not leaked through splits).
@@ -157,7 +169,8 @@ protocols are IDENTICAL. Only the feature set changes.
 
 | Criterion | Threshold | Action if FAIL |
 |-----------|-----------|----------------|
-| H2 primary: rho(diag_leakage_R0, uplift) < 0 | Spearman rho < 0, bootstrap CI | Report as null (audits don't predict R1 uplift) |
+| H2a primary: R1 > R0 (fold-level Wilcoxon) | p < 0.05 AND Cohen's d > 0.2 | Report as null (R1 does not improve on R0) |
+| H2b exploratory: kappa_geom predicts uplift | Spearman rho, bootstrap CI | Report as observed association (n=7 marginal) |
 | H2 secondary: mean uplift > 0 when flagged | uplift_flagged > 0 | R1 features don't help flagged scenarios |
 | diag_leakage increases R0→R1 | delta > 0 for majority of cells | Spatial features didn't reduce autocorrelation |
 | At least 1 scenario shows > 5% uplift | uplift > 5% | Marginal improvement only |

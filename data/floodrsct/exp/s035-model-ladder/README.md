@@ -24,9 +24,9 @@ Phase 1 (R0 train)
 |----------|-------|------------|
 | [DOE_LOCKED.md](DOE_LOCKED.md) | Original locked design (v1.1) | H1-H4 |
 | [DOE_AMENDMENT_v1.2.md](DOE_AMENDMENT_v1.2.md) | Amendments v1.2-v1.6 (13 changes) | H5-H6 added |
-| [DOE_R0_baseline.md](DOE_R0_baseline.md) | R0 control arm — 33 static tabular features | H1: baseline skill |
-| [DOE_R1_spatial.md](DOE_R1_spatial.md) | R1 treatment — hydrology + W-matrix (61-63 features) | H2: diag_leakage predicts R0->R1 uplift |
-| [DOE_R2_temporal.md](DOE_R2_temporal.md) | R2 treatment — event dynamics (70-72 features) | H3: diag_transfer predicts R1->R2 uplift |
+| [DOE_R0_baseline.md](DOE_R0_baseline.md) | R0 control arm — static tabular (~33-36 features) | H1: baseline skill |
+| [DOE_R1_spatial.md](DOE_R1_spatial.md) | R1 treatment — hydrology + W-matrix (~58-63 features) | H2: diag_leakage predicts R0->R1 uplift |
+| [DOE_R2_temporal.md](DOE_R2_temporal.md) | R2 treatment — event dynamics (~67-72 features) | H3: diag_transfer predicts R1->R2 uplift |
 | [DOE_kappa_cascade.md](DOE_kappa_cascade.md) | Progressive diagnostics + pre-registration | H4: cascade predicts + confirms |
 | [DOE_FAST_validation.md](DOE_FAST_validation.md) | FEMA FAST features (R1.5) + external validation | H6: engineering model correlation |
 | [DOE_certificate_dgm.md](DOE_certificate_dgm.md) | RSCT certification + DGM routing | H5: DGM routes to optimal arm |
@@ -38,7 +38,7 @@ Phase 1 (R0 train)
 | ID | Statement | Type | Test |
 |----|-----------|------|------|
 | H1 | R0 achieves R2 > 0 on >= 2 targets | Gate | Baseline skill |
-| H2 | diag_leakage predicts R0->R1 uplift | **PRIMARY** | Spearman rho + Holm-Bonferroni |
+| H2 | diag_leakage predicts R0->R1 uplift | **PRIMARY** | Fold-level Wilcoxon signed-rank (v1.7) |
 | H3 | diag_transfer predicts R1->R2 uplift | Secondary | Spearman rho |
 | H4 | Kappa cascade shows progressive flag clearing | Secondary | Movement table |
 | H5 | DGM routing matches exhaustive best arm | Exploratory | Hit rate + binomial CI |
@@ -49,11 +49,14 @@ Phase 1 (R0 train)
 
 ## Representation Ladder
 
+Feature counts are approximate ranges (exact counts vary by scenario).
+See `EXPERIMENT_CONTRACT.yaml` `feature_counts` for authoritative source.
+
 ```
-R0:   36 features  — Static tabular (ACS, SVI, FEMA zones, TWI, HIFLD)
-R1:   61-63        — + Hydrology (16) + scenario-specific (1-3) + W-matrix spatial (8)
-R1.5: 67-69        — + FAST engineering model outputs (6) [conditional on NSI data]
-R2:   76-78        — + Temporal event dynamics (9)
+R0:   ~33-36       — Static tabular (ACS, SVI, FEMA zones, TWI, HIFLD)
+R1:   ~58-63       — + Hydrology (16) + scenario-specific (1-3) + W-matrix spatial (8)
+R1.5: ~64-69       — + FAST engineering model outputs (6) [conditional on NSI data]
+R2:   ~67-72       — + Temporal event dynamics (9)
 R3:   raster       — Image patch representation (existing CNN/YRSN) [adapt, don't invent]
 R4:   map + text   — VLM: Gemini Flash / Jina VLM / Nova Lite / Qwen2.5-VL (4-way comparison)
 R5:   evidence     — VLA/agent: evidence + action choice [demo/action layer]
@@ -69,8 +72,8 @@ R5:   evidence     — VLA/agent: evidence + action choice [demo/action layer]
 | Riverside | 172 | 1 (NFIP) | Stretch | NFIP-only, ~50% coverage |
 | New Orleans | 20 | 2 (NFIP, HWM) | Illustrative | n=20, 1 event, 4 rows/test fold |
 
-Primary modelable cells: 7 (3 primary scenarios x targets)
-Total modelable cells: 9 (all 5 scenarios x targets, but NOLA/Riverside have caveats)
+Modelable cells: 7 (Houston 3 + SW Florida 1 + NYC 2 + Riverside 1; see Amendment Change 6)
+New Orleans is illustrative only (n=20, excluded from statistical analysis).
 
 ## Key Files
 

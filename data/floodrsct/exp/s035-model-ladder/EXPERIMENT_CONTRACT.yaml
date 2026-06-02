@@ -12,13 +12,74 @@ experiment: s035-model-ladder
 bucket: swarm-floodrsct-data
 version: "1.0"
 
-# Modelable scenarios (5 metro areas, n=20-606 ZCTAs)
+# Modelable scenarios (4 metros, n=172-606 ZCTAs; NOLA is illustrative only)
 modelable_scenarios: &modelable
   - houston
   - southwest_florida
   - nyc
   - riverside_coachella
+
+# Illustrative only — too few ZCTAs for meaningful ML (n=20)
+illustrative_scenarios: &illustrative
   - new_orleans
+
+# ── Canonical Targets ──────────────────────────────────────────────────
+# Single source of truth for target column names and task types.
+# DOE_LOCKED.md, DOE_R0_baseline.md, and all per-arm DOEs must match.
+targets:
+  - column: obs_nfip_event_claims
+    task: regression
+    transform: log1p
+    metric: r2
+    role: primary
+    scenarios: [houston, southwest_florida, nyc, riverside_coachella]
+
+  - column: obs_has_311
+    task: binary_classification
+    transform: none
+    metric: roc_auc
+    role: secondary
+    scenarios: [houston, nyc]
+    note: "Derived from complaints_311_count > 0"
+
+  - column: obs_has_hwm
+    task: binary_classification
+    transform: none
+    metric: roc_auc
+    role: validation
+    scenarios: [houston]
+    note: "Derived from hwm_count > 0"
+
+# ── Canonical Feature Counts ──────────────────────────────────────────
+# Approximate counts by level.  Exact counts vary by scenario (1-3
+# scenario-specific features) and are validated at runtime by checking
+# the assembled parquet column count.
+#
+# DOE_R0_baseline.md uses ~33 (approximate category sums).
+# DOE_AMENDMENT_v1.2.md Change 13 uses R0=36 as the base.
+# The discrepancy is ~3 features in approximate ACS/HIFLD subcounts.
+# Runtime validation is authoritative; document counts are approximate.
+feature_counts:
+  R0:
+    description: "Static tabular (ACS, SVI, FEMA zones, TWI, HIFLD, gated NFIP)"
+    approximate: 33-36
+    authoritative_doc: DOE_R0_baseline.md
+    note: "Exact count depends on scenario; ~10 ACS + 4 SVI + ~6 flood + 4 terrain + ~6 HIFLD + 2 NFIP + ~1 land cover"
+  R1:
+    description: "R0 + hydrology universal (16) + scenario-specific (1-3) + W-matrix (8)"
+    approximate: 58-63
+    authoritative_doc: DOE_R1_spatial.md
+    note: "Range reflects R0 uncertainty (33-36) plus scenario-specific features"
+  R1.5:
+    description: "R1 + FAST engineering model outputs (6)"
+    approximate: 64-69
+    authoritative_doc: DOE_AMENDMENT_v1.2.md (Change 11)
+    note: "Conditional on NSI + depth raster availability"
+  R2:
+    description: "R1 + temporal event dynamics (9)"
+    approximate: 67-72
+    authoritative_doc: DOE_R2_temporal.md
+    note: "R1 base + 9 temporal; range inherits R1 uncertainty"
 
 phases:
 

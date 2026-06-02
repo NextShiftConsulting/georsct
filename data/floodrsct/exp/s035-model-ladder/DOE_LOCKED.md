@@ -45,10 +45,17 @@ at least 2 of 3 targets under county-blocked CV.
 
 **Evidence Required:** `evidence/h1_r0_baseline.json`
 
-### H2: R1 Improves Over R0 When B.1 Is Active
+### H2: R1 Improves Over R0 ~~When B.1 Is Active~~
 
-**Statement:** When audit B.1 (MAUP) flags a scenario, adding HUC/catchment
-features (R1) reduces RMSE by > 5% relative to R0 on the primary target.
+> **AMENDED (v1.7/v1.8):** H2 redesigned as two-part test. See
+> DOE_AMENDMENT_v1.2.md (v1.7 Wilcoxon, v1.8 kappa_geom independence)
+> and DOE_R1_spatial.md for authoritative specification.
+
+**H2a (primary, v1.7):** Fold-level Wilcoxon signed-rank on paired
+(R0_fold_metric, R1_fold_metric). Requires p < 0.05 AND Cohen's d > 0.2.
+
+**H2b (exploratory, v1.8):** kappa_geom predicts which cells benefit more.
+Spearman rho(kappa_geom, uplift) with bootstrap CI. n=7 cells is marginal.
 
 | Variable Type | Description |
 |---------------|-------------|
@@ -56,10 +63,10 @@ features (R1) reduces RMSE by > 5% relative to R0 on the primary target.
 | Dependent | Paired delta: metric_R1 - metric_R0, per fold |
 | Control | Solver, folds, target (all fixed) |
 
-**Metrics:**
-- `uplift_when_flagged`: mean(metric_R1 - metric_R0) for B.1-flagged scenarios
-- `uplift_when_not_flagged`: mean(metric_R1 - metric_R0) for B.1-clean scenarios
-- `diagnostic_gain`: uplift_when_flagged - uplift_when_not_flagged
+**Original v1.1 metrics (superseded):**
+- ~~`uplift_when_flagged`: mean(metric_R1 - metric_R0) for B.1-flagged scenarios~~
+- ~~`uplift_when_not_flagged`: mean(metric_R1 - metric_R0) for B.1-clean scenarios~~
+- ~~`diagnostic_gain`: uplift_when_flagged - uplift_when_not_flagged~~
 
 **Evidence Required:** `evidence/h2_r1_uplift.json`
 
@@ -230,7 +237,7 @@ prediction." (Confounded by feature quality, spatial coverage, etc.)
 ## Kill Rules
 
 - H1 FAIL on all 3 targets -> Data quality too low for any modeling; stop
-- H2 diagnostic_gain CI includes 0 -> Report as null result (audits don't predict R1 uplift)
+- H2a Wilcoxon p >= 0.05 or Cohen's d < 0.2 -> Report as null result (R1 does not improve on R0)
 - All uplift < 1% -> Representation differences are noise; R0 is sufficient
 
 ---
