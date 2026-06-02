@@ -36,7 +36,7 @@ from matplotlib.patches import Patch  # noqa: E402
 import pandas as pd  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).parent))
-from _coverage_common import BUCKET, get_s3_client  # noqa: E402
+from _coverage_common import BUCKET, OUTPUT_KEYS, get_s3_client  # noqa: E402
 from _s3_result import upload_json_result  # noqa: E402
 
 from yrsn.infrastructure.rendering.matplotlib.io import save_figure_png_only  # noqa: E402
@@ -209,14 +209,14 @@ def main():
 
     log.info("Loading adjacency...")
     adj_df = _load_parquet(s3, "raw/geocertdb2026/zcta_adjacency.parquet")
+    # Adjacency parquet has zcta_id_1 / zcta_id_2 (not zcta_id / neighbor_id)
+    adj_df = adj_df.rename(columns={"zcta_id_1": "zcta_id", "zcta_id_2": "neighbor_id"})
     adj_df["zcta_id"] = adj_df["zcta_id"].astype(str)
     adj_df["neighbor_id"] = adj_df["neighbor_id"].astype(str)
     adj_dict = _build_adjacency_dict(adj_df)
 
     log.info("Loading event features for %s...", scenario)
-    event_df = _load_parquet(
-        s3, f"processed/{scenario}/{scenario}_event_features.parquet"
-    )
+    event_df = _load_parquet(s3, OUTPUT_KEYS[scenario])
     event_df["zcta_id"] = event_df["zcta_id"].astype(str)
     event_df = event_df.set_index("zcta_id")
 

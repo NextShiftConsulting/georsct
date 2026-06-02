@@ -31,7 +31,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent))
-from _coverage_common import BUCKET, get_s3_client
+from _coverage_common import BUCKET, OUTPUT_KEYS, SCENARIOS, get_s3_client
 from _s3_result import upload_json_result
 
 logging.basicConfig(
@@ -43,7 +43,7 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 RESULTS_PREFIX = "results/s035"
-SCENARIOS = ["houston", "southwest_florida", "nyc", "riverside_coachella"]
+# SCENARIOS imported from _coverage_common
 
 
 # ---------------------------------------------------------------------------
@@ -147,7 +147,7 @@ def main():
     s3 = get_s3_client()
 
     # Load data
-    event_df = _load_parquet(s3, f"processed/{scenario}/{scenario}_event_features.parquet")
+    event_df = _load_parquet(s3, OUTPUT_KEYS[scenario])
     crosswalk_df = _load_parquet(s3, "raw/geocertdb2026/zcta_county_crosswalk.parquet")
     svi_df = _load_parquet(s3, "raw/geocertdb2026/svi_zcta.parquet")
 

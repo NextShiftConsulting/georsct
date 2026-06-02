@@ -110,6 +110,9 @@ def compute_historical_features(
         zcta_id, nfip_historical_frequency, nfip_historical_severity
     """
     cutoff = pd.Timestamp(cutoff_date)
+    # Ensure cutoff matches dateOfLoss timezone (may be tz-aware UTC from parquet)
+    if hasattr(all_claims["dateOfLoss"].dtype, "tz") and all_claims["dateOfLoss"].dtype.tz is not None:
+        cutoff = cutoff.tz_localize(all_claims["dateOfLoss"].dtype.tz)
     historical = all_claims[all_claims["dateOfLoss"] < cutoff].copy()
     log.info(
         "Claims before %s: %d / %d total",

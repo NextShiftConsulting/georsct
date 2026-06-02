@@ -33,7 +33,7 @@ import pandas as pd
 from scipy.stats import spearmanr
 
 sys.path.insert(0, str(Path(__file__).parent))
-from _coverage_common import BUCKET, get_s3_client
+from _coverage_common import BUCKET, OUTPUT_KEYS, get_s3_client
 from _s3_result import upload_json_result
 
 logging.basicConfig(
@@ -116,7 +116,7 @@ def analyze_scenario(s3, scenario: str) -> Dict[str, Any]:
     }
 
     # Load observed claims
-    claims_key = f"processed/{scenario}/{scenario}_event_features.parquet"
+    claims_key = OUTPUT_KEYS[scenario]
     claims_df = _load_parquet(s3, claims_key)
     if claims_df is None:
         row["error"] = "claims data not available"
