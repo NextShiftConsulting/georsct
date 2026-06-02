@@ -39,6 +39,13 @@ SERIES_DIR = Path(__file__).parent.parent
 JOBS_DIR = SERIES_DIR / "jobs"
 CONFIGS_DIR = SERIES_DIR / "configs"
 
+# Approved SageMaker instance types.  Prevents accidental expensive or
+# unsupported instance launches.  Extend here when GPU jobs are needed.
+ALLOWED_INSTANCES = frozenset({
+    "ml.m5.large", "ml.m5.xlarge", "ml.m5.2xlarge",
+    "ml.m5.4xlarge", "ml.m5.8xlarge",
+})
+
 
 def _get_git_info() -> dict[str, str]:
     """Capture git commit hash and dirty status for traceability."""
@@ -149,6 +156,7 @@ def launch_processing_job(
     dry_run: bool = False,
     phase_id: str | None = None,
     scenario: str | None = None,
+    allow_instance_override: bool = False,
 ) -> str:
     """Upload code and launch a SageMaker Processing job.
 
@@ -163,7 +171,20 @@ def launch_processing_job(
             the default environment; caller-supplied values take precedence.
         pre_install_cmd: Shell command to run before pip install (e.g. apt-get
             for system-level dependencies like libgdal-dev).
+        allow_instance_override: If True, bypass the instance allowlist.
+            Must be set explicitly per-launcher when GPU instances are needed.
+
+    Raises:
+        ValueError: If instance_type is not in ALLOWED_INSTANCES and
+            allow_instance_override is False.
     """
+    if not allow_instance_override and instance_type not in ALLOWED_INSTANCES:
+        raise ValueError(
+            f"Instance type '{instance_type}' not in allowlist "
+            f"{sorted(ALLOWED_INSTANCES)}. Set allow_instance_override=True "
+            f"or add to ALLOWED_INSTANCES in _launcher_base.py."
+        )
+
     # Experiment contract preflight
     if phase_id:
         ok = _run_preflight(phase_id, scenario)
