@@ -19,7 +19,13 @@ from _launcher_base import launch_processing_job, make_job_name
 SCENARIOS = [
     "houston", "new_orleans", "nyc", "riverside_coachella", "southwest_florida"
 ]
-VLMS = ["gemini", "nova", "qwen"]
+VLMS = ["gpt4o", "gemini", "jina", "nova", "qwen"]
+
+# pip deps per VLM -- union installed for simplicity
+# gpt4o/jina/qwen: openai (OpenAI-compatible endpoints)
+# gemini: google-generativeai + Pillow (Image.open in adapter)
+# nova: boto3 (already in base image via swarm_auth)
+VLM_PIP = "openai google-generativeai Pillow"
 
 
 def main() -> None:
@@ -39,6 +45,7 @@ def main() -> None:
         job_args=["--scenario", args.scenario, "--vlm", args.vlm, "--upload"],
         instance_type="ml.m5.large",
         volume_size_gb=10,
+        pip_packages=VLM_PIP,
         dry_run=args.dry_run,
     )
 

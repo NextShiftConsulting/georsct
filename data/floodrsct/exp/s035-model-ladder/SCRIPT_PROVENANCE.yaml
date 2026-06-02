@@ -48,11 +48,24 @@ scripts:
       - "Handle MorphType.RE_ENCODE safely (hasattr guard)"
     rationale: "Most complex script (yrsn DGM import); routing tree from DOE_certificate_dgm.md"
 
-  # --- R4.1: ZCTA map rendering (pending) ---
-  # - path: jobs/render_zcta_maps.py
-  #   phase: "R4.1"
-  #   generator: TBD
-  #   status: pending
+  # --- R4.1: ZCTA map rendering ---
+  - path: jobs/render_zcta_maps.py
+    phase: "R4.1"
+    generator: nemotron (NVIDIA)
+    generator_via: OpenRouter (free tier)
+    draft_date: 2026-06-02
+    cleanup_by: Martin
+    cleanup_date: 2026-06-02
+    changes:
+      - "Fix S3 client sharing: pass client, not recreate per ZCTA"
+      - "Add shebang, docstring, logging template (stdout handler, force=True)"
+      - "Add dry-run early exit gate"
+      - "Add new_orleans to SCENARIOS (was missing)"
+      - "Remove redundant fig.savefig for S3 upload (use BytesIO)"
+      - "Fix f-strings in logger calls to %-formatting"
+      - "Add manifest upload to S3"
+      - "Use save_figure_png_only from yrsn rendering, DEFAULT_THEME"
+    rationale: "Heaviest R4 script (800MB GeoParquet); needs memory-aware rendering and shared S3 client"
 
   # --- R4.2: ZCTA evidence builder ---
   - path: jobs/build_zcta_evidence.py
@@ -73,14 +86,43 @@ scripts:
       - "Remove provenance header injection into .txt output files"
     rationale: "Text assembly script, no yrsn deps, unblocks R4.3 VLM assessment"
 
-  # --- R4.3: VLM assessment (pending) ---
-  # - path: jobs/run_vlm_assessment.py
-  #   phase: "R4.3"
-  #   generator: TBD
-  #   status: pending
+  # --- R4.3: VLM assessment ---
+  - path: jobs/run_vlm_assessment.py
+    phase: "R4.3"
+    generator: kimi (Moonshot AI)
+    generator_via: OpenRouter (free tier)
+    draft_date: 2026-06-02
+    cleanup_by: Martin
+    cleanup_date: 2026-06-02
+    changes:
+      - "Remove unused imports (boto3, duplicate time)"
+      - "Fix upload_json_result signature: needs (s3, BUCKET, key, payload)"
+      - "Fix df.to_parquet: needs BytesIO, not bare call (returns None)"
+      - "Share S3 client instead of recreating per helper call"
+      - "Add shebang, docstring, logging template (stdout handler, force=True)"
+      - "Add dry-run early exit gate"
+      - "Add new_orleans to SCENARIOS"
+      - "Set temperature=0.0 per DOE deterministic inference spec"
+      - "Create adapter once, reuse across ZCTAs"
+      - "Add JSON-in-markdown-fence fallback parser"
+    rationale: "API-bound script; adapter reuse and rate limiting are the critical patterns"
 
-  # --- R4.5: VLM comparison (pending) ---
-  # - path: jobs/compute_vlm_comparison.py
-  #   phase: "R4.5"
-  #   generator: TBD
-  #   status: pending
+  # --- R4.5: VLM comparison ---
+  - path: jobs/compute_vlm_comparison.py
+    phase: "R4.5"
+    generator: deepseek/deepseek-chat-v3.1 (DeepSeek)
+    generator_via: OpenRouter (free tier)
+    draft_date: 2026-06-02
+    cleanup_by: Martin
+    cleanup_date: 2026-06-02
+    changes:
+      - "Strip markdown fences from raw LLM output"
+      - "Fix merge column: zcta_id not zcta"
+      - "Add all 5 scenarios (was only houston+nyc)"
+      - "Add shebang, docstring, logging template (stdout handler, force=True)"
+      - "Add dry-run early exit gate"
+      - "Fix timestamp: datetime.now(timezone.utc) not pd.Timestamp.now()"
+      - "Remove unused boto3 import"
+      - "Move provenance header to top of file"
+      - "Add per-fold Spearman computation for DOE fold-structured eval"
+    rationale: "Pure scipy script, no yrsn deps; computes H7/H8 hypothesis tests"

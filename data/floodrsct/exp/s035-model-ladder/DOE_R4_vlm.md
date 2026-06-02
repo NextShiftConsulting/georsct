@@ -11,11 +11,11 @@
 ## Abstract
 
 Test whether VLMs can extract flood risk signal directly from map images +
-text evidence, bypassing engineered tabular features entirely. Four VLMs
-(Gemini 2.0 Flash, Jina VLM, Amazon Nova Lite, Qwen2.5-VL-72B) receive the
-same (map image, FEMA text, prompt) and produce structured flood risk
-assessments. The DOE question: is VLM choice a significant factor, or is R4
-solver-robust?
+text evidence, bypassing engineered tabular features entirely. Five VLMs
+(GPT-4o-mini, Gemini 2.0 Flash, Jina VLM, Amazon Nova Lite, Qwen2.5-VL-72B)
+receive the same (map image, FEMA text, prompt) and produce structured flood
+risk assessments. The DOE question: is VLM choice a significant factor, or is
+R4 solver-robust?
 
 ---
 
@@ -43,13 +43,13 @@ using only a map image + FEMA text as input.
 
 | Variable Type | Description |
 |---------------|-------------|
-| Independent | VLM provider (Gemini Flash, Jina VLM, Nova Lite, Qwen2.5-VL) |
+| Independent | VLM provider (GPT-4o-mini, Gemini Flash, Jina VLM, Nova Lite, Qwen2.5-VL) |
 | Dependent | Spearman rho(VLM_risk_score, obs_nfip_event_claims) |
 | Control | Prompt (fixed), map rendering (fixed), text source (fixed) |
 
 ### H8: VLM Choice Is Not a Significant Factor
 
-**Statement:** The three VLMs produce risk scores with pairwise Spearman
+**Statement:** The five VLMs produce risk scores with pairwise Spearman
 rho > 0.7 (high inter-rater agreement), suggesting R4 is solver-robust.
 
 | Variable Type | Description |
@@ -74,6 +74,7 @@ port and `complete_with_reasoning()` interface.
 
 | VLM | Adapter Class | Model ID | Gateway | Credential | Cost/1K images |
 |-----|---------------|----------|---------|------------|----------------|
+| GPT-4o-mini | `GPT4oVisionAdapter` | `gpt-4o-mini` | OpenAI | `OPENAI_API_KEY` | ~$0.15 |
 | Gemini 2.0 Flash | `GeminiVisionAdapter` | `gemini-2.0-flash` | Google AI | `GOOGLE_API_KEY` | FREE (15 RPM) |
 | Jina VLM | `JinaVLMAdapter` | `jina-vlm` | Jina AI | `JINA_API_KEY` | ~$1 |
 | Amazon Nova Lite | `BedrockNovaVisionAdapter` | `us.amazon.nova-lite-v1:0` | Bedrock | IAM (no key) | ~$0.10 |
@@ -229,11 +230,12 @@ numbers from the text. If you cannot determine something, say so.
 
 | VLM | ZCTAs | Cost/ZCTA | Total | Time |
 |-----|-------|-----------|-------|------|
+| GPT-4o-mini | 1,596 | ~$0.0002 | ~$0.30 | ~30 min |
 | Gemini Flash | 1,596 | FREE | $0 | ~2 hr (15 RPM) |
 | Jina VLM | 1,596 | ~$0.001 | ~$1.60 | ~1 hr |
 | Nova Lite | 1,596 | ~$0.0001 | ~$0.16 | ~30 min |
 | Qwen2.5-VL | 1,596 | ~$0.003 | ~$5 | ~1 hr |
-| **Total** | | | **~$7** | **~5 hr** |
+| **Total** | | | **~$7** | **~5.5 hr** |
 
 No SageMaker needed — API calls from local or lightweight instance.
 
@@ -244,16 +246,17 @@ No SageMaker needed — API calls from local or lightweight instance.
 R4 adds columns to the existing s035 money table:
 
 ```
-scenario | target | ... existing R0-R2 columns ... | rho_claude | rho_gemini | rho_qwen | vlm_agreement | vlm_vs_r2_delta
+scenario | target | ... existing R0-R2 columns ... | rho_gpt4o | rho_gemini | rho_jina | rho_nova | rho_qwen | vlm_agreement | vlm_vs_r2_delta
 ```
 
 | Column | Description |
 |--------|-------------|
+| `rho_gpt4o` | Spearman(gpt4o_risk_score, obs_nfip_event_claims) |
 | `rho_gemini` | Spearman(gemini_risk_score, obs_nfip_event_claims) |
 | `rho_jina` | Spearman(jina_risk_score, obs_nfip_event_claims) |
 | `rho_nova` | Spearman(nova_risk_score, obs_nfip_event_claims) |
 | `rho_qwen` | Spearman(qwen_risk_score, obs_nfip_event_claims) |
-| `vlm_agreement` | Mean pairwise Spearman across 4 VLMs |
+| `vlm_agreement` | Mean pairwise Spearman across 5 VLMs |
 | `vlm_vs_r2_delta` | max(rho_vlm) - rho(pred_R2, obs) |
 
 ---
@@ -359,10 +362,10 @@ signal from map images. Here is the evidence."
 
 ## Kill Rules
 
-- H7 FAIL on all 4 VLMs → VLMs cannot extract flood risk from maps; report as negative result
+- H7 FAIL on all 5 VLMs → VLMs cannot extract flood risk from maps; report as negative result
 - Null controls not discriminated (gate above) → VLM returns priors, not signal; report as negative result
 - Parse success < 50% on any VLM → adapter needs prompt engineering before rerun
-- All 4 VLMs produce constant risk_score (zero variance) → prompt is broken
+- All 5 VLMs produce constant risk_score (zero variance) → prompt is broken
 - P0 rho ~ P2 rho AND both ~ null → VLM is noise regardless of input modality
 
 ---
@@ -409,3 +412,4 @@ All three outcomes are publishable.
 |---------|------|---------|
 | v1.0 | 2026-06-01 | Initial R4 DOE: four VLMs, datapoint schema, cost estimate |
 | v1.1 | 2026-06-02 | Null-input controls, prompt ablation (P0/P1/P2), deterministic inference (temp=0, pinned versions, k=3), fold-structured evaluation, evaluation separation from R0-R2 money table |
+| v1.2 | 2026-06-02 | Expand to 5 VLMs: add GPT-4o-mini (OpenAI, ~$0.30 total). H8 now tests 10 pairwise combinations |
