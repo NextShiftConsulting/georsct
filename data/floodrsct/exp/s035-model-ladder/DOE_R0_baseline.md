@@ -26,8 +26,9 @@ If H1 FAILS on all targets → data quality too low for any modeling; STOP.
 | Fold | 5-fold CV (spatial_blocked), 80/20 (random), k-1 (leave-event-out) | Fixed |
 | Features | R0 bundle only (33 static tabular) | Control — held constant |
 
-**Total cells:** 4 scenarios x 7 targets x 2 solvers x 3 splits = 168 runs
-(not all targets available in all scenarios — actual: ~84 runs)
+**Total cells:** 5 scenarios x 7 targets x 2 solvers x 3 splits = 210 runs
+(not all targets available in all scenarios — actual: ~105 runs)
+Note: New Orleans promoted to modelable (66 ZCTAs x 4 events = 264 rows).
 
 ---
 

@@ -66,14 +66,14 @@ R5:   evidence     — VLA/agent: evidence + action choice [demo/action layer]
 
 | Scenario | Rows | Targets | Tier | Notes |
 |----------|------|---------|------|-------|
-| Houston | 396 | 3 (NFIP, 311, HWM) | Primary | |
-| SW Florida | 606 | 1 (NFIP) | Primary | |
+| Houston | 396 | 3 (NFIP, 311, HWM) | Primary | 132 ZCTAs x 3 events |
+| SW Florida | 606 | 1 (NFIP) | Primary | 202 ZCTAs x 3 events |
 | NYC | 422 | 2 (NFIP, 311) | Primary | |
 | Riverside | 172 | 1 (NFIP) | Stretch | NFIP-only, ~50% coverage |
-| New Orleans | 20 | 2 (NFIP, HWM) | Illustrative | n=20, 1 event, 4 rows/test fold |
+| New Orleans | 264 | 2 (NFIP, HWM) | Primary | 66 ZCTAs x 4 events (5-parish metro) |
 
-Modelable cells: 7 (Houston 3 + SW Florida 1 + NYC 2 + Riverside 1; see Amendment Change 6)
-New Orleans is illustrative only (n=20, excluded from statistical analysis).
+Modelable cells: 9 (Houston 3 + SW Florida 1 + NYC 2 + Riverside 1 + New Orleans 2)
+Pre/post-levee signal across Katrina-Isaac-Barry-Ida is a unique contribution.
 
 ## Key Files
 

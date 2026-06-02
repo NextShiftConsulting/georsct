@@ -62,8 +62,8 @@ targets:
     transform: none
     metric: roc_auc
     role: validation
-    scenarios: [houston]
-    note: "Derived from hwm_count > 0"
+    scenarios: [houston, new_orleans]
+    note: "Derived from hwm_count > 0. NOLA has STN marks for all 4 events."
 
 # ── Canonical Feature Counts ──────────────────────────────────────────
 # Approximate counts by level.  Exact counts vary by scenario (1-3
