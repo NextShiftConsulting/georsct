@@ -301,63 +301,36 @@ def build_adjacency_dict(
 
 
 # ---------------------------------------------------------------------------
-# Step 5: Compute kappa_spatial (Moran's I)
+# Step 5: Compute kappa_spatial (Moran's I) -- uses canonical yrsn wheel
 # ---------------------------------------------------------------------------
 
 def compute_kappa_spatial(
     residuals: np.ndarray,
     adjacency: dict[int, list[int]],
 ) -> dict:
-    """Compute Moran's I and map to kappa in [0, 1].
+    """Compute Moran's I via canonical yrsn implementation.
 
-    Reimplements the core logic from yrsn/core/kappa/spatial/compute.py
-    so this script is self-contained for SageMaker (no yrsn wheel needed).
+    Returns a plain dict for JSON serialization.
     """
+    from yrsn.core.kappa.spatial.compute import compute_kappa_spatial as _yrsn_kappa
+
     n = len(residuals)
     if n < 3:
         logger.warning("Too few samples (%d) for Moran's I", n)
         return {"morans_i": 0.0, "expected_i": 0.0, "kappa": 0.5, "n_samples": n, "n_edges": 0, "mean_degree": 0.0}
 
-    z = residuals - residuals.mean()
-    ss = float(np.dot(z, z))
-    if ss < 1e-12:
-        logger.warning("Constant residuals -- Moran's I undefined")
-        return {"morans_i": 0.0, "expected_i": -1.0 / (n - 1), "kappa": 0.5, "n_samples": n, "n_edges": 0, "mean_degree": 0.0}
+    result = _yrsn_kappa(residuals, adjacency)
 
-    # Compute weighted cross-product
-    cross = 0.0
-    W = 0
-    for i, neighbors in adjacency.items():
-        if i >= n:
-            continue
-        for j in neighbors:
-            if j >= n:
-                continue
-            cross += z[i] * z[j]
-            W += 1
-
-    if W == 0:
-        logger.warning("No adjacency edges -- Moran's I undefined")
-        return {"morans_i": 0.0, "expected_i": -1.0 / (n - 1), "kappa": 0.5, "n_samples": n, "n_edges": 0, "mean_degree": 0.0}
-
-    I = (n / W) * (cross / ss)
-    E_I = -1.0 / (n - 1)
-
-    # Map to [0, 1]: kappa = clamp((I - E[I] + 1) / 2, 0, 1)
-    kappa = max(0.0, min(1.0, (I - E_I + 1.0) / 2.0))
-
-    mean_degree = W / n
-
-    logger.info("Moran's I = %.6f  E[I] = %.6f  kappa = %.4f", I, E_I, kappa)
-    logger.info("W = %d edges, mean degree = %.2f", W, mean_degree)
+    logger.info("Moran's I = %.6f  E[I] = %.6f  kappa = %.4f", result.morans_i, result.expected_i, result.kappa)
+    logger.info("W = %d edges, mean degree = %.2f", result.n_edges, result.mean_degree)
 
     return {
-        "morans_i": float(I),
-        "expected_i": float(E_I),
-        "kappa": float(kappa),
-        "n_samples": n,
-        "n_edges": W,
-        "mean_degree": float(mean_degree),
+        "morans_i": float(result.morans_i),
+        "expected_i": float(result.expected_i),
+        "kappa": float(result.kappa),
+        "n_samples": result.n_samples,
+        "n_edges": result.n_edges,
+        "mean_degree": float(result.mean_degree),
     }
 
 
