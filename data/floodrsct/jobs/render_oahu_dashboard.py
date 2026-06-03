@@ -5,6 +5,14 @@ Produces a self-contained HTML dashboard inspired by the Johns Hopkins
 COVID-19 dashboard: dark theme, central interactive map, KPI metric cards,
 and comparison charts.
 
+v2 fixes from PAR review:
+  - NFIP column is claim count, not dollars -- labeled correctly
+  - Charts use normalized 0-1 scale (pred_norm vs nfip_norm) for comparison
+  - Residual color scale uses normalized values, not dollar thresholds
+  - kappa_spatial and Moran's I explained in plain English
+  - Popups show correct units for each quantity
+  - Context banner explains the illustrative comparison caveat
+
 Inputs (S3):
   swarm-floodrsct-data/raw/geocertdb2026/zcta5_boundaries.parquet
   swarm-floodcaster/results/1f3ba5fedaaa.parquet
@@ -136,9 +144,12 @@ def zcta_to_geojson(gdf: "gpd.GeoDataFrame", residuals: pd.DataFrame) -> str:
         props = {
             "zcta": str(row["zcta"]),
             "pred_total_loss": float(row.get("pred_total_loss", 0)),
-            "nfip_total": float(row.get("nfip_total", 0)),
-            "residual": float(row.get("residual", 0)),
+            "nfip_claims": int(row.get("nfip_total", 0)),
             "n_buildings": int(row.get("n_buildings", 0)),
+            "pred_norm": float(row.get("pred_norm", 0)),
+            "nfip_norm": float(row.get("nfip_norm", 0)),
+            "residual": float(row.get("residual", 0)),
+            "mean_damage_pct": float(row.get("mean_damage_pct", 0)),
         }
         features.append({"type": "Feature", "geometry": geom, "properties": props})
 
@@ -146,12 +157,7 @@ def zcta_to_geojson(gdf: "gpd.GeoDataFrame", residuals: pd.DataFrame) -> str:
 
 
 def buildings_to_geojson(df: pd.DataFrame, sample_n: int = 5000) -> str:
-    """Sample buildings and export as GeoJSON points.
-
-    Full 48k points overwhelm browsers. Sample for interactivity,
-    but keep the distribution representative by stratified sampling
-    on flood depth quantiles.
-    """
+    """Sample buildings and export as GeoJSON points."""
     if len(df) > sample_n:
         df = df.copy()
         df["_q"] = pd.qcut(df["FloodDepth"].clip(lower=0), q=10, labels=False, duplicates="drop")
@@ -187,8 +193,10 @@ def compute_kpis(buildings: pd.DataFrame, residuals: pd.DataFrame) -> dict:
     """Compute dashboard headline numbers."""
     total_buildings = len(buildings)
     total_pred_loss = residuals["pred_total_loss"].sum()
-    total_nfip = residuals["nfip_total"].sum()
+    total_nfip_claims = int(residuals["nfip_total"].sum())
     n_zctas = len(residuals)
+    n_zctas_with_pred = int((residuals["pred_total_loss"] > 0).sum())
+    n_zctas_with_nfip = int((residuals["nfip_total"] > 0).sum())
     max_depth = buildings["FloodDepth"].max()
     mean_depth = buildings["FloodDepth"].mean()
     pct_inundated = (buildings["FloodDepth"] > 0).mean() * 100
@@ -197,11 +205,17 @@ def compute_kpis(buildings: pd.DataFrame, residuals: pd.DataFrame) -> dict:
     kappa_spatial = 0.352
     morans_i = -0.358
 
+    # Spatial agreement: how many ZCTAs have both pred > 0 AND nfip > 0?
+    both = int(((residuals["pred_total_loss"] > 0) & (residuals["nfip_total"] > 0)).sum())
+
     return {
         "total_buildings": total_buildings,
         "total_pred_loss": total_pred_loss,
-        "total_nfip": total_nfip,
+        "total_nfip_claims": total_nfip_claims,
         "n_zctas": n_zctas,
+        "n_zctas_with_pred": n_zctas_with_pred,
+        "n_zctas_with_nfip": n_zctas_with_nfip,
+        "n_zctas_both": both,
         "max_depth_ft": float(max_depth),
         "mean_depth_ft": float(mean_depth),
         "pct_inundated": float(pct_inundated),
@@ -223,11 +237,14 @@ def build_dashboard_html(
 ) -> str:
     """Build self-contained HTML dashboard."""
 
-    # Prepare bar chart data
-    res_sorted = residuals.sort_values("pred_total_loss", ascending=False)
+    # Prepare chart data -- use NORMALIZED scale (0-1) for fair comparison
+    res_sorted = residuals.sort_values("pred_norm", ascending=False)
     bar_labels = json.dumps(res_sorted["zcta"].astype(str).tolist())
-    bar_pred = json.dumps(res_sorted["pred_total_loss"].tolist())
-    bar_nfip = json.dumps(res_sorted["nfip_total"].tolist())
+    bar_pred_norm = json.dumps(res_sorted["pred_norm"].tolist())
+    bar_nfip_norm = json.dumps(res_sorted["nfip_norm"].tolist())
+    bar_pred_usd = json.dumps(res_sorted["pred_total_loss"].tolist())
+    bar_nfip_claims = json.dumps(res_sorted["nfip_total"].astype(int).tolist())
+    bar_n_buildings = json.dumps(res_sorted["n_buildings"].astype(int).tolist())
 
     def fmt_money(v):
         if v >= 1e9:
@@ -262,7 +279,6 @@ def build_dashboard_html(
     overflow-x: hidden;
   }}
 
-  /* --- Header --- */
   .header {{
     background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
     border-bottom: 2px solid #e63946;
@@ -279,9 +295,7 @@ def build_dashboard_html(
     color: #ffffff;
   }}
 
-  .header-title span {{
-    color: #e63946;
-  }}
+  .header-title span {{ color: #e63946; }}
 
   .header-subtitle {{
     font-size: 12px;
@@ -300,23 +314,21 @@ def build_dashboard_html(
     letter-spacing: 1px;
   }}
 
-  /* --- Main layout --- */
   .dashboard {{
     display: grid;
-    grid-template-columns: 280px 1fr 320px;
-    grid-template-rows: auto 1fr;
+    grid-template-columns: 300px 1fr 340px;
+    grid-template-rows: 1fr;
     height: calc(100vh - 64px);
     gap: 0;
   }}
 
-  /* --- KPI sidebar (left) --- */
   .kpi-panel {{
     background: #0d1117;
     border-right: 1px solid #21262d;
     padding: 16px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
     overflow-y: auto;
   }}
 
@@ -324,36 +336,26 @@ def build_dashboard_html(
     background: #161b22;
     border: 1px solid #21262d;
     border-radius: 8px;
-    padding: 16px;
+    padding: 14px;
     transition: border-color 0.2s;
   }}
 
-  .kpi-card:hover {{
-    border-color: #e63946;
-  }}
-
-  .kpi-card.alert {{
-    border-left: 3px solid #e63946;
-  }}
-
-  .kpi-card.ok {{
-    border-left: 3px solid #2ea043;
-  }}
-
-  .kpi-card.warn {{
-    border-left: 3px solid #d29922;
-  }}
+  .kpi-card:hover {{ border-color: #e63946; }}
+  .kpi-card.alert {{ border-left: 3px solid #e63946; }}
+  .kpi-card.ok {{ border-left: 3px solid #2ea043; }}
+  .kpi-card.warn {{ border-left: 3px solid #d29922; }}
+  .kpi-card.info {{ border-left: 3px solid #58a6ff; }}
 
   .kpi-label {{
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 1.5px;
     color: #8b949e;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
   }}
 
   .kpi-value {{
-    font-size: 28px;
+    font-size: 26px;
     font-weight: 900;
     font-family: 'JetBrains Mono', monospace;
     color: #ffffff;
@@ -369,13 +371,10 @@ def build_dashboard_html(
     font-size: 11px;
     color: #8b949e;
     margin-top: 4px;
-    font-family: 'JetBrains Mono', monospace;
+    line-height: 1.4;
   }}
 
-  /* --- Map (center) --- */
-  .map-container {{
-    position: relative;
-  }}
+  .map-container {{ position: relative; }}
 
   #map {{
     width: 100%;
@@ -418,14 +417,13 @@ def build_dashboard_html(
     flex-shrink: 0;
   }}
 
-  /* --- Charts panel (right) --- */
   .charts-panel {{
     background: #0d1117;
     border-left: 1px solid #21262d;
     padding: 16px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 12px;
     overflow-y: auto;
   }}
 
@@ -440,33 +438,32 @@ def build_dashboard_html(
     font-size: 13px;
     font-weight: 700;
     color: #e0e0e0;
-    margin-bottom: 12px;
+    margin-bottom: 4px;
+  }}
+
+  .chart-subtitle {{
+    font-size: 11px;
+    color: #8b949e;
+    margin-bottom: 10px;
+    line-height: 1.4;
   }}
 
   .chart-canvas-wrap {{
     position: relative;
-    height: 220px;
+    height: 200px;
   }}
 
-  /* --- Verdict banner --- */
   .verdict-banner {{
     background: linear-gradient(90deg, rgba(230, 57, 70, 0.15) 0%, rgba(13, 17, 23, 0) 100%);
     border: 1px solid #e63946;
     border-radius: 8px;
     padding: 12px 16px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }}
-
-  .verdict-icon {{
-    font-size: 24px;
-    line-height: 1;
   }}
 
   .verdict-text {{
-    font-size: 13px;
+    font-size: 12px;
     color: #e0e0e0;
+    line-height: 1.5;
   }}
 
   .verdict-text strong {{
@@ -474,7 +471,18 @@ def build_dashboard_html(
     font-weight: 700;
   }}
 
-  /* --- Stats table --- */
+  .context-banner {{
+    background: linear-gradient(90deg, rgba(88, 166, 255, 0.1) 0%, rgba(13, 17, 23, 0) 100%);
+    border: 1px solid #58a6ff;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 11px;
+    color: #8b949e;
+    line-height: 1.5;
+  }}
+
+  .context-banner strong {{ color: #58a6ff; }}
+
   .stats-table {{
     width: 100%;
     border-collapse: collapse;
@@ -503,7 +511,6 @@ def build_dashboard_html(
     background: rgba(88, 166, 255, 0.05);
   }}
 
-  /* --- Footer --- */
   .footer {{
     grid-column: 1 / -1;
     background: #0d1117;
@@ -516,11 +523,9 @@ def build_dashboard_html(
     justify-content: space-between;
   }}
 
-  /* Leaflet dark tiles override */
   .leaflet-tile-pane {{ filter: brightness(0.6) contrast(1.3) saturate(0.3); }}
   .leaflet-container {{ background: #0a0a1a; }}
 
-  /* Custom popup */
   .leaflet-popup-content-wrapper {{
     background: #161b22;
     border: 1px solid #21262d;
@@ -553,9 +558,9 @@ def build_dashboard_html(
 <div class="header">
   <div>
     <div class="header-title">Oahu <span>Flood Risk</span> Dashboard</div>
-    <div class="header-subtitle">H4 Spatial Certification | RSCT Geo-Cert | {timestamp}</div>
+    <div class="header-subtitle">Spatial Certification Probe | H4 | {timestamp}</div>
   </div>
-  <div class="header-badge">kappa_spatial FAIL</div>
+  <div class="header-badge">Spatial Agreement: FAIL</div>
 </div>
 
 <!-- DASHBOARD GRID -->
@@ -564,52 +569,51 @@ def build_dashboard_html(
   <!-- LEFT: KPI CARDS -->
   <div class="kpi-panel">
 
-    <div class="kpi-card alert">
-      <div class="kpi-label">Total Buildings Assessed</div>
+    <div class="kpi-card info">
+      <div class="kpi-label">Buildings Assessed</div>
       <div class="kpi-value blue">{fmt_num(kpis['total_buildings'])}</div>
-      <div class="kpi-detail">Floodcaster model output</div>
+      <div class="kpi-detail">Floodcaster 10-yr coastal surge model</div>
     </div>
 
     <div class="kpi-card alert">
       <div class="kpi-label">Predicted Total Loss</div>
       <div class="kpi-value red">{fmt_money(kpis['total_pred_loss'])}</div>
-      <div class="kpi-detail">Aggregated BldgLossUSD</div>
+      <div class="kpi-detail">Sum of building damage estimates (USD)</div>
     </div>
 
     <div class="kpi-card ok">
       <div class="kpi-label">NFIP Historical Claims</div>
-      <div class="kpi-value green">{fmt_money(kpis['total_nfip'])}</div>
-      <div class="kpi-detail">1978-2023 paid losses</div>
+      <div class="kpi-value green">{fmt_num(kpis['total_nfip_claims'])} claims</div>
+      <div class="kpi-detail">Cumulative 1978-2023 (count, not dollars)</div>
     </div>
 
     <div class="kpi-card warn">
-      <div class="kpi-label">Coverage Gap</div>
-      <div class="kpi-value orange">{fmt_money(kpis['total_pred_loss'] - kpis['total_nfip'])}</div>
-      <div class="kpi-detail">Predicted - Historical</div>
+      <div class="kpi-label">Spatial Overlap</div>
+      <div class="kpi-value orange">{kpis['n_zctas_both']} of {kpis['n_zctas']}</div>
+      <div class="kpi-detail">ZCTAs where both model and NFIP show activity.
+        Model covers {kpis['n_zctas_with_pred']}, NFIP covers {kpis['n_zctas_with_nfip']}.</div>
     </div>
 
     <div class="kpi-card alert">
-      <div class="kpi-label">Kappa Spatial</div>
-      <div class="kpi-value red">{kpis['kappa_spatial']:.3f}</div>
-      <div class="kpi-detail">Threshold: 0.700 | FAIL</div>
+      <div class="kpi-label">Spatial Agreement Score</div>
+      <div class="kpi-value red">{kpis['kappa_spatial']:.2f} / 1.00</div>
+      <div class="kpi-detail">Measures whether predicted losses and historical
+        claims concentrate in the same neighborhoods.
+        Threshold: 0.70. Score: 0.35 = poor agreement.</div>
     </div>
 
     <div class="kpi-card warn">
-      <div class="kpi-label">Moran's I</div>
-      <div class="kpi-value orange">{kpis['morans_i']:.3f}</div>
-      <div class="kpi-detail">Negative = spatial dispersion</div>
-    </div>
-
-    <div class="kpi-card">
-      <div class="kpi-label">ZCTAs Analyzed</div>
-      <div class="kpi-value">{kpis['n_zctas']}</div>
-      <div class="kpi-detail">968xx prefix (Oahu)</div>
+      <div class="kpi-label">Spatial Clustering</div>
+      <div class="kpi-value orange">{kpis['morans_i']:.2f}</div>
+      <div class="kpi-detail">Moran's I statistic. Positive = nearby areas
+        have similar errors. Negative ({kpis['morans_i']:.2f}) = neighboring
+        areas have opposite errors, suggesting the model misplaces risk.</div>
     </div>
 
     <div class="kpi-card">
       <div class="kpi-label">Max Flood Depth</div>
       <div class="kpi-value">{kpis['max_depth_ft']:.1f} ft</div>
-      <div class="kpi-detail">Pct inundated: {kpis['pct_inundated']:.1f}%</div>
+      <div class="kpi-detail">{kpis['pct_inundated']:.0f}% of assessed buildings show inundation</div>
     </div>
 
   </div>
@@ -619,10 +623,10 @@ def build_dashboard_html(
     <div id="map"></div>
 
     <div class="map-overlay">
-      <div class="legend-title">ZCTA Residual (Pred - NFIP)</div>
-      <div class="legend-item"><div class="legend-swatch" style="background:#2166ac;"></div> Underprediction</div>
-      <div class="legend-item"><div class="legend-swatch" style="background:#f4a582;"></div> Slight overprediction</div>
-      <div class="legend-item"><div class="legend-swatch" style="background:#b2182b;"></div> Major overprediction</div>
+      <div class="legend-title">Normalized Mismatch (model vs history)</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#2166ac;"></div> Model underpredicts vs. NFIP history</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#d1d1d1;"></div> Rough agreement</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#b2182b;"></div> Model overpredicts vs. NFIP history</div>
       <div class="legend-title" style="margin-top:10px;">Building Flood Depth</div>
       <div class="legend-item"><div class="legend-swatch" style="background:#ffffb2;"></div> 0 - 2 ft</div>
       <div class="legend-item"><div class="legend-swatch" style="background:#fd8d3c;"></div> 2 - 8 ft</div>
@@ -633,34 +637,47 @@ def build_dashboard_html(
   <!-- RIGHT: CHARTS -->
   <div class="charts-panel">
 
+    <div class="context-banner">
+      <strong>Illustrative comparison, not adjudicative.</strong>
+      The model predicts a single 10-year coastal surge scenario.
+      NFIP data is cumulative historical claims (1978-2023, all hazard types).
+      These are different quantities -- the normalized comparison
+      shows relative spatial patterns, not absolute accuracy.
+    </div>
+
     <div class="verdict-banner">
-      <div class="verdict-icon">X</div>
       <div class="verdict-text">
         <strong>SPATIAL CERTIFICATION: FAIL</strong><br>
-        kappa_spatial = 0.352 &lt; 0.700 threshold.<br>
-        Model predictions lack spatial coherence with historical claims.
+        The model's predicted losses concentrate in different neighborhoods
+        than historical claims. Coastal ZCTAs (96814, 96850) show high
+        predicted damage but few/no NFIP claims. Inland ZCTAs (96816, 96819)
+        have many historical claims but zero model predictions.
       </div>
     </div>
 
     <div class="chart-card">
-      <div class="chart-title">Predicted Loss vs NFIP Claims by ZCTA</div>
+      <div class="chart-title">Normalized Comparison by ZCTA</div>
+      <div class="chart-subtitle">Both series scaled 0-1 within their own units
+        (predicted loss in USD, NFIP in claim count) to show relative spatial distribution.</div>
       <div class="chart-canvas-wrap">
         <canvas id="barChart"></canvas>
       </div>
     </div>
 
     <div class="chart-card">
-      <div class="chart-title">Residual Distribution (Pred - NFIP)</div>
+      <div class="chart-title">Spatial Mismatch by ZCTA</div>
+      <div class="chart-subtitle">Red = model predicts more than history suggests.
+        Green = history shows more claims than model predicts.</div>
       <div class="chart-canvas-wrap">
         <canvas id="residualChart"></canvas>
       </div>
     </div>
 
     <div class="chart-card">
-      <div class="chart-title">Top Mismatch ZCTAs</div>
+      <div class="chart-title">Largest Mismatches</div>
       <table class="stats-table">
         <thead>
-          <tr><th>ZCTA</th><th>Predicted</th><th>NFIP</th><th>Gap</th></tr>
+          <tr><th>ZCTA</th><th>Pred ($)</th><th>NFIP (#)</th><th>Bldgs</th><th>Pattern</th></tr>
         </thead>
         <tbody id="mismatchTable"></tbody>
       </table>
@@ -672,8 +689,8 @@ def build_dashboard_html(
 
 <!-- FOOTER -->
 <div class="footer">
-  <span>RSCT Geo-Cert | H4 Spatial Autocorrelation | Oahu, Hawaii</span>
-  <span>Generated: {timestamp} UTC | Data: Floodcaster v0.3 + NFIP 1978-2023</span>
+  <span>RSCT Geo-Cert | H4 Spatial Probe | Oahu, Hawaii</span>
+  <span>Generated: {timestamp} UTC | Floodcaster v0.3 + NFIP 1978-2023</span>
 </div>
 
 <script>
@@ -681,8 +698,11 @@ def build_dashboard_html(
 const zctaData = {zcta_geojson};
 const buildingData = {buildings_geojson};
 const barLabels = {bar_labels};
-const barPred = {bar_pred};
-const barNfip = {bar_nfip};
+const barPredNorm = {bar_pred_norm};
+const barNfipNorm = {bar_nfip_norm};
+const barPredUsd = {bar_pred_usd};
+const barNfipClaims = {bar_nfip_claims};
+const barNBuildings = {bar_n_buildings};
 
 // ===== MAP =====
 const map = L.map('map', {{
@@ -697,18 +717,18 @@ L.tileLayer('https://{{s}}.basemaps.cartocdn.com/dark_all/{{z}}/{{x}}/{{y}}{{r}}
   subdomains: 'abcd',
 }}).addTo(map);
 
-// Residual color scale (RdBu diverging)
+// Residual color scale -- NORMALIZED 0-1 values
+// residual = pred_norm - nfip_norm, range roughly -1 to +1
 function residualColor(val) {{
-  const absVal = Math.abs(val);
-  if (val < -5e6) return '#2166ac';
-  if (val < -1e6) return '#4393c3';
-  if (val < 0)    return '#92c5de';
-  if (val < 1e6)  return '#f4a582';
-  if (val < 5e6)  return '#d6604d';
+  if (val < -0.5) return '#2166ac';
+  if (val < -0.2) return '#4393c3';
+  if (val < -0.05) return '#92c5de';
+  if (val < 0.05) return '#d1d1d1';
+  if (val < 0.2)  return '#f4a582';
+  if (val < 0.5)  return '#d6604d';
   return '#b2182b';
 }}
 
-// ZCTA choropleth
 function fmtMoney(v) {{
   if (Math.abs(v) >= 1e6) return '$' + (v/1e6).toFixed(1) + 'M';
   if (Math.abs(v) >= 1e3) return '$' + (v/1e3).toFixed(0) + 'K';
@@ -717,9 +737,10 @@ function fmtMoney(v) {{
 
 L.geoJSON(zctaData, {{
   style: function(feature) {{
+    const r = feature.properties.pred_norm - feature.properties.nfip_norm;
     return {{
-      fillColor: residualColor(feature.properties.residual),
-      fillOpacity: 0.55,
+      fillColor: residualColor(r),
+      fillOpacity: 0.6,
       color: '#58a6ff',
       weight: 1.5,
       opacity: 0.7,
@@ -727,17 +748,23 @@ L.geoJSON(zctaData, {{
   }},
   onEachFeature: function(feature, layer) {{
     const p = feature.properties;
+    const mismatch = p.pred_norm - p.nfip_norm;
+    const pattern = mismatch > 0.1 ? 'Model overpredicts' :
+                    mismatch < -0.1 ? 'Model underpredicts' : 'Rough agreement';
+    const patternColor = mismatch > 0.1 ? '#e63946' :
+                         mismatch < -0.1 ? '#58a6ff' : '#2ea043';
     layer.bindPopup(
       '<div class="popup-zcta">ZCTA ' + p.zcta + '</div>' +
       '<div class="popup-row"><span class="popup-label">Predicted Loss</span><span class="popup-val">' + fmtMoney(p.pred_total_loss) + '</span></div>' +
-      '<div class="popup-row"><span class="popup-label">NFIP Claims</span><span class="popup-val">' + fmtMoney(p.nfip_total) + '</span></div>' +
-      '<div class="popup-row"><span class="popup-label">Residual</span><span class="popup-val" style="color:' + (p.residual > 0 ? '#e63946' : '#2ea043') + '">' + fmtMoney(p.residual) + '</span></div>' +
-      '<div class="popup-row"><span class="popup-label">Buildings</span><span class="popup-val">' + p.n_buildings.toLocaleString() + '</span></div>'
+      '<div class="popup-row"><span class="popup-label">NFIP Claims</span><span class="popup-val">' + p.nfip_claims + ' claims</span></div>' +
+      '<div class="popup-row"><span class="popup-label">Buildings</span><span class="popup-val">' + p.n_buildings.toLocaleString() + '</span></div>' +
+      '<div class="popup-row"><span class="popup-label">Avg Damage</span><span class="popup-val">' + p.mean_damage_pct.toFixed(1) + '%</span></div>' +
+      '<div class="popup-row"><span class="popup-label">Pattern</span><span class="popup-val" style="color:' + patternColor + '">' + pattern + '</span></div>'
     );
   }}
 }}).addTo(map);
 
-// Building flood depth color
+// Building flood depth
 function depthColor(d) {{
   if (d <= 0) return '#ffffb2';
   if (d <= 2) return '#fecc5c';
@@ -766,30 +793,25 @@ L.geoJSON(buildingData, {{
 }}).addTo(map);
 
 // ===== CHARTS =====
-const chartDefaults = {{
-  color: '#e0e0e0',
-  borderColor: '#21262d',
-}};
-
 Chart.defaults.color = '#8b949e';
 Chart.defaults.borderColor = '#21262d';
 
-// Bar chart: Pred vs NFIP
+// Normalized comparison bar chart
 new Chart(document.getElementById('barChart'), {{
   type: 'bar',
   data: {{
     labels: barLabels,
     datasets: [
       {{
-        label: 'Predicted Loss',
-        data: barPred.map(v => v / 1e6),
+        label: 'Predicted (normalized)',
+        data: barPredNorm,
         backgroundColor: '#e63946cc',
         borderColor: '#e63946',
         borderWidth: 1,
       }},
       {{
-        label: 'NFIP Claims',
-        data: barNfip.map(v => v / 1e6),
+        label: 'NFIP Claims (normalized)',
+        data: barNfipNorm,
         backgroundColor: '#2ea043cc',
         borderColor: '#2ea043',
         borderWidth: 1,
@@ -801,30 +823,43 @@ new Chart(document.getElementById('barChart'), {{
     maintainAspectRatio: false,
     plugins: {{
       legend: {{ position: 'top', labels: {{ boxWidth: 12, padding: 8 }} }},
+      tooltip: {{
+        callbacks: {{
+          afterBody: function(items) {{
+            const i = items[0].dataIndex;
+            return 'Predicted: ' + fmtMoney(barPredUsd[i]) +
+                   '\\nNFIP: ' + barNfipClaims[i] + ' claims' +
+                   '\\nBuildings: ' + barNBuildings[i];
+          }}
+        }}
+      }}
     }},
     scales: {{
       x: {{ ticks: {{ font: {{ size: 9 }}, maxRotation: 45 }} }},
       y: {{
-        title: {{ display: true, text: 'USD (Millions)', font: {{ size: 11 }} }},
-        ticks: {{ callback: v => '$' + v + 'M' }},
+        title: {{ display: true, text: 'Relative intensity (0-1)', font: {{ size: 11 }} }},
+        min: 0,
+        max: 1.05,
+        ticks: {{ callback: v => (v * 100).toFixed(0) + '%' }},
       }},
     }},
   }},
 }});
 
-// Residual distribution (horizontal bar)
-const residuals = barPred.map((p, i) => (p - barNfip[i]) / 1e6);
-const resColors = residuals.map(r => r > 0 ? '#e63946cc' : '#2ea043cc');
+// Spatial mismatch (horizontal bar)
+const mismatch = barPredNorm.map((p, i) => p - barNfipNorm[i]);
+const mColors = mismatch.map(r => r > 0 ? '#e63946cc' : '#2ea043cc');
+const mBorders = mismatch.map(r => r > 0 ? '#e63946' : '#2ea043');
 
 new Chart(document.getElementById('residualChart'), {{
   type: 'bar',
   data: {{
     labels: barLabels,
     datasets: [{{
-      label: 'Residual ($M)',
-      data: residuals,
-      backgroundColor: resColors,
-      borderColor: resColors.map(c => c.replace('cc', '')),
+      label: 'Mismatch',
+      data: mismatch,
+      backgroundColor: mColors,
+      borderColor: mBorders,
       borderWidth: 1,
     }}],
   }},
@@ -834,11 +869,27 @@ new Chart(document.getElementById('residualChart'), {{
     maintainAspectRatio: false,
     plugins: {{
       legend: {{ display: false }},
+      tooltip: {{
+        callbacks: {{
+          label: function(ctx) {{
+            const v = ctx.parsed.x;
+            return v > 0 ? 'Model overpredicts by ' + (v * 100).toFixed(0) + '%'
+                         : 'Model underpredicts by ' + (Math.abs(v) * 100).toFixed(0) + '%';
+          }},
+          afterLabel: function(ctx) {{
+            const i = ctx.dataIndex;
+            return 'Predicted: ' + fmtMoney(barPredUsd[i]) +
+                   '\\nNFIP: ' + barNfipClaims[i] + ' claims';
+          }}
+        }}
+      }}
     }},
     scales: {{
       x: {{
-        title: {{ display: true, text: 'Residual ($M)', font: {{ size: 11 }} }},
-        ticks: {{ callback: v => '$' + v + 'M' }},
+        title: {{ display: true, text: 'Pred higher <-----> NFIP higher', font: {{ size: 11 }} }},
+        min: -1.1,
+        max: 1.1,
+        ticks: {{ callback: v => (v > 0 ? '+' : '') + (v * 100).toFixed(0) + '%' }},
       }},
       y: {{ ticks: {{ font: {{ size: 9 }} }} }},
     }},
@@ -847,14 +898,20 @@ new Chart(document.getElementById('residualChart'), {{
 
 // Mismatch table
 const tableBody = document.getElementById('mismatchTable');
-const indices = residuals.map((r, i) => [Math.abs(r), i]).sort((a, b) => b[0] - a[0]).slice(0, 5);
-indices.forEach(([absR, i]) => {{
+const sortedIdx = mismatch.map((r, i) => [Math.abs(r), i]).sort((a, b) => b[0] - a[0]).slice(0, 6);
+sortedIdx.forEach(([absR, i]) => {{
   const tr = document.createElement('tr');
-  const gap = barPred[i] - barNfip[i];
+  const gap = mismatch[i];
+  const pattern = gap > 0.3 ? 'Coastal overprediction' :
+                  gap > 0.05 ? 'Slight overprediction' :
+                  gap < -0.3 ? 'Inland underprediction' :
+                  gap < -0.05 ? 'Slight underprediction' : 'Agreement';
+  const color = gap > 0.05 ? '#e63946' : gap < -0.05 ? '#2ea043' : '#8b949e';
   tr.innerHTML = '<td>' + barLabels[i] + '</td>' +
-    '<td>' + fmtMoney(barPred[i]) + '</td>' +
-    '<td>' + fmtMoney(barNfip[i]) + '</td>' +
-    '<td style="color:' + (gap > 0 ? '#e63946' : '#2ea043') + '">' + fmtMoney(gap) + '</td>';
+    '<td>' + fmtMoney(barPredUsd[i]) + '</td>' +
+    '<td>' + barNfipClaims[i] + '</td>' +
+    '<td>' + barNBuildings[i] + '</td>' +
+    '<td style="color:' + color + ';font-size:11px">' + pattern + '</td>';
   tableBody.appendChild(tr);
 }});
 </script>
@@ -870,7 +927,7 @@ indices.forEach(([absR, i]) => {{
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    log.info("=== Oahu Flood Risk Dashboard ===")
+    log.info("=== Oahu Flood Risk Dashboard v2 ===")
 
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
 
@@ -928,7 +985,7 @@ def main() -> None:
         )
         log.info("Uploaded latest.html alias")
 
-    log.info("=== Dashboard complete ===")
+    log.info("=== Dashboard v2 complete ===")
 
 
 if __name__ == "__main__":
