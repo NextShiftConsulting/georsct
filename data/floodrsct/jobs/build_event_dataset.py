@@ -208,8 +208,10 @@ def _load_adjacency(s3) -> Optional[pd.DataFrame]:
             log.info("Loaded adjacency from %s: %d edges", key, len(adj))
             _ADJ_CACHE = adj
             return adj
-    log.warning("zcta_adjacency.parquet not found on S3 -- W-matrix features will be NaN")
-    return None
+    raise FileNotFoundError(
+        "zcta_adjacency.parquet not found on S3. W-matrix features require "
+        "adjacency data. Upload adjacency first or run enrich_adjacency."
+    )
 
 
 def _build_w_neighbors(adj_df: pd.DataFrame, zcta_ids: list[str]) -> dict[str, list[str]]:
@@ -270,8 +272,6 @@ def compute_w_matrix_features(
     (DOE Amendment v1.2 Change 13)
     """
     adj_df = _load_adjacency(s3)
-    if adj_df is None:
-        return _empty_w_features(zcta_ids)
 
     neighbors = _build_w_neighbors(adj_df, zcta_ids)
 
@@ -297,17 +297,17 @@ def compute_w_matrix_features(
             if zid:
                 event_lookup[zid] = row
 
-    # Spatial lag source columns (static)
+    # Spatial lag source columns (static -- from geocertdb2026 static features)
     STATIC_LAG_MAP = {
         "wlag_flood_zone_pct": "flood_pct_zone_a",
-        "wlag_population_density": "acs_population_density",
+        "wlag_population_density": "population",
         "wlag_median_income": "acs_median_hh_income",
-        "wlag_impervious_pct": "impervious_pct",
     }
-    # Spatial lag source columns (event)
+    # Spatial lag source columns (event -- from assembled event base)
     EVENT_LAG_MAP = {
-        "wlag_rainfall_mm": "total_rainfall_mm",
-        "wlag_nfip_claims": "nfip_event_claims",
+        "wlag_impervious_pct": "impervious_pct",
+        "wlag_rainfall_mm": "rainfall_total_mm",
+        "wlag_nfip_claims": "nfip_event_claim_count",
     }
 
     rows = []
@@ -2253,7 +2253,8 @@ def main() -> None:
         report = validate_post_assembly(df, args.scenario)
         passed = log_validation_report(report)
         if not passed:
-            log.error("Post-assembly validation FAILED -- uploading anyway (check errors above)")
+            log.error("Post-assembly validation FAILED -- refusing to upload broken parquet")
+            sys.exit(1)
     except ImportError:
         log.warning("validate_assembly not available -- skipping post-assembly validation")
 

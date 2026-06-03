@@ -339,6 +339,29 @@ def validate_post_assembly(df: pd.DataFrame, scenario: str) -> dict:
         if df[col].notna().any() and df[col].nunique() == 1:
             report["warnings"].append(f"CONSTANT: {col} = {df[col].dropna().iloc[0]} for all rows")
 
+    # Schema completeness: verify contract-defined columns exist.
+    # This catches silent fallbacks that populate NaN or skip entirely.
+    contract_path = Path(__file__).parent.parent / "FEATURE_CONTRACT.yaml"
+    if contract_path.exists():
+        try:
+            with open(contract_path) as f:
+                contract = yaml.safe_load(f)
+            actual_cols = set(df.columns)
+            for feat in contract.get("features", []):
+                if scenario not in feat.get("scenarios", []):
+                    continue
+                col = feat.get("output_column") or feat.get("feature_name")
+                temporal = feat.get("temporal_class", "")
+                if temporal in ("operational", "post_event"):
+                    continue  # operational/post_event may be absent by design
+                if col and col not in actual_cols:
+                    report["errors"].append(
+                        f"SCHEMA FAIL: {col} defined in FEATURE_CONTRACT for "
+                        f"{scenario} but missing from assembled parquet"
+                    )
+        except Exception as exc:
+            report["warnings"].append(f"Schema completeness check failed: {exc}")
+
     return report
 
 
