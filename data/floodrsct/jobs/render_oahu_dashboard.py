@@ -97,9 +97,17 @@ def load_zcta_boundaries(tmp: str) -> "gpd.GeoDataFrame":
     )
     log.info("Reading national ZCTA boundaries (800 MB)...")
     gdf = gpd.read_parquet(path)
-    # Filter to Hawaii (968xx)
-    hawaii = gdf[gdf["ZCTA5CE20"].str.startswith("968")].copy()
-    log.info("Filtered to %d Hawaii ZCTAs", len(hawaii))
+
+    # Auto-detect ZCTA ID column (name varies across census vintages)
+    zcta_col = next((c for c in gdf.columns
+                     if "zcta" in c.lower() or "geoid" in c.lower()), None)
+    if zcta_col is None:
+        raise ValueError(f"No ZCTA ID column found in: {list(gdf.columns)}")
+
+    gdf[zcta_col] = gdf[zcta_col].astype(str)
+    hawaii = gdf[gdf[zcta_col].str.startswith("968")].copy()
+    hawaii = hawaii.rename(columns={zcta_col: "ZCTA5CE20"})
+    log.info("Filtered to %d Hawaii ZCTAs (col=%s)", len(hawaii), zcta_col)
     # Ensure WGS84
     if hawaii.crs and hawaii.crs.to_epsg() != 4326:
         hawaii = hawaii.to_crs(epsg=4326)
@@ -153,8 +161,8 @@ def buildings_to_geojson(df: pd.DataFrame, sample_n: int = 5000) -> str:
 
     features = []
     for _, row in df.iterrows():
-        lon = float(row.get("lon", row.get("Longitude", 0)))
-        lat = float(row.get("lat", row.get("Latitude", 0)))
+        lon = float(row.get("longitude", row.get("lon", row.get("Longitude", 0))))
+        lat = float(row.get("latitude", row.get("lat", row.get("Latitude", 0))))
         depth = float(row.get("FloodDepth", 0))
         loss = float(row.get("BldgLossUSD", 0))
         features.append({
