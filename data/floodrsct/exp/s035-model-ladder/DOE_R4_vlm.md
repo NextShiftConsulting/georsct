@@ -172,7 +172,14 @@ numbers from the text. If you cannot determine something, say so.
 | `risk_score` | float | VLM-produced risk score [0,1] |
 | `confidence` | float | VLM self-reported confidence [0,1] |
 
-### Spatial Reasoning Quality (scored by human or second VLM)
+### Spatial Reasoning Quality (graded by the hybrid grader, see Evidence-Grounding Audit)
+
+Grading protocol and grader-reliability requirements are defined once in the
+Response-Level Evidence-Grounding Audit (below); these fields are its
+per-response rollup. Visual claims (layout, legend, localization) are
+adjudicated against the rendered map; all numeric, categorical, and
+feature claims are graded against the **source feature layers that
+generated the map**, not the PNG.
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -213,6 +220,85 @@ numbers from the text. If you cannot determine something, say so.
 | `reasoning_tokens` | int | Thinking tokens (Claude only) |
 | `latency_ms` | int | Wall-clock time for complete_with_reasoning() |
 | `cost_usd` | float | Derived: tokens x provider rate |
+
+---
+
+## Response-Level Evidence-Grounding Audit (v1.3)
+
+**What this is, and is not.** This audit grades whether a VLM's *explanation*
+is grounded in the evidence it was shown. It is a **sidecar diagnostic**, not
+the RSCT certificate. The unit of analysis is the generated text claim, not a
+representation component consumed by a solver, so we define only a
+*response-level analogue* of R/S/N over extracted claims. Do not label it
+"the R4 certificate."
+
+**Unit of analysis.** Atomic claims extracted from the structured response
+fields (`zone_interpretation`, `vulnerability_factors`, `spatial_reasoning`,
+`evidence_used`). The denominator is the count of extracted atomic claims —
+not tokens, sentences, or fields. Claim types: numeric, categorical, spatial
+relation, evidence citation, generic/background.
+
+**Ground truth = source feature layers, not the PNG.** The map PNG is *what
+the model saw*; the *truth* is the data that generated it — zone percentages,
+ZCTA geometry, flood-zone overlay, NFIP counts, SVI, DEM, levee/intersection
+flags, neighbor summaries. Grade numeric/categorical/feature claims against
+those layers. Use the PNG only to adjudicate genuinely visual claims
+("neighboring ZCTAs show blue"). This separates a model misreading a correct
+map (perception error) from a model stating something absent from the data
+(fabrication).
+
+**Claim labels.**
+
+| Label | Meaning |
+|-------|---------|
+| `R_claim` | Supported by the supplied map/text/source features AND relevant to the flood decision |
+| `S_sup_claim` | True or supported but not specific/actionable for this ZCTA's decision |
+| `N_claim` | Unsupported, contradicted, fabricated, wrong number/feature, or citing non-existent evidence |
+
+with `R_claim + S_sup_claim + N_claim = 1` over all extracted claims.
+
+**Response-level diagnostics.**
+
+| Metric | Definition |
+|--------|------------|
+| `grounded_signal_rate` | share of claims labeled `R_claim` |
+| `filler_rate` | share labeled `S_sup_claim` |
+| `hallucination_rate` | share labeled `N_claim` |
+| `claim_purity` | `R_claim / (R_claim + N_claim)` |
+| `evidence_coverage` | fraction of important input evidence actually used |
+| `unsupported_evidence_rate` | fraction of cited evidence not present in inputs |
+
+**kappa and sigma are out of scope here.** Only `claim_purity` is adapted
+from the alpha form. kappa would require a separate compatibility definition
+(does the grounded explanation support the decision task?) and sigma a
+stability definition (consistent grounded explanations under prompt/map
+perturbation). Neither "follows automatically"; do not compute them under the
+RSCT names until separately specified.
+
+**Hybrid grader (required) and reliability.** No single VLM is the sole judge.
+- Programmatic: match cited numbers, labels, and zone names against source
+  layers; check evidence-citation presence. Backbone for `N_claim`.
+- LLM-assisted: semantic claim parsing and the `R_claim`/`S_sup_claim`
+  relevance split only.
+- Human calibration sample: a fixed subset graded independently.
+- **Report inter-grader reliability** (e.g. Krippendorff's alpha) on the
+  calibration sample, pre-register the rubric with worked examples, and only
+  trust the split if agreement clears a threshold set in advance. Without a
+  reported reliability number this audit is one model's opinion of another.
+
+**Explanation-vs-decision links are future work, not built here.** Questions
+like "do high-hallucination responses have worse `risk_score` error" or
+"does `evidence_coverage` predict transfer" are correlational across n=5 VLMs
+and underpowered; record them as future work, do not report them as findings.
+
+**Paper-safe language (use verbatim).**
+> We additionally audit VLM explanations at the claim level. Each generated
+> claim is compared against the evidence actually provided to the model and
+> labeled as decision-relevant support, non-actionable support, or
+> unsupported/contradicted content. This response-level audit is not treated
+> as a causal explanation or a substitute for outcome validation; it measures
+> whether the model's stated reasoning is grounded in the spatial evidence
+> available at decision time.
 
 ---
 
@@ -379,6 +465,78 @@ signal from map images. Here is the evidence."
 - Do NOT use GPU instances (API calls only)
 - Do NOT place R4 results in the R0-R2 money table or kappa cascade
 - Do NOT use temperature > 0 (greedy decoding only)
+- Do NOT call the claim-level evidence-grounding audit "the RSCT certificate" or "the R4 certificate" -- it is a response-level analogue over text claims, a sidecar diagnostic
+- Do NOT compute kappa/sigma for the audit under RSCT names until compatibility/stability are separately defined
+- Do NOT grade numeric/feature claims against the PNG alone -- grade against the source feature layers; PNG only for visual claims
+- Do NOT use a single VLM as sole grader, and do NOT report audit rates without an inter-grader reliability number
+- Do NOT report explanation-vs-decision correlations (hallucination vs risk_score error, coverage vs transfer) as findings at n=5 -- future work only
+
+---
+
+## Pre-Registered Grader Parameters (v1.4)
+
+These parameters are locked before the first R4.4 run on real data.
+They are choices that move headline audit rates; recording them here
+makes them pre-registered rather than post-hoc.
+
+### Numeric verification tolerance
+
+| Parameter | Value | Rationale |
+|-----------|-------|-----------|
+| `NUMBER_TOLERANCE` | 15% relative | VLMs round, truncate, or restate numbers imprecisely. 15% catches fabrication (78% vs 42%) while tolerating legitimate rounding (48% vs 42.3%). Chosen before seeing real audit rates. |
+
+Comparison: `abs(claimed - source) / max(abs(source), 1e-6) <= 0.15`.
+Zero-source special case: only `claimed == 0` matches.
+
+### SVI interpretation cutpoints
+
+| Parameter | Value | Rationale |
+|-----------|-------|-----------|
+| Low vulnerability flag | SVI >= 0.5 | CDC SVI documentation uses 0.5 as the moderate/high boundary. Claiming "low vulnerability" when SVI is above the median is contradicted by the source. |
+| Very high vulnerability flag | SVI < 0.5 | Symmetric: claiming "very high" or "extremely" vulnerable when SVI is below median. |
+| Trigger words | `"low" + "vulnerability"`, `"very high" + "vulnerability"`, `"extremely" + "vulnerability"` | Scoped to explicit vulnerability claims only. General mentions of flood risk or zone coverage do not trigger the SVI check. |
+
+Note: the `"extremely"` trigger must include the `in text` containment
+check (fixed in code, regression-guarded by `test_low_svi_vulnerability_not_overclaim`).
+
+### Evidence coverage feature list
+
+The 7 features used to compute `evidence_coverage` (fraction referenced
+by the VLM response):
+
+| Feature column | What it represents |
+|---------------|-------------------|
+| `flood_pct_zone_a` | FEMA 1% annual chance floodplain |
+| `flood_pct_zone_x` | Minimal flood hazard zone |
+| `flood_pct_zone_x500` | 0.2% annual chance floodplain |
+| `population` | Total population (ACS) |
+| `acs_median_hh_income` | Median household income (ACS) |
+| `svi_overall` | CDC Social Vulnerability Index |
+| `obs_nfip_event_claims` | Observed NFIP claims for this event |
+
+These are the features explicitly provided in the text evidence
+(`build_zcta_evidence.py`). A VLM that references all 7 has perfect
+coverage; one that discusses only flood zones scores 3/7. Features
+not in the evidence text (e.g. elevation, drainage capacity) are not
+penalized for absence.
+
+### Boilerplate percentage filter
+
+Zone-definition percentages (`1%` in "1% annual chance", `0.2%` in
+"0.2% annual chance") are filtered from numeric extraction when
+followed by `"annual"` or `"chance"` in a 20-character window. These
+describe what the zone IS, not a data value about this ZCTA.
+
+### Calibration sample
+
+| Parameter | Value |
+|-----------|-------|
+| Sample size | 20 ZCTAs per (vlm, scenario) cell |
+| Stratification | Terciles of `hallucination_rate` (low/mid/high) |
+| Calibration scope | Both claim labeling (R/S_sup/N) AND extraction validation (missed claims, spurious splits) |
+| Reliability metric | Krippendorff's alpha |
+| Minimum threshold | 0.67 (below = Tier 2 unreliable, do not report) |
+| Target threshold | 0.80 |
 
 ---
 
@@ -413,3 +571,5 @@ All three outcomes are publishable.
 | v1.0 | 2026-06-01 | Initial R4 DOE: four VLMs, datapoint schema, cost estimate |
 | v1.1 | 2026-06-02 | Null-input controls, prompt ablation (P0/P1/P2), deterministic inference (temp=0, pinned versions, k=3), fold-structured evaluation, evaluation separation from R0-R2 money table |
 | v1.2 | 2026-06-02 | Expand to 5 VLMs: add GPT-4o-mini (OpenAI, ~$0.30 total). H8 now tests 10 pairwise combinations |
+| v1.3 | 2026-06-02 | Add response-level evidence-grounding audit (claim-level R/S/N analogue, sidecar not certificate); grade against source feature layers not PNG; hybrid grader + reported reliability required; kappa/sigma out of scope; explanation-vs-decision links demoted to future work; paper-safe language fixed |
+| v1.4 | 2026-06-02 | Pre-register grader parameters: 15% numeric tolerance, SVI 0.5 cutpoint + trigger words, 7-feature coverage list, boilerplate percentage filter, calibration sample design (20/cell, tercile-stratified, extraction + labeling scope, Krippendorff alpha >= 0.67). Locked before first R4.4 run on real data. |

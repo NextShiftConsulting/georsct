@@ -10,11 +10,21 @@ R1 adds:
     accessibility, infrastructure detail, historical flood impact, detailed NFIP
   - Scenario-specific: upstream_catchment_km2, hcfcd_drainage_district,
     levee_nearest_km, levee_condition_rating, sewershed_name, slosh_max_surge_m
+  - W-matrix (spatial structure): zcta_degree, zcta_mean_neighbor_dist_km,
+    wlag_flood_zone_pct, wlag_population_density, wlag_median_income,
+    wlag_impervious_pct, wlag_rainfall_mm, wlag_nfip_claims
 
 DOE constraint: same folds, same solver hyperparameters, same targets as R0.
 
+Ablation variants (DOE_R1_spatial.md):
+  --ablation full           R0 + hydro + W-matrix (default)
+  --ablation no-wlag        R0 + hydro only (no spatial structure)
+  --ablation no-target-lag  R0 + hydro + W-matrix minus wlag_nfip_claims
+  --ablation wlag-only      R0 + W-matrix only (no hydro features)
+
 Usage:
     python train_r1_hydrology.py --scenario houston --upload
+    python train_r1_hydrology.py --scenario houston --ablation no-wlag --upload
 """
 
 import argparse
@@ -34,6 +44,7 @@ from _s3_result import upload_json_result
 from _validate_contract import check_causal_boundary
 from _coverage_common import (
     BUCKET, SCENARIOS, get_s3_client, load_processed_parquet, load_crosswalk,
+    load_adjacency,
 )
 
 logging.basicConfig(
@@ -120,7 +131,39 @@ R1_SCENARIO_SPECIFIC = [
     "slosh_max_surge_m",            # SW Florida
 ]
 
-R1_FEATURES = R0_FEATURES + R1_UNIVERSAL + R1_SCENARIO_SPECIFIC
+# ---------------------------------------------------------------------------
+# W-matrix spatial features (from build_event_dataset.py)
+# These are in the assembled parquet. DOE_R1_spatial.md Change 13.
+# ---------------------------------------------------------------------------
+R1_WMATRIX = [
+    "zcta_degree",
+    "zcta_mean_neighbor_dist_km",
+    "wlag_flood_zone_pct",
+    "wlag_population_density",
+    "wlag_median_income",
+    "wlag_impervious_pct",
+    "wlag_rainfall_mm",
+    "wlag_nfip_claims",       # TARGET LAG — highest leakage risk, see DOE
+]
+
+# Full R1 feature set
+R1_HYDRO = R1_UNIVERSAL + R1_SCENARIO_SPECIFIC
+R1_FEATURES = R0_FEATURES + R1_HYDRO + R1_WMATRIX
+
+# ---------------------------------------------------------------------------
+# Ablation variants (DOE_R1_spatial.md "Ablations (mandatory)")
+#
+# full:           R0 + hydro + W-matrix (default, all R1 features)
+# no-wlag:        R0 + hydro, remove all 8 W-matrix features
+# no-target-lag:  R0 + hydro + W-matrix minus wlag_nfip_claims
+# wlag-only:      R0 + 8 W-matrix features only (no hydro universal/specific)
+# ---------------------------------------------------------------------------
+ABLATION_MODES = {
+    "full":           lambda: R0_FEATURES + R1_HYDRO + R1_WMATRIX,
+    "no-wlag":        lambda: R0_FEATURES + R1_HYDRO,
+    "no-target-lag":  lambda: R0_FEATURES + R1_HYDRO + [f for f in R1_WMATRIX if f != "wlag_nfip_claims"],
+    "wlag-only":      lambda: R0_FEATURES + R1_WMATRIX,
+}
 
 TARGETS = [
     ("obs_nfip_event_claims", "regression", "log1p"),
@@ -168,6 +211,38 @@ def _load_r1_supplement(s3, scenario: str) -> pd.DataFrame:
         ) from exc
 
 
+def _build_neighbor_dict(adjacency) -> dict[str, list[str]]:
+    """Build an undirected {zcta_id: [neighbor_zcta_id,...]} dict from
+    whatever load_adjacency returns (a dict, or an edge-list DataFrame).
+    Keys/values coerced to str. Edges added in both directions."""
+    if adjacency is None:
+        return {}
+    if isinstance(adjacency, dict):
+        return {str(k): [str(v) for v in vs] for k, vs in adjacency.items()}
+    # assume an edge-list DataFrame; detect the two ZCTA id columns
+    df = adjacency
+    cols = list(df.columns)
+    candidates = [
+        ("zcta_id", "neighbor_zcta_id"), ("zcta_a", "zcta_b"),
+        ("src", "dst"), ("src_zcta", "dst_zcta"), ("from", "to"),
+        ("zcta_id_1", "zcta_id_2"),
+    ]
+    pair = next((c for c in candidates if c[0] in cols and c[1] in cols), None)
+    if pair is None:
+        if len(cols) >= 2:
+            pair = (cols[0], cols[1])
+        else:
+            raise RuntimeError(f"Cannot identify edge columns in adjacency: {cols}")
+    a, b = pair
+    neigh: dict[str, list[str]] = {}
+    for _, row in df.iterrows():
+        u, v = str(row[a]), str(row[b])
+        neigh.setdefault(u, []).append(v)
+        neigh.setdefault(v, []).append(u)  # undirected
+    # dedupe
+    return {k: sorted(set(vs)) for k, vs in neigh.items()}
+
+
 def _load_folds(s3, scenario: str) -> pd.DataFrame:
     """Load fold assignments from Phase 1."""
     key = f"folds/{scenario}_folds.parquet"
@@ -188,13 +263,16 @@ def _encode_categoricals(df: pd.DataFrame, features: list[str]) -> pd.DataFrame:
     return df
 
 
-def _available_features(df: pd.DataFrame) -> tuple[list[str], int]:
-    """Return R1 features present in df. Track how many came from supplement."""
+def _available_features(df: pd.DataFrame, candidate_features: list[str]) -> tuple[list[str], int]:
+    """Return features from *candidate_features* present in df.
+
+    Track how many came from the R1 supplement.
+    """
     available = []
     r1_supp_count = 0
     r1_supp_names = {"nhd_catchment_area_km2", "levee_nearest_km",
                      "levee_condition_rating", "sewershed_name"}
-    for f in R1_FEATURES:
+    for f in candidate_features:
         if f in df.columns and df[f].notna().any():
             available.append(f)
             if f in r1_supp_names:
@@ -314,6 +392,43 @@ SOLVERS = {
 }
 
 
+def _recompute_wlag_per_fold(
+    merged: pd.DataFrame,
+    train_mask: pd.Series,
+    test_mask: pd.Series,
+    neighbors: dict[str, list[str]],
+    target_col: str,
+) -> pd.Series:
+    """Recompute wlag of target column using ONLY training ZCTAs' values.
+
+    DOE_R1_spatial.md leakage protocol: test ZCTAs receive lag from
+    training neighbors only (NaN if all neighbors are in test fold).
+
+    Returns wlag as pd.Series aligned to merged index.
+    """
+    # Build lookup: zcta_id -> target value, training ZCTAs only
+    train_rows = merged[train_mask]
+    # Multiple events per ZCTA: use mean target across events in training fold
+    zcta_target = train_rows.groupby("zcta_id")[target_col].mean().to_dict()
+
+    wlag_vals = pd.Series(np.nan, index=merged.index, dtype=np.float64)
+    for idx, row in merged.iterrows():
+        zid = str(row["zcta_id"])
+        nbrs = neighbors.get(zid, [])
+        if not nbrs:
+            continue
+        # Row-standardized lag from training neighbors only
+        vals = []
+        for nb in nbrs:
+            v = zcta_target.get(nb)
+            if v is not None and not np.isnan(v):
+                vals.append(v)
+        if vals:
+            wlag_vals.at[idx] = float(np.mean(vals))
+
+    return wlag_vals
+
+
 def run_split(
     df: pd.DataFrame,
     folds_df: pd.DataFrame,
@@ -326,6 +441,7 @@ def run_split(
     split_name: str,
     scenario: str,
     prediction_rows: list[dict] | None = None,
+    neighbors: dict[str, list[str]] | None = None,
 ) -> list[RunResult]:
     ts = datetime.now(timezone.utc).isoformat()
     fold_col = SPLITS[split_name]
@@ -340,6 +456,29 @@ def run_split(
         merged["_y"] = np.log1p(merged[target_col].clip(lower=0).astype(float))
         y_col = "_y"
 
+    # Leakage guard for wlag_nfip_claims (the spatial lag of the target).
+    # When target IS nfip_event_claims, the pre-computed wlag in the parquet
+    # includes test-fold target values -> leakage. It MUST be recomputed per
+    # fold from training ZCTAs only. If we cannot (no neighbors), we REFUSE
+    # rather than silently train on the leaked column.
+    wlag_col_idx = None
+    leaky_wlag_active = (
+        "wlag_nfip_claims" in features
+        and target_col == "obs_nfip_event_claims"
+    )
+    if leaky_wlag_active and neighbors is None:
+        raise RuntimeError(
+            "wlag_nfip_claims is in the feature set and the target is "
+            "obs_nfip_event_claims, but no adjacency/neighbors were provided. "
+            "The pre-computed wlag leaks test-fold target values. Refusing to "
+            "run. Load adjacency and pass neighbors= to enable per-fold "
+            "recomputation, or use --ablation no-wlag / no-target-lag."
+        )
+    needs_perfold_wlag = leaky_wlag_active and neighbors is not None
+    if needs_perfold_wlag:
+        wlag_col_idx = features.index("wlag_nfip_claims")
+        log.info("    Per-fold wlag_nfip_claims recomputation enabled (leakage mitigation)")
+
     X_all = merged[features].values.astype(np.float32)
     y_all = merged[y_col].values.astype(np.float32)
     fold_ids = sorted(merged[fold_col].unique())
@@ -348,6 +487,15 @@ def run_split(
     for fold_id in fold_ids:
         test_mask = merged[fold_col] == fold_id
         train_mask = ~test_mask
+
+        # Per-fold wlag recomputation (DOE leakage protocol)
+        if needs_perfold_wlag:
+            wlag_safe = _recompute_wlag_per_fold(
+                merged, train_mask, test_mask, neighbors,
+                "obs_nfip_event_claims",
+            )
+            X_all[:, wlag_col_idx] = wlag_safe.values.astype(np.float32)
+
         X_train, y_train = X_all[train_mask], y_all[train_mask]
         X_test, y_test = X_all[test_mask], y_all[test_mask]
 
@@ -402,16 +550,29 @@ def main() -> None:
     parser.add_argument("--scenario", required=True, choices=SCENARIOS)
     parser.add_argument("--seed", type=int, default=SEED)
     parser.add_argument("--upload", action="store_true")
+    parser.add_argument(
+        "--ablation", default="full", choices=list(ABLATION_MODES.keys()),
+        help="Feature ablation variant (default: full). "
+             "no-wlag: remove W-matrix. no-target-lag: remove wlag_nfip_claims. "
+             "wlag-only: R0 + W-matrix only (no hydro)."
+    )
     args = parser.parse_args()
+    ablation = args.ablation
 
     s3 = get_s3_client()
     scenario = args.scenario
 
+    # Resolve ablation feature list
+    ablation_features = ABLATION_MODES[ablation]()
+    phase_label = f"r1_hydrology" if ablation == "full" else f"r1_{ablation.replace('-', '_')}"
+
     # Hard gate: reject any feature that violates the causal boundary
-    check_causal_boundary(R1_FEATURES)
+    check_causal_boundary(ablation_features)
 
     print(f"\n{'='*60}")
     print(f"  S035 PHASE 2: R1 HYDROLOGY -- {scenario}")
+    if ablation != "full":
+        print(f"  ABLATION: {ablation}")
     print(f"{'='*60}\n")
 
     # --- Load assembled parquet ---
@@ -462,14 +623,39 @@ def main() -> None:
     if "event" in folds_df.columns:
         folds_df["event"] = folds_df["event"].astype(str)
 
-    # --- Identify usable features ---
-    features, r1_supp_count = _available_features(df)
-    r0_count = sum(1 for f in features if f in R0_FEATURES)
-    r1_count = len(features) - r0_count
-    log.info("R1 features: %d total (%d R0 + %d R1-new), %d from supplement",
-             len(features), r0_count, r1_count, r1_supp_count)
+    # --- Load adjacency for per-fold wlag recomputation (leakage mitigation) ---
+    neighbors: dict[str, list[str]] | None = None
+    try:
+        adjacency = load_adjacency(s3)
+        neighbors = _build_neighbor_dict(adjacency)
+        log.info("Adjacency loaded: %d ZCTAs with neighbors", len(neighbors))
+    except Exception as exc:
+        log.warning("Adjacency unavailable (%s); per-fold wlag recompute disabled", exc)
+        neighbors = None
 
-    missing = [f for f in R1_FEATURES if f not in features]
+    # --- Identify usable features ---
+    features, r1_supp_count = _available_features(df, ablation_features)
+    r0_count = sum(1 for f in features if f in R0_FEATURES)
+    wlag_count = sum(1 for f in features if f in R1_WMATRIX)
+    hydro_count = len(features) - r0_count - wlag_count
+    log.info("R1 features [%s]: %d total (%d R0 + %d hydro + %d W-matrix), %d from supplement",
+             ablation, len(features), r0_count, hydro_count, wlag_count, r1_supp_count)
+
+    # --- Hard gate: refuse leaky variants without adjacency ---
+    # full and wlag-only contain wlag_nfip_claims (the target spatial lag).
+    # Running them off the pre-computed parquet leaks test-fold target values.
+    # no-wlag and no-target-lag do not contain the column and run freely.
+    if "wlag_nfip_claims" in features and not neighbors:
+        raise RuntimeError(
+            f"Ablation '{ablation}' includes wlag_nfip_claims (target spatial lag), "
+            f"but adjacency/neighbors are unavailable for {scenario}. The pre-computed "
+            f"wlag leaks test-fold target values into training. Refusing to run. "
+            f"Provide adjacency, or use --ablation no-wlag / no-target-lag "
+            f"(both clean and safe to run now; no-target-lag is the headline "
+            f"relational verdict)."
+        )
+
+    missing = [f for f in ablation_features if f not in features]
     if missing:
         log.info("Missing R1 features (expected for some scenarios): %s", missing)
 
@@ -491,6 +677,7 @@ def main() -> None:
                         target_col, task, transform,
                         solver_name, split_name, scenario,
                         prediction_rows=prediction_rows,
+                        neighbors=neighbors,
                     )
                     all_results.extend(results)
                     if results:
@@ -505,23 +692,25 @@ def main() -> None:
 
     # --- Summary ---
     print(f"\n{'='*60}")
-    print(f"  R1 SUMMARY: {scenario}")
+    print(f"  R1 SUMMARY: {scenario} [ablation={ablation}]")
     print(f"  Total runs: {len(all_results)}")
-    print(f"  Features: {len(features)} ({r0_count} R0 + {r1_count} R1-new)")
+    print(f"  Features: {len(features)} ({r0_count} R0 + {hydro_count} hydro + {wlag_count} W-matrix)")
     print(f"{'='*60}\n")
 
     # --- Upload results ---
     results_payload = {
         "experiment": "s035-model-ladder",
-        "phase": "r1_hydrology",
+        "phase": phase_label,
+        "ablation": ablation,
         "scenario": scenario,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "seed": args.seed,
-        "representation": "R1",
+        "representation": "R1" if ablation == "full" else f"R1_{ablation}",
         "features_used": features,
         "features_missing": missing,
         "r0_feature_count": r0_count,
-        "r1_new_feature_count": r1_count,
+        "hydro_feature_count": hydro_count,
+        "wmatrix_feature_count": wlag_count,
         "r1_supplement_feature_count": r1_supp_count,
         "runs": [asdict(r) for r in all_results],
     }
@@ -529,7 +718,7 @@ def main() -> None:
     results_json = json.dumps(results_payload, indent=2, default=str)
 
     if args.upload:
-        key = f"{RESULTS_PREFIX}/r1_{scenario}.json"
+        key = f"{RESULTS_PREFIX}/{phase_label}_{scenario}.json"
         upload_json_result(s3, BUCKET, key, results_payload)
 
         if prediction_rows:
@@ -537,12 +726,12 @@ def main() -> None:
             buf = io.BytesIO()
             pred_df.to_parquet(buf, index=False)
             buf.seek(0)
-            pred_key = f"{RESULTS_PREFIX}/r1_{scenario}_predictions.parquet"
+            pred_key = f"{RESULTS_PREFIX}/{phase_label}_{scenario}_predictions.parquet"
             s3.put_object(Bucket=BUCKET, Key=pred_key, Body=buf.getvalue())
             log.info("Uploaded %d prediction rows to s3://%s/%s",
                      len(pred_df), BUCKET, pred_key)
     else:
-        local = f"/tmp/r1_{scenario}.json"
+        local = f"/tmp/{phase_label}_{scenario}.json"
         Path(local).write_text(results_json)
         log.info("Wrote %s", local)
 

@@ -202,10 +202,18 @@ def analyze_scenario(s3, scenario: str) -> Dict[str, Any]:
 
         row["pairwise_rhos"] = pairwise
         if pairwise:
-            row["vlm_agreement"] = round(
-                sum(pairwise.values()) / len(pairwise), 4
-            )
-            row["h8_pass"] = all(r > 0.7 for r in pairwise.values())
+            vals = list(pairwise.values())
+            vals_sorted = sorted(vals)
+            mid = len(vals_sorted) // 2
+            median = (vals_sorted[mid] if len(vals_sorted) % 2
+                      else (vals_sorted[mid - 1] + vals_sorted[mid]) / 2)
+            row["vlm_agreement"] = round(sum(vals) / len(vals), 4)  # mean (kept)
+            row["median_pairwise_rho"] = round(float(median), 4)
+            row["min_pairwise_rho"] = round(float(min(vals)), 4)
+            row["fraction_pairwise_gt_0.7"] = round(sum(r > 0.7 for r in vals) / len(vals), 4)
+            # all-pass kept for back-compat, but it is brittle: one weak VLM pair
+            # fails the whole hypothesis. Prefer the distributional fields above.
+            row["h8_pass"] = all(r > 0.7 for r in vals)
 
     # R0-R2 comparison
     for level in ["r0", "r1", "r2"]:
@@ -264,6 +272,13 @@ def main():
     h7_pass = any(rho > 0.3 for _, _, rho in h7_all_rhos)
     h7_best = max(h7_all_rhos, key=lambda x: x[2]) if h7_all_rhos else (None, None, None)
     h8_pass = bool(h8_all_pairwise) and all(r > 0.7 for r in h8_all_pairwise)
+    if h8_all_pairwise:
+        _s = sorted(h8_all_pairwise)
+        _mid = len(_s) // 2
+        h8_median = _s[_mid] if len(_s) % 2 else (_s[_mid - 1] + _s[_mid]) / 2
+        h8_frac = sum(r > 0.7 for r in h8_all_pairwise) / len(h8_all_pairwise)
+    else:
+        h8_median = h8_frac = None
 
     result = {
         "phase": "R4.5_vlm_comparison",
@@ -280,8 +295,11 @@ def main():
             },
             "h8": {
                 "all_pairwise_gt_0.7": h8_pass,
+                "median_pairwise": round(h8_median, 4) if h8_median is not None else None,
                 "min_pairwise": round(min(h8_all_pairwise), 4) if h8_all_pairwise else None,
+                "fraction_pairwise_gt_0.7": round(h8_frac, 4) if h8_frac is not None else None,
                 "n_pairs": len(h8_all_pairwise),
+                "threshold_note": "0.7 is a pre-registered descriptive threshold, not a universal cutoff; all-pass is brittle to one weak VLM pair -- prefer median/fraction.",
             },
         },
     }
@@ -306,7 +324,8 @@ def main():
         log.info("    best: %s/%s rho=%.4f", h7_best[0], h7_best[1], h7_best[2])
     log.info("  H8 (all pairwise > 0.7): %s", h8_pass)
     if h8_all_pairwise:
-        log.info("    min pairwise: %.4f (n=%d)", min(h8_all_pairwise), len(h8_all_pairwise))
+        log.info("    median: %.4f  min: %.4f  frac>0.7: %.2f  (n=%d)",
+                 h8_median, min(h8_all_pairwise), h8_frac, len(h8_all_pairwise))
 
     return 0
 
