@@ -6,8 +6,8 @@
   "sources": {
     "mrms": {
       "full_name": "NOAA Multi-Radar Multi-Sensor",
-      "temporal_coverage": {"start": "2012-01-01", "end": null},
-      "note": "MRMS v12 operational from 2012. Pre-2012 events have no MRMS coverage."
+      "temporal_coverage": {"start": "2012-10-01", "end": null},
+      "note": "MRMS v12 operational from late 2012. Isaac (Aug 2012) is pre-operational. Events before Oct 2012 have no reliable MRMS coverage."
     },
     "hrrr": {
       "full_name": "NOAA High-Resolution Rapid Refresh",
@@ -83,7 +83,7 @@
       "openfema": "available"
     },
     "isaac2012_nola": {
-      "mrms": "available",
+      "mrms": "not_applicable_temporal",
       "hrrr": "not_applicable_temporal",
       "gpm_imerg": "available",
       "smap": "not_applicable_temporal",

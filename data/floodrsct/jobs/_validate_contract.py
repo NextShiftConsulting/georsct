@@ -523,7 +523,10 @@ def validate_layer2(
 # Layer 3: Data Lock Validation (standalone reconciliation)
 # ---------------------------------------------------------------------------
 
-OUTPUT_KEYS = _REG.output_keys()
+if get_registry is not None:
+    OUTPUT_KEYS = _REG.output_keys()
+else:
+    from _coverage_common import OUTPUT_KEYS
 
 
 def validate_layer3(
