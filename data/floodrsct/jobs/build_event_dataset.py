@@ -1297,14 +1297,51 @@ def _operational_unknown(df: pd.DataFrame, col: str, note: str = _OPERATIONAL_NO
     return df
 
 
+_IMPERVIOUS_CACHE_KEY = "processed/shared/zcta_impervious_pct.parquet"
+
+
 def build_impervious_features(s3, zcta_ids: list[str]) -> pd.DataFrame:
     """Derive impervious_pct per ZCTA from NLCD 2021 GeoTIFFs.
+
+    Cache-first: checks for pre-computed parquet at
+    s3://{BUCKET}/{_IMPERVIOUS_CACHE_KEY} before doing raster extraction.
+    The cache is ZCTA-level and scenario-independent — compute once, share
+    across all scenario builds.
 
     Requires: raw/nlcd/impervious/v2021/*.tif + ZCTA centroid lat/lon from geocertdb2026.
     Returns DataFrame with columns: zcta_id, impervious_pct, _fs_impervious_pct.
     """
     empty = pd.DataFrame({"zcta_id": zcta_ids, "impervious_pct": np.nan,
                           "_fs_impervious_pct": _FS_MISSING})
+
+    # --- Cache lookup: skip raster extraction if pre-computed values exist ---
+    try:
+        cached = s3_read(s3, _IMPERVIOUS_CACHE_KEY)
+        if cached is not None and "zcta_id" in cached.columns:
+            cached["zcta_id"] = cached["zcta_id"].astype(str)
+            out = pd.DataFrame({"zcta_id": zcta_ids}).merge(
+                cached[["zcta_id", "impervious_pct"]], on="zcta_id", how="left",
+            )
+            hit_rate = out["impervious_pct"].notna().mean() * 100
+            if hit_rate > 50:
+                out["_fs_impervious_pct"] = np.where(
+                    out["impervious_pct"].notna(), "present", _FS_MISSING,
+                )
+                log.info(
+                    "build_impervious_features: cache hit (%s), "
+                    "%d/%d ZCTAs matched (%.0f%%)",
+                    _IMPERVIOUS_CACHE_KEY, out["impervious_pct"].notna().sum(),
+                    len(zcta_ids), hit_rate,
+                )
+                return out
+            else:
+                log.info(
+                    "build_impervious_features: cache exists but only %.0f%% "
+                    "ZCTAs matched — falling through to raster extraction",
+                    hit_rate,
+                )
+    except Exception as e:
+        log.info("build_impervious_features: no cache (%s), will extract from raster", e)
 
     if not HAS_GEO:
         log.warning("build_impervious_features: geopandas/rasterio not available; returning NaN")
@@ -1468,8 +1505,28 @@ def build_impervious_features(s3, zcta_ids: list[str]) -> pd.DataFrame:
     if not results:
         return empty
 
-    out = pd.DataFrame(results).groupby("zcta_id", as_index=False)["impervious_pct"].mean()
-    out = pd.DataFrame({"zcta_id": zcta_ids}).merge(out, on="zcta_id", how="left")
+    extracted = pd.DataFrame(results).groupby("zcta_id", as_index=False)["impervious_pct"].mean()
+
+    # --- Cache write: save ALL extracted ZCTAs (merge with any existing cache) ---
+    try:
+        existing = s3_read(s3, _IMPERVIOUS_CACHE_KEY)
+        if existing is not None and "zcta_id" in existing.columns:
+            existing["zcta_id"] = existing["zcta_id"].astype(str)
+            # Merge: new extractions overwrite stale values
+            combined = pd.concat([existing, extracted], ignore_index=True)
+            combined = combined.drop_duplicates(subset="zcta_id", keep="last")
+        else:
+            combined = extracted
+        buf = BytesIO()
+        combined.to_parquet(buf, index=False)
+        buf.seek(0)
+        s3.put_object(Bucket=BUCKET, Key=_IMPERVIOUS_CACHE_KEY, Body=buf.getvalue())
+        log.info("build_impervious_features: cached %d ZCTAs to %s",
+                 len(combined), _IMPERVIOUS_CACHE_KEY)
+    except Exception as e:
+        log.warning("build_impervious_features: cache write failed: %s", e)
+
+    out = pd.DataFrame({"zcta_id": zcta_ids}).merge(extracted, on="zcta_id", how="left")
     out["_fs_impervious_pct"] = np.where(out["impervious_pct"].notna(), "present", _FS_MISSING)
     log.info("build_impervious_features: %d ZCTAs, %.1f%% with data",
              len(out), (out["impervious_pct"].notna().mean() * 100))

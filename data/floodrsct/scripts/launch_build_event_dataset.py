@@ -50,9 +50,10 @@ SCENARIOS = [
 #   ar_flood_2023:       21-day window = ~504 grib2 files
 _LARGE_SCENARIOS = {"houston", "new_orleans", "southwest_florida", "riverside_coachella"}
 
-# Scenarios that sample NLCD .img (Erdas Imagine HFA format).
-# pip-installed rasterio lacks the HFA driver; install libgdal-dev + GDAL
-# python bindings so the osgeo.gdal fallback path in build_event_dataset.py works.
+# Scenarios that sample NLCD impervious surface raster.
+# The pre-converted .tif (812 MB) on S3 is preferred over the raw .img (26 GB).
+# gdal-bin is only needed if the .tif is missing and we fall back to .img.
+# With .tif present, volume can stay at 50 GB and gdal-bin install is skipped.
 _NLCD_SCENARIOS = {"houston", "nyc", "new_orleans", "riverside_coachella", "southwest_florida"}
 
 
@@ -66,13 +67,13 @@ def main() -> None:
         "ml.m5.4xlarge" if args.scenario in _LARGE_SCENARIOS else "ml.m5.2xlarge"
     )
 
-    # NLCD .img (Erdas Imagine HFA) needs gdal_translate to convert to GeoTIFF
-    # before rasterio can read it. The apt gdal-bin on Ubuntu 22.04 includes
-    # HFA read support -- but the python GDAL bindings crash (segfault) when
-    # reading .img directly. Converting to .tif via gdal_translate avoids this:
-    # the subprocess reads HFA, writes GeoTIFF, and rasterio reads the .tif.
+    # NLCD: prefer pre-converted .tif (812 MB) over raw .img (26 GB).
+    # gdal-bin is only needed if the .tif is missing and we fall back to .img
+    # conversion. With .tif present, skip gdal-bin and use 50 GB volume.
+    # Set --nlcd-img-fallback to force .img path (adds gdal-bin + 100 GB volume).
+    needs_img_fallback = getattr(args, "nlcd_img_fallback", False)
     pre_install = None
-    if args.scenario in _NLCD_SCENARIOS:
+    if needs_img_fallback:
         pre_install = (
             "apt-get update -qq && apt-get install -y -qq gdal-bin > /dev/null 2>&1"
         )
@@ -83,8 +84,7 @@ def main() -> None:
         job_script="build_event_dataset.py",
         job_args=["--scenario", args.scenario],
         instance_type=instance_type,
-        # NLCD raster is 26 GB; need headroom for download + open. 100 GB safe.
-        volume_size_gb=100 if args.scenario in _NLCD_SCENARIOS else 50,
+        volume_size_gb=100 if needs_img_fallback else 50,
         pip_packages="geopandas pyogrio rasterio cfgrib xarray eccodes scikit-learn xgboost",
         pre_install_cmd=pre_install,
         dry_run=args.dry_run,
