@@ -39,20 +39,15 @@ log = logging.getLogger("fetch_nlcd_land_cover")
 
 BUCKET = "swarm-floodrsct-data"
 
-# ScienceBase item IDs to try (land cover product).
-# The exact ID depends on whether USGS has reorganized; we try multiple.
-# Item 649595bdd34ef77fcb01dc9c is the likely land cover sibling of
-# impervious (649595c3d34ef77fcb01dc9e).
+# ScienceBase item ID for NLCD 2021 Land Cover: 649595d8d34ef77fcb01dca1
+# (confirmed via ScienceBase catalog; sibling of impervious 649595c3d34ef77fcb01dc9e)
 SCIENCEBASE_URLS = [
-    # Pattern 1: direct file get with known zip name
-    "https://www.sciencebase.gov/catalog/file/get/649595bdd34ef77fcb01dc9c"
+    # Primary: verified working ScienceBase item ID
+    "https://www.sciencebase.gov/catalog/file/get/649595d8d34ef77fcb01dca1"
     "?name=nlcd_2021_land_cover_l48_20230630.zip",
-    # Pattern 2: alternative item IDs
-    "https://www.sciencebase.gov/catalog/file/get/64959582d34ef77fcb01dc96"
-    "?name=nlcd_2021_land_cover_l48_20230630.zip",
-    # Pattern 3: S3 mirror (may still work for some products)
+    # Fallback: S3 mirror (may be decommissioned)
     "https://s3-us-west-2.amazonaws.com/mrlc/nlcd_2021_land_cover_l48_20230630.zip",
-    # Pattern 4: MRLC direct download
+    # Fallback: MRLC direct download
     "https://www.mrlc.gov/downloads/sciweb1/shared/mrlc/nlcd_2021_land_cover_l48_20230630.zip",
 ]
 
