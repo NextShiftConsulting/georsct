@@ -651,6 +651,15 @@ def _mrms_spatial_aggregate(s3, file_keys: list[str], zcta_ids: list[str],
         lon_2d, lat_2d = np.meshgrid(lon_arr, lat_arr)
     else:
         lat_2d, lon_2d = lat_arr, lon_arr
+
+    # MRMS GRIB2 uses 0-360 longitude (e.g., Houston = 264.6). ZCTA centroids
+    # use -180/180 (Houston = -95.4). Convert grid to -180/180 so the nearest-
+    # centroid lookup finds the correct pixel.
+    if lon_2d.max() > 180:
+        lon_2d = np.where(lon_2d > 180, lon_2d - 360, lon_2d)
+        log.info("MRMS lon converted from 0-360 to -180/180 (range: %.1f to %.1f)",
+                 lon_2d.min(), lon_2d.max())
+
     flat_lat = lat_2d.flatten()
     flat_lon = lon_2d.flatten()
     flat_val = total_mm.flatten()
@@ -675,6 +684,12 @@ def _mrms_spatial_aggregate(s3, file_keys: list[str], zcta_ids: list[str],
 
     df = pd.DataFrame(zcta_rainfall)
     df["obs_mrms_coverage_pct"] = coverage
+
+    # Sanity check: rainfall should not be all zeros when the grid has signal
+    r = df["rainfall_total_mm"]
+    log.info("MRMS ZCTA assignment: %d ZCTAs, min=%.2f max=%.2f mean=%.2f zeros=%d/%d",
+             len(df), r.min(), r.max(), r.mean(), (r == 0).sum(), len(r))
+
     # Fill ZCTAs with no MRMS match
     all_zctas = pd.DataFrame({"zcta_id": zcta_ids})
     return all_zctas.merge(df, on="zcta_id", how="left")
