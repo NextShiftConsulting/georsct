@@ -111,7 +111,7 @@ Moran's I on HistGBDT residuals aggregated per ZCTA.
 For each kappa proxy at each level:
 - Cells with kappa BELOW median = "flagged" (predicted to benefit)
 - Cells with kappa ABOVE median = "unflagged"
-- Median guarantees 3-4 in each group (n=7 cells)
+- Median guarantees 4-5 in each group (n=9 cells)
 - NO degrees of freedom for researcher to exploit
 
 ### Pre-Registration JSON Schema
@@ -162,8 +162,8 @@ No multiple comparison correction needed — one pre-registered test.
 
 **Exploratory cell-level tests (H2b, H4):**
 8 associations: 4 diagnostic proxies x 2 transitions (R0→R1, R1→R2).
-All at n=7 cells — too few for Holm-Bonferroni to have power (requires
-|rho| >= 0.93 to reject). Instead:
+All at n=9 cells — Holm-Bonferroni has limited power (requires
+|rho| >= 0.88 to reject at first step). Instead:
 
 1. Report ALL 8 Spearman correlations with bootstrap 95% CIs (10,000 resamples)
 2. Report effect sizes and directional consistency (fraction positive)

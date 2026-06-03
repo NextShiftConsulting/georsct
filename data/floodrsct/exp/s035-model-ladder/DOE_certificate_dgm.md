@@ -131,7 +131,7 @@ Where `actual_best_arm` = the (level, solver) with highest spatial-blocked R2.
 | Near-optimal | DGM recommends within 0.02 R2 of best |
 | Direction correct | DGM upgrades when upgrade helps, stays when it doesn't |
 
-With 7 cells this is descriptive. Report with exact binomial CI.
+With 9 cells this is descriptive. Report with exact binomial CI.
 
 ---
 

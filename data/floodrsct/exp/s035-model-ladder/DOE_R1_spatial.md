@@ -13,7 +13,7 @@
 under spatial-blocked CV.
 
 **Primary test (v1.7):** Fold-level Wilcoxon signed-rank on paired
-(R0_fold_metric, R1_fold_metric) across ~35 fold observations pooled
+(R0_fold_metric, R1_fold_metric) across ~45 fold observations pooled
 from all modelable cells. Requires both p < 0.05 AND Cohen's d > 0.2.
 
 **H2b (exploratory):** kappa_geom (computed pre-training, Phase 0.5)
@@ -35,7 +35,7 @@ by explicit features, not leaked through splits).
 
 | Factor | Levels | Type |
 |--------|--------|------|
-| Scenario | houston, southwest_florida, nyc, riverside_coachella | Observational |
+| Scenario | houston, southwest_florida, nyc, riverside_coachella, new_orleans | Observational |
 | Target | obs_nfip_event_claims, obs_has_311, obs_has_hwm | Fixed per scenario |
 | Solver | HistGBDT, Ridge | Fixed |
 | Split | random, spatial_blocked, leave_event_out | Fixed |

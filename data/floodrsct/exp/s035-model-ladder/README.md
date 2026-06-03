@@ -31,6 +31,7 @@ Phase 1 (R0 train)
 | [DOE_FAST_validation.md](DOE_FAST_validation.md) | FEMA FAST features (R1.5) + external validation | H6: engineering model correlation |
 | [DOE_certificate_dgm.md](DOE_certificate_dgm.md) | RSCT certification + DGM routing | H5: DGM routes to optimal arm |
 | [DOE_R4_vlm.md](DOE_R4_vlm.md) | R4 VLM arm — Gemini/Jina/Nova/Qwen 4-way comparison | H7-H9: VLM signal + solver robustness |
+| [Statistical-Considerations.md](Statistical-Considerations.md) | Tests, power, corrections, kill rules | All |
 | [future-work-llm-representation-encoder.md](future-work-llm-representation-encoder.md) | LLM text embeddings (deferred) | Section 9 |
 
 ## Hypotheses Summary
@@ -38,7 +39,7 @@ Phase 1 (R0 train)
 | ID | Statement | Type | Test |
 |----|-----------|------|------|
 | H1 | R0 achieves R2 > 0 on >= 2 targets | Gate | Baseline skill |
-| H2 | diag_leakage predicts R0->R1 uplift | **PRIMARY** | Fold-level Wilcoxon signed-rank (v1.7) |
+| H2 | R1 improves over R0 (fold-level); kappa_geom predicts uplift (cell-level) | **PRIMARY** | Fold-level Wilcoxon signed-rank (v1.7/v1.8) |
 | H3 | diag_transfer predicts R1->R2 uplift | Secondary | Spearman rho |
 | H4 | Kappa cascade shows progressive flag clearing | Secondary | Movement table |
 | H5 | DGM routing matches exhaustive best arm | Exploratory | Hit rate + binomial CI |

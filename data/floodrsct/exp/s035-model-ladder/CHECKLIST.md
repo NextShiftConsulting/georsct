@@ -3,7 +3,7 @@
 **Bucket:** `s3://swarm-floodrsct-data/`
 **Job scripts:** `data/floodrsct/jobs/`
 **Launchers:** `data/floodrsct/scripts/`
-**DOE version:** v1.6 (DOE_AMENDMENT_v1.2.md)
+**DOE version:** v1.9 (DOE_AMENDMENT_v1.2.md)
 
 ---
 
@@ -72,7 +72,7 @@ python scripts/launch_compute_geometry_kappa.py
 
 ## 4. Phase 1: R0 Baseline Training
 
-### Per Scenario (repeat for: houston, southwest_florida, nyc, riverside_coachella)
+### Per Scenario (repeat for: houston, southwest_florida, nyc, riverside_coachella, new_orleans)
 
 ```bash
 python scripts/launch_train_r0_baseline.py --scenario {scenario} --dry-run
@@ -83,6 +83,7 @@ python scripts/launch_train_r0_baseline.py --scenario {scenario}
 - [ ] southwest_florida: `results/s035/r0_southwest_florida.json` on S3
 - [ ] nyc: `results/s035/r0_nyc.json` on S3
 - [ ] riverside_coachella: `results/s035/r0_riverside_coachella.json` on S3
+- [ ] new_orleans: `results/s035/r0_new_orleans.json` on S3
 - [ ] `folds/{scenario}_folds.parquet` with 3 fold columns, no NaN
 - [ ] At least 2 cells have R2 > 0 (H1 gate)
 - [ ] Prediction parquets saved: `results/s035/r0_{scenario}_predictions.parquet`
@@ -127,6 +128,7 @@ python scripts/launch_train_r1_hydrology.py --scenario {scenario}
 - [ ] southwest_florida: `results/s035/r1_southwest_florida.json` on S3
 - [ ] nyc: `results/s035/r1_nyc.json` on S3
 - [ ] riverside_coachella: `results/s035/r1_riverside_coachella.json` on S3
+- [ ] new_orleans: `results/s035/r1_new_orleans.json` on S3
 - [ ] W-matrix features present (8 columns: wlag_*, spatial_lag_*, zcta_degree, zcta_mean_neighbor_dist_km)
 - [ ] W-matrix spatial lag computed per-fold, train-only (no leakage)
 - [ ] Prediction parquets saved
@@ -183,6 +185,7 @@ python scripts/launch_train_r2_temporal.py --scenario {scenario}
 - [ ] southwest_florida: `results/s035/r2_southwest_florida.json` on S3
 - [ ] nyc: `results/s035/r2_nyc.json` on S3
 - [ ] riverside_coachella: `results/s035/r2_riverside_coachella.json` on S3
+- [ ] new_orleans: `results/s035/r2_new_orleans.json` on S3
 - [ ] Temporal features present (9 columns: mrms_*, tide_*, hurdat2_*)
 - [ ] Coastal NaN handling documented
 - [ ] Prediction parquets saved
@@ -226,7 +229,7 @@ python scripts/launch_compute_dgm_routing.py
 - [ ] `results/s035/dgm_routing.json` on S3
 - [ ] Routing table: morph_decision + recommended_arm + actual_best_arm per cell
 - [ ] Hit rate with binomial CI
-- [ ] H5 framed as proof-of-concept (n=7 too small for inference)
+- [ ] H5 framed as proof-of-concept (n=9)
 
 ---
 

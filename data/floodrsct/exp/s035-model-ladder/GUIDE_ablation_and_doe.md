@@ -224,12 +224,12 @@ spatial autocorrelation being exploited.
 
 ### The problem with small samples
 
-We have 7 (scenario x target) cells. That is a small number to draw
+We have 9 (scenario x target) cells. That is a small number to draw
 conclusions from. Our hypothesis tests are designed around this reality.
 
 ### Fold-level paired test (primary)
 
-Instead of testing at the cell level (n=7), we test at the fold level.
+Instead of testing at the cell level (n=9), we test at the fold level.
 Each cell has 5 folds. Each fold gives a paired observation:
 
 ```
@@ -239,7 +239,7 @@ Fold 3, Houston, NFIP:  R0 score = 0.35,  R1 score = 0.44  -> delta = +0.09
 ...
 ```
 
-Pooling across all cells: 7 cells x 5 folds = ~35 paired observations.
+Pooling across all cells: 9 cells x 5 folds = ~45 paired observations.
 Now we can run a **Wilcoxon signed-rank test** on the deltas: "Are these
 deltas systematically positive, or could they be zero?"
 
@@ -282,8 +282,9 @@ enough tests, something will be "significant" by chance. We use
 **Holm-Bonferroni correction**: sort p-values, multiply the smallest by
 8, the next by 7, etc. This controls the family-wise error rate.
 
-But only ONE test is the pre-registered primary: "diag_leakage predicts
-R0->R1 uplift." The other 7 are exploratory and labeled as such.
+But only ONE test is the pre-registered primary: the fold-level Wilcoxon
+on R0 vs R1 deltas. The cell-level associations (including kappa_geom as
+predictor, per v1.8 amendment) are exploratory and labeled as such.
 
 ---
 
@@ -293,12 +294,18 @@ The money table is the single most important output. One row per
 (scenario, target) cell, showing everything:
 
 ```
-scenario | target | kappa | R0_R2 | R1_R2 | R2_R2 | R0->R1_pct | R1->R2_pct | R_cert | S_cert | N_cert
----------|--------|-------|-------|-------|-------|------------|------------|--------|--------|-------
-houston  | nfip   | 0.82  | 0.35  | 0.48  | 0.52  | +37%       | +8%        | 0.48   | 0.05   | 0.47
-nyc      | nfip   | 0.71  | 0.22  | 0.31  | 0.34  | +41%       | +10%       | 0.31   | 0.09   | 0.60
+scenario | target | kappa | R0_R2 | R1_R2 | R2_R2 || r4_ref_r2(zs) || R0->R1_pct | R1->R2_pct | R_cert | S_cert | N_cert
+---------|--------|-------|-------|-------|-------||---------------||------------|------------|--------|--------|-------
+houston  | nfip   | 0.82  | 0.35  | 0.48  | 0.52  || 0.18          || +37%       | +8%        | 0.48   | 0.05   | 0.47
+nyc      | nfip   | 0.71  | 0.22  | 0.31  | 0.34  || 0.15          || +41%       | +10%       | 0.31   | 0.09   | 0.60
 ...
 ```
+
+The `r4_ref_r2` column reports a zero-shot, event-invariant VLM baseline
+on the shared folds for visual comparison only; it is excluded from the
+paired confirmatory tests (see Statistical-Considerations.md §3) and
+carries no uplift percentage. The double bars mark it as a fenced-off
+reference, not a ladder rung.
 
 Everything the paper claims is visible in this table. No hidden analysis.
 A reviewer can verify every number.
@@ -332,7 +339,8 @@ A reviewer can verify every number.
                      PARALLEL ARM
                      ============
    R4 VLM (null controls, prompt ablation, deterministic inference)
-   --> Separate table, never mixed with R0-R2
+   --> r4_ref_r2 reference column in money table (zero-shot, no uplift%)
+   --> Inferential results (H7-H9) stay in separate R4 table
 ```
 
 ### The causal chain the paper claims
@@ -380,9 +388,10 @@ If you are new to this experiment, read in this order:
 
 1. **This guide** (you are here)
 2. [README.md](README.md) -- experiment architecture and file map
-3. [DOE_R0_baseline.md](DOE_R0_baseline.md) -- the control arm
-4. [DOE_R1_spatial.md](DOE_R1_spatial.md) -- first treatment (spatial features)
-5. [DOE_R2_temporal.md](DOE_R2_temporal.md) -- second treatment (event dynamics)
-6. [DOE_R4_vlm.md](DOE_R4_vlm.md) -- exploratory VLM arm
-7. [DOE_AMENDMENT_v1.2.md](DOE_AMENDMENT_v1.2.md) -- all design changes with rationale
-8. [DOE_LOCKED.md](DOE_LOCKED.md) -- original locked design (for audit trail)
+3. [Statistical-Considerations.md](Statistical-Considerations.md) -- tests, power, corrections
+4. [DOE_R0_baseline.md](DOE_R0_baseline.md) -- the control arm
+5. [DOE_R1_spatial.md](DOE_R1_spatial.md) -- first treatment (spatial features)
+6. [DOE_R2_temporal.md](DOE_R2_temporal.md) -- second treatment (event dynamics)
+7. [DOE_R4_vlm.md](DOE_R4_vlm.md) -- exploratory VLM arm
+8. [DOE_AMENDMENT_v1.2.md](DOE_AMENDMENT_v1.2.md) -- all design changes with rationale
+9. [DOE_LOCKED.md](DOE_LOCKED.md) -- original locked design (for audit trail)
