@@ -23,12 +23,13 @@ from _launcher_base import launch_processing_job, make_job_name
 SCENARIOS = [
     "houston", "new_orleans", "nyc", "riverside_coachella", "southwest_florida"
 ]
-VLMS = ["gpt4o", "gemini", "gemini_pro", "jina", "nova", "qwen"]
+VLMS = ["gpt4o", "gemini_flash", "gemini_pro", "jina", "nova", "qwen"]
 
 # Model overrides for VLM variants. Base VLM ID -> adapter class mapping
 # is in run_vlm_assessment.py. Variants reuse the same adapter with a
 # different model name.
 _MODEL_OVERRIDES = {
+    "gemini_flash": "gemini-3.5-flash",
     "gemini_pro": "gemini-2.5-pro",
 }
 

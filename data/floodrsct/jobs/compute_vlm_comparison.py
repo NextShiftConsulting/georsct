@@ -48,7 +48,16 @@ RESULTS_PREFIX = "results/s035"
 SCENARIOS = [
     "houston", "new_orleans", "nyc", "riverside_coachella", "southwest_florida"
 ]
-VLMS = ["gpt4o", "gemini", "jina", "nova", "qwen"]
+VLMS = ["gpt4o", "gemini_flash", "gemini_pro", "jina", "nova", "qwen"]
+
+# Parquet filenames use vlm_tag (from run_vlm_assessment.py --model override).
+# Base VLMs: r4_{vlm}_{scenario}.parquet
+# Variants:  r4_{vlm}_{model_slug}_{scenario}.parquet
+VLM_TAGS = {
+    "gemini_flash": "gemini_gemini_3_5_flash",
+    "gemini_pro": "gemini_gemini_2_5_pro",
+}
+
 
 
 # ---------------------------------------------------------------------------
@@ -143,7 +152,8 @@ def analyze_scenario(s3, scenario: str) -> Dict[str, Any]:
     available_vlms: list[str] = []
 
     for vlm in VLMS:
-        vlm_key = f"{RESULTS_PREFIX}/r4_{vlm}_{scenario}.parquet"
+        vlm_tag = VLM_TAGS.get(vlm, vlm)
+        vlm_key = f"{RESULTS_PREFIX}/r4_{vlm_tag}_{scenario}.parquet"
         vlm_df = _load_parquet(s3, vlm_key)
         if vlm_df is None:
             log.warning("No %s results for %s", vlm, scenario)
