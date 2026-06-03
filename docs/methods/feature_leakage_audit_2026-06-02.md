@@ -199,18 +199,34 @@ is in the event-level lookup table. Moved to `EVENT_LAG_MAP`.
 
 ---
 
-## P1: Rainfall Data Quality — KNOWN BROKEN
+## P1: Rainfall Data Quality — FIXED
 
-`rainfall_total_mm` is ALL ZEROS for Houston after latest rebuild. Previous builds
-showed all-negative values (min=-1296, max=0) — MRMS decode issue. Either way,
-rainfall features carry no signal. `wlag_rainfall_mm` inherits the zeros.
+### Root cause (two bugs)
 
-**Status**: Other team re-fetching MRMS data. When corrected data lands:
-1. Re-run `build_event_dataset.py` for all 5 scenarios
-2. Validate post-assembly (Layer 2 + Layer 3 now catch missing/broken columns)
-3. Re-run R1 ablations
+1. **Sentinel contamination** (commit f382892): MRMS GRIB2 uses negative sentinels
+   (-3 = no data, -1 = range-folded, -2 = below threshold). The accumulation sum
+   added raw values without masking, producing totals of -1296 mm for Harvey.
+   Fix: `arr = np.where(arr < 0, 0.0, arr)` in `_process_one_grib()`.
 
-Current results are unaffected — zero-valued features contribute nothing to the model.
+2. **Longitude convention mismatch** (commit 4e7308b): MRMS GRIB2 uses 0-360
+   longitude (Houston = 264.6). ZCTA centroids use -180/180 (Houston = -95.4).
+   Nearest-centroid lookup found edge pixels with zero rainfall instead of the
+   correct Houston-area pixels. Fix: convert `lon_2d = np.where(lon > 180, lon - 360, lon)`
+   before spatial join.
+
+After both fixes, the raw MRMS data on S3 produces correct ZCTA-level rainfall:
+- Harvey 2017: max=5834 mm (grid), realistic per-ZCTA values
+- Imelda 2019: max=1316 mm (grid)
+- Beryl 2024: max=901 mm (grid)
+
+### Diagnostic improvements (commit 08281f6)
+
+`_process_one_grib()` now returns structured error strings instead of `None`,
+enabling error aggregation by failure type. Post-decode summary logs n_valid,
+n_errors, and accumulation stats. Post-assignment log confirms ZCTA-level
+min/max/mean.
+
+**Status**: All 5 scenarios rebuilding with both fixes (2026-06-03 16:19).
 
 ---
 
@@ -299,11 +315,14 @@ but must be disclosed as a limitation.
 
 | Item | Status | Owner |
 |---|---|---|
-| MRMS rainfall re-fetch | Blocked (other team) | Other team |
+| MRMS rainfall fix (sentinel + longitude) | **DONE** — f382892 + 4e7308b | — |
+| MRMS rainfall: rebuild all 5 scenarios | **IN PROGRESS** — launched 2026-06-03 16:19 | — |
 | NLCD vintage caveat in paper text | Draft above | Paper author |
 | NFIP temporal gate unit test | **DONE** (8/8 passed) | — |
 | W-matrix validation (all 5 scenarios) | **DONE** — 3 missing `impervious_pct`, code fixed | — |
-| Rebuild 3 scenarios (NO, RC, SWFL) | **READY** — code fixed, needs SageMaker rebuild | — |
-| Rebuild Houston (after MRMS re-fetch) | Blocked (other team) | Other team |
+| Rebuild 3 scenarios (NO, RC, SWFL) for impervious_pct | **DONE** — completed 2026-06-03 | — |
+| `cropland_pct` feature (NLCD classes 81+82) | **DONE** — code complete (61f23ce), needs NLCD Land Cover raster fetch + rebuild | — |
+| NLCD Land Cover raster fetch | **READY** — launcher exists, not yet run | — |
+| Rebuild all 5 scenarios (post-NLCD Land Cover) | Blocked on NLCD fetch | — |
+| Re-run R1 ablations (post-rainfall fix) | Blocked on rebuilds | — |
 | Allocation geometry assessment (P2) | Not started | — |
-| `cropland_pct` feature (NLCD classes 81+82) | Next — after rebuilds | — |
