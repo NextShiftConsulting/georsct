@@ -53,7 +53,7 @@ _LARGE_SCENARIOS = {"houston", "new_orleans", "southwest_florida", "riverside_co
 # Scenarios that sample NLCD .img (Erdas Imagine HFA format).
 # pip-installed rasterio lacks the HFA driver; install libgdal-dev + GDAL
 # python bindings so the osgeo.gdal fallback path in build_event_dataset.py works.
-_NLCD_SCENARIOS = {"houston", "nyc"}
+_NLCD_SCENARIOS = {"houston", "nyc", "new_orleans", "riverside_coachella", "southwest_florida"}
 
 
 def main() -> None:
