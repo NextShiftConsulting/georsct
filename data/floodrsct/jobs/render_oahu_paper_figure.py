@@ -167,27 +167,37 @@ def load_reef_contour(s3):
         raster_path = f.name
 
     try:
+        from pyproj import Transformer
+
         with rasterio.open(raster_path) as src:
             log.info("Reef raster CRS=%s, shape=%s, bounds=%s",
                      src.crs, src.shape, src.bounds)
             data = src.read(1)
             nrows, ncols = data.shape
             t = src.transform
-            xs = t[2] + np.arange(ncols) * t[0]
-            ys = t[5] + np.arange(nrows) * t[4]
+            xs_native = t[2] + np.arange(ncols) * t[0]
+            ys_native = t[5] + np.arange(nrows) * t[4]
 
-            # Crop to Oahu bbox in coordinate space
-            col_mask = (xs >= OAHU_BBOX["lon_min"]) & (xs <= OAHU_BBOX["lon_max"])
-            row_mask = (ys >= OAHU_BBOX["lat_min"]) & (ys <= OAHU_BBOX["lat_max"])
-            if col_mask.sum() < 2 or row_mask.sum() < 2:
-                log.warning("Reef bbox crop too small (%d cols, %d rows); "
-                            "using full extent", col_mask.sum(), row_mask.sum())
-                return data, {"xs": xs, "ys": ys}
-            data = data[np.ix_(row_mask, col_mask)]
-            xs = xs[col_mask]
-            ys = ys[row_mask]
-            log.info("Reef cropped to %s", data.shape)
-            return data, {"xs": xs, "ys": ys}
+            # Reproject grid coordinates from raster CRS to EPSG:4326
+            if src.crs and str(src.crs) != "EPSG:4326":
+                transformer = Transformer.from_crs(src.crs, "EPSG:4326", always_xy=True)
+                xx, yy = np.meshgrid(xs_native, ys_native)
+                lons, lats = transformer.transform(xx, yy)
+                log.info("Reprojected to lat/lon: lon=[%.2f, %.2f], lat=[%.2f, %.2f]",
+                         lons.min(), lons.max(), lats.min(), lats.max())
+                return data, {"lons": lons, "lats": lats, "meshgrid": True}
+            else:
+                xs = xs_native
+                ys = ys_native
+                # Crop to Oahu bbox
+                col_mask = (xs >= OAHU_BBOX["lon_min"]) & (xs <= OAHU_BBOX["lon_max"])
+                row_mask = (ys >= OAHU_BBOX["lat_min"]) & (ys <= OAHU_BBOX["lat_max"])
+                if col_mask.sum() >= 2 and row_mask.sum() >= 2:
+                    data = data[np.ix_(row_mask, col_mask)]
+                    xs = xs[col_mask]
+                    ys = ys[row_mask]
+                log.info("Reef shape after crop: %s", data.shape)
+                return data, {"xs": xs, "ys": ys, "meshgrid": False}
     except Exception as exc:
         log.warning("Failed to read reef raster: %s", exc)
         return None
@@ -309,14 +319,24 @@ def render_figure(
     if reef_data is not None:
         data, meta = reef_data
         try:
-            ax_map.contour(
-                meta["xs"], meta["ys"], data,
-                levels=[0.01],
-                colors=[CYAN],
-                linewidths=1.2,
-                linestyles="solid",
-                alpha=0.8,
-            )
+            if meta.get("meshgrid"):
+                ax_map.contour(
+                    meta["lons"], meta["lats"], data,
+                    levels=[0.01],
+                    colors=[CYAN],
+                    linewidths=1.2,
+                    linestyles="solid",
+                    alpha=0.8,
+                )
+            else:
+                ax_map.contour(
+                    meta["xs"], meta["ys"], data,
+                    levels=[0.01],
+                    colors=[CYAN],
+                    linewidths=1.2,
+                    linestyles="solid",
+                    alpha=0.8,
+                )
         except Exception as exc:
             log.warning("Contour failed: %s", exc)
 
