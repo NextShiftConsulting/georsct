@@ -157,8 +157,8 @@ def buildings_to_geojson(df: pd.DataFrame, sample_n: int = 5000) -> str:
         df["_q"] = pd.qcut(df["FloodDepth"].clip(lower=0), q=10, labels=False, duplicates="drop")
         sampled = df.groupby("_q", group_keys=False).apply(
             lambda g: g.sample(min(len(g), sample_n // 10), random_state=42)
-        )
-        df = sampled.drop(columns=["_q"])
+        ).reset_index(drop=True)
+        df = sampled.drop(columns=["_q"], errors="ignore")
         log.info("Sampled %d buildings (stratified by flood depth)", len(df))
 
     features = []
