@@ -228,10 +228,13 @@ EXPECTED_RAW_COLUMNS = {
 # Scenario events and output keys are sourced from the scenario registry
 # (db/schema/006_scenario_pipeline.sql) via get_registry().
 # Falls back to _coverage_common on SageMaker where db/ is not available.
-if get_registry is not None:
-    _REG = get_registry()
-    SCENARIO_EVENTS = _REG.event_map()
-else:
+try:
+    if get_registry is not None:
+        _REG = get_registry()
+        SCENARIO_EVENTS = _REG.event_map()
+    else:
+        raise ImportError("get_registry not available")
+except Exception:
     from _coverage_common import SCENARIOS as _SCENARIOS
     SCENARIO_EVENTS = {s: [] for s in _SCENARIOS}
 
@@ -523,9 +526,9 @@ def validate_layer2(
 # Layer 3: Data Lock Validation (standalone reconciliation)
 # ---------------------------------------------------------------------------
 
-if get_registry is not None:
-    OUTPUT_KEYS = _REG.output_keys()
-else:
+try:
+    OUTPUT_KEYS = _REG.output_keys()  # type: ignore[name-defined]
+except NameError:
     from _coverage_common import OUTPUT_KEYS
 
 
