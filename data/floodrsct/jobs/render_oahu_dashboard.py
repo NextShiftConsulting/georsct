@@ -120,6 +120,8 @@ def load_zcta_boundaries(tmp: str) -> "gpd.GeoDataFrame":
 
 def zcta_to_geojson(gdf: "gpd.GeoDataFrame", residuals: pd.DataFrame) -> str:
     """Merge residuals into ZCTA boundaries and export GeoJSON."""
+    residuals = residuals.copy()
+    residuals["zcta"] = residuals["zcta"].astype(str)
     merged = gdf.merge(
         residuals,
         left_on="ZCTA5CE20",
