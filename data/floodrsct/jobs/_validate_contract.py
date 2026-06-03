@@ -46,7 +46,11 @@ log = logging.getLogger(__name__)
 logging.getLogger("botocore.credentials").setLevel(logging.WARNING)
 
 BUCKET = "swarm-floodrsct-data"
-CONTRACT_PATH = Path(__file__).parent.parent / "FEATURE_CONTRACT.yaml"
+# Local: contract is one level above jobs/. SageMaker: contract uploaded
+# alongside job scripts in /opt/ml/processing/input/code/.
+_CONTRACT_PARENT = Path(__file__).parent.parent / "FEATURE_CONTRACT.yaml"
+_CONTRACT_SIBLING = Path(__file__).parent / "FEATURE_CONTRACT.yaml"
+CONTRACT_PATH = _CONTRACT_SIBLING if _CONTRACT_SIBLING.exists() else _CONTRACT_PARENT
 
 
 # ---------------------------------------------------------------------------

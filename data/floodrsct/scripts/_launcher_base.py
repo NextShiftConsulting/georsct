@@ -109,6 +109,12 @@ def upload_code(job_name: str, job_script: str, extra_files: list[str] | None = 
     for cfg in CONFIGS_DIR.glob("*.yaml"):
         files_to_upload.append(cfg)
 
+    # FEATURE_CONTRACT.yaml lives one level above jobs/ — include it so
+    # _validate_contract.py can find it on SageMaker.
+    contract = SERIES_DIR / "FEATURE_CONTRACT.yaml"
+    if contract.exists():
+        files_to_upload.append(contract)
+
     prefix = f"code/s035/{job_name}/src"
     for fp in files_to_upload:
         key = f"{prefix}/{fp.name}"
