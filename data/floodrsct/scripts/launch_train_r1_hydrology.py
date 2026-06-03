@@ -46,7 +46,9 @@ def main() -> None:
     )
 
     job_args = ["--scenario", args.scenario, "--ablation", args.ablation, "--upload"]
-    phase_id = "r1_hydrology" if args.ablation == "full" else f"r1_{args.ablation.replace('-', '_')}"
+    # Ablation variants are sub-runs of r1_hydrology; preflight uses the
+    # parent phase_id so the experiment contract recognizes it.
+    phase_id = "r1_hydrology"
 
     launch_processing_job(
         job_name=job_name,
