@@ -89,6 +89,9 @@ R0_FEATURES = [
     "hifld_nearest_hospital_km",
     "hifld_n_hospitals",
     "population",
+    # Land cover (NLCD 2021)
+    "impervious_pct",
+    "cropland_pct",
 ]
 
 # ---------------------------------------------------------------------------

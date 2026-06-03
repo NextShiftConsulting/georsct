@@ -69,6 +69,7 @@ R0_FEATURES = [
     "svi_minority_language", "svi_housing_transport",
     "nfip_historical_frequency", "nfip_historical_severity",
     "hifld_nearest_hospital_km", "hifld_n_hospitals", "population",
+    "impervious_pct", "cropland_pct",
 ]
 
 

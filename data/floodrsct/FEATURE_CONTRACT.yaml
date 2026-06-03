@@ -499,6 +499,24 @@ features:
       Fetch: fetch_nlcd_impervious.py writes raw GeoTIFFs.
       Derive: build_impervious_features() does ZCTA zonal statistics in build_event_dataset.py.
 
+  - feature_name: cropland_pct
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: derived
+    source_dataset: nlcd_land_cover
+    raw_s3_path: raw/nlcd/land_cover_2021/
+    processed_s3_path: processed/shared/zcta_cropland_pct.parquet
+    build_function: build_cropland_features
+    output_column: cropland_pct
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.006
+    notes: >
+      NLCD 2021 30m land cover raster, classes 81 (Pasture/Hay) + 82 (Cultivated Crops).
+      Percentage of valid pixels within 500m of ZCTA centroid classified as cropland.
+      Fetch: fetch_nlcd_land_cover.py. Derive: build_cropland_features() in build_event_dataset.py.
+      Cache: processed/shared/zcta_cropland_pct.parquet (compute once, share across scenarios).
+
   # ─── DEM Elevation ────────────────────────────────────────────────────────
 
   - feature_name: elevation_m_msl
@@ -1295,6 +1313,23 @@ features:
     notes: >
       Row-standardized spatial lag of impervious_pct.
       Neighborhood runoff potential — key for ambient/pluvial flood types.
+      Safe as model input — slow_drift.
+
+  - feature_name: wlag_cropland_pct
+    temporal_class: slow_drift
+    scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
+    source_type: derived
+    source_dataset: geocertdb2026 + zcta_adjacency
+    raw_s3_path: raw/geocertdb2026/zcta_adjacency.parquet
+    processed_s3_path: (embedded in {scenario}_event_features.parquet)
+    build_function: build_event_dataset.compute_w_matrix_features
+    output_column: wlag_cropland_pct
+    missing_behavior: "NaN — isolated ZCTA or missing source"
+    version_target: v24.006
+    notes: >
+      Row-standardized spatial lag of cropland_pct (NLCD 2021 classes 81+82).
+      Neighborhood agricultural land use — ZCTAs surrounded by cropland may have
+      different drainage, soil saturation, and flood response patterns.
       Safe as model input — slow_drift.
 
   - feature_name: wlag_rainfall_mm

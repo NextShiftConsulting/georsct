@@ -306,6 +306,7 @@ def compute_w_matrix_features(
     # Spatial lag source columns (event -- from assembled event base)
     EVENT_LAG_MAP = {
         "wlag_impervious_pct": "impervious_pct",
+        "wlag_cropland_pct": "cropland_pct",
         "wlag_rainfall_mm": "rainfall_total_mm",
         "wlag_nfip_claims": "nfip_event_claim_count",
     }
@@ -952,6 +953,7 @@ def build_houston(s3, cfg: dict) -> pd.DataFrame:
 
     # Feature contract derived fields (computed once, shared across events)
     impervious = build_impervious_features(s3, harris_zctas)
+    cropland   = build_cropland_features(s3, harris_zctas)
     catchments = build_catchment_features(s3, harris_zctas, vpu="12")
     levees     = build_levee_features(s3, harris_zctas, "houston")
     elevation  = build_elevation_features(s3, harris_zctas, "houston")
@@ -976,7 +978,8 @@ def build_houston(s3, cfg: dict) -> pd.DataFrame:
         base = pd.DataFrame({"zcta_id": harris_zctas, "event": event_name,
                               "scenario": "houston"})
         base = _safe_merge_parts(base, [nwis, mrms, hwm, tides, s311, nfip, storm,
-                                        impervious, catchments, levees, elevation, drainage_op])
+                                        impervious, cropland, catchments, levees,
+                                        elevation, drainage_op])
         if not static.empty:
             base = _safe_merge_parts(base, [static])
         w_feats = compute_w_matrix_features(s3, harris_zctas, static, base)
@@ -1002,6 +1005,7 @@ def build_new_orleans(s3, cfg: dict) -> pd.DataFrame:
 
     # Feature contract derived fields
     impervious   = build_impervious_features(s3, no_zctas)
+    cropland     = build_cropland_features(s3, no_zctas)
     levee_feats  = build_levee_features(s3, no_zctas, "new_orleans")
     elevation    = build_elevation_features(s3, no_zctas, "new_orleans")
     coastal_dist = build_coastal_distance_features(s3, no_zctas)
@@ -1044,8 +1048,8 @@ def build_new_orleans(s3, cfg: dict) -> pd.DataFrame:
         base = pd.DataFrame({"zcta_id": no_zctas, "event": event_name,
                               "scenario": "new_orleans"})
         base = _safe_merge_parts(base, [nwis, mrms, tides, hwm, nfip, storm,
-                                        slosh, impervious, levee_feats, elevation,
-                                        coastal_dist, pump_op])
+                                        slosh, impervious, cropland, levee_feats,
+                                        elevation, coastal_dist, pump_op])
         if not static.empty:
             base = _safe_merge_parts(base, [static])
         # Attach pump evidence for Ida 2021 (hand-coded override for pump_station_status)
@@ -1081,6 +1085,7 @@ def build_nyc(s3, cfg: dict) -> pd.DataFrame:
 
     # Feature contract derived fields
     impervious   = build_impervious_features(s3, nyc_zctas)
+    cropland     = build_cropland_features(s3, nyc_zctas)
     elevation    = build_elevation_features(s3, nyc_zctas, "nyc")
     sewer_feats  = build_sewershed_features(s3, nyc_zctas)
     subway_feats = build_subway_features(s3, nyc_zctas)
@@ -1110,7 +1115,8 @@ def build_nyc(s3, cfg: dict) -> pd.DataFrame:
         base = pd.DataFrame({"zcta_id": nyc_zctas, "event": event_name,
                               "scenario": "nyc"})
         base = _safe_merge_parts(base, [nwis, mrms, tides, hwm, s311, nfip, storm,
-                                        impervious, elevation, sewer_feats, subway_feats])
+                                        impervious, cropland, elevation,
+                                        sewer_feats, subway_feats])
         if not static.empty:
             base = _safe_merge_parts(base, [static])
         # Subway flooding evidence (hand-coded Ida 2021 overlay)
@@ -1139,6 +1145,7 @@ def build_riverside_coachella(s3, cfg: dict) -> pd.DataFrame:
 
     # Feature contract derived fields
     impervious  = build_impervious_features(s3, rc_zctas)
+    cropland    = build_cropland_features(s3, rc_zctas)
     burn_scars  = build_burn_scar_features(s3, rc_zctas)
     catchments  = build_catchment_features(s3, rc_zctas, vpu="18")
     elevation   = build_elevation_features(s3, rc_zctas, "riverside_coachella")
@@ -1170,8 +1177,8 @@ def build_riverside_coachella(s3, cfg: dict) -> pd.DataFrame:
         base = pd.DataFrame({"zcta_id": rc_zctas, "event": event_name,
                               "scenario": "riverside_coachella"})
         base = _safe_merge_parts(base, [nwis, mrms, hwm, nfip, storm,
-                                        impervious, burn_scars, catchments, elevation,
-                                        road_op])
+                                        impervious, cropland, burn_scars,
+                                        catchments, elevation, road_op])
         if not static.empty:
             base = _safe_merge_parts(base, [static])
         w_feats = compute_w_matrix_features(s3, rc_zctas, static, base)
@@ -1195,6 +1202,7 @@ def build_southwest_florida(s3, cfg: dict) -> pd.DataFrame:
 
     # Feature contract derived fields
     impervious      = build_impervious_features(s3, swfl_zctas)
+    cropland        = build_cropland_features(s3, swfl_zctas)
     elevation       = build_elevation_features(s3, swfl_zctas, "southwest_florida")
     coastal_dist    = build_coastal_distance_features(s3, swfl_zctas)
     levee_feats     = build_levee_features(s3, swfl_zctas, "southwest_florida")
@@ -1230,8 +1238,8 @@ def build_southwest_florida(s3, cfg: dict) -> pd.DataFrame:
         base = pd.DataFrame({"zcta_id": swfl_zctas, "event": event_name,
                               "scenario": "southwest_florida"})
         base = _safe_merge_parts(base, [nwis, mrms, tides, hwm, nfip, storm,
-                                        slosh, impervious, elevation, coastal_dist,
-                                        levee_feats, evac_op])
+                                        slosh, impervious, cropland, elevation,
+                                        coastal_dist, levee_feats, evac_op])
         if not static.empty:
             base = _safe_merge_parts(base, [static])
         w_feats = compute_w_matrix_features(s3, swfl_zctas, static, base)
@@ -1530,6 +1538,186 @@ def build_impervious_features(s3, zcta_ids: list[str]) -> pd.DataFrame:
     out["_fs_impervious_pct"] = np.where(out["impervious_pct"].notna(), "present", _FS_MISSING)
     log.info("build_impervious_features: %d ZCTAs, %.1f%% with data",
              len(out), (out["impervious_pct"].notna().mean() * 100))
+    return out
+
+
+_CROPLAND_CACHE_KEY = "processed/shared/zcta_cropland_pct.parquet"
+
+# NLCD 2021 land cover classes for cropland
+_CROPLAND_CLASSES = frozenset({81, 82})  # 81=Pasture/Hay, 82=Cultivated Crops
+
+
+def build_cropland_features(s3, zcta_ids: list[str]) -> pd.DataFrame:
+    """Derive cropland_pct per ZCTA from NLCD 2021 Land Cover raster.
+
+    Categorical raster: each 30m pixel is one of 16 land cover classes.
+    cropland_pct = percentage of valid pixels within 500m of ZCTA centroid
+    that are class 81 (Pasture/Hay) or 82 (Cultivated Crops).
+
+    Cache-first: checks for pre-computed parquet at
+    s3://{BUCKET}/{_CROPLAND_CACHE_KEY} before raster extraction.
+
+    Returns DataFrame with columns: zcta_id, cropland_pct, _fs_cropland_pct.
+    """
+    empty = pd.DataFrame({"zcta_id": zcta_ids, "cropland_pct": np.nan,
+                          "_fs_cropland_pct": _FS_MISSING})
+
+    # --- Cache lookup ---
+    try:
+        cached = s3_read(s3, _CROPLAND_CACHE_KEY)
+        if cached is not None and "zcta_id" in cached.columns:
+            cached["zcta_id"] = cached["zcta_id"].astype(str)
+            out = pd.DataFrame({"zcta_id": zcta_ids}).merge(
+                cached[["zcta_id", "cropland_pct"]], on="zcta_id", how="left",
+            )
+            hit_rate = out["cropland_pct"].notna().mean() * 100
+            if hit_rate > 50:
+                out["_fs_cropland_pct"] = np.where(
+                    out["cropland_pct"].notna(), "present", _FS_MISSING,
+                )
+                log.info(
+                    "build_cropland_features: cache hit (%s), "
+                    "%d/%d ZCTAs matched (%.0f%%)",
+                    _CROPLAND_CACHE_KEY, out["cropland_pct"].notna().sum(),
+                    len(zcta_ids), hit_rate,
+                )
+                return out
+    except Exception as e:
+        log.info("build_cropland_features: no cache (%s), will extract from raster", e)
+
+    if not HAS_GEO:
+        log.warning("build_cropland_features: geopandas/rasterio not available; returning NaN")
+        return empty
+
+    try:
+        import rasterio
+        from rasterio.mask import mask as rio_mask
+        from shapely.geometry import mapping, box
+    except ImportError:
+        log.warning("build_cropland_features: rasterio not available; returning NaN")
+        return empty
+
+    # Find NLCD land cover raster: prefer .tif over .img
+    nlcd_key = None
+    _nlcd_img_fallback = None
+    for prefix in ["raw/nlcd/land_cover_2021/", "raw/nlcd/landcover/v2021/"]:
+        all_objs = _list_s3_keys(s3, prefix)
+        for o in all_objs:
+            k = o["Key"]
+            if k.endswith((".tif", ".tiff")):
+                nlcd_key = k
+                break
+            elif k.endswith(".img") and _nlcd_img_fallback is None:
+                _nlcd_img_fallback = k
+        if nlcd_key:
+            break
+    if not nlcd_key:
+        nlcd_key = _nlcd_img_fallback
+    if not nlcd_key:
+        log.warning("build_cropland_features: no NLCD land cover raster found in S3; returning NaN")
+        return empty
+
+    log.info("build_cropland_features: using %s", nlcd_key)
+
+    # Load ZCTA centroids
+    static_key = "raw/geocertdb2026/zcta_features_labels.parquet"
+    static = s3_read(s3, static_key)
+    if static is None:
+        return empty
+    zcta_col = next((c for c in static.columns if "zcta" in c.lower()), None)
+    lat_col = next((c for c in static.columns if "lat" in c.lower()), None)
+    lon_col = next((c for c in static.columns if "lon" in c.lower() or "lng" in c.lower()), None)
+    if not all([zcta_col, lat_col, lon_col]):
+        log.warning("build_cropland_features: missing zcta/lat/lon in geocertdb2026; returning NaN")
+        return empty
+
+    static = static[[zcta_col, lat_col, lon_col]].rename(
+        columns={zcta_col: "zcta_id", lat_col: "lat", lon_col: "lon"}
+    )
+    centroids = static[static["zcta_id"].isin(zcta_ids)].dropna(subset=["lat", "lon"])
+
+    # Download raster to /tmp
+    local_raster = f"/tmp/nlcd_lc_{Path(nlcd_key).stem}{Path(nlcd_key).suffix}"
+    log.info("build_cropland_features: downloading %s", nlcd_key)
+    s3.download_file(BUCKET, nlcd_key, local_raster)
+
+    # Convert .img -> .tif if needed
+    if local_raster.endswith(".img"):
+        import subprocess as _sp
+        tif_path = local_raster.replace(".img", ".tif")
+        log.info("build_cropland_features: converting .img -> .tif via gdal_translate")
+        result = _sp.run(
+            ["gdal_translate", "-of", "GTiff", "-co", "COMPRESS=LZW",
+             local_raster, tif_path],
+            capture_output=True, text=True, timeout=1800,
+        )
+        if result.returncode == 0 and Path(tif_path).exists():
+            Path(local_raster).unlink(missing_ok=True)
+            local_raster = tif_path
+        else:
+            log.error("build_cropland_features: gdal_translate failed: %s",
+                      result.stderr[:500])
+            return empty
+
+    # Extract cropland percentage per ZCTA centroid (500m buffer)
+    results = []
+    with rasterio.open(local_raster) as src:
+        nodata = src.nodata if src.nodata is not None else 0
+        raster_crs = src.crs
+        from pyproj import Transformer
+        transformer = Transformer.from_crs("EPSG:4326", raster_crs, always_xy=True)
+        is_projected = raster_crs.is_projected
+        for _, row in centroids.iterrows():
+            x, y = transformer.transform(row["lon"], row["lat"])
+            delta = 500 if is_projected else 0.005
+            geom = [mapping(box(x - delta, y - delta, x + delta, y + delta))]
+            try:
+                masked, _ = rio_mask(src, geom, crop=True, nodata=nodata)
+                vals = masked[0].flatten()
+                # Exclude nodata and unclassified (0)
+                valid = vals[(vals != nodata) & (vals > 0)]
+                if len(valid) > 0:
+                    crop_count = np.isin(valid, list(_CROPLAND_CLASSES)).sum()
+                    crop_pct = float(crop_count / len(valid) * 100)
+                else:
+                    crop_pct = np.nan
+            except Exception:
+                crop_pct = np.nan
+            results.append({"zcta_id": row["zcta_id"], "cropland_pct": crop_pct})
+
+    # Cleanup local file
+    try:
+        Path(local_raster).unlink()
+    except OSError:
+        pass
+
+    if not results:
+        return empty
+
+    extracted = pd.DataFrame(results).groupby("zcta_id", as_index=False)["cropland_pct"].mean()
+
+    # --- Cache write ---
+    try:
+        existing = s3_read(s3, _CROPLAND_CACHE_KEY)
+        if existing is not None and "zcta_id" in existing.columns:
+            existing["zcta_id"] = existing["zcta_id"].astype(str)
+            combined = pd.concat([existing, extracted], ignore_index=True)
+            combined = combined.drop_duplicates(subset="zcta_id", keep="last")
+        else:
+            combined = extracted
+        buf = BytesIO()
+        combined.to_parquet(buf, index=False)
+        buf.seek(0)
+        s3.put_object(Bucket=BUCKET, Key=_CROPLAND_CACHE_KEY, Body=buf.getvalue())
+        log.info("build_cropland_features: cached %d ZCTAs to %s",
+                 len(combined), _CROPLAND_CACHE_KEY)
+    except Exception as e:
+        log.warning("build_cropland_features: cache write failed: %s", e)
+
+    out = pd.DataFrame({"zcta_id": zcta_ids}).merge(extracted, on="zcta_id", how="left")
+    out["_fs_cropland_pct"] = np.where(out["cropland_pct"].notna(), "present", _FS_MISSING)
+    log.info("build_cropland_features: %d ZCTAs, %.1f%% with data",
+             len(out), (out["cropland_pct"].notna().mean() * 100))
     return out
 
 

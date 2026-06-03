@@ -98,6 +98,9 @@ R0_FEATURES = [
     "hifld_nearest_hospital_km",
     "hifld_n_hospitals",
     "population",
+    # Land cover (NLCD 2021)
+    "impervious_pct",
+    "cropland_pct",
 ]
 
 # ---------------------------------------------------------------------------
@@ -149,6 +152,7 @@ R1_WMATRIX = [
     "wlag_population_density",
     "wlag_median_income",
     "wlag_impervious_pct",
+    "wlag_cropland_pct",
     "wlag_rainfall_mm",
     "wlag_nfip_claims",       # TARGET LAG — highest leakage risk, see DOE
 ]

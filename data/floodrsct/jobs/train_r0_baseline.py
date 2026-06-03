@@ -103,6 +103,9 @@ R0_FEATURES = [
     "hifld_nearest_hospital_km",
     "hifld_n_hospitals",
     "population",
+    # Land cover (NLCD 2021)
+    "impervious_pct",
+    "cropland_pct",
     # NOTE: storm_min_dist_km and storm_landfall_category moved to R2
     # (event-level features, not static). See DOE_R2_temporal.md.
 ]
