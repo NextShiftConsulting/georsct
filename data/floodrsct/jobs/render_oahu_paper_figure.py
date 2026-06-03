@@ -157,7 +157,6 @@ def load_hawaii_boundaries(s3):
 def load_reef_contour(s3):
     try:
         import rasterio
-        from rasterio.windows import from_bounds
     except ImportError:
         log.warning("rasterio not available; skipping reef contour")
         return None
@@ -169,16 +168,25 @@ def load_reef_contour(s3):
 
     try:
         with rasterio.open(raster_path) as src:
-            window = from_bounds(
-                OAHU_BBOX["lon_min"], OAHU_BBOX["lat_min"],
-                OAHU_BBOX["lon_max"], OAHU_BBOX["lat_max"],
-                transform=src.transform,
-            )
-            data = src.read(1, window=window)
-            win_transform = src.window_transform(window)
+            log.info("Reef raster CRS=%s, shape=%s, bounds=%s",
+                     src.crs, src.shape, src.bounds)
+            data = src.read(1)
             nrows, ncols = data.shape
-            xs = win_transform[2] + np.arange(ncols) * win_transform[0]
-            ys = win_transform[5] + np.arange(nrows) * win_transform[4]
+            t = src.transform
+            xs = t[2] + np.arange(ncols) * t[0]
+            ys = t[5] + np.arange(nrows) * t[4]
+
+            # Crop to Oahu bbox in coordinate space
+            col_mask = (xs >= OAHU_BBOX["lon_min"]) & (xs <= OAHU_BBOX["lon_max"])
+            row_mask = (ys >= OAHU_BBOX["lat_min"]) & (ys <= OAHU_BBOX["lat_max"])
+            if col_mask.sum() < 2 or row_mask.sum() < 2:
+                log.warning("Reef bbox crop too small (%d cols, %d rows); "
+                            "using full extent", col_mask.sum(), row_mask.sum())
+                return data, {"xs": xs, "ys": ys}
+            data = data[np.ix_(row_mask, col_mask)]
+            xs = xs[col_mask]
+            ys = ys[row_mask]
+            log.info("Reef cropped to %s", data.shape)
             return data, {"xs": xs, "ys": ys}
     except Exception as exc:
         log.warning("Failed to read reef raster: %s", exc)
