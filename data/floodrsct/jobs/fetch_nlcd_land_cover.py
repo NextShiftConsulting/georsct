@@ -131,20 +131,20 @@ def main() -> None:
     downloaded = False
     for url in SCIENCEBASE_URLS:
         log.info("Trying wget: %s", url[:120])
-        # wget handles slow/unreliable connections far better than Python requests.
-        # --tries=3 --read-timeout=120 fails fast on stalls, retries on transient errors.
-        result = subprocess.run(
-            ["wget", "-q", "--show-progress", "--progress=dot:mega",
+        sys.stdout.flush()
+        # Let wget output flow directly to stdout/stderr (visible in CloudWatch).
+        # --progress=dot:mega prints one dot per MB, one line per 10 MB.
+        rc = subprocess.call(
+            ["wget", "--progress=dot:mega",
              "--tries=3", "--read-timeout=120", "--connect-timeout=30",
              "-O", zip_path, url],
-            capture_output=True, text=True, timeout=3600,
+            timeout=3600,
         )
-        if result.returncode == 0 and Path(zip_path).exists() and Path(zip_path).stat().st_size > 1e6:
+        if rc == 0 and Path(zip_path).exists() and Path(zip_path).stat().st_size > 1e6:
             downloaded = True
-            log.info("wget succeeded: %s", result.stderr.strip().split("\n")[-1][:200] if result.stderr else "OK")
+            log.info("wget succeeded: %.1f MB", Path(zip_path).stat().st_size / 1e6)
             break
-        log.warning("wget failed (rc=%d): %s", result.returncode,
-                    result.stderr.strip()[-300:] if result.stderr else "no stderr")
+        log.warning("wget failed (rc=%d)", rc)
         if Path(zip_path).exists():
             os.unlink(zip_path)
 
