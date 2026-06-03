@@ -24,7 +24,9 @@ import argparse
 import io
 import json
 import logging
+import os
 import sys
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -115,7 +117,6 @@ def render_one_zcta(
     event_df: pd.DataFrame,
     scenario: str,
     out_dir: Path,
-    s3,
     upload: bool,
 ) -> bool:
     """Render and save a single ZCTA map. Returns True on success."""
@@ -166,13 +167,14 @@ def render_one_zcta(
     local_path = out_dir / f"{zcta_id}.png"
     save_figure_png_only(fig, local_path, dpi=300, close=False)
 
-    # Upload to S3
+    # Upload to S3 (create client per-worker; boto3 clients aren't picklable)
     if upload:
         buf = io.BytesIO()
         fig.savefig(buf, format="png", dpi=300, bbox_inches="tight")
         buf.seek(0)
         s3_key = f"{RESULTS_PREFIX}/maps/{scenario}/{zcta_id}.png"
-        s3.put_object(
+        worker_s3 = get_s3_client()
+        worker_s3.put_object(
             Bucket=BUCKET, Key=s3_key,
             Body=buf.getvalue(), ContentType="image/png",
         )
@@ -228,18 +230,29 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
 
     zcta_ids = list(event_df.index)
-    log.info("Rendering %d ZCTA maps for %s", len(zcta_ids), scenario)
+    workers = max(1, min(os.cpu_count() or 4, 8))
+    log.info("Rendering %d ZCTA maps for %s (%d workers)", len(zcta_ids), scenario, workers)
 
     success = 0
-    for i, zcta_id in enumerate(zcta_ids):
-        ok = render_one_zcta(
-            zcta_id, boundaries, adj_dict, event_df,
-            scenario, out_dir, s3, args.upload,
-        )
-        if ok:
-            success += 1
-        if (i + 1) % 25 == 0:
-            log.info("  rendered %d / %d", i + 1, len(zcta_ids))
+    completed = 0
+    with ProcessPoolExecutor(max_workers=workers) as executor:
+        futures = {
+            executor.submit(
+                render_one_zcta,
+                zcta_id, boundaries, adj_dict, event_df,
+                scenario, out_dir, args.upload,
+            ): zcta_id
+            for zcta_id in zcta_ids
+        }
+        for future in as_completed(futures):
+            completed += 1
+            try:
+                if future.result():
+                    success += 1
+            except Exception as exc:
+                log.error("Map render failed for %s: %s", futures[future], exc)
+            if completed % 25 == 0 or completed == len(zcta_ids):
+                log.info("  rendered %d / %d", completed, len(zcta_ids))
 
     log.info("Rendered %d / %d maps to %s", success, len(zcta_ids), out_dir)
 

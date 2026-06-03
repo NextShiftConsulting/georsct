@@ -24,7 +24,9 @@ import argparse
 import io
 import json
 import logging
+import os
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -175,25 +177,43 @@ def main():
     out_dir = Path(__file__).parent.parent / "exp" / "s035-model-ladder" / "evidence" / scenario
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    zcta_ids = []
+    # Pre-build all evidence texts (fast, CPU-bound)
+    evidence_items = []
     for _, row in merged.iterrows():
         zcta_id = str(row["zcta_id"])
         text = build_text(row)
+        evidence_items.append((zcta_id, text))
 
-        # Write local
+    def _write_one(zcta_id: str, text: str) -> str:
+        """Write evidence locally and upload to S3. Returns zcta_id."""
         local_path = out_dir / f"{zcta_id}.txt"
         with open(local_path, "w") as f:
             f.write(text)
-
-        # Upload to S3
         if args.upload:
             s3_key = f"{RESULTS_PREFIX}/evidence/{scenario}/{zcta_id}.txt"
             s3.put_object(
                 Bucket=BUCKET, Key=s3_key,
                 Body=text.encode(), ContentType="text/plain",
             )
+        return zcta_id
 
-        zcta_ids.append(zcta_id)
+    workers = max(1, min(os.cpu_count() or 4, 8))
+    zcta_ids = []
+    completed = 0
+    total = len(evidence_items)
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {
+            executor.submit(_write_one, zid, txt): zid
+            for zid, txt in evidence_items
+        }
+        for future in as_completed(futures):
+            try:
+                zcta_ids.append(future.result())
+            except Exception as exc:
+                log.error("Evidence write failed for %s: %s", futures[future], exc)
+            completed += 1
+            if completed % 50 == 0 or completed == total:
+                log.info("  evidence %d / %d", completed, total)
 
     log.info("Wrote %d evidence files to %s", len(zcta_ids), out_dir)
 
