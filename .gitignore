@@ -50,6 +50,8 @@ htmlcov/
 
 .DS_Store
 Thumbs.db
+.Rhistory
+*.lnk
 
 # MAST dataset clone (2GB, reproduce via: git clone https://github.com/multi-agent-systems-failure-taxonomy/MAST)
 exp/s035_mast_reconcile/mast_repo/
