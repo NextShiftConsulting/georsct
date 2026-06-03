@@ -23,7 +23,14 @@ from _launcher_base import launch_processing_job, make_job_name
 SCENARIOS = [
     "houston", "new_orleans", "nyc", "riverside_coachella", "southwest_florida"
 ]
-VLMS = ["gpt4o", "gemini", "jina", "nova", "qwen"]
+VLMS = ["gpt4o", "gemini", "gemini_pro", "jina", "nova", "qwen"]
+
+# Model overrides for VLM variants. Base VLM ID -> adapter class mapping
+# is in run_vlm_assessment.py. Variants reuse the same adapter with a
+# different model name.
+_MODEL_OVERRIDES = {
+    "gemini_pro": "gemini-2.5-pro",
+}
 
 # pip deps per VLM -- union installed for simplicity
 # gpt4o/jina/qwen: openai (OpenAI-compatible endpoints)
@@ -65,16 +72,25 @@ def main() -> None:
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
+    vlm = args.vlm
+    # Variants like gemini_pro map to base VLM + model override
+    base_vlm = vlm.split("_")[0] if vlm in _MODEL_OVERRIDES else vlm
+    model_override = _MODEL_OVERRIDES.get(vlm)
+
     job_name = make_job_name(
-        f"vlm-{args.vlm}-{args.scenario.replace('_', '-')}"
+        f"vlm-{vlm.replace('_', '-')}-{args.scenario.replace('_', '-')}"
     )
 
-    env = _fetch_vlm_env(args.vlm) if not args.dry_run else {}
+    env = _fetch_vlm_env(base_vlm) if not args.dry_run else {}
+
+    job_args = ["--scenario", args.scenario, "--vlm", base_vlm, "--upload"]
+    if model_override:
+        job_args += ["--model", model_override]
 
     launch_processing_job(
         job_name=job_name,
         job_script="run_vlm_assessment.py",
-        job_args=["--scenario", args.scenario, "--vlm", args.vlm, "--upload"],
+        job_args=job_args,
         instance_type="ml.m5.large",
         volume_size_gb=10,
         pip_packages=VLM_PIP,

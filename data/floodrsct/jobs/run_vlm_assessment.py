@@ -208,12 +208,19 @@ def main():
     parser = argparse.ArgumentParser(description="Phase R4.3: VLM assessment")
     parser.add_argument("--scenario", required=True, choices=SCENARIOS)
     parser.add_argument("--vlm", required=True, choices=VLMS)
+    parser.add_argument("--model", default=None, help="Override VLM model name")
     parser.add_argument("--upload", action="store_true", help="Upload to S3")
     parser.add_argument("--dry-run", action="store_true", help="Print plan only")
     args = parser.parse_args()
 
     scenario = args.scenario
     vlm_id = args.vlm
+    # Tag for output filenames: vlm_id or vlm_id_modelslug when overridden
+    if args.model:
+        model_slug = args.model.replace("/", "_").replace(".", "_").replace("-", "_")
+        vlm_tag = f"{vlm_id}_{model_slug}"
+    else:
+        vlm_tag = vlm_id
 
     if args.dry_run:
         log.info("DRY RUN: would assess ZCTAs for %s with %s", scenario, vlm_id)
@@ -253,7 +260,11 @@ def main():
         return 1
 
     # Create adapter once
-    adapter = VLM_ADAPTERS[vlm_id](use_rsct_prompt=False)
+    adapter_kwargs = {"use_rsct_prompt": False}
+    if args.model:
+        adapter_kwargs["model"] = args.model
+        log.info("Model override: %s", args.model)
+    adapter = VLM_ADAPTERS[vlm_id](**adapter_kwargs)
     rate_limit = RATE_LIMITS[vlm_id]
 
     records = []
@@ -281,7 +292,7 @@ def main():
     df = pd.DataFrame(records)
 
     # Save parquet to S3
-    parquet_key = f"{RESULTS_PREFIX}/r4_{vlm_id}_{scenario}.parquet"
+    parquet_key = f"{RESULTS_PREFIX}/r4_{vlm_tag}_{scenario}.parquet"
     buf = io.BytesIO()
     df.to_parquet(buf, index=False)
     buf.seek(0)
@@ -295,7 +306,7 @@ def main():
         / "exp" / "s035-model-ladder" / "results"
     )
     out_dir.mkdir(parents=True, exist_ok=True)
-    local_parquet = out_dir / f"r4_{vlm_id}_{scenario}.parquet"
+    local_parquet = out_dir / f"r4_{vlm_tag}_{scenario}.parquet"
     df.to_parquet(local_parquet, index=False)
     log.info("Written to %s", local_parquet)
 
@@ -317,7 +328,7 @@ def main():
     }
 
     if args.upload:
-        summary_key = f"{RESULTS_PREFIX}/r4_{vlm_id}_{scenario}_summary.json"
+        summary_key = f"{RESULTS_PREFIX}/r4_{vlm_tag}_{scenario}_summary.json"
         upload_json_result(s3, BUCKET, summary_key, summary)
         log.info("Uploaded summary to s3://%s/%s", BUCKET, summary_key)
 
