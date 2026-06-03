@@ -58,7 +58,10 @@ logger = logging.getLogger(__name__)
 
 FLOODCASTER_BUCKET = "swarm-floodcaster"
 FLOODRSCT_BUCKET = "swarm-floodrsct-data"
+
+# Reference data prefix -- Hawaii uses separate tables (different CRS/topology)
 GEOCERT_PREFIX = "raw/geocertdb2026"
+HAWAII_PREFIX = "raw/hawaii"
 
 DATASETS_BUCKET = "swarm-yrsn-datasets"
 S3_OUTPUT_PREFIX = os.environ.get(
@@ -69,6 +72,9 @@ OUTPUT_DIR = Path(os.environ.get("LOCAL_OUTPUT_DIR", "outputs/floodcaster_spatia
 
 # Floodcaster job to analyze (Oahu coastal surge, 47983 buildings)
 JOB_ID = os.environ.get("JOB_ID", "1f3ba5fedaaa")
+
+# Hawaii job IDs use separate reference data (different projections/topology)
+HAWAII_JOB_IDS = {"1f3ba5fedaaa"}
 
 REGION = "us-east-1"
 
@@ -413,10 +419,19 @@ def main() -> None:
 
     buildings = load_floodcaster_results(s3, JOB_ID)
 
-    # 2. Load ZCTA reference data
-    zcta_features = s3_load_parquet(s3, FLOODRSCT_BUCKET, f"{GEOCERT_PREFIX}/zcta_features_labels.parquet")
-    nfip_claims = s3_load_parquet(s3, FLOODRSCT_BUCKET, f"{GEOCERT_PREFIX}/nfip_claims_zcta.parquet")
-    adj_df = s3_load_parquet(s3, FLOODRSCT_BUCKET, f"{GEOCERT_PREFIX}/zcta_adjacency.parquet")
+    # 2. Load ZCTA reference data (Hawaii uses separate tables)
+    is_hawaii = JOB_ID in HAWAII_JOB_IDS
+    if is_hawaii:
+        logger.info("Hawaii job detected -- using separate reference data")
+        ref_prefix = HAWAII_PREFIX
+        zcta_features = s3_load_parquet(s3, FLOODRSCT_BUCKET, f"{ref_prefix}/hawaii_zcta_centroids.parquet")
+        nfip_claims = s3_load_parquet(s3, FLOODRSCT_BUCKET, f"{ref_prefix}/hawaii_nfip_claims.parquet")
+        adj_df = s3_load_parquet(s3, FLOODRSCT_BUCKET, f"{ref_prefix}/hawaii_zcta_adjacency.parquet")
+    else:
+        ref_prefix = GEOCERT_PREFIX
+        zcta_features = s3_load_parquet(s3, FLOODRSCT_BUCKET, f"{ref_prefix}/zcta_features_labels.parquet")
+        nfip_claims = s3_load_parquet(s3, FLOODRSCT_BUCKET, f"{ref_prefix}/nfip_claims_zcta.parquet")
+        adj_df = s3_load_parquet(s3, FLOODRSCT_BUCKET, f"{ref_prefix}/zcta_adjacency.parquet")
 
     logger.info("ZCTA features: %d rows, NFIP claims: %d rows, Adjacency: %d rows",
                 len(zcta_features), len(nfip_claims), len(adj_df))
