@@ -60,12 +60,16 @@ R0_FEATURES = [
     "flood_pct_zone_a",
     "flood_pct_zone_x",
     "flood_pct_zone_x500",
-    # Historical flood record
-    "flood_event_count",
-    "flood_event_count_5y",
-    "flood_events_per_year",
-    "flood_property_damage_k",
-    "flood_crop_damage_k",
+    # QUARANTINED: county-level Storm Events aggregates from geocertdb2026.
+    # Constant across all ZCTAs within a scenario (zero predictive variance),
+    # not temporally gated (include target-event totals). Replaced by
+    # nfip_historical_frequency and nfip_historical_severity (ZCTA-level,
+    # temporally gated per event).
+    # "flood_event_count",
+    # "flood_event_count_5y",
+    # "flood_events_per_year",
+    # "flood_property_damage_k",
+    # "flood_crop_damage_k",
     # Terrain
     "elevation_m_msl",
     "slope_mean_pct",

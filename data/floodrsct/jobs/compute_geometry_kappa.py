@@ -56,8 +56,10 @@ TARGETS = ["obs_nfip_event_claims", "obs_has_311", "obs_has_hwm"]
 # Features used per arm (R0 static only -- geometry doesn't change per arm)
 R0_FEATURES = [
     "flood_pct_zone_a", "flood_pct_zone_x", "flood_pct_zone_x500",
-    "flood_event_count", "flood_event_count_5y", "flood_events_per_year",
-    "flood_property_damage_k", "flood_crop_damage_k",
+    # QUARANTINED: county-level constants, zero within-scenario variance,
+    # not temporally gated. Replaced by nfip_historical_frequency/severity.
+    # "flood_event_count", "flood_event_count_5y", "flood_events_per_year",
+    # "flood_property_damage_k", "flood_crop_damage_k",
     "elevation_m_msl", "slope_mean_pct", "twi_twi",
     "coastal_distance_m", "latitude", "longitude",
     "acs_total_pop", "acs_median_hh_income", "acs_pct_below_poverty",

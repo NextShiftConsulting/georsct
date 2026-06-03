@@ -57,11 +57,13 @@ R0_FEATURES = [
     "flood_pct_zone_a",
     "flood_pct_zone_x",
     "flood_pct_zone_x500",
-    "flood_event_count",
-    "flood_event_count_5y",
-    "flood_events_per_year",
-    "flood_property_damage_k",
-    "flood_crop_damage_k",
+    # QUARANTINED: county-level constants, zero within-scenario variance,
+    # not temporally gated. Replaced by nfip_historical_frequency/severity.
+    # "flood_event_count",
+    # "flood_event_count_5y",
+    # "flood_events_per_year",
+    # "flood_property_damage_k",
+    # "flood_crop_damage_k",
     "elevation_m_msl",
     "slope_mean_pct",
     "twi_twi",
@@ -105,8 +107,10 @@ R1_UNIVERSAL = [
     "hifld_n_pharmacies",
     "hifld_nearest_pharmacy_km",
     "hifld_nearest_trauma_center_km",
-    "flood_deaths",
-    "flood_injuries",
+    # QUARANTINED: county-level Storm Events totals, not temporally gated,
+    # outcome-from-outcome leakage risk. No ZCTA-level replacement exists.
+    # "flood_deaths",
+    # "flood_injuries",
 ]
 
 R1_SCENARIO_SPECIFIC = [

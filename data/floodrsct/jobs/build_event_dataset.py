@@ -1001,6 +1001,7 @@ def build_new_orleans(s3, cfg: dict) -> pd.DataFrame:
     static = load_geocert_static(s3, "new_orleans", no_zctas)
 
     # Feature contract derived fields
+    impervious   = build_impervious_features(s3, no_zctas)
     levee_feats  = build_levee_features(s3, no_zctas, "new_orleans")
     elevation    = build_elevation_features(s3, no_zctas, "new_orleans")
     coastal_dist = build_coastal_distance_features(s3, no_zctas)
@@ -1043,7 +1044,8 @@ def build_new_orleans(s3, cfg: dict) -> pd.DataFrame:
         base = pd.DataFrame({"zcta_id": no_zctas, "event": event_name,
                               "scenario": "new_orleans"})
         base = _safe_merge_parts(base, [nwis, mrms, tides, hwm, nfip, storm,
-                                        slosh, levee_feats, elevation, coastal_dist, pump_op])
+                                        slosh, impervious, levee_feats, elevation,
+                                        coastal_dist, pump_op])
         if not static.empty:
             base = _safe_merge_parts(base, [static])
         # Attach pump evidence for Ida 2021 (hand-coded override for pump_station_status)
@@ -1136,6 +1138,7 @@ def build_riverside_coachella(s3, cfg: dict) -> pd.DataFrame:
     static = load_geocert_static(s3, "riverside_coachella", rc_zctas)
 
     # Feature contract derived fields
+    impervious  = build_impervious_features(s3, rc_zctas)
     burn_scars  = build_burn_scar_features(s3, rc_zctas)
     catchments  = build_catchment_features(s3, rc_zctas, vpu="18")
     elevation   = build_elevation_features(s3, rc_zctas, "riverside_coachella")
@@ -1167,7 +1170,8 @@ def build_riverside_coachella(s3, cfg: dict) -> pd.DataFrame:
         base = pd.DataFrame({"zcta_id": rc_zctas, "event": event_name,
                               "scenario": "riverside_coachella"})
         base = _safe_merge_parts(base, [nwis, mrms, hwm, nfip, storm,
-                                        burn_scars, catchments, elevation, road_op])
+                                        impervious, burn_scars, catchments, elevation,
+                                        road_op])
         if not static.empty:
             base = _safe_merge_parts(base, [static])
         w_feats = compute_w_matrix_features(s3, rc_zctas, static, base)
@@ -1190,6 +1194,7 @@ def build_southwest_florida(s3, cfg: dict) -> pd.DataFrame:
     static = load_geocert_static(s3, "southwest_florida", swfl_zctas)
 
     # Feature contract derived fields
+    impervious      = build_impervious_features(s3, swfl_zctas)
     elevation       = build_elevation_features(s3, swfl_zctas, "southwest_florida")
     coastal_dist    = build_coastal_distance_features(s3, swfl_zctas)
     levee_feats     = build_levee_features(s3, swfl_zctas, "southwest_florida")
@@ -1225,7 +1230,8 @@ def build_southwest_florida(s3, cfg: dict) -> pd.DataFrame:
         base = pd.DataFrame({"zcta_id": swfl_zctas, "event": event_name,
                               "scenario": "southwest_florida"})
         base = _safe_merge_parts(base, [nwis, mrms, tides, hwm, nfip, storm,
-                                        slosh, elevation, coastal_dist, levee_feats, evac_op])
+                                        slosh, impervious, elevation, coastal_dist,
+                                        levee_feats, evac_op])
         if not static.empty:
             base = _safe_merge_parts(base, [static])
         w_feats = compute_w_matrix_features(s3, swfl_zctas, static, base)

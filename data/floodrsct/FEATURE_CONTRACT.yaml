@@ -246,44 +246,44 @@ features:
   # ─── NOAA Storm Events (historical flood record) ────────────────────────
 
   - feature_name: flood_event_count
-    temporal_class: slow_drift
+    temporal_class: post_event  # QUARANTINED 2026-06-02
     scenarios: all
     source_type: public_fetch
     source_dataset: geocertdb2026
     output_column: flood_event_count
-    notes: Total historical flood events touching this ZCTA (NOAA Storm Events DB).
+    notes: "QUARANTINED. County-level Storm Events aggregate -- constant across all ZCTAs within scenario, includes target-event totals. Replaced by nfip_historical_frequency (ZCTA-level, temporally gated)."
 
   - feature_name: flood_event_count_5y
-    temporal_class: slow_drift
+    temporal_class: post_event  # QUARANTINED 2026-06-02
     scenarios: all
     source_type: public_fetch
     source_dataset: geocertdb2026
     output_column: flood_event_count_5y
-    notes: Flood events in most recent 5-year window.
+    notes: "QUARANTINED. County-level constant, not temporally gated. Replaced by nfip_historical_frequency."
 
   - feature_name: flood_events_per_year
-    temporal_class: slow_drift
+    temporal_class: post_event  # QUARANTINED 2026-06-02
     scenarios: all
     source_type: public_fetch
     source_dataset: geocertdb2026
     output_column: flood_events_per_year
-    notes: Annualized flood event rate.
+    notes: "QUARANTINED. County-level constant, not temporally gated. Replaced by nfip_historical_frequency."
 
   - feature_name: flood_property_damage_k
-    temporal_class: slow_drift
+    temporal_class: post_event  # QUARANTINED 2026-06-02
     scenarios: all
     source_type: public_fetch
     source_dataset: geocertdb2026
     output_column: flood_property_damage_k
-    notes: Cumulative property damage ($K) from historical floods.
+    notes: "QUARANTINED. County-level aggregate -- includes target-event damage totals. Replaced by nfip_historical_severity (ZCTA-level, temporally gated)."
 
   - feature_name: flood_crop_damage_k
-    temporal_class: slow_drift
+    temporal_class: post_event  # QUARANTINED 2026-06-02
     scenarios: all
     source_type: public_fetch
     source_dataset: geocertdb2026
     output_column: flood_crop_damage_k
-    notes: Cumulative crop damage ($K) from historical floods.
+    notes: "QUARANTINED. County-level aggregate -- includes target-event damage totals. No ZCTA-level replacement exists."
 
   # ─── Terrain (derived in geocertdb2026 from NED/3DEP) ───────────────────
 
@@ -1789,7 +1789,7 @@ features:
     notes: Total SFHA coverage fraction (Zone A + AE + VE + AO, etc.).
 
   - feature_name: flood_event_count
-    temporal_class: slow_drift
+    temporal_class: post_event  # QUARANTINED 2026-06-02
     scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
     source_type: public_fetch
     source_dataset: geocertdb2026
@@ -1797,10 +1797,10 @@ features:
     output_column: flood_event_count
     missing_behavior: "0"
     version_target: v24.002
-    notes: Historical count of NOAA Storm Events flood records overlapping this ZCTA.
+    notes: "QUARANTINED. County-level constant -- zero within-scenario variance, includes target-event totals. Replaced by nfip_historical_frequency."
 
   - feature_name: flood_event_count_5y
-    temporal_class: slow_drift
+    temporal_class: post_event  # QUARANTINED 2026-06-02
     scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
     source_type: public_fetch
     source_dataset: geocertdb2026
@@ -1808,10 +1808,10 @@ features:
     output_column: flood_event_count_5y
     missing_behavior: "0"
     version_target: v24.002
-    notes: Flood event count in most recent 5-year window.
+    notes: "QUARANTINED. County-level constant, not temporally gated. Replaced by nfip_historical_frequency."
 
   - feature_name: flood_property_damage_k
-    temporal_class: slow_drift
+    temporal_class: post_event  # QUARANTINED 2026-06-02
     scenarios: [houston, new_orleans, nyc, riverside_coachella, southwest_florida]
     source_type: public_fetch
     source_dataset: geocertdb2026
@@ -1819,7 +1819,7 @@ features:
     output_column: flood_property_damage_k
     missing_behavior: "0"
     version_target: v24.002
-    notes: Cumulative property damage from historical flood events in thousands of dollars.
+    notes: "QUARANTINED. County-level aggregate -- includes target-event damage totals. Replaced by nfip_historical_severity."
 
   # ─── TWI and Watershed Terrain (DEM-derived) ─────────────────────────────
 

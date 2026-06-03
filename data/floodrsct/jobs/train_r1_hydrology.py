@@ -66,11 +66,13 @@ R0_FEATURES = [
     "flood_pct_zone_a",
     "flood_pct_zone_x",
     "flood_pct_zone_x500",
-    "flood_event_count",
-    "flood_event_count_5y",
-    "flood_events_per_year",
-    "flood_property_damage_k",
-    "flood_crop_damage_k",
+    # QUARANTINED: county-level constants, zero within-scenario variance,
+    # not temporally gated. Replaced by nfip_historical_frequency/severity.
+    # "flood_event_count",
+    # "flood_event_count_5y",
+    # "flood_events_per_year",
+    # "flood_property_damage_k",
+    # "flood_crop_damage_k",
     "elevation_m_msl",
     "slope_mean_pct",
     "twi_twi",
@@ -402,19 +404,24 @@ def _recompute_wlag_per_fold(
     train_mask: pd.Series,
     test_mask: pd.Series,
     neighbors: dict[str, list[str]],
-    target_col: str,
+    source_col: str,
 ) -> pd.Series:
-    """Recompute wlag of target column using ONLY training ZCTAs' values.
+    """Recompute spatial lag using ONLY training ZCTAs' values.
 
     DOE_R1_spatial.md leakage protocol: test ZCTAs receive lag from
     training neighbors only (NaN if all neighbors are in test fold).
 
+    Args:
+        source_col: The column whose spatial lag is being recomputed.
+            For wlag_nfip_claims this is "obs_nfip_event_claims" (target).
+            For wlag_rainfall_mm this is "rainfall_total_mm" (event-concurrent).
+
     Returns wlag as pd.Series aligned to merged index.
     """
-    # Build lookup: zcta_id -> target value, training ZCTAs only
+    # Build lookup: zcta_id -> source value, training ZCTAs only
     train_rows = merged[train_mask]
-    # Multiple events per ZCTA: use mean target across events in training fold
-    zcta_target = train_rows.groupby("zcta_id")[target_col].mean().to_dict()
+    # Multiple events per ZCTA: use mean across events in training fold
+    zcta_vals = train_rows.groupby("zcta_id")[source_col].mean().to_dict()
 
     wlag_vals = pd.Series(np.nan, index=merged.index, dtype=np.float64)
     for idx, row in merged.iterrows():
@@ -425,7 +432,7 @@ def _recompute_wlag_per_fold(
         # Row-standardized lag from training neighbors only
         vals = []
         for nb in nbrs:
-            v = zcta_target.get(nb)
+            v = zcta_vals.get(nb)
             if v is not None and not np.isnan(v):
                 vals.append(v)
         if vals:
@@ -461,28 +468,52 @@ def run_split(
         merged["_y"] = np.log1p(merged[target_col].clip(lower=0).astype(float))
         y_col = "_y"
 
-    # Leakage guard for wlag_nfip_claims (the spatial lag of the target).
-    # When target IS nfip_event_claims, the pre-computed wlag in the parquet
-    # includes test-fold target values -> leakage. It MUST be recomputed per
-    # fold from training ZCTAs only. If we cannot (no neighbors), we REFUSE
-    # rather than silently train on the leaked column.
-    wlag_col_idx = None
-    leaky_wlag_active = (
-        "wlag_nfip_claims" in features
-        and target_col == "obs_nfip_event_claims"
-    )
-    if leaky_wlag_active and neighbors is None:
-        raise RuntimeError(
-            "wlag_nfip_claims is in the feature set and the target is "
-            "obs_nfip_event_claims, but no adjacency/neighbors were provided. "
-            "The pre-computed wlag leaks test-fold target values. Refusing to "
-            "run. Load adjacency and pass neighbors= to enable per-fold "
-            "recomputation, or use --ablation no-wlag / no-target-lag."
-        )
-    needs_perfold_wlag = leaky_wlag_active and neighbors is not None
-    if needs_perfold_wlag:
-        wlag_col_idx = features.index("wlag_nfip_claims")
-        log.info("    Per-fold wlag_nfip_claims recomputation enabled (leakage mitigation)")
+    # ── Per-fold recomputation for event-concurrent spatial lags ──────────
+    # Two wlag columns require per-fold recomputation because their source
+    # data is not "map-known" at prediction time:
+    #
+    # 1. wlag_nfip_claims: spatial lag of target (obs_nfip_event_claims).
+    #    Only leaks when target IS nfip_event_claims — test-fold target
+    #    values bleed into the pre-computed wlag.
+    #
+    # 2. wlag_rainfall_mm: spatial lag of rainfall_total_mm. Event-concurrent
+    #    measurement — you wouldn't know neighbor rainfall before the event.
+    #    Leaks regardless of which target is being predicted.
+    #
+    # In both cases: if the column is in features but no neighbors are
+    # available, REFUSE rather than silently train on leaked data.
+    perfold_wlag_specs: list[tuple[str, str]] = []  # (wlag_col, source_col)
+
+    # wlag_nfip_claims — only leaks when target is the claims column
+    if "wlag_nfip_claims" in features and target_col == "obs_nfip_event_claims":
+        if neighbors is None:
+            raise RuntimeError(
+                "wlag_nfip_claims is in the feature set and the target is "
+                "obs_nfip_event_claims, but no adjacency/neighbors were provided. "
+                "The pre-computed wlag leaks test-fold target values. Refusing to "
+                "run. Load adjacency and pass neighbors= to enable per-fold "
+                "recomputation, or use --ablation no-wlag / no-target-lag."
+            )
+        perfold_wlag_specs.append(("wlag_nfip_claims", "obs_nfip_event_claims"))
+
+    # wlag_rainfall_mm — event-concurrent, leaks regardless of target
+    if "wlag_rainfall_mm" in features:
+        if neighbors is None:
+            raise RuntimeError(
+                "wlag_rainfall_mm is in the feature set but no adjacency/neighbors "
+                "were provided. rainfall_total_mm is event-concurrent — the "
+                "pre-computed wlag leaks neighbor event-window data. Refusing to "
+                "run. Load adjacency and pass neighbors= to enable per-fold "
+                "recomputation, or use --ablation no-wlag."
+            )
+        perfold_wlag_specs.append(("wlag_rainfall_mm", "rainfall_total_mm"))
+
+    # Build index map for columns that need recomputation
+    perfold_wlag_indices: list[tuple[int, str, str]] = []
+    for wlag_col, source_col in perfold_wlag_specs:
+        col_idx = features.index(wlag_col)
+        perfold_wlag_indices.append((col_idx, wlag_col, source_col))
+        log.info("    Per-fold %s recomputation enabled (leakage mitigation)", wlag_col)
 
     X_all = merged[features].values.astype(np.float32)
     y_all = merged[y_col].values.astype(np.float32)
@@ -494,12 +525,11 @@ def run_split(
         train_mask = ~test_mask
 
         # Per-fold wlag recomputation (DOE leakage protocol)
-        if needs_perfold_wlag:
+        for col_idx, wlag_col, source_col in perfold_wlag_indices:
             wlag_safe = _recompute_wlag_per_fold(
-                merged, train_mask, test_mask, neighbors,
-                "obs_nfip_event_claims",
+                merged, train_mask, test_mask, neighbors, source_col,
             )
-            X_all[:, wlag_col_idx] = wlag_safe.values.astype(np.float32)
+            X_all[:, col_idx] = wlag_safe.values.astype(np.float32)
 
         X_train, y_train = X_all[train_mask], y_all[train_mask]
         X_test, y_test = X_all[test_mask], y_all[test_mask]
