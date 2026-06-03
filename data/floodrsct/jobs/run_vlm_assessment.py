@@ -26,7 +26,9 @@ import json
 import logging
 import sys
 import tempfile
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict
@@ -67,8 +69,21 @@ VLM_ADAPTERS = {
     "qwen": Qwen2VLAdapter,
 }
 
-# Rate limits (seconds between calls) -- Gemini free tier is 15 RPM
-RATE_LIMITS = {"gpt4o": 1.0, "gemini": 4.1, "jina": 1.0, "nova": 1.0, "qwen": 1.0}
+# Concurrency config per VLM.
+# workers: max parallel API calls (I/O-bound, threading is fine)
+# min_interval: minimum seconds between dispatching calls (0 = no throttle)
+#
+# Jina paid tier supports 50 concurrent. Their VLM is slow (~15-50s/call)
+# so concurrency is the only way to get throughput.
+# Gemini free tier is 15 RPM = 4s interval, but with paid key we can push.
+# Nova/GPT-4o are fast (<5s) so moderate concurrency suffices.
+VLM_CONCURRENCY = {
+    "gpt4o":  {"workers": 10, "min_interval": 0.5},
+    "gemini": {"workers":  8, "min_interval": 2.0},
+    "jina":   {"workers": 15, "min_interval": 0.0},  # slow API, pure concurrency
+    "nova":   {"workers": 10, "min_interval": 0.0},   # Bedrock, fast
+    "qwen":   {"workers":  8, "min_interval": 1.0},   # OpenRouter
+}
 
 # Fixed prompt across all VLMs (DOE R4 spec)
 PROMPT = """\
@@ -265,29 +280,72 @@ def main():
         adapter_kwargs["model"] = args.model
         log.info("Model override: %s", args.model)
     adapter = VLM_ADAPTERS[vlm_id](**adapter_kwargs)
-    rate_limit = RATE_LIMITS[vlm_id]
+
+    concurrency = VLM_CONCURRENCY.get(vlm_id, {"workers": 4, "min_interval": 1.0})
+    workers = concurrency["workers"]
+    min_interval = concurrency["min_interval"]
+    log.info(
+        "Concurrency: %d workers, %.1fs min_interval for %s",
+        workers, min_interval, vlm_id,
+    )
+
+    # Token-bucket rate limiter: acquire a slot, sleep only the remaining
+    # interval, then release. Does NOT hold the lock during the API call.
+    _dispatch_lock = threading.Lock()
+    _last_dispatch = [0.0]
+
+    def _throttled_assess(zcta_id: str, fold: int, tmp_path: Path) -> Dict[str, Any]:
+        if min_interval > 0:
+            # Acquire slot: compute when we can dispatch, then release lock
+            # and sleep OUTSIDE the lock so other threads aren't blocked.
+            with _dispatch_lock:
+                now = time.monotonic()
+                earliest = _last_dispatch[0] + min_interval
+                _last_dispatch[0] = max(now, earliest)
+                my_dispatch = _last_dispatch[0]
+            wait = my_dispatch - time.monotonic()
+            if wait > 0:
+                time.sleep(wait)
+        return _assess_one_zcta(s3, adapter, scenario, vlm_id, zcta_id, fold, tmp_path)
 
     records = []
+    completed = 0
+    total = len(zcta_ids)
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir)
-        for i, zcta_id in enumerate(zcta_ids):
-            fold = zcta_folds.get(zcta_id, 0)
-            record = _assess_one_zcta(
-                s3, adapter, scenario, vlm_id, zcta_id, fold, tmp_path,
-            )
-            records.append(record)
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = {
+                executor.submit(
+                    _throttled_assess, zcta_id, zcta_folds.get(zcta_id, 0), tmp_path
+                ): zcta_id
+                for zcta_id in zcta_ids
+            }
+            for future in as_completed(futures):
+                zcta_id = futures[future]
+                try:
+                    record = future.result()
+                except Exception as exc:
+                    log.error("Worker exception for %s: %s", zcta_id, exc)
+                    record = {
+                        "zcta_id": zcta_id, "vlm": vlm_id,
+                        "fold": zcta_folds.get(zcta_id, 0),
+                        "risk_score": None, "confidence": None,
+                        "parse_success": False, "fixup_needed": False,
+                        "raw_response": str(exc), "latency_ms": 0,
+                        "prompt_tokens": 0, "completion_tokens": 0,
+                    }
+                records.append(record)
+                completed += 1
 
-            parsed = "OK" if record["parse_success"] else "FAIL"
-            score = record["risk_score"]
-            log.info(
-                "  [%d/%d] %s parse=%s score=%s latency=%dms",
-                i + 1, len(zcta_ids), zcta_id, parsed,
-                "%.2f" % score if score is not None else "N/A",
-                record["latency_ms"],
-            )
-
-            # Rate limiting
-            time.sleep(rate_limit)
+                parsed = "OK" if record["parse_success"] else "FAIL"
+                score = record["risk_score"]
+                if completed % 10 == 0 or completed == total:
+                    log.info(
+                        "  [%d/%d] %s parse=%s score=%s latency=%dms",
+                        completed, total, zcta_id, parsed,
+                        "%.2f" % score if score is not None else "N/A",
+                        record["latency_ms"],
+                    )
 
     df = pd.DataFrame(records)
 
