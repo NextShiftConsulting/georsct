@@ -18,8 +18,7 @@ from all modelable cells. Requires both p < 0.05 AND Cohen's d > 0.2.
 
 **H2b (exploratory):** kappa_geom (computed pre-training, Phase 0.5)
 predicts which cells benefit more from R1. Spearman rho(kappa_geom, uplift)
-with bootstrap 95% CI. Reported as observed association (n=7 cells is
-marginal for inference).
+with bootstrap 95% CI. Reported as observed association (n=9 cells).
 
 **Note (v1.8):** The original H2 used diag_leakage as predictor, but
 diag_leakage shares R0_spatial metric with the uplift calculation, creating

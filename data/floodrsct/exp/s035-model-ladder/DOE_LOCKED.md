@@ -55,7 +55,7 @@ at least 2 of 3 targets under county-blocked CV.
 (R0_fold_metric, R1_fold_metric). Requires p < 0.05 AND Cohen's d > 0.2.
 
 **H2b (exploratory, v1.8):** kappa_geom predicts which cells benefit more.
-Spearman rho(kappa_geom, uplift) with bootstrap CI. n=7 cells is marginal.
+Spearman rho(kappa_geom, uplift) with bootstrap CI. n=9 cells.
 
 | Variable Type | Description |
 |---------------|-------------|

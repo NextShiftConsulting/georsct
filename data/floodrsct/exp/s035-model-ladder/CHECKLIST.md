@@ -209,10 +209,10 @@ python scripts/launch_compute_uplift_table.py
 ```
 
 - [ ] `results/s035/uplift_table.json` on S3
-- [ ] All 7 cells reported (no cherry-picking)
+- [ ] All 9 cells reported (no cherry-picking)
 - [ ] H2a primary test: fold-level Wilcoxon signed-rank (R0 vs R1), p < 0.05 AND Cohen's d > 0.2
-- [ ] H2b exploratory: Spearman rho(kappa_geom, uplift) with bootstrap CI (n=7 caveat)
-- [ ] 8 exploratory cell-level associations reported with bootstrap CIs (Holm-Bonferroni noted as decorative at n=7)
+- [ ] H2b exploratory: Spearman rho(kappa_geom, uplift) with bootstrap CI (n=9)
+- [ ] 8 exploratory cell-level associations reported with bootstrap CIs
 - [ ] Negative results reported honestly if H2a fails
 
 ---

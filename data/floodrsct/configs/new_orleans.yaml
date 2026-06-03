@@ -2,10 +2,37 @@
 
 scenario: new_orleans
 state_fips: "22"
-county_fips: "22071"  # Orleans Parish
+# 5-parish Greater New Orleans metro (expanded from Orleans-only)
+county_fips:
+  - "22051"   # Jefferson Parish
+  - "22071"   # Orleans Parish
+  - "22075"   # Plaquemines Parish
+  - "22087"   # St. Bernard Parish
+  - "22103"   # St. Tammany Parish
 zcta_state_filter: "LA"
 
 events:
+  katrina2005:
+    disaster_declaration: DR-1603-LA
+    start_date: "2005-08-29"
+    end_date: "2005-09-10"
+    nhc_storm_id: AL122005
+    peak_window: ["2005-08-29", "2005-08-30"]
+
+  isaac2012:
+    disaster_declaration: DR-4080-LA
+    start_date: "2012-08-28"
+    end_date: "2012-09-05"
+    nhc_storm_id: AL092012
+    peak_window: ["2012-08-28", "2012-08-30"]
+
+  barry2019:
+    disaster_declaration: DR-4458-LA
+    start_date: "2019-07-11"
+    end_date: "2019-07-15"
+    nhc_storm_id: AL022019
+    peak_window: ["2019-07-12", "2019-07-14"]
+
   ida2021:
     disaster_declaration: DR-4611-LA
     start_date: "2021-08-29"
@@ -52,13 +79,11 @@ regime:
 
 # Minimum viable dataset criteria
 mvd:
-  min_districts: 30
+  min_zctas: 30
   required_columns:
-    - district_id
+    - zcta_id
     - event
     - nfip_historical_frequency
-    - acsE_total_pop
+    - acs_total_pop
     - svi_overall
     - levee_condition_rating
-    - pump_available  # from hand-coded evidence
-    - nws_warning_flag

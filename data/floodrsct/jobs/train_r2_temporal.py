@@ -458,7 +458,12 @@ def main() -> None:
     # --- Load R1 supplement and join ---
     r1_supp = _load_supplement(s3, scenario, "r1")
     r1_supp["zcta_id"] = r1_supp["zcta_id"].astype(str)
+    assert r1_supp["zcta_id"].is_unique, (
+        f"R1 supplement has {r1_supp['zcta_id'].duplicated().sum()} duplicate zcta_ids"
+    )
+    pre_rows = len(df)
     df = df.merge(r1_supp, on="zcta_id", how="left")
+    assert len(df) == pre_rows, f"R1 join changed row count: {pre_rows} -> {len(df)}"
     log.info("After R1 join: %d cols", len(df.columns))
 
     # --- Load R2 supplement and join ---
@@ -469,8 +474,13 @@ def main() -> None:
     if "event" in r2_supp.columns:
         r2_supp["event"] = r2_supp["event"].astype(str)
         join_cols.append("event")
+    assert r2_supp[join_cols].duplicated().sum() == 0, (
+        f"R2 supplement has duplicates on {join_cols}"
+    )
+    pre_rows = len(df)
     pre_cols = set(df.columns)
     df = df.merge(r2_supp, on=join_cols, how="left")
+    assert len(df) == pre_rows, f"R2 join changed row count: {pre_rows} -> {len(df)}"
     new_cols = set(df.columns) - pre_cols
     log.info("R2 supplement added %d columns: %s", len(new_cols), sorted(new_cols))
 

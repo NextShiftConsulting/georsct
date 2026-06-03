@@ -439,8 +439,17 @@ def main() -> None:
     # --- Load R1 supplement and join ---
     r1_supp = _load_r1_supplement(s3, scenario)
     r1_supp["zcta_id"] = r1_supp["zcta_id"].astype(str)
+    assert r1_supp["zcta_id"].is_unique, (
+        f"R1 supplement has {r1_supp['zcta_id'].duplicated().sum()} duplicate zcta_ids "
+        f"-- LEFT join would multiply rows and break paired ablation"
+    )
+    pre_rows = len(df)
     pre_cols = set(df.columns)
     df = df.merge(r1_supp, on="zcta_id", how="left")
+    assert len(df) == pre_rows, (
+        f"R1 join changed row count: {pre_rows} -> {len(df)}. "
+        f"Grain must stay (zcta_id, event) for paired comparison with R0."
+    )
     new_cols = set(df.columns) - pre_cols
     log.info("R1 supplement added %d columns: %s", len(new_cols), sorted(new_cols))
 
