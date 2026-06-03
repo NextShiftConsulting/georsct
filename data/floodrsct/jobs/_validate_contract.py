@@ -116,12 +116,16 @@ FORBIDDEN_TEMPORAL_CLASSES = frozenset({"post_event", "operational"})
 
 
 def check_causal_boundary(feature_names: list[str],
-                          contract: Optional[list[dict]] = None) -> list[str]:
+                          contract: Optional[list[dict]] = None,
+                          exempt: Optional[set[str]] = None) -> list[str]:
     """Reject features that violate the causal boundary.
 
     Args:
         feature_names: columns the training script intends to use.
         contract: loaded FEATURE_CONTRACT entries (loads from disk if None).
+        exempt: feature names with documented leakage mitigation (e.g.
+            per-fold recomputation). These are skipped in the boundary
+            check. Callers MUST enforce their own leakage gate.
 
     Returns:
         List of violations (empty if clean).
@@ -140,8 +144,11 @@ def check_causal_boundary(feature_names: list[str],
         if col and tc:
             col_to_temporal[col] = tc
 
+    exempt = exempt or set()
     violations = []
     for name in feature_names:
+        if name in exempt:
+            continue
         tc = col_to_temporal.get(name)
         if tc in FORBIDDEN_TEMPORAL_CLASSES:
             violations.append(

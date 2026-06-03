@@ -566,8 +566,10 @@ def main() -> None:
     ablation_features = ABLATION_MODES[ablation]()
     phase_label = f"r1_hydrology" if ablation == "full" else f"r1_{ablation.replace('-', '_')}"
 
-    # Hard gate: reject any feature that violates the causal boundary
-    check_causal_boundary(ablation_features)
+    # Hard gate: reject any feature that violates the causal boundary.
+    # wlag_nfip_claims is post_event but DOE-approved with per-fold
+    # recomputation (Change 13). The leakage gate below enforces this.
+    check_causal_boundary(ablation_features, exempt={"wlag_nfip_claims"})
 
     print(f"\n{'='*60}")
     print(f"  S035 PHASE 2: R1 HYDROLOGY -- {scenario}")
