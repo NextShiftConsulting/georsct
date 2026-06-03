@@ -27,7 +27,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from _manifest_writer import write_manifest
-from _s3_stream import s3_key_exists, get_s3, stream_to_tmp
+from _s3_stream import s3_key_exists, get_s3
 
 logging.basicConfig(
     level=logging.INFO,
@@ -42,13 +42,13 @@ BUCKET = "swarm-floodrsct-data"
 # ScienceBase item ID for NLCD 2021 Land Cover: 649595d8d34ef77fcb01dca1
 # (confirmed via ScienceBase catalog; sibling of impervious 649595c3d34ef77fcb01dc9e)
 SCIENCEBASE_URLS = [
-    # Primary: verified working ScienceBase item ID
+    # Primary: MRLC direct download (most reliable from SageMaker)
+    "https://www.mrlc.gov/downloads/sciweb1/shared/mrlc/nlcd_2021_land_cover_l48_20230630.zip",
+    # Fallback: ScienceBase (can throttle/stall on repeat downloads)
     "https://www.sciencebase.gov/catalog/file/get/649595d8d34ef77fcb01dca1"
     "?name=nlcd_2021_land_cover_l48_20230630.zip",
-    # Fallback: S3 mirror (may be decommissioned)
+    # Fallback: S3 mirror (may be decommissioned / 403)
     "https://s3-us-west-2.amazonaws.com/mrlc/nlcd_2021_land_cover_l48_20230630.zip",
-    # Fallback: MRLC direct download
-    "https://www.mrlc.gov/downloads/sciweb1/shared/mrlc/nlcd_2021_land_cover_l48_20230630.zip",
 ]
 
 S3_KEY_IMG = "raw/nlcd/land_cover_2021/nlcd_2021_land_cover_l48.img"
@@ -131,11 +131,35 @@ def main() -> None:
     downloaded = False
     for url in SCIENCEBASE_URLS:
         log.info("Trying: %s", url[:120])
-        ok = stream_to_tmp(url, zip_path, retries=2, timeout=1800)
-        if ok and Path(zip_path).exists() and Path(zip_path).stat().st_size > 1e6:
-            downloaded = True
-            break
-        log.warning("Failed or too small, trying next URL")
+        try:
+            import requests
+            # timeout=(connect, read_per_chunk) -- if any 4MB chunk takes >120s,
+            # the connection is dead; don't wait 30 min for a stalled download.
+            resp = requests.get(url, stream=True, timeout=(30, 120))
+            if resp.status_code == 403:
+                log.warning("403 Forbidden, trying next URL")
+                continue
+            if resp.status_code == 404:
+                log.warning("404 Not Found, trying next URL")
+                continue
+            resp.raise_for_status()
+            total = int(resp.headers.get("content-length", 0))
+            written = 0
+            with open(zip_path, "wb") as fh:
+                for chunk in resp.iter_content(chunk_size=4 * 1024 * 1024):
+                    fh.write(chunk)
+                    written += len(chunk)
+                    if total > 0 and written % (100 * 1024 * 1024) < len(chunk):
+                        log.info("Download progress: %d / %d MB (%.0f%%)",
+                                 written // 1e6, total // 1e6, written / total * 100)
+            if written > 1e6:
+                downloaded = True
+                break
+            log.warning("Download too small (%d bytes), trying next URL", written)
+        except Exception as exc:
+            log.warning("Download failed: %s, trying next URL", str(exc)[:200])
+            if Path(zip_path).exists():
+                os.unlink(zip_path)
 
     if not downloaded:
         raise RuntimeError(
