@@ -529,7 +529,12 @@ def aggregate_mrms_rainfall(s3, event: str, zcta_ids: list[str]) -> pd.DataFrame
 
 
 def _process_one_grib(args: tuple) -> tuple:
-    """Worker: download + decompress + read one grib2 file. Returns (arr, lat, lon) or None."""
+    """Worker: download + decompress + read one grib2 file.
+
+    Returns (arr, lat, lon) on success, or a string error message on failure.
+    Never returns None silently — callers can distinguish success tuples from
+    error strings to aggregate diagnostics.
+    """
     import gzip
     import tempfile
     key, bucket = args
@@ -553,12 +558,13 @@ def _process_one_grib(args: tuple) -> tuple:
 
         import cfgrib
         ds = cfgrib.open_dataset(grb2_path, indexpath=None)
+        available_vars = list(ds.data_vars)
         precip_var = next(
             (v for v in ["tp", "unknown", "apcp", "APCP"] if v in ds),
             None,
         )
         if precip_var is None:
-            return None
+            return f"NO_PRECIP_VAR:vars={available_vars}"
         arr = ds[precip_var].values
         # MRMS uses negative sentinels (-3 = no data, -1 = range-folded, -2 = below threshold).
         # Clamp to zero so sentinels don't corrupt the hourly accumulation sum.
@@ -566,8 +572,8 @@ def _process_one_grib(args: tuple) -> tuple:
         lat = ds["latitude"].values
         lon = ds["longitude"].values
         return (arr, lat, lon)
-    except Exception:
-        return None
+    except Exception as exc:
+        return f"EXCEPTION:{type(exc).__name__}:{str(exc)[:120]}"
     finally:
         for p in (gz_path, grb2_path):
             try:
@@ -599,15 +605,21 @@ def _mrms_spatial_aggregate(s3, file_keys: list[str], zcta_ids: list[str],
     n_valid = 0
 
     work_items = [(key, BUCKET) for key in file_keys]
+    error_counts: dict[str, int] = {}
     with ProcessPoolExecutor(max_workers=n_workers) as pool:
         futures = {pool.submit(_process_one_grib, item): item for item in work_items}
         done = 0
         for fut in as_completed(futures):
             done += 1
             if done % 25 == 0:
-                log.info("MRMS decode progress: %d/%d", done, len(file_keys))
+                log.info("MRMS decode progress: %d/%d (valid=%d)", done, len(file_keys), n_valid)
             result = fut.result()
-            if result is None:
+            if isinstance(result, str):
+                # Error message from worker — aggregate for summary
+                tag = result.split(":")[0]
+                error_counts[tag] = error_counts.get(tag, 0) + 1
+                if error_counts[tag] <= 3:
+                    log.warning("MRMS worker error [%d/%d]: %s", done, len(file_keys), result[:200])
                 continue
             arr, lat, lon = result
             if total_mm is None:
@@ -619,7 +631,16 @@ def _mrms_spatial_aggregate(s3, file_keys: list[str], zcta_ids: list[str],
                 lat_arr = lat
                 lon_arr = lon
 
+    n_errors = sum(error_counts.values())
+    log.info("MRMS decode complete: %d/%d valid, %d errors %s",
+             n_valid, len(file_keys), n_errors, dict(error_counts) if error_counts else "")
+    if n_valid > 0 and total_mm is not None:
+        log.info("MRMS accumulation stats: min=%.2f max=%.2f mean=%.2f",
+                 float(np.nanmin(total_mm)), float(np.nanmax(total_mm)), float(np.nanmean(total_mm)))
+
     if total_mm is None:
+        log.error("MRMS: ALL %d files failed decode. No rainfall data for event %s. "
+                  "Error breakdown: %s", len(file_keys), event, dict(error_counts))
         return pd.DataFrame({"zcta_id": zcta_ids, "rainfall_total_mm": np.nan,
                              "obs_mrms_coverage_pct": 0.0})
 
