@@ -117,8 +117,13 @@ R1_UNIVERSAL = [
     "hifld_n_pharmacies",
     "hifld_nearest_pharmacy_km",
     "hifld_nearest_trauma_center_km",
-    "flood_deaths",
-    "flood_injuries",
+    # QUARANTINED: flood_deaths and flood_injuries are county-level Storm
+    # Events totals from geocertdb2026 -- constant across all ZCTAs within
+    # a scenario, not temporally gated, and likely include target-event
+    # outcomes. Zero predictive variance within scenario; outcome-from-
+    # outcome leakage risk across scenarios. Removed pending audit.
+    # "flood_deaths",
+    # "flood_injuries",
 ]
 
 # Scenario-specific R1 features (present only in some scenarios)

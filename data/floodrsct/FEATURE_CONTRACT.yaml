@@ -354,24 +354,28 @@ features:
       Retained in dataset for descriptive analysis only.
 
   - feature_name: flood_deaths
-    temporal_class: slow_drift
+    temporal_class: post_event
     scenarios: all
     source_type: public_fetch
     source_dataset: geocertdb2026
     output_column: flood_deaths
     notes: >
-      Historical flood fatality count in this ZCTA (NOAA Storm Events DB).
-      R1 universal feature. Measures historical severity of flood hazard.
+      QUARANTINED. County-level Storm Events total from geocertdb2026 snapshot.
+      Constant across all ZCTAs within scenario (zero predictive variance).
+      Not temporally gated -- includes target-event outcomes. Reclassified
+      from slow_drift to post_event. Excluded from R1 training features.
 
   - feature_name: flood_injuries
-    temporal_class: slow_drift
+    temporal_class: post_event
     scenarios: all
     source_type: public_fetch
     source_dataset: geocertdb2026
     output_column: flood_injuries
     notes: >
-      Historical flood injury count in this ZCTA (NOAA Storm Events DB).
-      R1 universal feature. Measures historical severity of flood hazard.
+      QUARANTINED. County-level Storm Events total from geocertdb2026 snapshot.
+      Constant across all ZCTAs within scenario (zero predictive variance).
+      Not temporally gated -- includes target-event outcomes. Reclassified
+      from slow_drift to post_event. Excluded from R1 training features.
 
   # ─── HIFLD Infrastructure ──────────────────────────────────────────────
 
