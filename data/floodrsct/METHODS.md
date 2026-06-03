@@ -225,7 +225,7 @@ MRMS grib2 files use **negative sentinel values** for quality-flagged pixels:
 | -2.0 | Below threshold (trace precipitation) |
 | -1.0 | Range-folded (ambiguous radar return) |
 
-**Bug discovered**: Prior to commit `FIXME_HASH`, the accumulation code summed
+**Bug discovered**: Prior to commit `f382892`, the accumulation code summed
 raw pixel values without masking sentinels. Over a multi-day event window (e.g.,
 Harvey 2017 with 432 hourly files), sentinel pixels accumulated to large negative
 totals:
