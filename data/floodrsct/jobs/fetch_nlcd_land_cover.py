@@ -58,22 +58,37 @@ RASTER_EXTENSIONS = (".tif", ".tiff", ".img", ".ige")
 TMP_DIR = "/tmp"
 
 
-def find_raster_in_zip(zip_path: str) -> str:
-    """Return the name of the first land cover raster file inside the zip."""
+def find_raster_files_in_zip(zip_path: str) -> tuple[str, list[str]]:
+    """Return (primary_raster, all_sidecar_members) from the zip.
+
+    Erdas HFA splits data across .img (header) + .ige (pixels).  Both must
+    be extracted with their original basenames so gdal_translate can find
+    the sidecar.  Returns the .img member name plus all members sharing
+    the same stem (e.g., .img, .ige, .rrd, .xml).
+    """
     with zipfile.ZipFile(zip_path, "r") as zf:
-        # Prefer .img (the primary raster) over .tif
-        for name in sorted(zf.namelist()):
+        names = zf.namelist()
+        # Find the primary .img raster
+        primary = None
+        for name in sorted(names):
             lower = name.lower()
             if "land_cover" in lower and lower.endswith((".img", ".tif", ".tiff")):
-                return name
-        # Fallback: any raster
-        for name in zf.namelist():
-            lower = name.lower()
-            if any(lower.endswith(ext) for ext in RASTER_EXTENSIONS):
-                return name
-    raise FileNotFoundError(
-        f"No raster file found in zip (looked for {RASTER_EXTENSIONS})"
-    )
+                primary = name
+                break
+        if primary is None:
+            for name in names:
+                lower = name.lower()
+                if any(lower.endswith(ext) for ext in RASTER_EXTENSIONS):
+                    primary = name
+                    break
+        if primary is None:
+            raise FileNotFoundError(
+                f"No raster file found in zip (looked for {RASTER_EXTENSIONS})"
+            )
+        # Collect all sidecar files with the same stem
+        stem = Path(primary).stem.lower()
+        sidecars = [n for n in names if Path(n).stem.lower() == stem]
+        return primary, sidecars
 
 
 def convert_img_to_tif(img_path: str) -> str:
@@ -104,18 +119,10 @@ def main() -> None:
         log.info("Done (skipped).")
         return
 
-    # Checkpoint: .img exists but .tif doesn't -- just need conversion
+    # NOTE: .img without .ige sidecar is NOT convertible.  The previous run
+    # uploaded a bare .img header; skip it and re-download from source.
     if s3_key_exists(s3, BUCKET, S3_KEY_IMG):
-        log.info(".img exists but .tif missing. Downloading .img for conversion.")
-        img_local = os.path.join(TMP_DIR, "nlcd_land_cover.img")
-        s3.download_file(BUCKET, S3_KEY_IMG, img_local)
-        tif_local = convert_img_to_tif(img_local)
-        log.info("Uploading .tif to s3://%s/%s", BUCKET, S3_KEY_TIF)
-        s3.upload_file(tif_local, BUCKET, S3_KEY_TIF)
-        os.unlink(img_local)
-        os.unlink(tif_local)
-        log.info("Done (.img -> .tif conversion only).")
-        return
+        log.info(".img exists on S3 but may lack .ige sidecar. Re-downloading from source.")
 
     # Download zip from one of the known URLs
     zip_name = f"{uuid.uuid4().hex}_nlcd_land_cover.zip"
@@ -139,45 +146,51 @@ def main() -> None:
     zip_size_mb = Path(zip_path).stat().st_size / 1e6
     log.info("Downloaded zip: %.1f MB", zip_size_mb)
 
-    # Extract raster
-    raster_member = find_raster_in_zip(zip_path)
-    log.info("Extracting raster member: %s", raster_member)
+    # Extract raster + sidecar files (Erdas HFA needs .img + .ige)
+    primary_member, sidecar_members = find_raster_files_in_zip(zip_path)
+    log.info("Primary raster: %s, sidecars: %s", primary_member,
+             [Path(m).suffix for m in sidecar_members])
 
-    extracted_name = f"{uuid.uuid4().hex}_{Path(raster_member).name}"
-    extracted_path = os.path.join(TMP_DIR, extracted_name)
-
+    # Extract with ORIGINAL filenames so GDAL can resolve the .ige reference
+    extracted_paths = []
     with zipfile.ZipFile(zip_path, "r") as zf:
-        with zf.open(raster_member) as src, open(extracted_path, "wb") as dst:
-            while True:
-                chunk = src.read(4 * 1024 * 1024)
-                if not chunk:
-                    break
-                dst.write(chunk)
+        for member in sidecar_members:
+            dest = os.path.join(TMP_DIR, Path(member).name)
+            log.info("Extracting: %s -> %s", member, dest)
+            with zf.open(member) as src, open(dest, "wb") as dst:
+                while True:
+                    chunk = src.read(4 * 1024 * 1024)
+                    if not chunk:
+                        break
+                    dst.write(chunk)
+            size_mb = Path(dest).stat().st_size / 1e6
+            log.info("  %.1f MB", size_mb)
+            extracted_paths.append(dest)
 
-    raster_size_mb = Path(extracted_path).stat().st_size / 1e6
-    log.info("Extracted raster: %.1f MB", raster_size_mb)
+    img_path = os.path.join(TMP_DIR, Path(primary_member).name)
 
     # Free disk: delete zip
     os.unlink(zip_path)
     log.info("Deleted zip to free disk space.")
 
-    # Upload .img to S3
+    # Convert to GeoTIFF (HARD requirement -- .img alone is not usable
+    # without the .ige sidecar, and we standardize on GeoTIFF)
+    tif_path = convert_img_to_tif(img_path)
+    log.info("Uploading .tif to s3://%s/%s", BUCKET, S3_KEY_TIF)
+    s3.upload_file(tif_path, BUCKET, S3_KEY_TIF)
+    log.info(".tif upload complete.")
+
+    # Also upload .img for archival
     log.info("Uploading .img to s3://%s/%s", BUCKET, S3_KEY_IMG)
-    s3.upload_file(extracted_path, BUCKET, S3_KEY_IMG)
+    s3.upload_file(img_path, BUCKET, S3_KEY_IMG)
     log.info(".img upload complete.")
 
-    # Convert to .tif and upload
-    try:
-        tif_path = convert_img_to_tif(extracted_path)
-        log.info("Uploading .tif to s3://%s/%s", BUCKET, S3_KEY_TIF)
-        s3.upload_file(tif_path, BUCKET, S3_KEY_TIF)
-        log.info(".tif upload complete.")
+    # Cleanup all extracted files
+    for p in extracted_paths:
+        if os.path.exists(p):
+            os.unlink(p)
+    if os.path.exists(tif_path):
         os.unlink(tif_path)
-    except Exception as e:
-        log.warning("TIF conversion failed: %s. .img is still usable.", e)
-
-    # Cleanup
-    os.unlink(extracted_path)
 
     # Manifest
     write_manifest(
@@ -185,7 +198,7 @@ def main() -> None:
         dataset="nlcd_land_cover",
         version="2021",
         source_url=SCIENCEBASE_URLS[0],
-        s3_key=S3_KEY_IMG,
+        s3_key=S3_KEY_TIF,
         crs="EPSG:5070",
         notes="NLCD 2021 Land Cover, CONUS, 30m resolution, 16 classes. "
               "Classes 81 (Pasture/Hay) and 82 (Cultivated Crops) used for "
