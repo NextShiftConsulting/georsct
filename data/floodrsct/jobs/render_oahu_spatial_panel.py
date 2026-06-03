@@ -333,6 +333,30 @@ def render_figure(
                 zorder=5,
             )
 
+    # ----- Callout annotations for key mismatch ZCTAs -----
+    callouts = [
+        ("96816", "99 NFIP claims, 0 in surge zone\n-> inland pluvial history",
+         (-157.72, 21.32)),
+        ("96819", "95 NFIP claims, 0 in surge zone\n-> valley flooding",
+         (-157.95, 21.40)),
+        ("96814", "3 NFIP claims, $19.5M predicted\n-> coastal overprediction",
+         (-157.76, 21.26)),
+        ("96850", "0 NFIP claims, $15.5M predicted\n-> exposed but no history",
+         (-157.93, 21.27)),
+    ]
+    for zid, note, text_xy in callouts:
+        if zid in cen_dict:
+            xy = cen_dict[zid]
+            ax_map.annotate(
+                note, xy=xy, xytext=text_xy,
+                fontsize=5.5, color="#222",
+                arrowprops=dict(arrowstyle="-|>", color="#666",
+                                lw=0.6, connectionstyle="arc3,rad=0.15"),
+                bbox=dict(boxstyle="round,pad=0.25", facecolor="white",
+                          edgecolor="#aaa", alpha=0.92),
+                zorder=6,
+            )
+
     # Map formatting
     ax_map.set_xlim(OAHU_BBOX["lon_min"], OAHU_BBOX["lon_max"])
     ax_map.set_ylim(OAHU_BBOX["lat_min"], OAHU_BBOX["lat_max"])
@@ -431,9 +455,11 @@ def render_figure(
         fontsize=7, style="italic", color="#555",
     )
 
-    # Save
+    # Save with timestamp to avoid version collisions
+    from datetime import datetime, timezone
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     for fmt in ("pdf", "svg"):
-        out_path = output_dir / f"fig_oahu_spatial_panel.{fmt}"
+        out_path = output_dir / f"fig_oahu_spatial_panel_{ts}.{fmt}"
         fig.savefig(out_path, format=fmt, bbox_inches="tight",
                     dpi=300 if fmt == "pdf" else 150)
         log.info("Saved %s", out_path)
