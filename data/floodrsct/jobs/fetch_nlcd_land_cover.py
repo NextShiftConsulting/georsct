@@ -130,36 +130,23 @@ def main() -> None:
 
     downloaded = False
     for url in SCIENCEBASE_URLS:
-        log.info("Trying: %s", url[:120])
-        try:
-            import requests
-            # timeout=(connect, read_per_chunk) -- if any 4MB chunk takes >120s,
-            # the connection is dead; don't wait 30 min for a stalled download.
-            resp = requests.get(url, stream=True, timeout=(30, 120))
-            if resp.status_code == 403:
-                log.warning("403 Forbidden, trying next URL")
-                continue
-            if resp.status_code == 404:
-                log.warning("404 Not Found, trying next URL")
-                continue
-            resp.raise_for_status()
-            total = int(resp.headers.get("content-length", 0))
-            written = 0
-            with open(zip_path, "wb") as fh:
-                for chunk in resp.iter_content(chunk_size=4 * 1024 * 1024):
-                    fh.write(chunk)
-                    written += len(chunk)
-                    if total > 0 and written % (100 * 1024 * 1024) < len(chunk):
-                        log.info("Download progress: %d / %d MB (%.0f%%)",
-                                 written // 1e6, total // 1e6, written / total * 100)
-            if written > 1e6:
-                downloaded = True
-                break
-            log.warning("Download too small (%d bytes), trying next URL", written)
-        except Exception as exc:
-            log.warning("Download failed: %s, trying next URL", str(exc)[:200])
-            if Path(zip_path).exists():
-                os.unlink(zip_path)
+        log.info("Trying wget: %s", url[:120])
+        # wget handles slow/unreliable connections far better than Python requests.
+        # --tries=3 --read-timeout=120 fails fast on stalls, retries on transient errors.
+        result = subprocess.run(
+            ["wget", "-q", "--show-progress", "--progress=dot:mega",
+             "--tries=3", "--read-timeout=120", "--connect-timeout=30",
+             "-O", zip_path, url],
+            capture_output=True, text=True, timeout=3600,
+        )
+        if result.returncode == 0 and Path(zip_path).exists() and Path(zip_path).stat().st_size > 1e6:
+            downloaded = True
+            log.info("wget succeeded: %s", result.stderr.strip().split("\n")[-1][:200] if result.stderr else "OK")
+            break
+        log.warning("wget failed (rc=%d): %s", result.returncode,
+                    result.stderr.strip()[-300:] if result.stderr else "no stderr")
+        if Path(zip_path).exists():
+            os.unlink(zip_path)
 
     if not downloaded:
         raise RuntimeError(

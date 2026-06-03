@@ -33,7 +33,7 @@ def main() -> None:
         job_args=[],
         instance_type="ml.m5.large",
         volume_size_gb=50,
-        pre_install_cmd="apt-get update -qq && apt-get install -y -qq gdal-bin > /dev/null 2>&1",
+        pre_install_cmd="apt-get update -qq && apt-get install -y -qq gdal-bin wget > /dev/null 2>&1",
         dry_run=args.dry_run,
     )
 
