@@ -201,12 +201,107 @@ precipitation grid shape.
 shared across processes). Worker count is capped at 4 to limit concurrent memory
 usage (~100 MB per CONUS grid).
 
+### Product Name Boundary
+
+The MRMS product name changed between 2020 and 2021:
+
+| Year Range | Product | Algorithm |
+|------------|---------|-----------|
+| Pre-2021 | `GaugeCorr_QPE_01H` | Original gauge correction |
+| 2021+ | `MultiSensor_QPE_01H_Pass2` | Multi-sensor second pass |
+
+The two products are **not directly comparable** — gauge correction algorithms
+differ. The fetcher (`fetch_noaa_mrms_v2.py`) auto-selects via `_product_name()`.
+Cross-product comparison (e.g., a 2017 event vs a 2024 event) should note this
+in uncertainty discussions.
+
+### Sentinel Values (Erratum 2026-06-03)
+
+MRMS grib2 files use **negative sentinel values** for quality-flagged pixels:
+
+| Value | Meaning |
+|-------|---------|
+| -3.0 | No data (radar gap, no coverage) |
+| -2.0 | Below threshold (trace precipitation) |
+| -1.0 | Range-folded (ambiguous radar return) |
+
+**Bug discovered**: Prior to commit `FIXME_HASH`, the accumulation code summed
+raw pixel values without masking sentinels. Over a multi-day event window (e.g.,
+Harvey 2017 with 432 hourly files), sentinel pixels accumulated to large negative
+totals:
+
+| Accumulated Value | Cause |
+|-------------------|-------|
+| -1296 | -3 x 432 hours (no-data pixel, all hours) |
+| -432 | -3 x 144 hours (partial coverage) |
+| -360 | -3 x 120 hours (partial coverage) |
+
+This produced `rainfall_total_mm` values of -622 (mean) across Houston ZCTAs,
+and propagated into `wlag_rainfall_mm` via the spatial lag computation. All
+positive precipitation signal was overwhelmed by sentinel accumulation.
+
+**Fix**: Clamp `arr < 0` to 0 in `_process_one_grib()` before returning the
+array to the accumulator. This is correct because MRMS QPE values are physically
+non-negative (precipitation rate in mm/hr). Any negative value is a quality flag,
+not a measurement.
+
+**Impact**: All five scenarios require rebuild of `*_event_features.parquet`.
+See "Rebuild Process" below.
+
+### Rebuild Process (Post-Sentinel Fix)
+
+After applying the sentinel fix, all scenario event features must be rebuilt to
+ensure consistent, correct rainfall values across the experiment:
+
+**Scenarios and expected MRMS file counts:**
+
+| Scenario | Events | MRMS Files | Instance | Est. Wall Clock |
+|----------|--------|------------|----------|-----------------|
+| houston | harvey2017, imelda2019, beryl2024 | ~1,400 | ml.m5.4xlarge | ~45 min |
+| southwest_florida | ian2022, helene2024, milton2024 | ~525 | ml.m5.4xlarge | ~20 min |
+| new_orleans | ida2021_nola, barry2019_nola, isaac2012_nola, henri2021 | ~700 | ml.m5.4xlarge | ~25 min |
+| nyc | ida2021_nyc | ~170 | ml.m5.2xlarge | ~10 min |
+| riverside_coachella | hilary2023, ar_flood_2023 | ~850 | ml.m5.4xlarge | ~30 min |
+
+**Rebuild command (per scenario):**
+
+```bash
+cd data/floodrsct/scripts
+python launch_build_event_dataset.py --scenario houston --dry-run   # verify config
+python launch_build_event_dataset.py --scenario houston             # launch
+```
+
+**Rebuild order**: All five are independent — launch in parallel if quota allows.
+
+**Downstream impact**: After event features are rebuilt, any R0/R1 baselines that
+used rainfall features must also be re-run to update model diagnostics. The R0
+results are invalidated because the rainfall feature carried negative sentinel
+noise instead of signal.
+
+**Verification after rebuild:**
+
+```python
+import pandas as pd
+df = pd.read_parquet("houston_event_features.parquet")
+r = df["rainfall_total_mm"].dropna()
+assert (r >= 0).all(), f"Negative rainfall values remain: min={r.min()}"
+assert r.max() > 0, "All rainfall is zero — MRMS decode may have failed"
+# Harvey peak: ~1500mm over 4 days near Port Arthur
+assert r.max() > 100, f"Max rainfall {r.max():.0f}mm — implausibly low for Harvey"
+```
+
 ### Limitations
 
 - Nearest-centroid assignment does not account for ZCTA shape or area. Large
   ZCTAs may have significant within-ZCTA precipitation variation.
 - MRMS is radar-based and can underestimate precipitation in regions with poor
   radar coverage or beam blockage (mountainous terrain).
+- Clamping sentinels to 0 loses the distinction between "no data" (-3) and
+  "measured zero rainfall" (0.0). The `obs_mrms_coverage_pct` field partially
+  mitigates this — ZCTAs with low coverage likely had sentinel-dominated pixels.
+- The -2 sentinel (below threshold) is also clamped to 0. This is physically
+  correct (trace precipitation is negligible at ZCTA scale) but loses the
+  "precipitation detected but below reporting threshold" signal.
 
 ---
 

@@ -559,6 +559,9 @@ def _process_one_grib(args: tuple) -> tuple:
         if precip_var is None:
             return None
         arr = ds[precip_var].values
+        # MRMS uses negative sentinels (-3 = no data, -1 = range-folded, -2 = below threshold).
+        # Clamp to zero so sentinels don't corrupt the hourly accumulation sum.
+        arr = np.where(arr < 0, 0.0, arr)
         lat = ds["latitude"].values
         lon = ds["longitude"].values
         return (arr, lat, lon)
