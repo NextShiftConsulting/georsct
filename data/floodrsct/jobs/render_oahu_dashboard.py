@@ -66,6 +66,13 @@ def _download(bucket: str, key: str, local: str) -> str:
     return local
 
 
+# Oahu bounding box for raster clipping
+OAHU_BBOX = {
+    "lon_min": -158.10, "lon_max": -157.65,
+    "lat_min": 21.24, "lat_max": 21.50,
+}
+
+
 # ---------------------------------------------------------------------------
 # Data loading
 # ---------------------------------------------------------------------------
@@ -120,6 +127,115 @@ def load_zcta_boundaries(tmp: str) -> "gpd.GeoDataFrame":
     if hawaii.crs and hawaii.crs.to_epsg() != 4326:
         hawaii = hawaii.to_crs(epsg=4326)
     return hawaii
+
+
+def load_reef_contour_geojson(tmp: str) -> str:
+    """Extract reef flood extent contour as GeoJSON LineString."""
+    try:
+        import rasterio
+        from rasterio.windows import from_bounds
+    except ImportError:
+        log.warning("rasterio not available; skipping reef contour")
+        return "null"
+
+    path = _download(
+        "swarm-floodcaster",
+        "rasters/Oahu_10_withReef.tif",
+        f"{tmp}/reef.tif",
+    )
+
+    try:
+        with rasterio.open(path) as src:
+            window = from_bounds(
+                OAHU_BBOX["lon_min"], OAHU_BBOX["lat_min"],
+                OAHU_BBOX["lon_max"], OAHU_BBOX["lat_max"],
+                transform=src.transform,
+            )
+            data = src.read(1, window=window)
+            win_transform = src.window_transform(window)
+
+            nrows, ncols = data.shape
+            xs = win_transform[2] + np.arange(ncols) * win_transform[0]
+            ys = win_transform[5] + np.arange(nrows) * win_transform[4]
+
+        # Extract contour at depth=0 (flood/no-flood boundary)
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
+        fig_tmp, ax_tmp = plt.subplots()
+        cs = ax_tmp.contour(xs, ys, data, levels=[0.01])
+        plt.close(fig_tmp)
+
+        # Convert contour paths to GeoJSON MultiLineString
+        coords = []
+        for collection in cs.collections:
+            for path_obj in collection.get_paths():
+                vertices = path_obj.vertices
+                if len(vertices) > 5:  # skip tiny fragments
+                    # Subsample to reduce size (every 3rd point)
+                    sampled = vertices[::3].tolist()
+                    if len(sampled) > 2:
+                        coords.append(sampled)
+
+        if not coords:
+            log.warning("No reef contour paths extracted")
+            return "null"
+
+        geojson = {
+            "type": "Feature",
+            "geometry": {
+                "type": "MultiLineString",
+                "coordinates": coords,
+            },
+            "properties": {"name": "Reef flood extent (depth > 0)"},
+        }
+        log.info("Reef contour extracted: %d paths, %d total points",
+                 len(coords), sum(len(c) for c in coords))
+        return json.dumps(geojson)
+
+    except Exception as exc:
+        log.warning("Failed to extract reef contour: %s", exc)
+        return "null"
+
+
+def load_adjacency_geojson(tmp: str) -> str:
+    """Load ZCTA adjacency edges and centroids as GeoJSON lines."""
+    adj_path = _download(
+        "swarm-floodrsct-data",
+        "raw/hawaii/hawaii_zcta_adjacency.parquet",
+        f"{tmp}/adjacency.parquet",
+    )
+    cen_path = _download(
+        "swarm-floodrsct-data",
+        "raw/hawaii/hawaii_zcta_centroids.parquet",
+        f"{tmp}/centroids.parquet",
+    )
+
+    adj = pd.read_parquet(adj_path)
+    cen = pd.read_parquet(cen_path)
+
+    cen["zcta_id"] = cen["zcta_id"].astype(str)
+    cen_dict = {
+        row["zcta_id"]: [float(row["longitude"]), float(row["latitude"])]
+        for _, row in cen.iterrows()
+    }
+
+    features = []
+    for _, row in adj.iterrows():
+        z1, z2 = str(row["zcta_id_1"]), str(row["zcta_id_2"])
+        if z1 in cen_dict and z2 in cen_dict:
+            features.append({
+                "type": "Feature",
+                "geometry": {
+                    "type": "LineString",
+                    "coordinates": [cen_dict[z1], cen_dict[z2]],
+                },
+                "properties": {"from": z1, "to": z2},
+            })
+
+    log.info("Adjacency edges: %d", len(features))
+    return json.dumps({"type": "FeatureCollection", "features": features})
 
 
 # ---------------------------------------------------------------------------
@@ -231,6 +347,8 @@ def compute_kpis(buildings: pd.DataFrame, residuals: pd.DataFrame) -> dict:
 def build_dashboard_html(
     zcta_geojson: str,
     buildings_geojson: str,
+    reef_geojson: str,
+    adjacency_geojson: str,
     kpis: dict,
     residuals: pd.DataFrame,
     timestamp: str,
@@ -627,6 +745,9 @@ def build_dashboard_html(
       <div class="legend-item"><div class="legend-swatch" style="background:#2166ac;"></div> Model underpredicts vs. NFIP history</div>
       <div class="legend-item"><div class="legend-swatch" style="background:#d1d1d1;"></div> Rough agreement</div>
       <div class="legend-item"><div class="legend-swatch" style="background:#b2182b;"></div> Model overpredicts vs. NFIP history</div>
+      <div class="legend-title" style="margin-top:10px;">Overlays</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#00CED1;"></div> Reef flood extent</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#58a6ff;opacity:0.4;"></div> Adjacency edges</div>
       <div class="legend-title" style="margin-top:10px;">Building Flood Depth</div>
       <div class="legend-item"><div class="legend-swatch" style="background:#ffffb2;"></div> 0 - 2 ft</div>
       <div class="legend-item"><div class="legend-swatch" style="background:#fd8d3c;"></div> 2 - 8 ft</div>
@@ -697,6 +818,8 @@ def build_dashboard_html(
 // ===== DATA =====
 const zctaData = {zcta_geojson};
 const buildingData = {buildings_geojson};
+const reefData = {reef_geojson};
+const adjacencyData = {adjacency_geojson};
 const barLabels = {bar_labels};
 const barPredNorm = {bar_pred_norm};
 const barNfipNorm = {bar_nfip_norm};
@@ -791,6 +914,30 @@ L.geoJSON(buildingData, {{
     );
   }}
 }}).addTo(map);
+
+// Adjacency edges (spatial graph)
+if (adjacencyData) {{
+  L.geoJSON(adjacencyData, {{
+    style: {{
+      color: '#58a6ff',
+      weight: 1.0,
+      opacity: 0.35,
+      dashArray: '4 4',
+    }},
+  }}).addTo(map);
+}}
+
+// Reef flood extent contour
+if (reefData) {{
+  L.geoJSON(reefData, {{
+    style: {{
+      color: '#00CED1',
+      weight: 2.0,
+      opacity: 0.8,
+      dashArray: null,
+    }},
+  }}).addTo(map);
+}}
 
 // ===== CHARTS =====
 Chart.defaults.color = '#8b949e';
@@ -937,6 +1084,10 @@ def main() -> None:
         residuals = load_residuals(tmp)
         zcta_gdf = load_zcta_boundaries(tmp)
 
+        # Load reef contour and adjacency edges
+        reef_geojson = load_reef_contour_geojson(tmp)
+        adjacency_geojson = load_adjacency_geojson(tmp)
+
         # Generate GeoJSON
         log.info("Converting to GeoJSON...")
         zcta_geojson = zcta_to_geojson(zcta_gdf, residuals)
@@ -951,6 +1102,8 @@ def main() -> None:
         html = build_dashboard_html(
             zcta_geojson=zcta_geojson,
             buildings_geojson=buildings_geojson,
+            reef_geojson=reef_geojson,
+            adjacency_geojson=adjacency_geojson,
             kpis=kpis,
             residuals=residuals,
             timestamp=timestamp,

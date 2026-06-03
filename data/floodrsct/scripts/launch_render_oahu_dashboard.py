@@ -29,7 +29,7 @@ def main() -> None:
         job_args=[],
         instance_type="ml.m5.xlarge",
         volume_size_gb=30,
-        pip_packages="geopandas pyogrio folium",
+        pip_packages="geopandas pyogrio rasterio matplotlib",
         dry_run=args.dry_run,
     )
 
