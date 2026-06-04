@@ -45,6 +45,7 @@ def main() -> None:
         instance_type="ml.m5.xlarge",
         volume_size_gb=10,
         pip_packages="esda libpysal mgwr geopandas shapely scipy pyproj",
+        extra_files=["compute_residual_lisa.py"],
         dry_run=args.dry_run,
     )
 
