@@ -627,6 +627,7 @@ def run_section_lisa(s3, adj_df: pd.DataFrame, upload: bool) -> dict:
 
                 if upload:
                     lisa_df = lisa_df.copy()
+                    lisa_df.index.name = "zcta_id"
                     lisa_df["residual"] = zcta_resid.reindex(lisa_df.index)
                     buf = io.BytesIO()
                     lisa_df.reset_index().to_parquet(buf, compression="zstd")
@@ -695,6 +696,7 @@ def run_section_gwr(s3, upload: bool) -> dict:
         for zcta_key in [
             "raw/geocertdb2026/zcta_boundaries_5070.parquet",
             "raw/geocertdb2026/zcta_boundaries.parquet",
+            "raw/geocertdb2026/zcta5_boundaries.parquet",
         ]:
             try:
                 obj = s3.get_object(Bucket=BUCKET, Key=zcta_key)
@@ -730,7 +732,7 @@ def run_section_gwr(s3, upload: bool) -> dict:
                               "n_available": len(available)})
             continue
 
-        sub = gdf[[primary_target] + available + ["geometry"]].dropna()
+        sub = gdf[["zcta_id", primary_target] + available + ["geometry"]].dropna()
         if len(sub) < GWR_MIN_N:
             gwr_cells.append({"scenario": scenario, "status": "INSUFFICIENT_N",
                               "n_zcta": len(sub)})

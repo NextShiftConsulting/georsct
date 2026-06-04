@@ -109,6 +109,9 @@ def load_lisa_parquet(s3, scenario: str, target: str, level: str) -> pd.DataFram
     key = f"{SIDECAR_PREFIX}/lisa_{scenario}_{target}_{level}.parquet"
     resp = s3.get_object(Bucket=BUCKET, Key=key)
     df = pd.read_parquet(io.BytesIO(resp["Body"].read()))
+    # Sidecar LISA parquets may store ZCTA IDs as 'index' column
+    if "zcta_id" not in df.columns and "index" in df.columns:
+        df = df.rename(columns={"index": "zcta_id"})
     df["zcta_id"] = df["zcta_id"].astype(str)
     return df
 
