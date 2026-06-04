@@ -271,16 +271,16 @@ def run_split(
     solver_name: str,
     split_name: str,
     scenario: str,
+    fold_col: str,
     prediction_rows: list[dict] | None = None,
     random_features: bool = False,
 ) -> list[RunResult]:
     """Run one (target, solver, split) combination across all folds.
 
-    If prediction_rows is not None and split_name == "spatial_blocked",
+    If prediction_rows is not None and split is a blocked spatial split,
     appends per-row predictions for kappa diagnostics (Moran's I).
     """
     ts = datetime.now(timezone.utc).isoformat()
-    fold_col = SPLITS[split_name]
     solver_fn = SOLVERS[solver_name]
 
     # Merge folds with data
@@ -345,7 +345,7 @@ def run_split(
         ))
 
         # Save per-row predictions for spatial_blocked (kappa diagnostics)
-        if prediction_rows is not None and split_name == "spatial_blocked":
+        if prediction_rows is not None and "blocked" in split_name:
             test_idx = merged.index[test_mask]
             for i, idx in enumerate(test_idx):
                 prediction_rows.append({
@@ -372,6 +372,22 @@ def main() -> None:
     parser.add_argument(
         "--random-features", action="store_true",
         help="Replace R0 features with same-shape random noise (null ablation)",
+    )
+    parser.add_argument(
+        "--folds-key",
+        help="S3 key for external fold assignments (bypasses generate_folds). "
+             "Consumed read-only; no folds artifact is written back, preventing "
+             "contamination of locked folds/{scenario}_folds.parquet.",
+    )
+    parser.add_argument(
+        "--fold-col",
+        help="Single fold column to run (e.g. fold_region_blocked). "
+             "When omitted, iterates all SPLITS columns present in the folds.",
+    )
+    parser.add_argument(
+        "--output-prefix", default=RESULTS_PREFIX,
+        help=f"S3 output prefix (default: {RESULTS_PREFIX}). "
+             "Redirect to sidecar namespace for robustness runs.",
     )
     args = parser.parse_args()
 
@@ -402,24 +418,43 @@ def main() -> None:
         log.warning("Crosswalk unavailable (%s), blocking on ZIP3 only", e)
         zcta_county = {}
 
-    # --- Generate folds ---
-    folds_df, fold_meta = generate_folds(df, zcta_county, args.seed)
-    log.info("Folds: strategy=%s, %d rows", fold_meta["block_strategy"], len(folds_df))
+    # --- Folds: load external or generate ---
+    if args.folds_key:
+        # External folds (e.g. region-blocked from sidecar). Read-only:
+        # no folds artifact written, locked folds/{scenario}_folds.parquet untouched.
+        resp = s3.get_object(Bucket=BUCKET, Key=args.folds_key)
+        folds_df = pd.read_parquet(io.BytesIO(resp["Body"].read()))
+        folds_df["zcta_id"] = folds_df["zcta_id"].astype(str)
+        if "event" in folds_df.columns:
+            folds_df["event"] = folds_df["event"].astype(str)
+        fold_meta = {"source": args.folds_key, "external": True}
+        log.info("External folds from %s: %d rows, columns=%s",
+                 args.folds_key, len(folds_df), list(folds_df.columns))
+    else:
+        folds_df, fold_meta = generate_folds(df, zcta_county, args.seed)
+        log.info("Folds: strategy=%s, %d rows", fold_meta["block_strategy"], len(folds_df))
 
-    # Upload folds
-    if args.upload:
-        buf = io.BytesIO()
-        folds_df.to_parquet(buf, index=False)
-        buf.seek(0)
-        fold_key = f"folds/{scenario}_folds.parquet"
-        s3.put_object(Bucket=BUCKET, Key=fold_key, Body=buf.read())
-        s3.put_object(
-            Bucket=BUCKET,
-            Key=f"folds/{scenario}_folds_meta.json",
-            Body=json.dumps(fold_meta, indent=2).encode(),
-            ContentType="application/json",
-        )
-        log.info("Uploaded folds to s3://%s/%s", BUCKET, fold_key)
+        # Upload folds (only for internally-generated folds)
+        if args.upload:
+            buf = io.BytesIO()
+            folds_df.to_parquet(buf, index=False)
+            buf.seek(0)
+            fold_key = f"folds/{scenario}_folds.parquet"
+            s3.put_object(Bucket=BUCKET, Key=fold_key, Body=buf.read())
+            s3.put_object(
+                Bucket=BUCKET,
+                Key=f"folds/{scenario}_folds_meta.json",
+                Body=json.dumps(fold_meta, indent=2).encode(),
+                ContentType="application/json",
+            )
+            log.info("Uploaded folds to s3://%s/%s", BUCKET, fold_key)
+
+    # Build active splits: custom fold-col or all SPLITS (skip-missing-column)
+    if args.fold_col:
+        split_label = args.fold_col.removeprefix("fold_")
+        active_splits = {split_label: args.fold_col}
+    else:
+        active_splits = SPLITS
 
     # --- Load NFIP historical supplement (temporally-gated) ---
     nfip_key = f"processed/{scenario}/{scenario}_nfip_historical.parquet"
@@ -455,13 +490,17 @@ def main() -> None:
         log.info("\n--- Target: %s (%s, transform=%s) ---", target_col, task, transform)
 
         for solver_name in SOLVERS:
-            for split_name in SPLITS:
+            for split_name, fold_col in active_splits.items():
+                if fold_col not in folds_df.columns:
+                    log.info("  Skipping %s/%s: column %s not in folds",
+                             solver_name, split_name, fold_col)
+                    continue
                 log.info("  %s / %s", solver_name, split_name)
                 try:
                     results = run_split(
                         df, folds_df, features,
                         target_col, task, transform,
-                        solver_name, split_name, scenario,
+                        solver_name, split_name, scenario, fold_col,
                         prediction_rows=prediction_rows,
                         random_features=args.random_features,
                     )
@@ -514,6 +553,7 @@ def main() -> None:
         print(summary_df.to_string(index=False))
 
     # --- Upload results ---
+    output_prefix = args.output_prefix
     level_tag = "r0_random" if args.random_features else "r0"
     results_payload = {
         "experiment": "s035-model-ladder",
@@ -526,22 +566,23 @@ def main() -> None:
         "features_used": features,
         "features_missing": missing,
         "fold_metadata": fold_meta,
+        "output_prefix": output_prefix,
         "runs": [asdict(r) for r in all_results],
     }
 
     results_json = json.dumps(results_payload, indent=2, default=str)
 
     if args.upload:
-        key = f"{RESULTS_PREFIX}/{level_tag}_{scenario}.json"
+        key = f"{output_prefix}/{level_tag}_{scenario}.json"
         upload_json_result(s3, BUCKET, key, results_payload)
 
-        # Upload predictions parquet (spatial_blocked only, for kappa diagnostics)
+        # Upload predictions parquet (blocked splits, for kappa diagnostics)
         if prediction_rows:
             pred_df = pd.DataFrame(prediction_rows)
             buf = io.BytesIO()
             pred_df.to_parquet(buf, index=False)
             buf.seek(0)
-            pred_key = f"{RESULTS_PREFIX}/{level_tag}_{scenario}_predictions.parquet"
+            pred_key = f"{output_prefix}/{level_tag}_{scenario}_predictions.parquet"
             s3.put_object(Bucket=BUCKET, Key=pred_key, Body=buf.getvalue())
             log.info("Uploaded %d prediction rows to s3://%s/%s",
                      len(pred_df), BUCKET, pred_key)

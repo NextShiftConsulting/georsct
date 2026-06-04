@@ -203,6 +203,7 @@ class RunResult:
     naive_baseline: dict
     features_used: int
     features_from_r1_supplement: int
+    wlag_nan_rates: dict  # {wlag_col: frac_nan_in_test_rows} per recomputed wlag
     timestamp: str
 
 
@@ -456,11 +457,11 @@ def run_split(
     solver_name: str,
     split_name: str,
     scenario: str,
+    fold_col: str,
     prediction_rows: list[dict] | None = None,
     neighbors: dict[str, list[str]] | None = None,
 ) -> list[RunResult]:
     ts = datetime.now(timezone.utc).isoformat()
-    fold_col = SPLITS[split_name]
     solver_fn = SOLVERS[solver_name]
 
     merged = df.merge(folds_df[["zcta_id", "event", fold_col]], on=["zcta_id", "event"])
@@ -528,11 +529,27 @@ def run_split(
         test_mask = merged[fold_col] == fold_id
         train_mask = ~test_mask
 
-        # Per-fold wlag recomputation (DOE leakage protocol)
+        # Per-fold wlag recomputation (DOE leakage protocol).
+        # Capture test-row NaN rates: region blocking's contiguous holdout
+        # produces more all-neighbors-in-test ZCTAs than scattered county
+        # blocks, so wlag is systematically more absent. The delta between
+        # block geometries is a confound worth reporting in the appendix.
+        fold_nan_rates: dict[str, float] = {}
         for col_idx, wlag_col, source_col in perfold_wlag_indices:
             wlag_safe = _recompute_wlag_per_fold(
                 merged, train_mask, test_mask, neighbors, source_col,
             )
+            # Measure NaN on wlag_safe (the source series) over test rows
+            # only, before it goes into X_all. Test-row NaN is the confound;
+            # train-row NaN is a different and less interesting quantity.
+            test_vals = wlag_safe[test_mask].values
+            test_n = len(test_vals)
+            test_nan = int(np.isnan(test_vals).sum())
+            nan_frac = test_nan / test_n if test_n > 0 else 0.0
+            fold_nan_rates[wlag_col] = round(nan_frac, 4)
+            if test_nan > 0:
+                log.info("    fold %s %s: %d/%d test rows NaN (%.1f%%)",
+                         fold_id, wlag_col, test_nan, test_n, 100.0 * nan_frac)
             X_all[:, col_idx] = wlag_safe.values.astype(np.float32)
 
         X_train, y_train = X_all[train_mask], y_all[train_mask]
@@ -561,11 +578,12 @@ def run_split(
             naive_baseline=naive,
             features_used=len(features),
             features_from_r1_supplement=r1_supp_count,
+            wlag_nan_rates=fold_nan_rates,
             timestamp=ts,
         ))
 
         # Save per-row predictions for spatial_blocked (kappa diagnostics)
-        if prediction_rows is not None and split_name == "spatial_blocked":
+        if prediction_rows is not None and "blocked" in split_name:
             test_idx = merged.index[test_mask]
             for i, idx in enumerate(test_idx):
                 prediction_rows.append({
@@ -594,6 +612,21 @@ def main() -> None:
         help="Feature ablation variant (default: full). "
              "no-wlag: remove W-matrix. no-target-lag: remove wlag_nfip_claims. "
              "wlag-only: R0 + W-matrix only (no hydro)."
+    )
+    parser.add_argument(
+        "--folds-key",
+        help="S3 key for external fold assignments (overrides default "
+             "folds/{scenario}_folds.parquet). Read-only consumption.",
+    )
+    parser.add_argument(
+        "--fold-col",
+        help="Single fold column to run (e.g. fold_region_blocked). "
+             "When omitted, iterates all SPLITS columns present in the folds.",
+    )
+    parser.add_argument(
+        "--output-prefix", default=RESULTS_PREFIX,
+        help=f"S3 output prefix (default: {RESULTS_PREFIX}). "
+             "Redirect to sidecar namespace for robustness runs.",
     )
     args = parser.parse_args()
     ablation = args.ablation
@@ -658,11 +691,24 @@ def main() -> None:
     # --- Encode categoricals ---
     df = _encode_categoricals(df, R1_SCENARIO_SPECIFIC)
 
-    # --- Load folds from Phase 1 ---
-    folds_df = _load_folds(s3, scenario)
+    # --- Load folds: external (sidecar) or Phase 1 default ---
+    if args.folds_key:
+        resp = s3.get_object(Bucket=BUCKET, Key=args.folds_key)
+        folds_df = pd.read_parquet(io.BytesIO(resp["Body"].read()))
+        log.info("External folds from %s: %d rows, columns=%s",
+                 args.folds_key, len(folds_df), list(folds_df.columns))
+    else:
+        folds_df = _load_folds(s3, scenario)
     folds_df["zcta_id"] = folds_df["zcta_id"].astype(str)
     if "event" in folds_df.columns:
         folds_df["event"] = folds_df["event"].astype(str)
+
+    # Build active splits: custom fold-col or all SPLITS (skip-missing-column)
+    if args.fold_col:
+        split_label = args.fold_col.removeprefix("fold_")
+        active_splits = {split_label: args.fold_col}
+    else:
+        active_splits = SPLITS
 
     # --- Load adjacency for per-fold wlag recomputation (leakage mitigation) ---
     neighbors: dict[str, list[str]] | None = None
@@ -710,13 +756,17 @@ def main() -> None:
         log.info("\n--- Target: %s (%s, transform=%s) ---", target_col, task, transform)
 
         for solver_name in SOLVERS:
-            for split_name in SPLITS:
+            for split_name, fold_col in active_splits.items():
+                if fold_col not in folds_df.columns:
+                    log.info("  Skipping %s/%s: column %s not in folds",
+                             solver_name, split_name, fold_col)
+                    continue
                 log.info("  %s / %s", solver_name, split_name)
                 try:
                     results = run_split(
                         df, folds_df, features, r1_supp_count,
                         target_col, task, transform,
-                        solver_name, split_name, scenario,
+                        solver_name, split_name, scenario, fold_col,
                         prediction_rows=prediction_rows,
                         neighbors=neighbors,
                     )
@@ -739,6 +789,7 @@ def main() -> None:
     print(f"{'='*60}\n")
 
     # --- Upload results ---
+    output_prefix = args.output_prefix
     results_payload = {
         "experiment": "s035-model-ladder",
         "phase": phase_label,
@@ -753,13 +804,14 @@ def main() -> None:
         "hydro_feature_count": hydro_count,
         "wmatrix_feature_count": wlag_count,
         "r1_supplement_feature_count": r1_supp_count,
+        "output_prefix": output_prefix,
         "runs": [asdict(r) for r in all_results],
     }
 
     results_json = json.dumps(results_payload, indent=2, default=str)
 
     if args.upload:
-        key = f"{RESULTS_PREFIX}/{phase_label}_{scenario}.json"
+        key = f"{output_prefix}/{phase_label}_{scenario}.json"
         upload_json_result(s3, BUCKET, key, results_payload)
 
         if prediction_rows:
@@ -767,7 +819,7 @@ def main() -> None:
             buf = io.BytesIO()
             pred_df.to_parquet(buf, index=False)
             buf.seek(0)
-            pred_key = f"{RESULTS_PREFIX}/{phase_label}_{scenario}_predictions.parquet"
+            pred_key = f"{output_prefix}/{phase_label}_{scenario}_predictions.parquet"
             s3.put_object(Bucket=BUCKET, Key=pred_key, Body=buf.getvalue())
             log.info("Uploaded %d prediction rows to s3://%s/%s",
                      len(pred_df), BUCKET, pred_key)
