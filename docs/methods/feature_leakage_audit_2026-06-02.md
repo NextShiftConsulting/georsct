@@ -316,13 +316,14 @@ but must be disclosed as a limitation.
 | Item | Status | Owner |
 |---|---|---|
 | MRMS rainfall fix (sentinel + longitude) | **DONE** — f382892 + 4e7308b | — |
-| MRMS rainfall: rebuild all 5 scenarios | **IN PROGRESS** — launched 2026-06-03 16:19 | — |
+| MRMS rainfall: rebuild all 5 scenarios | **DONE** — completed 2026-06-03 | — |
 | NLCD vintage caveat in paper text | Draft above | Paper author |
 | NFIP temporal gate unit test | **DONE** (8/8 passed) | — |
 | W-matrix validation (all 5 scenarios) | **DONE** — 3 missing `impervious_pct`, code fixed | — |
 | Rebuild 3 scenarios (NO, RC, SWFL) for impervious_pct | **DONE** — completed 2026-06-03 | — |
 | `cropland_pct` feature (NLCD classes 81+82) | **DONE** — code complete (61f23ce), needs NLCD Land Cover raster fetch + rebuild | — |
-| NLCD Land Cover raster fetch | **READY** — launcher exists, not yet run | — |
+| NLCD Land Cover raster fetch | **IN PROGRESS** — .ige sidecar fix (65c5215), re-running | — |
 | Rebuild all 5 scenarios (post-NLCD Land Cover) | Blocked on NLCD fetch | — |
-| Re-run R1 ablations (post-rainfall fix) | Blocked on rebuilds | — |
+| Re-run R0 baseline (new features: impervious_pct, cropland_pct) | Blocked on rebuilds | — |
+| Re-run R1 hydrology + ablations (post-rainfall fix + cropland) | Blocked on R0 | — |
 | Allocation geometry assessment (P2) | Not started | — |

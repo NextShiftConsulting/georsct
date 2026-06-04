@@ -7,29 +7,26 @@ raw data pulls have completed for the target scenario.
 Data Lock A (June 1): --scenario houston
 Data Lock B (June 2): all remaining scenarios
 
-Resource assumptions and calculations
---------------------------------------
-Bottleneck: MRMS grib2 decode (ProcessPoolExecutor, N concurrent grids).
-Each CONUS grib2 grid decompresses to ~100 MB in memory.
-
-  ml.m5.2xlarge:  8 vCPU, 32 GB RAM  -> 4 workers x 100 MB = 0.4 GB concurrent
-  ml.m5.4xlarge: 16 vCPU, 64 GB RAM  -> 8 workers x 100 MB = 0.8 GB concurrent
-
-Large scenarios (houston: 3 events x ~18 days, sw_florida: 3 events x ~7 days)
-produce 400-500 grib2 files total. At 8 workers, wall-clock is ~15 min/event
-for MRMS alone.
-
-SLOSH MOM GeoTIFF: 318K x 224K pixels (1.2 GB on disk, 66 GB uncompressed).
-Sampled via rasterio.sample() at ZCTA centroids -- no full-raster load.
-Memory cost: negligible (~1 MB for coordinate arrays).
-
-Volume: 50 GB is sufficient. Grib2 files are streamed from S3, decoded in
-memory, accumulated into a running sum, then discarded. Only one grid plus
-the running sum array (~200 MB) live simultaneously per worker.
-
-Image: PyTorch 2.5.1 CPU (SageMaker-managed). Spatial packages (rasterio,
-geopandas, cfgrib) pip-installed at boot (~3 min). No custom image needed
-at current job frequency.
+Deployment Resource Review (8 dimensions)
+------------------------------------------
+1. Memory:    64 GB (4xlarge) / 32 GB (2xlarge). MRMS: 4-8 workers x 100 MB.
+              NLCD rasters read via rasterio.sample() at centroids (~1 MB).
+              SLOSH MOM: sampled, no full-raster load.
+2. S3 cache:  cropland_pct cached at processed/shared/zcta_cropland_pct.parquet.
+              impervious_pct cached at processed/shared/zcta_impervious_pct.parquet.
+              First run computes from raster; subsequent runs hit cache.
+3. Threads:   MRMS: ProcessPoolExecutor, vCPU/2 workers. Raster sampling:
+              single-threaded per-centroid loop.
+4. Image:     PyTorch 2.5.1 CPU (SageMaker-managed). Spatial packages
+              (rasterio, geopandas, cfgrib) pip-installed at boot (~3 min).
+5. Instance:  ml.m5.4xlarge for large MRMS scenarios (houston, new_orleans,
+              southwest_florida, riverside_coachella). ml.m5.2xlarge for nyc.
+6. Volume:    50 GB. Grib2 streamed from S3. NLCD .tif: 1.15 GB download.
+              Parquet output: <100 MB. Peak ~3 GB.
+7. pip:       geopandas pyogrio rasterio cfgrib xarray eccodes scikit-learn xgboost.
+              rasterio required for NLCD raster read (cropland_pct, impervious_pct).
+8. pre_install: None when NLCD .tif exists on S3. gdal-bin only needed if
+              falling back to .img format (--nlcd-img-fallback flag).
 """
 
 import argparse

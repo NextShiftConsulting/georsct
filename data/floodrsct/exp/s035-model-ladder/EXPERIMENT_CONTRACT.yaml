@@ -274,7 +274,7 @@ phases:
         description: "Assembled event features parquet"
       - key: "folds/{scenario}_folds.parquet"
         description: "Fold assignments from R0"
-      - key: "processed/{scenario}/{scenario_key}_r1_supplement.parquet"
+      - key: "processed/{scenario}/{scenario}_r1_supplement.parquet"
         description: "R1 hydrology supplement"
         optional: false
 
@@ -345,7 +345,7 @@ phases:
         description: "Assembled event features parquet"
       - key: "folds/{scenario}_folds.parquet"
         description: "Fold assignments from R0"
-      - key: "processed/{scenario}/{scenario_key}_r2_supplement.parquet"
+      - key: "processed/{scenario}/{scenario}_r2_supplement.parquet"
         description: "R2 temporal supplement"
         optional: false
 
@@ -575,7 +575,7 @@ phases:
     features: null
 
     s3_artifacts:
-      - key: "processed/{scenario}/{scenario_key}_fast_zcta.parquet"
+      - key: "processed/{scenario}/{scenario}_fast_zcta.parquet"
         description: "FAST ZCTA aggregates"
         per_scenario: true
         scenarios: [houston, nyc]
