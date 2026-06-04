@@ -234,7 +234,10 @@ def compute_residuals(preds_df: pd.DataFrame) -> dict[str, pd.Series]:
 
     residuals = {}
     for (target, solver), group in preds_df.groupby(["target", "solver"]):
-        resid = group.set_index("zcta_id")["y_true"] - group.set_index("zcta_id")["y_pred"]
+        group = group.copy()
+        group["_resid"] = group["y_true"] - group["y_pred"]
+        # Aggregate per ZCTA (mean across folds/events) to avoid duplicate index
+        resid = group.groupby("zcta_id")["_resid"].mean()
         key = f"{target}__{solver}"
         residuals[key] = resid
         log.info(
