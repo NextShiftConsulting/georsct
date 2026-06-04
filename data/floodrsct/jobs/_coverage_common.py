@@ -37,6 +37,19 @@ OUTPUT_KEYS = {
 
 SCENARIOS = list(OUTPUT_KEYS.keys())
 
+# Mapping from logical level to S3 file prefix.
+# R1 training outputs "r1_hydrology_" not "r1_" (ablation label in train_r1_hydrology.py).
+LEVEL_PREFIX = {
+    "r0": "r0",
+    "r1": "r1_hydrology",
+    "r2": "r2",
+}
+
+
+def level_prefix(level: str) -> str:
+    """Return the S3 file-name prefix for a logical level."""
+    return LEVEL_PREFIX.get(level, level)
+
 
 def get_s3_client():
     """Create S3 client via swarm_auth."""

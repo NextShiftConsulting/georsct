@@ -33,7 +33,7 @@ from typing import Optional
 from scipy.stats import binom
 
 sys.path.insert(0, str(Path(__file__).parent))
-from _coverage_common import BUCKET, get_s3_client
+from _coverage_common import BUCKET, get_s3_client, level_prefix
 from _s3_result import upload_json_result
 
 from yrsn.core.dgm_unified import MorphType
@@ -86,7 +86,7 @@ def _load_certificates(s3, level: str) -> dict:
 
 def _load_results(s3, level: str, scenario: str) -> dict:
     """Load model results, indexed by target."""
-    data = _load_json(s3, f"{RESULTS_PREFIX}/{level}_{scenario}.json")
+    data = _load_json(s3, f"{RESULTS_PREFIX}/{level_prefix(level)}_{scenario}.json")
     if not data:
         return {}
     return {cell["target"]: cell for cell in data.get("cells", [])}

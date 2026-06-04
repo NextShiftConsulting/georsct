@@ -33,7 +33,7 @@ import pandas as pd
 from scipy.stats import spearmanr
 
 sys.path.insert(0, str(Path(__file__).parent))
-from _coverage_common import BUCKET, OUTPUT_KEYS, get_s3_client
+from _coverage_common import BUCKET, OUTPUT_KEYS, get_s3_client, level_prefix
 from _s3_result import upload_json_result
 
 logging.basicConfig(
@@ -85,7 +85,7 @@ def _load_json(s3, key: str) -> Optional[Dict]:
 
 def _get_r02_headline(s3, scenario: str, level: str) -> Optional[float]:
     """Get R0-R2 headline metric for obs_nfip_event_claims."""
-    key = f"{RESULTS_PREFIX}/{level}_{scenario}.json"
+    key = f"{RESULTS_PREFIX}/{level_prefix(level)}_{scenario}.json"
     data = _load_json(s3, key)
     if not data:
         return None

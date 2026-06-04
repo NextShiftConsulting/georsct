@@ -36,7 +36,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent))
-from _coverage_common import BUCKET, get_s3_client, load_adjacency
+from _coverage_common import BUCKET, get_s3_client, load_adjacency, level_prefix
 from _s3_result import upload_json_result
 from compute_residual_lisa import (
     build_weights_from_adjacency,
@@ -511,7 +511,7 @@ def compute_triangulation_table(
 
 
 def _load_predictions(s3, level: str, scenario: str) -> pd.DataFrame:
-    key = f"{RESULTS_PREFIX}/{level}_{scenario}_predictions.parquet"
+    key = f"{RESULTS_PREFIX}/{level_prefix(level)}_{scenario}_predictions.parquet"
     try:
         obj = s3.get_object(Bucket=BUCKET, Key=key)
         df = pd.read_parquet(io.BytesIO(obj["Body"].read()))

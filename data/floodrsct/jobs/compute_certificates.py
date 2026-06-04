@@ -24,7 +24,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent))
-from _coverage_common import BUCKET, get_s3_client
+from _coverage_common import BUCKET, get_s3_client, level_prefix
 from _s3_result import upload_json_result
 
 # rsct service layer -- the actual certification logic
@@ -143,7 +143,7 @@ def run_certificates(s3, level: str, upload: bool = False) -> dict:
     all_certs = []
 
     for scenario in MODELABLE:
-        results = _load_json(s3, f"{RESULTS_PREFIX}/{level}_{scenario}.json")
+        results = _load_json(s3, f"{RESULTS_PREFIX}/{level_prefix(level)}_{scenario}.json")
         if not results:
             log.warning("No results for %s/%s", level, scenario)
             continue

@@ -39,7 +39,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent))
-from _coverage_common import BUCKET, SCENARIOS, get_s3_client, load_adjacency
+from _coverage_common import BUCKET, SCENARIOS, get_s3_client, load_adjacency, level_prefix
 from _s3_result import upload_json_result
 
 # Import Moran's I from yrsn (not reinvented)
@@ -70,7 +70,7 @@ MODELABLE = {"houston", "southwest_florida", "nyc", "riverside_coachella", "new_
 
 def _load_results(s3, level: str, scenario: str) -> dict | None:
     """Load results JSON for a (level, scenario) pair."""
-    key = f"{RESULTS_PREFIX}/{level}_{scenario}.json"
+    key = f"{RESULTS_PREFIX}/{level_prefix(level)}_{scenario}.json"
     try:
         resp = s3.get_object(Bucket=BUCKET, Key=key)
         return json.loads(resp["Body"].read().decode())
@@ -81,7 +81,7 @@ def _load_results(s3, level: str, scenario: str) -> dict | None:
 
 def _load_predictions(s3, level: str, scenario: str) -> pd.DataFrame:
     """Load predictions parquet for Moran's I computation."""
-    key = f"{RESULTS_PREFIX}/{level}_{scenario}_predictions.parquet"
+    key = f"{RESULTS_PREFIX}/{level_prefix(level)}_{scenario}_predictions.parquet"
     try:
         resp = s3.get_object(Bucket=BUCKET, Key=key)
         return pd.read_parquet(io.BytesIO(resp["Body"].read()))

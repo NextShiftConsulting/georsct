@@ -292,10 +292,10 @@ phases:
     features: null
 
     s3_artifacts:
-      - key: "results/s035/r1_{scenario}.json"
+      - key: "results/s035/r1_hydrology_{scenario}.json"
         per_scenario: true
         scenarios: *modelable
-      - key: "results/s035/r1_{scenario}_predictions.parquet"
+      - key: "results/s035/r1_hydrology_{scenario}_predictions.parquet"
         per_scenario: true
         scenarios: *modelable
         optional: true
@@ -316,7 +316,7 @@ phases:
     features: null
 
     s3_artifacts:
-      - key: "results/s035/r1_{scenario}.json"
+      - key: "results/s035/r1_hydrology_{scenario}.json"
         per_scenario: true
         scenarios: *modelable
       - key: "results/s035/diagnostics_r1.json"
@@ -409,7 +409,7 @@ phases:
       - key: "results/s035/r0_{scenario}.json"
         per_scenario: true
         scenarios: *modelable
-      - key: "results/s035/r1_{scenario}.json"
+      - key: "results/s035/r1_hydrology_{scenario}.json"
         per_scenario: true
         scenarios: *modelable
       - key: "results/s035/r2_{scenario}.json"
@@ -439,7 +439,7 @@ phases:
       - key: "results/s035/r0_{scenario}.json"
         per_scenario: true
         scenarios: *modelable
-      - key: "results/s035/r1_{scenario}.json"
+      - key: "results/s035/r1_hydrology_{scenario}.json"
         per_scenario: true
         scenarios: *modelable
       - key: "results/s035/r2_{scenario}.json"

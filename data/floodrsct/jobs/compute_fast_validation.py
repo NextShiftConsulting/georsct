@@ -37,7 +37,7 @@ import pandas as pd
 from scipy import stats
 
 sys.path.insert(0, str(Path(__file__).parent))
-from _coverage_common import BUCKET, get_s3_client
+from _coverage_common import BUCKET, get_s3_client, level_prefix
 from _s3_result import upload_json_result
 
 logging.basicConfig(
@@ -81,7 +81,7 @@ def load_fast_zcta(s3, scenario: str, return_period: str) -> pd.DataFrame | None
 
 def load_predictions(s3, level: str, scenario: str) -> pd.DataFrame | None:
     """Load model predictions, filter to primary target/solver, aggregate per ZCTA."""
-    key = f"{RESULTS_PREFIX}/{level}_{scenario}_predictions.parquet"
+    key = f"{RESULTS_PREFIX}/{level_prefix(level)}_{scenario}_predictions.parquet"
     df = _load_parquet(s3, key)
     if df is None:
         return None

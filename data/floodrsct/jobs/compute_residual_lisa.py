@@ -40,7 +40,7 @@ log = logging.getLogger(__name__)
 logging.getLogger("botocore.credentials").setLevel(logging.WARNING)
 
 sys.path.insert(0, str(Path(__file__).parent))
-from _coverage_common import BUCKET, get_s3_client, load_adjacency
+from _coverage_common import BUCKET, get_s3_client, load_adjacency, level_prefix
 
 # yrsn for global Moran's I (same pattern as compute_diagnostics.py)
 try:
@@ -199,7 +199,7 @@ def compute_lisa(
 
 def load_predictions(s3, level: str, scenario: str) -> pd.DataFrame:
     """Load per-row predictions from S3."""
-    key = f"results/s035/{level}_{scenario}_predictions.parquet"
+    key = f"results/s035/{level_prefix(level)}_{scenario}_predictions.parquet"
     try:
         obj = s3.get_object(Bucket=BUCKET, Key=key)
         df = pd.read_parquet(io.BytesIO(obj["Body"].read()))
