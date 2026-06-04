@@ -226,9 +226,16 @@ def render_figure(
     merged = zcta_gdf.merge(residuals, left_on="zcta_id", right_on="zcta", how="inner")
     log.info("Merged %d ZCTAs with residuals", len(merged))
 
+    # Filter buildings to Oahu bbox (exclude any off-island points)
+    buildings = buildings[
+        (buildings["longitude"] >= OAHU_BBOX["lon_min"])
+        & (buildings["longitude"] <= OAHU_BBOX["lon_max"])
+        & (buildings["latitude"] >= OAHU_BBOX["lat_min"])
+        & (buildings["latitude"] <= OAHU_BBOX["lat_max"])
+    ].copy()
     inundated = buildings[buildings["FloodDepth"].notna() & (buildings["FloodDepth"] > 0)].copy()
     dry = buildings[buildings["FloodDepth"].isna() | (buildings["FloodDepth"] <= 0)].copy()
-    log.info("Buildings: %d total, %d inundated, %d dry", len(buildings), len(inundated), len(dry))
+    log.info("Buildings: %d in bbox, %d inundated, %d dry", len(buildings), len(inundated), len(dry))
 
     # Centroid dict
     centroids["zcta_id"] = centroids["zcta_id"].astype(str)
@@ -263,7 +270,7 @@ def render_figure(
         ("Moran's I", "-0.358", "Residual autocorrelation", ORANGE, 0.72),
         ("Verdict", "FAIL", "Clustering not confirmed", RED, 0.60),
         ("Buildings", "47,983", "1,676 inundated (3.5%)", BLUE, 0.48),
-        ("Pred. Loss", "$55M", "$33M bldg + $22M content", RED, 0.36),
+        ("Pred. Loss", "\$55M", "\$33M bldg + \$22M content", RED, 0.36),
         ("NFIP Claims", "379", "Cumulative 1978-2023", GREEN, 0.24),
         ("ZCTAs", "17 of 20", "Oahu (968xx prefix)", TEXT_PRIMARY, 0.12),
     ]
@@ -315,12 +322,26 @@ def render_figure(
         legend=False,
     )
 
-    # Reef contour
+    # Reef contour (clipped to land polygons to avoid offshore fragments)
     if reef_data is not None:
         data, meta = reef_data
         try:
+            from shapely.ops import unary_union
+            from matplotlib.path import Path as MplPath
+            from matplotlib.patches import PathPatch
+
+            # Build clip path from merged ZCTA polygons with buffer
+            union_geom = unary_union(merged.geometry).buffer(0.005)
+            # Convert shapely to matplotlib clip path
+            exterior = union_geom.exterior if hasattr(union_geom, 'exterior') else None
+            clip_patch = None
+            if exterior is not None:
+                verts = list(exterior.coords)
+                codes = [MplPath.MOVETO] + [MplPath.LINETO] * (len(verts) - 2) + [MplPath.CLOSEPOLY]
+                clip_patch = PathPatch(MplPath(verts, codes), transform=ax_map.transData)
+
             if meta.get("meshgrid"):
-                ax_map.contour(
+                cs = ax_map.contour(
                     meta["lons"], meta["lats"], data,
                     levels=[0.01],
                     colors=[CYAN],
@@ -329,7 +350,7 @@ def render_figure(
                     alpha=0.8,
                 )
             else:
-                ax_map.contour(
+                cs = ax_map.contour(
                     meta["xs"], meta["ys"], data,
                     levels=[0.01],
                     colors=[CYAN],
@@ -337,6 +358,10 @@ def render_figure(
                     linestyles="solid",
                     alpha=0.8,
                 )
+            # Clip contour lines to land area
+            if clip_patch is not None:
+                for coll in cs.collections:
+                    coll.set_clip_path(clip_patch)
         except Exception as exc:
             log.warning("Contour failed: %s", exc)
 
@@ -388,10 +413,10 @@ def render_figure(
 
     # Callout annotations
     callouts = [
-        ("96816", "99 NFIP, 0 surge\ninland pluvial", (-157.72, 21.31)),
-        ("96819", "95 NFIP, 0 surge\nvalley flooding", (-157.95, 21.41)),
-        ("96814", "3 NFIP, $19.5M pred\ncoastal overpredict", (-157.76, 21.26)),
-        ("96850", "0 NFIP, $15.5M pred\nexposed, no history", (-157.93, 21.27)),
+        ("96816", "99 NFIP, 0 surge\ninland pluvial", (-157.68, 21.30)),
+        ("96819", "95 NFIP, 0 surge\nvalley flooding", (-157.88, 21.46)),
+        ("96814", "3 NFIP, \$19.5M pred\ncoastal overpredict", (-157.78, 21.27)),
+        ("96850", "0 NFIP, \$15.5M pred\nexposed, no history", (-158.05, 21.32)),
     ]
     for zid, note, text_xy in callouts:
         if zid in cen_dict:
@@ -468,7 +493,7 @@ def render_figure(
     ax_bar.set_title("Per-ZCTA Comparison",
                      fontsize=9, fontweight="bold", color=TEXT_PRIMARY,
                      loc="left", pad=6)
-    leg2 = ax_bar.legend(fontsize=5.5, loc="lower right",
+    leg2 = ax_bar.legend(fontsize=5.5, loc="upper right",
                          framealpha=0.9, edgecolor=BORDER, facecolor=BG_CARD,
                          labelcolor=TEXT_SECONDARY)
     leg2.get_frame().set_linewidth(0.5)
@@ -484,7 +509,7 @@ def render_figure(
 
     # ----- Footnote -----
     fig.text(
-        0.19, -0.015,
+        0.19, 0.005,
         "Negative Moran's I (-0.358): adjacent ZCTAs have anti-correlated residuals. "
         "NFIP reference is cumulative (not event-matched); comparison is illustrative, not adjudicative.",
         fontsize=5.5, color=TEXT_SECONDARY, style="italic",
