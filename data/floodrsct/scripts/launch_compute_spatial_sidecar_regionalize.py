@@ -48,6 +48,11 @@ def main() -> None:
         instance_type="ml.m5.xlarge",
         volume_size_gb=10,
         pip_packages="spopt libpysal geopandas scikit-learn scipy",
+        extra_files=[
+            "compute_residual_lisa.py",
+            "train_r0_baseline.py",
+            "train_r1_hydrology.py",
+        ],
         dry_run=args.dry_run,
         scenario=args.scenario,
     )
