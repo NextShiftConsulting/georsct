@@ -324,7 +324,7 @@ def fit_gwr_probe(
     """
     from mgwr.gwr import GWR
     from mgwr.sel_bw import Sel_BW
-    from pysal.model import spreg
+    import spreg
 
     n_obs = len(y)
 
