@@ -248,9 +248,10 @@ def render_figure(
     fig = plt.figure(figsize=(16, 8), dpi=300, facecolor=BG_DARK)
 
     # Three panels: metrics strip | map | bar chart
+    # Bottom 12% reserved for colorbars + footnote
     ax_metrics = fig.add_axes([0.0, 0.0, 0.18, 1.0], facecolor=BG_DARK)
-    ax_map = fig.add_axes([0.19, 0.06, 0.52, 0.88], facecolor=BG_DARK)
-    ax_bar = fig.add_axes([0.74, 0.06, 0.24, 0.88], facecolor=BG_CARD)
+    ax_map = fig.add_axes([0.19, 0.14, 0.52, 0.80], facecolor=BG_DARK)
+    ax_bar = fig.add_axes([0.74, 0.14, 0.24, 0.80], facecolor=BG_CARD)
 
     # ----- METRICS PANEL (left strip) -----
     ax_metrics.set_xlim(0, 1)
@@ -380,11 +381,12 @@ def render_figure(
             cmap="YlOrRd", vmin=0, vmax=7,
             alpha=0.85, zorder=3, edgecolors="none", rasterized=True,
         )
-        # Flood depth colorbar
-        cbar_ax = fig.add_axes([0.19, 0.02, 0.20, 0.015])
+        # Flood depth colorbar — placed in bottom strip
+        cbar_ax = fig.add_axes([0.19, 0.065, 0.22, 0.025])
         cbar = fig.colorbar(sc, cax=cbar_ax, orientation="horizontal")
-        cbar.set_label("Flood depth (ft)", fontsize=7, color=TEXT_SECONDARY)
-        cbar.ax.tick_params(labelsize=6, colors=TEXT_SECONDARY)
+        cbar.set_label("Flood depth (ft)", fontsize=8, color=TEXT_PRIMARY,
+                        fontweight="bold")
+        cbar.ax.tick_params(labelsize=7, colors=TEXT_SECONDARY)
         cbar.outline.set_edgecolor(BORDER)
 
     # Adjacency edges
@@ -441,14 +443,14 @@ def render_figure(
     ax_map.set_xlabel("Longitude", fontsize=7, color=TEXT_SECONDARY)
     ax_map.set_ylabel("Latitude", fontsize=7, color=TEXT_SECONDARY)
 
-    # Residual colorbar
+    # Residual colorbar — placed in bottom strip next to flood depth
     sm = plt.cm.ScalarMappable(cmap="RdBu_r", norm=norm)
     sm.set_array([])
-    cbar2_ax = fig.add_axes([0.45, 0.02, 0.20, 0.015])
+    cbar2_ax = fig.add_axes([0.47, 0.065, 0.22, 0.025])
     cbar2 = fig.colorbar(sm, cax=cbar2_ax, orientation="horizontal")
-    cbar2.set_label("Normalized mismatch (pred - NFIP)", fontsize=7,
-                    color=TEXT_SECONDARY)
-    cbar2.ax.tick_params(labelsize=6, colors=TEXT_SECONDARY)
+    cbar2.set_label("Normalized mismatch (pred - NFIP)", fontsize=8,
+                    color=TEXT_PRIMARY, fontweight="bold")
+    cbar2.ax.tick_params(labelsize=7, colors=TEXT_SECONDARY)
     cbar2.outline.set_edgecolor(BORDER)
 
     # Map legend
@@ -509,10 +511,11 @@ def render_figure(
 
     # ----- Footnote -----
     fig.text(
-        0.19, 0.005,
+        0.19, 0.025,
         "Negative Moran's I (-0.358): adjacent ZCTAs have anti-correlated residuals. "
-        "NFIP reference is cumulative (not event-matched); comparison is illustrative, not adjudicative.",
-        fontsize=5.5, color=TEXT_SECONDARY, style="italic",
+        "NFIP reference is cumulative (not event-matched); comparison is illustrative, "
+        "not adjudicative.",
+        fontsize=6.5, color=TEXT_SECONDARY, style="italic",
     )
 
     # Save
