@@ -11,7 +11,7 @@ Deployment Resource Review
 2. S3 cache:  Reads sidecar GWR parquet + JSON + boundaries.
 3. Threads:   Single-threaded matplotlib render.
 4. Image:     PyTorch CPU. Needs geopandas + matplotlib.
-5. Instance:  ml.m5.large (2 vCPU, 8 GB).
+5. Instance:  ml.m5.xlarge (4 vCPU, 16 GB). Upgraded from large: 800 MB boundary parquet expands to ~4 GB as GeoDataFrame.
 6. Volume:    10 GB. Output PDF+SVG <2 MB.
 7. pip:       geopandas matplotlib pyproj.
 8. pre_install: None.
@@ -43,7 +43,7 @@ def main() -> None:
         job_name=job_name,
         job_script="render_fig6_gwr_local_r2.py",
         job_args=["--scenario", args.scenario, "--upload"],
-        instance_type="ml.m5.large",
+        instance_type="ml.m5.xlarge",
         volume_size_gb=10,
         pip_packages="geopandas matplotlib pyproj",
         dry_run=args.dry_run,
