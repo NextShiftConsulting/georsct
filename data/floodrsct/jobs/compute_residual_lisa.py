@@ -105,12 +105,21 @@ def build_weights_from_adjacency(
 
     id_set = set(zcta_ids)
     # Filter to edges where both endpoints are in our dataset
-    mask = adj_df["zcta_from"].isin(id_set) & adj_df["zcta_to"].isin(id_set)
+    # Adjacency columns may be named zcta_from/zcta_to or zcta_id_1/zcta_id_2
+    cols = adj_df.columns.tolist()
+    if "zcta_from" in cols:
+        c1, c2 = "zcta_from", "zcta_to"
+    elif "zcta_id_1" in cols:
+        c1, c2 = "zcta_id_1", "zcta_id_2"
+    else:
+        c1, c2 = cols[0], cols[1]
+
+    mask = adj_df[c1].astype(str).isin(id_set) & adj_df[c2].astype(str).isin(id_set)
     edges = adj_df[mask]
 
     neighbors = {z: [] for z in zcta_ids}
     for _, row in edges.iterrows():
-        a, b = str(row["zcta_from"]), str(row["zcta_to"])
+        a, b = str(row[c1]), str(row[c2])
         if a in neighbors and b in neighbors:
             neighbors[a].append(b)
             neighbors[b].append(a)
