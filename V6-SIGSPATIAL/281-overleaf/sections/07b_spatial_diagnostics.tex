@@ -1,0 +1,225 @@
+% ============================================================
+% SECTION 7b — Spatial Diagnostics Subsection
+% Home: SIGSPATIAL (canonical spatial-statistics vocabulary).
+% NeurIPS dataset paper references this, does not duplicate figures.
+%
+% Four diagnostics, one narrative arc:
+%   1. Errors are spatially structured (global Moran + Geary)
+%   2. LISA localizes WHERE the structure lives (Fig 5)
+%   3. The relationship is non-stationary, explaining WHY (GWR, Fig 6)
+%   4. The headline survives alternative spatial blocking (regionalization)
+%
+% ALL NUMBERS ARE \PH{PLACEHOLDERS} UNTIL DATA LOCK.
+% ============================================================
+
+\newcommand{\PH}[1]{\textcolor{red}{[#1]}}  % Redundant if already defined
+
+\subsection{Spatial Validity Diagnostics}
+\label{sec:spatial-diagnostics}
+
+We report four spatial diagnostics that collectively characterize
+geometric overfitting and the effectiveness of spatially-blocked
+validation. Each answers a distinct question about spatial structure
+in the residuals; together they form the ``geometric overfitting
+$\to$ spatially-blocked validation'' thread
+(Table~\ref{tab:residual-diagnostics}, Figures~\ref{fig:lisa-triptych}
+and~\ref{fig:gwr-local-r2}).
+
+
+% ===================================================================
+% TABLE 1: Residual-Diagnostics Table
+% One row per (scenario, target, level). Primary cell in main text;
+% full grid in Appendix Table~\ref{app:tab:residual-all}.
+% ===================================================================
+
+\begin{table}[t]
+\centering
+\caption{Residual spatial-autocorrelation diagnostics, primary cell
+  (\texttt{houston}, \texttt{obs\_nfip\_event\_claims}).
+  Moran's $I > 0$ with $p < 0.05$ indicates residuals are
+  spatially clustered; Geary's $C < 1$ corroborates at short range.
+  Cluster fractions are BH-FDR corrected ($q = 0.05$).
+  All numbers are \PH{placeholders} pending data lock.}
+\label{tab:residual-diagnostics}
+\small
+\begin{tabular}{@{}lccccccc@{}}
+\toprule
+\textbf{Level} &
+  \textbf{Moran's $I$} &
+  \textbf{Geary's $C$} &
+  \textbf{$p_C$} &
+  \textbf{\% HH} &
+  \textbf{\% LL} &
+  \textbf{\% outlier} &
+  \textbf{\% sig.} \\
+\midrule
+R0 (static)       & \PH{0.xx} & \PH{0.xx} & \PH{0.xx} & \PH{xx} & \PH{xx} & \PH{xx} & \PH{xx} \\
+R1 (+ hydrology)  & \PH{0.xx} & \PH{0.xx} & \PH{0.xx} & \PH{xx} & \PH{xx} & \PH{xx} & \PH{xx} \\
+R2 (+ temporal)   & \PH{0.xx} & \PH{0.xx} & \PH{0.xx} & \PH{xx} & \PH{xx} & \PH{xx} & \PH{xx} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+% ===================================================================
+% FIGURE 5: LISA Residual-Cluster Triptych
+% Three panels: R0 -> R1 -> R2.
+% Hedges baked into caption so epistemics precede numbers.
+% ===================================================================
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/fig5_lisa_triptych_houston.pdf}
+\caption{%
+  Local Moran's $I$ residual clusters for the primary cell
+  (\texttt{houston}, \texttt{obs\_nfip\_event\_claims}, \texttt{histgbdt}),
+  three representation levels.
+  ZCTAs colored by LISA cluster label (BH-FDR $q = 0.05$, 999 permutations):
+  HH~(hot spot), LL~(cold spot), HL/LH~(spatial outliers), ns~(not significant).
+  %
+  Global Moran's $I$ and significant-cluster fraction annotated per panel.
+  %
+  \textbf{Finding:} Local Moran's $I$ on R0 residuals identifies
+  significant positive-autocorrelation clusters in \PH{N}\% of
+  primary-cell ZCTAs; under R1's spatial features these attenuate
+  to \PH{M}\%.
+  %
+  \textbf{Scope:} Cross-cell attenuation is descriptive---clusters
+  attenuated in \PH{k} of 9 cells (Clopper--Pearson 95\% CI
+  [\PH{lo}, \PH{hi}], reported descriptively; $n = 9$ precludes
+  a formal test).
+  Attenuation is consistent with the W-matrix features absorbing
+  the spatial structure; it is not causal proof.
+  The spatially-blocked design is causal at the pipeline level, not
+  the individual-feature level.%
+}
+\label{fig:lisa-triptych}
+\end{figure*}
+
+
+% ===================================================================
+% FIGURE 6: GWR Local-R2 Choropleth
+% Structural description only. Not predictive performance.
+% ===================================================================
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/fig6_gwr_local_r2_houston.pdf}
+\caption{%
+  Geographically Weighted Regression local $R^2$ for the primary cell
+  (\texttt{houston}, \texttt{obs\_nfip\_event\_claims}).
+  Left: per-ZCTA local $R^2$ from GWR fit (EPSG:5070, adaptive bisquare
+  kernel, bandwidth selected by \texttt{AICc}).
+  Right: per-feature coefficient spread (std$/|$mean$|$); features above
+  the dashed threshold ($= 0.5$) exhibit non-stationary relationships.
+  %
+  \textbf{Structural description:} GWR improves on global OLS
+  ($\Delta$AICc $=$ \PH{xx}), and local $R^2$ ranges from
+  \PH{lo} to \PH{hi}, indicating the feature$\to$claims
+  relationship is non-stationary across space.
+  This is a description of the full cross-section using all data;
+  GWR makes no generalization claim.
+  %
+  \textbf{Triangulation} (observed association, not tested, not in
+  the Holm--Bonferroni family): low-local-$R^2$ regions coincide
+  with LISA hot-spot clusters and with the highest R0$\to$R1 uplift
+  (rank agreement; Spearman $\rho =$ \PH{xx}, bootstrap 95\% CI
+  [\PH{lo}, \PH{hi}]).
+  At $n \approx$ \PH{4--5} scenarios the CI is near-useless and we
+  note it as suggestive only.%
+}
+\label{fig:gwr-local-r2}
+\end{figure}
+
+
+% ===================================================================
+% Geary's C -- one sentence, corroborating
+% ===================================================================
+
+\paragraph{Short-range dissimilarity.}
+Geary's $C$ corroborates the Moran's $I$ finding:
+$C =$ \PH{0.xx} at R0 ($p =$ \PH{0.xx}), consistent in direction
+($C < 1$ indicates positive spatial autocorrelation).
+See Table~\ref{tab:residual-diagnostics} for all levels.
+
+
+% ===================================================================
+% TABLE 2: Robustness Table (Appendix R)
+% One row per compared cell. Header carries overlap counts.
+% ===================================================================
+
+\begin{table}[t]
+\centering
+\caption{Regionalization robustness: R0$\to$R1 uplift direction under
+  county-blocked versus region-blocked (Skater, $K = 5$) folds.
+  Compared \PH{m} of \PH{n} cells (county: \PH{n\_county},
+  region: \PH{n\_region}; \PH{dropped keys if any}).
+  The county-blocked Wilcoxon remains the registered primary inference;
+  this is a sensitivity check on block geometry.
+  %
+  \textbf{wlag NaN confound:} \texttt{wlag\_nfip\_claims} was absent for
+  \PH{X}\% of region-fold test ZCTAs versus \PH{Y}\% under county
+  folds, a consequence of contiguous holdout (interior test ZCTAs lose
+  all training neighbors).
+  Any uplift-direction difference may partly trace to differential
+  feature availability rather than pure block geometry.%
+}
+\label{tab:robustness}
+\small
+\begin{tabular}{@{}llccccl@{}}
+\toprule
+\textbf{Scenario} & \textbf{Target} &
+  \textbf{Uplift (county)} & \textbf{$p_W$ (county)} &
+  \textbf{Uplift (region)} & \textbf{$p_W$ (region)} &
+  \textbf{Agrees?} \\
+\midrule
+\PH{houston} & \PH{claims} & \PH{+0.xx} & \PH{0.xx} & \PH{+0.xx} & \PH{0.xx} & \PH{yes} \\
+\PH{houston} & \PH{311}    & \PH{+0.xx} & \PH{0.xx} & \PH{+0.xx} & \PH{0.xx} & \PH{yes} \\
+\PH{houston} & \PH{hwm}    & \PH{+0.xx} & \PH{0.xx} & \PH{+0.xx} & \PH{0.xx} & \PH{--}  \\
+\PH{\ldots}  & \PH{\ldots} & \PH{\ldots} & \PH{\ldots} & \PH{\ldots} & \PH{\ldots} & \PH{\ldots} \\
+\midrule
+\multicolumn{6}{@{}l}{\textbf{Direction agreement:}} & \PH{k / m} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+% ===================================================================
+% Regionalization paragraph
+% ===================================================================
+
+\paragraph{Robustness to block geometry (Appendix~R).}
+Under an alternative hydrologically-coherent block definition
+(Skater regionalization on structural geography%
+---\texttt{flood\_pct\_zone\_a}, \texttt{twi\_acc\_twi},
+\texttt{slope\_basin\_slope}%
+---$K = 5$), the sign of R0$\to$R1 uplift agrees with county blocking
+in \PH{k of m} compared cells (Table~\ref{tab:robustness}).
+Where disagreement occurs, we report it as sensitivity to block geometry,
+not as failure of either blocking scheme.
+
+\textbf{Partial overlap:}
+The comparison covers \PH{m} of 9 cells;
+\PH{dropped cells and reason, e.g.\ ``SW Florida dropped due to
+Skater degeneracy (singleton region)''}.
+The asymmetry is visible in the artifact (\texttt{n\_county\_cells},
+\texttt{n\_region\_cells}, \texttt{dropped\_*} fields in the comparison
+JSON) and does not inflate the reported agreement fraction.
+
+
+% ===================================================================
+% Narrative arc (closing paragraph)
+% ===================================================================
+
+\paragraph{Summary.}
+Residuals are spatially structured at R0 (Moran's $I$, Geary's $C$);
+LISA localizes \emph{where} the structure concentrates
+(Figure~\ref{fig:lisa-triptych});
+the underlying relationship is non-stationary, explaining \emph{why}
+spatial features help (GWR, Figure~\ref{fig:gwr-local-r2});
+R1's W-matrix features attenuate the clusters;
+and the headline uplift survives an alternative spatial blocking
+(Table~\ref{tab:robustness}).
+This sequence instantiates the ``geometric overfitting $\to$
+spatially-blocked validation'' thread that the benchmark is designed
+to diagnose.
