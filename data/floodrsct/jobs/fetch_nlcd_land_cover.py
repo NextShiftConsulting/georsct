@@ -119,40 +119,38 @@ def main() -> None:
         log.info("Done (skipped).")
         return
 
-    # NOTE: .img without .ige sidecar is NOT convertible.  The previous run
-    # uploaded a bare .img header; skip it and re-download from source.
-    if s3_key_exists(s3, BUCKET, S3_KEY_IMG):
-        log.info(".img exists on S3 but may lack .ige sidecar. Re-downloading from source.")
+    # Check if zip was pre-uploaded to S3 (Option B: local download + S3 upload)
+    S3_KEY_ZIP = "raw/nlcd/land_cover_2021/nlcd_2021_land_cover_l48_20230630.zip"
+    zip_path = os.path.join(TMP_DIR, "nlcd_land_cover.zip")
 
-    # Download zip from one of the known URLs
-    zip_name = f"{uuid.uuid4().hex}_nlcd_land_cover.zip"
-    zip_path = os.path.join(TMP_DIR, zip_name)
+    if s3_key_exists(s3, BUCKET, S3_KEY_ZIP):
+        log.info("Zip found on S3: s3://%s/%s -- downloading from S3 (fast)", BUCKET, S3_KEY_ZIP)
+        s3.download_file(BUCKET, S3_KEY_ZIP, zip_path)
+    else:
+        # Download zip from one of the known URLs
+        downloaded = False
+        for url in SCIENCEBASE_URLS:
+            log.info("Trying wget: %s", url[:120])
+            sys.stdout.flush()
+            rc = subprocess.call(
+                ["wget", "--progress=dot:mega",
+                 "--tries=3", "--read-timeout=120", "--connect-timeout=30",
+                 "-O", zip_path, url],
+                timeout=3600,
+            )
+            if rc == 0 and Path(zip_path).exists() and Path(zip_path).stat().st_size > 1e6:
+                downloaded = True
+                log.info("wget succeeded: %.1f MB", Path(zip_path).stat().st_size / 1e6)
+                break
+            log.warning("wget failed (rc=%d)", rc)
+            if Path(zip_path).exists():
+                os.unlink(zip_path)
 
-    downloaded = False
-    for url in SCIENCEBASE_URLS:
-        log.info("Trying wget: %s", url[:120])
-        sys.stdout.flush()
-        # Let wget output flow directly to stdout/stderr (visible in CloudWatch).
-        # --progress=dot:mega prints one dot per MB, one line per 10 MB.
-        rc = subprocess.call(
-            ["wget", "--progress=dot:mega",
-             "--tries=3", "--read-timeout=120", "--connect-timeout=30",
-             "-O", zip_path, url],
-            timeout=3600,
-        )
-        if rc == 0 and Path(zip_path).exists() and Path(zip_path).stat().st_size > 1e6:
-            downloaded = True
-            log.info("wget succeeded: %.1f MB", Path(zip_path).stat().st_size / 1e6)
-            break
-        log.warning("wget failed (rc=%d)", rc)
-        if Path(zip_path).exists():
-            os.unlink(zip_path)
-
-    if not downloaded:
-        raise RuntimeError(
-            "Failed to download NLCD 2021 Land Cover from any known URL. "
-            "Check ScienceBase availability or download manually."
-        )
+        if not downloaded:
+            raise RuntimeError(
+                "Failed to download NLCD 2021 Land Cover from any known URL. "
+                "Upload zip to s3://%s/%s manually." % (BUCKET, S3_KEY_ZIP)
+            )
 
     zip_size_mb = Path(zip_path).stat().st_size / 1e6
     log.info("Downloaded zip: %.1f MB", zip_size_mb)
