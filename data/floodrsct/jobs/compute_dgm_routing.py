@@ -78,7 +78,9 @@ def _load_certificates(s3, level: str) -> dict:
     if not data:
         return {}
     index = {}
-    for cell in data.get("cells", []):
+    # Certificates JSON uses "certificates" key, not "cells"
+    certs = data.get("certificates", data.get("cells", []))
+    for cell in certs:
         key = (cell["scenario"], cell["target"])
         index[key] = cell
     return index
@@ -89,7 +91,15 @@ def _load_results(s3, level: str, scenario: str) -> dict:
     data = _load_json(s3, f"{RESULTS_PREFIX}/{level_prefix(level)}_{scenario}.json")
     if not data:
         return {}
-    return {cell["target"]: cell for cell in data.get("cells", [])}
+    # Results JSON uses "runs", not "cells"
+    runs = data.get("runs", data.get("cells", []))
+    # Index by target: aggregate metrics across runs for each target
+    target_index: dict = {}
+    for run in runs:
+        t = run.get("target", "unknown")
+        if t not in target_index:
+            target_index[t] = run
+    return target_index
 
 
 # ---------------------------------------------------------------------------

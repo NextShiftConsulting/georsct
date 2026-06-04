@@ -100,6 +100,9 @@ def upload_code(job_name: str, job_script: str, extra_files: list[str] | None = 
     if extra_files:
         for f in extra_files:
             p = Path(f)
+            if not p.exists():
+                # Try relative to JOBS_DIR
+                p = JOBS_DIR / f
             if p.exists():
                 files_to_upload.append(p)
             else:
