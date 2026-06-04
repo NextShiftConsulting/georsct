@@ -84,6 +84,7 @@ def load_zcta_boundaries(s3) -> "gpd.GeoDataFrame":
     for key in [
         "raw/geocertdb2026/zcta_boundaries_5070.parquet",
         "raw/geocertdb2026/zcta_boundaries.parquet",
+        "raw/geocertdb2026/zcta5_boundaries.parquet",
     ]:
         try:
             obj = s3.get_object(Bucket=BUCKET, Key=key)
