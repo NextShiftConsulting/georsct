@@ -258,22 +258,27 @@ def render_figure(
     ax_metrics.set_ylim(0, 1)
     ax_metrics.axis("off")
 
-    # Title
-    ax_metrics.text(0.5, 0.96, "Oahu H4", fontsize=16, fontweight="bold",
+    # Title — plain English so a naive reader understands
+    ax_metrics.text(0.5, 0.97, "Oahu Flood Model", fontsize=14, fontweight="bold",
                     color="#ffffff", ha="center", va="top",
                     fontfamily="sans-serif")
-    ax_metrics.text(0.5, 0.925, "Clustering Probe", fontsize=10,
-                    color=TEXT_SECONDARY, ha="center", va="top")
+    ax_metrics.text(0.5, 0.94, "vs. Insurance History", fontsize=11,
+                    color=TEXT_SECONDARY, ha="center", va="top",
+                    fontfamily="sans-serif")
+    ax_metrics.text(0.5, 0.915, "Storm-surge predictions compared to",
+                    fontsize=5.5, color=TEXT_SECONDARY, ha="center", va="top")
+    ax_metrics.text(0.5, 0.90, "45 years of NFIP claims (1978-2023)",
+                    fontsize=5.5, color=TEXT_SECONDARY, ha="center", va="top")
 
-    # Metric cards
+    # Metric cards — expanded labels for readability
     metrics = [
-        ("kappa_spatial", "0.352", "Spatial agreement", RED, 0.84),
-        ("Moran's I", "-0.358", "Residual autocorrelation", ORANGE, 0.72),
-        ("Verdict", "FAIL", "Clustering not confirmed", RED, 0.60),
-        ("Buildings", "47,983", "1,676 inundated (3.5%)", BLUE, 0.48),
-        ("Pred. Loss", "\$55M", "\$33M bldg + \$22M content", RED, 0.36),
-        ("NFIP Claims", "379", "Cumulative 1978-2023", GREEN, 0.24),
-        ("ZCTAs", "17 of 20", "Oahu (968xx prefix)", TEXT_PRIMARY, 0.12),
+        ("kappa_spatial", "0.352", "Model-vs-claims spatial agreement", RED, 0.82),
+        ("Moran's I", "-0.358", "Errors are spatially random, not clustered", ORANGE, 0.71),
+        ("Verdict", "FAIL", "Too weak to confirm geographic bias", RED, 0.60),
+        ("Buildings", "47,983", "1,676 flooded by model (3.5%)", BLUE, 0.49),
+        ("Predicted Loss", "\$55M", "\$33M building + \$22M contents", RED, 0.38),
+        ("NFIP Claims", "379", "Federal flood insurance, 1978-2023", GREEN, 0.27),
+        ("ZIP Areas", "17 of 20", "Oahu ZCTAs with 968xx prefix", TEXT_PRIMARY, 0.16),
     ]
 
     for label, value, detail, color, y in metrics:
@@ -415,10 +420,10 @@ def render_figure(
 
     # Callout annotations
     callouts = [
-        ("96816", "99 NFIP, 0 surge\ninland pluvial", (-157.68, 21.30)),
-        ("96819", "95 NFIP, 0 surge\nvalley flooding", (-157.88, 21.46)),
-        ("96814", "3 NFIP, \$19.5M pred\ncoastal overpredict", (-157.78, 21.27)),
-        ("96850", "0 NFIP, \$15.5M pred\nexposed, no history", (-158.05, 21.32)),
+        ("96816", "99 claims, model predicts 0\nhistoric rain flooding, not surge", (-157.68, 21.30)),
+        ("96819", "95 claims, model predicts 0\nvalley floods missed by surge model", (-157.88, 21.46)),
+        ("96814", "3 claims, \$19.5M predicted\nmodel overpredicts coastal risk", (-157.78, 21.27)),
+        ("96850", "0 claims, \$15.5M predicted\nexposed coast, no claim history", (-158.05, 21.32)),
     ]
     for zid, note, text_xy in callouts:
         if zid in cen_dict:
@@ -448,26 +453,42 @@ def render_figure(
     sm.set_array([])
     cbar2_ax = fig.add_axes([0.47, 0.065, 0.22, 0.025])
     cbar2 = fig.colorbar(sm, cax=cbar2_ax, orientation="horizontal")
-    cbar2.set_label("Normalized mismatch (pred - NFIP)", fontsize=8,
-                    color=TEXT_PRIMARY, fontweight="bold")
     cbar2.ax.tick_params(labelsize=7, colors=TEXT_SECONDARY)
     cbar2.outline.set_edgecolor(BORDER)
+    # Red/blue annotations instead of a generic label
+    fig.text(0.47, 0.055, "Model underpredicts",
+             fontsize=6.5, color="#6baed6", ha="left", style="italic")
+    fig.text(0.69, 0.055, "Model overpredicts",
+             fontsize=6.5, color="#e63946", ha="right", style="italic")
 
-    # Map legend
-    from matplotlib.patches import Patch
+    # Map legend — plain English descriptions
     legend_elements = [
-        plt.Line2D([0], [0], color=CYAN, linewidth=1.5, label="Reef flood extent"),
+        plt.Line2D([0], [0], color=CYAN, linewidth=1.5,
+                    label="Modeled flood boundary (reef bathymetry)"),
         plt.Line2D([0], [0], color=BLUE, linewidth=0.6, linestyle="--",
-                    alpha=0.5, label=f"Adjacency ({len(edge_lines)} edges)"),
+                    alpha=0.5, label=f"Adjacent ZIP areas ({len(edge_lines)} edges)"),
         plt.Line2D([0], [0], marker="o", color="w", markerfacecolor="#e74c3c",
-                    markersize=3, label=f"Inundated ({len(inundated):,})"),
+                    markersize=3, label=f"Flooded buildings ({len(inundated):,})"),
         plt.Line2D([0], [0], marker="o", color="w", markerfacecolor="#555",
-                    markersize=2, label=f"Dry ({len(dry):,})"),
+                    markersize=2, label=f"Dry buildings ({len(dry):,})"),
     ]
     leg = ax_map.legend(handles=legend_elements, loc="lower left", fontsize=5.5,
                         framealpha=0.9, edgecolor=BORDER, facecolor=BG_CARD,
                         labelcolor=TEXT_SECONDARY)
     leg.get_frame().set_linewidth(0.5)
+
+    # Scale bar (approximate: 1 degree lon ~ 102 km at 21.4 N)
+    import math
+    lat_rad = math.radians(21.37)
+    km_per_deg = 111.32 * math.cos(lat_rad)
+    bar_deg = 10.0 / km_per_deg  # 10 km in degrees
+    sb_x = OAHU_BBOX["lon_min"] + 0.02
+    sb_y = OAHU_BBOX["lat_min"] + 0.015
+    ax_map.plot([sb_x, sb_x + bar_deg], [sb_y, sb_y],
+                color=TEXT_PRIMARY, linewidth=2, solid_capstyle="butt", zorder=7)
+    ax_map.text(sb_x + bar_deg / 2, sb_y + 0.008, "10 km",
+                fontsize=6, color=TEXT_PRIMARY, ha="center", va="bottom",
+                fontweight="bold", zorder=7)
 
     # ----- BAR CHART (right panel) -----
     ax_bar.set_facecolor(BG_CARD)
@@ -482,39 +503,39 @@ def render_figure(
     bar_h = 0.6
 
     ax_bar.barh(y_pos, plot_res["pred_norm"], height=bar_h,
-                color=RED, alpha=0.75, label="Predicted (norm)")
+                color=RED, alpha=0.75, label="Model prediction")
     ax_bar.barh(y_pos, -plot_res["nfip_norm"], height=bar_h,
-                color=GREEN, alpha=0.75, label="NFIP claims (norm)")
+                color=GREEN, alpha=0.75, label="Insurance claims")
 
     ax_bar.axvline(0, color=TEXT_SECONDARY, linewidth=0.3, zorder=1)
 
     ax_bar.set_yticks(y_pos)
     ax_bar.set_yticklabels(plot_res["label"], fontsize=6, color=TEXT_SECONDARY)
     ax_bar.tick_params(axis="x", labelsize=6, colors=TEXT_SECONDARY)
-    ax_bar.set_xlabel("Normalized intensity", fontsize=7, color=TEXT_SECONDARY)
-    ax_bar.set_title("Per-ZCTA Comparison",
+    ax_bar.set_xlabel("Relative intensity (0-1 normalized)", fontsize=7,
+                      color=TEXT_SECONDARY)
+    ax_bar.set_title("Where Model and Claims Disagree",
                      fontsize=9, fontweight="bold", color=TEXT_PRIMARY,
                      loc="left", pad=6)
-    leg2 = ax_bar.legend(fontsize=5.5, loc="upper right",
+    leg2 = ax_bar.legend(fontsize=6, loc="upper right",
                          framealpha=0.9, edgecolor=BORDER, facecolor=BG_CARD,
                          labelcolor=TEXT_SECONDARY)
     leg2.get_frame().set_linewidth(0.5)
 
-    # Subtitle annotations
-    ax_bar.text(0.02, 0.96,
-                "Red right = model predicts loss\n"
-                "Green left = NFIP history present\n"
-                "Mismatch = bars on opposite sides",
-                transform=ax_bar.transAxes, fontsize=5,
+    # Reading guide
+    ax_bar.text(0.02, 0.93,
+                "Bars on opposite sides = spatial mismatch\n"
+                "between where model predicts loss and\n"
+                "where claims actually occurred",
+                transform=ax_bar.transAxes, fontsize=5.5,
                 color=TEXT_SECONDARY, va="top",
-                fontfamily="sans-serif", linespacing=1.4)
+                fontfamily="sans-serif", linespacing=1.5)
 
     # ----- Footnote -----
     fig.text(
         0.19, 0.025,
-        "Negative Moran's I (-0.358): adjacent ZCTAs have anti-correlated residuals. "
-        "NFIP reference is cumulative (not event-matched); comparison is illustrative, "
-        "not adjudicative.",
+        "NFIP = National Flood Insurance Program (FEMA). Claims span 1978-2023 and are cumulative across all events, "
+        "not matched to a single storm. Comparison is illustrative, not adjudicative.",
         fontsize=6.5, color=TEXT_SECONDARY, style="italic",
     )
 
