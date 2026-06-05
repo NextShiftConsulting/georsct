@@ -191,6 +191,34 @@ def find_slosh_rasters(s3, category: str) -> list[str]:
         return []
 
 
+def _flip_raster_if_needed(path: str) -> str:
+    """Flip a raster with negative pixel height so rasterio.merge accepts it.
+
+    FloodSimBench GeoTIFFs use a top-left origin (negative dy in the
+    Affine transform).  rasterio.merge refuses to merge these.  We flip
+    the data and adjust the transform to use positive dy with a
+    bottom-left origin.
+    """
+    with rasterio.open(path) as src:
+        t = src.transform
+        if t.e >= 0:
+            return path  # already positive pixel height
+        data = src.read()
+        # Flip rows (axis=1 for [bands, rows, cols])
+        data = data[:, ::-1, :]
+        new_transform = rasterio.Affine(
+            t.a, t.b, t.c,
+            t.d, -t.e, t.f + t.e * src.height,
+        )
+        meta = src.meta.copy()
+        meta["transform"] = new_transform
+
+    flipped_path = path.replace(".tif", "_flipped.tif")
+    with rasterio.open(flipped_path, "w", **meta) as dst:
+        dst.write(data)
+    return flipped_path
+
+
 def download_and_merge_rasters(s3, keys: list[str], tmp_dir: str) -> str:
     """Download raster tiles from S3 and merge into single GeoTIFF."""
     if not keys:
@@ -206,9 +234,14 @@ def download_and_merge_rasters(s3, keys: list[str], tmp_dir: str) -> str:
     if len(local_paths) == 1:
         return local_paths[0]
 
+    # Flip rasters with negative pixel height before merging
+    flipped_paths = []
+    for p in local_paths:
+        flipped_paths.append(_flip_raster_if_needed(p))
+
     # Merge multiple tiles
-    log.info("Merging %d tiles...", len(local_paths))
-    datasets = [rasterio.open(p) for p in local_paths]
+    log.info("Merging %d tiles...", len(flipped_paths))
+    datasets = [rasterio.open(p) for p in flipped_paths]
     mosaic, out_transform = rasterio_merge(datasets)
     out_meta = datasets[0].meta.copy()
     out_meta.update({
