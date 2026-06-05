@@ -1,0 +1,108 @@
+% ============================================================
+% SECTION 4 — The Flood Substrate
+% ============================================================
+\section{The Flood Substrate}
+\label{sec:substrate}
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=\textwidth]{figures/nfip_scenario_comparison.pdf}
+  \caption{Cumulative NFIP claim footprint across the five CONUS benchmark
+    scenarios, for scale and orientation. These are cumulative all-hazard
+    claims (through 2024) within each scenario's geographic footprint
+    ---\emph{not} the event-matched per-(\textit{zcta\_id},\textit{event})
+    target the benchmark models (\S\ref{sec:problem-substrate}). Oahu is
+    excluded here: it is an out-of-distribution probe
+    (Appendix~\ref{app:oahu}), not a benchmark scenario.}
+  \label{fig:nfip-scenarios}
+\end{figure*}
+
+The benchmark operates on a single multi-event flood substrate at the
+(\textit{zcta\_id}, \textit{event}) grain, spanning five U.S.\ metropolitan
+regions selected for complementary hazard profiles and data availability
+(Table~\ref{tab:scenarios}). Houston provides the densest claim record
+(396 ZCTA--event pairs) with both tropical and inland flooding; Southwest
+Florida (606 pairs) covers hurricane surge and coastal inundation; New York
+City (422 pairs) adds nor'easter and tidal flood events; Riverside--Coachella
+Valley (172 pairs) contributes arid flash-flood events with thin insurance
+penetration; and New Orleans (264 pairs) spans the pre- and post-levee
+era, offering a natural experiment in infrastructure-mediated flood risk.
+
+\begin{table}[t]
+\centering
+\caption{Benchmark scenarios. $n$ is ZCTA--event rows. Targets:
+  \texttt{nfip} = NFIP event claims (regression); \texttt{311} = citizen
+  reports (classification); \texttt{hwm} = USGS high-water marks
+  (classification). A cell is modelable when the target has enough
+  non-missing rows for spatial-blocked CV.}
+\label{tab:scenarios}
+\small
+\begin{tabular}{@{}llcl@{}}
+\toprule
+\textbf{Scenario} & \textbf{$n$} & \textbf{Targets} & \textbf{Hazard profile} \\
+\midrule
+Houston         & 396 & nfip, 311, hwm & Tropical + inland \\
+SW Florida      & 606 & nfip           & Hurricane surge \\
+NYC             & 422 & nfip, 311, hwm & Nor'easter + tidal \\
+Riverside       & 172 & nfip           & Flash flood (arid) \\
+New Orleans     & 264 & nfip, hwm      & Pre/post-levee \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Data layers}
+
+Features are organized by representation level
+(\S\ref{sec:method-ladder}), where each level is a strict superset of
+the previous:
+
+\paragraph{R0 (static tabular, 33--36 features).}
+American Community Survey demographics~\cite{kwon2023acs}, CDC Social
+Vulnerability Index, FEMA flood zone classifications, terrain (TWI,
+slope, elevation from USGS 3DEP), HIFLD critical infrastructure counts,
+and temporally-gated NFIP claim history (computed strictly before each
+event's onset to prevent temporal leakage).
+
+\paragraph{R1 (+hydrology and spatial structure, 58--63 features).}
+R0 plus NHDPlus drainage network metrics, USACE levee proximity, estimated
+sewershed capacity, and eight spatial-lag features derived from a
+queen-contiguity adjacency matrix $\mathbf{W}$. The target spatial lag
+(\textit{wlag\_nfip\_claims}) is recomputed per fold from training units
+only to prevent test-fold leakage (\S\ref{app:relational-ablation}).
+
+\paragraph{R2 (+temporal dynamics, 67--72 features).}
+R1 plus NOAA MRMS Stage~IV quantitative precipitation estimates, HRRR
+forecast fields, tide-gauge readings, and HURDAT2 storm-track proximity.
+These sources have operational start dates (MRMS: October 2012; HRRR:
+September 2014), so pre-dating events carry a
+\texttt{not\_applicable\_temporal} field status rather than an imputed
+value.
+
+\subsection{Provenance and field status}
+
+Each feature carries a provenance record (source agency, vintage,
+spatial resolution) and one of four field-status values:
+\texttt{available} (value present), \texttt{not\_applicable\_temporal}
+(event predates the source's operational start),
+\texttt{not\_applicable\_type} (source does not apply to this hazard
+type), or \texttt{source\_empty} (source covers the event but returned
+zero records). This vocabulary is the mechanism by which the benchmark
+surfaces evidence gaps rather than silently imputing through them---the
+allocation verdict, for instance, is necessarily partial because
+temporal features carry \texttt{not\_applicable\_temporal} for pre-2012
+events (Appendix~\ref{app:protocol-substrate},
+Table~\ref{app:tab:availability}).
+
+\subsection{Known limitations}
+
+\paragraph{ZIP-as-ZCTA (C-001).} NFIP claims are reported by ZIP code;
+ZCTAs are Census-defined approximations. Within the five metropolitan
+footprints, fewer than 3\% of ZIPs map to a different ZCTA. We treat
+ZIP as ZCTA and document the approximation, following standard
+practice~\cite{krieger2002zip, chen2025crosswalk}. The mismatch rate is
+higher in rural areas outside our study regions.
+
+\paragraph{Riverside sample size.} At $n{=}172$ ZCTA--event pairs,
+Riverside--Coachella Valley is the thinnest scenario and produces the
+widest confidence intervals. Results from this scenario should be
+interpreted with that constraint.

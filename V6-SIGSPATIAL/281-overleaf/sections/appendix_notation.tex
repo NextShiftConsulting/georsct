@@ -1,0 +1,65 @@
+% ============================================================
+% APPENDIX E — Notation
+% Summary of mathematical notation used throughout the paper.
+% ============================================================
+\section{Notation}
+\label{app:notation}
+
+Table~\ref{app:tab:notation} collects the notation used throughout the
+paper. Symbols are grouped by category: substrate and observation,
+decision geometries, representation ladder, certificate primitives,
+statistical tests, and spatial diagnostics.
+
+\begin{table}[t]
+\centering
+\caption{Notation summary.}
+\label{app:tab:notation}
+\small
+\begin{tabular}{@{}lp{5.8cm}@{}}
+\toprule
+\textbf{Symbol} & \textbf{Definition} \\
+\midrule
+\multicolumn{2}{@{}l}{\textit{Substrate and observation}} \\[2pt]
+$\mathcal{S}$ & Flood substrate tuple $(\mathcal{L}, \mathcal{E}, \mathcal{X}, \mathcal{Y}, \mathcal{P})$ \\
+$\mathcal{L}$ & Set of locations (ZCTAs) \\
+$\mathcal{E}$ & Set of flood events \\
+$\mathcal{X}$ & Feature map over $\mathcal{L} \times \mathcal{E}$ \\
+$\mathcal{Y}$ & Target map over $\mathcal{L} \times \mathcal{E}$ \\
+$\mathcal{P}$ & Per-feature provenance and field-status annotation \\
+$(\ell, e)$ & Observation unit: one ZCTA $\times$ one event \\
+$\hat{y}_{\ell,e}$ & Model prediction for location $\ell$, event $e$ \\
+$n$ & Number of ZCTA--event rows in a scenario \\
+\midrule
+\multicolumn{2}{@{}l}{\textit{Decision geometries and verdicts}} \\[2pt]
+$g$ & A decision geometry (one of six) \\
+$v_g(\mathcal{S})$ & Sufficiency verdict for geometry $g$ on substrate $\mathcal{S}$: \textsc{supported}, \textsc{provisional}, or \textsc{insufficient} \\
+\midrule
+\multicolumn{2}{@{}l}{\textit{Representation ladder}} \\[2pt]
+R0 & Static tabular features ($\sim$33--36 cols) \\
+R1 & R0 + hydrology + spatial lag ($\sim$58--63 cols) \\
+R2 & R1 + temporal event dynamics ($\sim$67--72 cols) \\
+$\mathbf{W}$ & Queen-contiguity adjacency matrix \\
+\midrule
+\multicolumn{2}{@{}l}{\textit{Certificate primitives}} \\[2pt]
+$R$ & Signal component (simplex; $R + S_\text{sup} + N = 1$) \\
+$S_\text{sup}$ & Suppression component \\
+$N$ & Noise component \\
+$\alpha$ & Signal purity: $R / (R + N)$ \\
+$\kappa_\text{geom}$ & Geometric compatibility (encoder-side, pre-training) \\
+$\kappa_\text{compat}$ & Compatibility proxy: $R \cdot (1 - N)$ \\
+$\tau$ & Fold stability: $1 / (1 + \text{CV})$ \\
+$\sigma$ & Cross-fold turbulence: $\text{std}(\text{fold metrics})$ \\
+$\TRF$ & Task Residual Floor (rate-distortion lower bound) \\
+\midrule
+\multicolumn{2}{@{}l}{\textit{Statistical tests}} \\[2pt]
+$d$ & Cohen's $d$ (standardized effect size) \\
+$\tau_b$ & Kendall's $\tau$-b (rank correlation) \\
+$\rho$ & Spearman rank correlation \\
+$\Delta$ & Fidelity change: $\tau_b(\text{R1}, \text{truth}) - \tau_b(\text{R0}, \text{truth})$ \\
+\midrule
+\multicolumn{2}{@{}l}{\textit{Spatial diagnostics}} \\[2pt]
+$I$ & Moran's $I$ (global spatial autocorrelation) \\
+$E[I]$ & Expected value of $I$ under spatial randomness \\
+\bottomrule
+\end{tabular}
+\end{table}

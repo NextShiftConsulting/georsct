@@ -1,0 +1,56 @@
+% ============================================================
+% SECTION 1 — Introduction
+% ============================================================
+\section{Introduction}
+\label{sec:intro}
+
+Flood models produce per-location damage estimates. A crisis manager
+uses those estimates for at least six distinct operations: predicting
+damage, prioritizing response, identifying where errors concentrate,
+transferring models across storms or cities, reasoning about drainage
+and adjacency, and allocating resources against forecast lead time.
+Each operation can fail for a different spatial reason: prediction can
+be inflated by spatial leakage across validation folds; rankings can
+shift when infrastructure context enters the evidence; errors can
+cluster in neighborhoods the model has not learned; transfer can fail
+across events even when within-event accuracy is adequate; adjacency
+can be severed by levees or pumps; and temporal evidence can be absent
+for events that predate a sensor network.
+
+A single held-out accuracy score addresses prediction and is silent on
+the other five. Existing geospatial benchmarks~\cite{yeh2021sustainbench,
+klemmer2023satclip, agarwal2025pdfm, krechetova2025geobenchx} report one
+metric per task. That metric answers which model ranks best on average;
+it does not answer whether the evidence is sufficient for the specific
+decision a manager needs to make.
+
+This paper introduces GeoRSCT, a diagnostic benchmark organized around
+six spatial \emph{decision geometries}---prediction, ranking, clustering,
+transfer, relational propagation, and allocation---each paired with a
+named spatial failure mode (\S\ref{sec:problem-geometries}). For each
+geometry, the benchmark applies a pre-committed, leakage-controlled test
+and reports a sufficiency verdict: \textsc{supported}, \textsc{provisional},
+or \textsc{insufficient}. The full set of verdicts is the benchmark's
+output: a diagnostic account of what a flood substrate supports and where
+the evidence is missing or inadequate.
+
+The benchmark runs on a multi-event flood substrate spanning five U.S.\
+metropolitan regions, with radar and satellite precipitation, terrain,
+drainage networks, levee and urban infrastructure, insurance claims,
+citizen-reported impacts, and high-water marks. Every feature carries
+provenance and a field-status annotation so that absent data is
+distinguished from a measured zero. The evaluation uses a strict
+representation ladder (R0$\to$R1$\to$R2) with fixed folds, solvers, and
+seeds; only the feature set changes between levels, so changes in verdict
+are attributable to the added evidence. At each level, an RSCT
+certificate~\cite{martin2026rsct} decomposes model quality into signal,
+suppression, and noise components, providing an auditable record of
+\emph{why} a verdict changed, not only that it did. The certificate is
+computed and recorded before the next level trains, so the quality
+assessment of level $k$ is independent of level $k{+}1$.
+
+GeoRSCT is a benchmark, not a deployed system. It does not propose a
+model or optimize a score. Its contribution is a reusable substrate,
+a six-geometry evaluation protocol, and a worked example---including
+negative results and evidence gaps---of what evidence sufficiency means
+in practice for spatial decision support.
