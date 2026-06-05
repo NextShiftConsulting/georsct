@@ -381,3 +381,157 @@ absence of geographic bias. For the Oahu substrate the clustering geometry is
 therefore reported as \textsc{evidence-insufficient}---a clean demonstration
 that the diagnostic, like any instrument, has an operating envelope the
 benchmark should declare.
+
+% ============================================================
+% APPENDIX C — Agent-Assisted Experiment Lifecycle
+% Documents the verification gates and best practices used when
+% AI coding agents accelerate experiment development.
+% ============================================================
+\section{Agent-Assisted Experiment Lifecycle}
+\label{app:agent-lifecycle}
+
+All experiments in this paper were developed with AI coding agents
+(Claude Code) accelerating implementation, launch, and verification.
+This appendix documents the verification gates enforced throughout and
+the best practices that emerged from the workflow. The motivation is
+practical: fast code generation makes developer errors cheaper to
+\emph{create} but no cheaper to \emph{find}; tighter gates are the
+countermeasure.
+
+\subsection{Verification lifecycle}
+
+Table~\ref{app:tab:verify-lifecycle} lists the eight gates applied to
+every SageMaker experiment job. Gates V0--V0.7 run before or during
+execution; gates V1--V5 run after.
+
+\begin{table*}[t]
+\centering
+\caption{Verification lifecycle for agent-assisted experiments. Each gate
+  targets a specific failure mode; all must pass before results are cited.
+  Gates are ordered by phase (pre-launch, in-flight, post-flight).}
+\label{app:tab:verify-lifecycle}
+\small
+\begin{tabular}{@{}llll@{}}
+\toprule
+\textbf{Gate} & \textbf{Phase} & \textbf{What it catches} & \textbf{Key checks} \\
+\midrule
+V0   & Pre-launch  & Wrong instance, missing deps, no timeout, stale code &
+  9-section resource review (memory, volume, workers, image, quota, dry-run, checkpoint, timeout) \\
+V0.5 & In-flight   & Container crash, OOM, hung job, encoding errors &
+  CloudWatch log tailing; kill criteria for known-bad jobs \\
+V0.7 & Checkpoint  & Corrupt/empty checkpoints, duplicate rows after resume &
+  Per-target S3 checkpoint count, parseability, deduplication \\
+V1   & Post-flight & Job exit status, missing output files &
+  \texttt{ProcessingJobStatus: Completed}; result JSON present \\
+V2   & Domain      & Silent pipeline bugs (alignment, calibration, naming) &
+  Noisy-control floor, GNN alignment, simplex discrimination, kappa consistency \\
+V3   & Cross-seed  & Ranking instability across random seeds &
+  Embedding rank preserved, R$^2$ std $<0.05$, gate decision stable \\
+V4   & Protocol    & Experiment-specific invariants &
+  Fit counts, solver invariance (S019A), oobleck stricter than flat (S019D) \\
+V5   & Paper-ready & Final gate before citing in manuscript &
+  Git hash matches pushed commit; NeurIPS compute docs present \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\paragraph{Pre-launch resource review (V0).}
+The 9-section pre-launch checklist is a hard gate applied to every launch
+\emph{and every re-launch}. A bug fix that changes a dependency or data
+source can silently invalidate the prior instance configuration. The nine
+dimensions are: (1)~git state (clean and pushed), (2)~memory budget
+(largest object $\times$ workers $\leq 0.5 \times$ instance RAM),
+(3)~volume sizing, (4)~worker count, (5)~container image and drivers,
+(6)~instance quota, (7)~dry-run validation, (8)~checkpoint idempotency,
+and (9)~timeout. The timeout gate deserves emphasis: omitting
+\texttt{MaxRuntimeInSeconds} from a SageMaker job allows a hung process
+to burn compute indefinitely; we set timeouts at $>2\times$ expected wall
+clock and $<24$\,h as a cost cap.
+
+\paragraph{Domain invariants (V2).}
+Four domain-specific checks catch silent data-pipeline bugs that produce
+plausible but invalid results:
+\begin{itemize}
+\item \textbf{Noisy-control floor.} The \textit{noisy\_control} embedding
+  (PCA32 + $\mathcal{N}(0,1)$ noise) must have $R^2 < 0.15$ and receive
+  zero gate passes. If it passes, calibration is broken.
+\item \textbf{GNN alignment.} GNN latent arrays must be reindexed by
+  \texttt{zcta\_id} to match the DataFrame row order. Without this, R$^2$
+  collapses to near zero across all targets.
+\item \textbf{Simplex discrimination.} If $R \approx S_\text{sup} \approx
+  N \approx 0.33$ for all embeddings, per-arm tercile calibration is
+  forcing uniformity. Pooled calibration (\texttt{shared\_boundaries=True})
+  is the fix.
+\item \textbf{Kappa consistency.} The retired field name
+  \texttt{kappa\_gate} must be absent from all outputs; only
+  \texttt{kappa\_compat} is valid.
+\end{itemize}
+
+\subsection{Best practices for agent-accelerated experiment development}
+\label{app:best-practices}
+
+The following practices emerged from developing and debugging the
+experiments in this paper. They are not specific to any particular agent
+but apply generally when AI coding tools accelerate scientific
+computation.
+
+\begin{enumerate}
+
+\item \textbf{Plan slowly, execute quickly.} Use deliberate reasoning
+  (human or high-capability model) for architecture, task decomposition,
+  and acceptance criteria. Use fast generation for bounded implementation
+  tasks---one function, one test, one file.
+
+\item \textbf{Break work into small, inspectable units.} Fast generation
+  rewards tight loops, not large unattended diffs. Each unit should be
+  independently verifiable: a single experiment cell, a single fold, a
+  single embedding.
+
+\item \textbf{Treat speed as a verification opportunity.} Because
+  generation is cheap, invest the savings in more reviews, more tests,
+  and more failure checks. The verification gates in
+  Table~\ref{app:tab:verify-lifecycle} exist because fast agents made
+  them affordable.
+
+\item \textbf{Keep persistent project memory outside the chat.} Maintain
+  verification checklists, progress logs, and experiment status in files
+  that survive context-window resets. Agents can fill context windows
+  quickly; durable artifacts outlast any single session.
+
+\item \textbf{Separate ``planner'' and ``executor'' roles.} Let a
+  high-reasoning pass define the plan and constraints. Then let fast
+  sub-agents execute bounded steps. This mirrors the certificate-gated
+  pattern: \emph{agents propose; verified gates decide}.
+
+\item \textbf{Add explicit stop points.} After each bounded step: show
+  diff, run tests, summarize risk, update progress, then continue. This
+  prevents silent drift---the agent equivalent of a regression that
+  passes CI but breaks production.
+
+\item \textbf{Make verification a first-class artifact.} A verification
+  file (e.g., \texttt{VERIFY.md}) should list commands, expected outputs,
+  acceptance checks, and failure cases. Without this, the model may
+  optimize for ``looks done'' instead of ``is correct.''
+
+\item \textbf{Be suspicious of polished wrong code.} Fast AI-generated
+  code can look clean while being directionally wrong. The GNN alignment
+  bug in this paper's predecessor (GeoRSCT V3) produced well-formatted
+  results with silently misaligned embeddings. Review intent, boundaries,
+  and tests---not just syntax.
+
+\item \textbf{Capture successful workflows as reusable skills.} When an
+  agent succeeds at a complex task (SageMaker launch, S3 preflight,
+  checkpoint/resume), save the trajectory as a repeatable recipe. This
+  amortizes the debugging cost across future experiments.
+
+\item \textbf{Never skip the timeout.} A hung SageMaker job with no
+  \texttt{MaxRuntimeInSeconds} burns money silently. Set timeouts at
+  $>2\times$ expected wall clock as a safety margin, and $<24$\,h as a
+  hard cost cap. If a job hits its timeout, investigate \emph{why} it was
+  slow before simply increasing the limit.
+
+\end{enumerate}
+
+\paragraph{Summary principle.} The core lesson is not ``use AI less'' but
+``use AI faster inside tighter gates.'' For spatial experiments
+specifically: fast agents may propose; certified gates decide.
