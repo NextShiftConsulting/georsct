@@ -147,21 +147,28 @@ def _train_histgbdt(X_train, y_train, X_test, y_test, task: str) -> float:
     )
     from sklearn.metrics import r2_score, roc_auc_score
 
-    if task == "classification":
-        model = HistGradientBoostingClassifier(
-            max_iter=200, max_depth=6, learning_rate=0.1, random_state=SEED,
-        )
-        model.fit(X_train, y_train)
-        try:
-            return float(roc_auc_score(y_test, model.predict_proba(X_test)[:, 1]))
-        except ValueError:
-            return float("nan")
-    else:
-        model = HistGradientBoostingRegressor(
-            max_iter=200, max_depth=6, learning_rate=0.1, random_state=SEED,
-        )
-        model.fit(X_train, y_train)
-        return float(r2_score(y_test, model.predict(X_test)))
+    n_bins = min(255, max(2, len(X_train) - 1))
+    try:
+        if task == "classification":
+            model = HistGradientBoostingClassifier(
+                max_iter=200, max_depth=6, learning_rate=0.1,
+                max_bins=n_bins, random_state=SEED,
+            )
+            model.fit(X_train, y_train)
+            try:
+                return float(roc_auc_score(y_test, model.predict_proba(X_test)[:, 1]))
+            except ValueError:
+                return float("nan")
+        else:
+            model = HistGradientBoostingRegressor(
+                max_iter=200, max_depth=6, learning_rate=0.1,
+                max_bins=n_bins, random_state=SEED,
+            )
+            model.fit(X_train, y_train)
+            return float(r2_score(y_test, model.predict(X_test)))
+    except ValueError as exc:
+        log.warning("HistGBDT fit failed (n_train=%d): %s", len(X_train), exc)
+        return float("nan")
 
 
 MIN_FOLD_SAMPLES = 10  # sklearn HistGBDT binning needs >= ~10 rows

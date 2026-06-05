@@ -179,20 +179,28 @@ def _train_histgbdt(X_train, y_train, X_test, y_test, task: str) -> tuple:
     from sklearn.ensemble import (
         HistGradientBoostingRegressor, HistGradientBoostingClassifier,
     )
-    if task == "classification":
-        model = HistGradientBoostingClassifier(
-            max_iter=200, max_depth=6, learning_rate=0.1, random_state=SEED,
-        )
-        model.fit(X_train, y_train)
-        y_score = model.predict_proba(X_test)[:, 1]
-        return y_score, _classification_metrics(y_test, model.predict(X_test), y_score)
-    else:
-        model = HistGradientBoostingRegressor(
-            max_iter=200, max_depth=6, learning_rate=0.1, random_state=SEED,
-        )
-        model.fit(X_train, y_train)
-        y_pred = model.predict(X_test)
-        return y_pred, _regression_metrics(y_test, y_pred)
+    n_bins = min(255, max(2, len(X_train) - 1))
+    try:
+        if task == "classification":
+            model = HistGradientBoostingClassifier(
+                max_iter=200, max_depth=6, learning_rate=0.1,
+                max_bins=n_bins, random_state=SEED,
+            )
+            model.fit(X_train, y_train)
+            y_score = model.predict_proba(X_test)[:, 1]
+            return y_score, _classification_metrics(y_test, model.predict(X_test), y_score)
+        else:
+            model = HistGradientBoostingRegressor(
+                max_iter=200, max_depth=6, learning_rate=0.1,
+                max_bins=n_bins, random_state=SEED,
+            )
+            model.fit(X_train, y_train)
+            y_pred = model.predict(X_test)
+            return y_pred, _regression_metrics(y_test, y_pred)
+    except ValueError as exc:
+        log.warning("HistGBDT fit failed (n_train=%d): %s", len(X_train), exc)
+        null_metrics = {"r2": None, "rmse": None, "roc_auc": None, "f1": None}
+        return np.full(len(X_test), np.nan), null_metrics
 
 
 def _train_ridge(X_train, y_train, X_test, y_test, task: str) -> tuple:
