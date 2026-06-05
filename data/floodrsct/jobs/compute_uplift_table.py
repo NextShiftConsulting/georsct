@@ -136,20 +136,23 @@ def _mean_metric(results: dict, target: str) -> float | None:
     return float(np.mean(vals)) if vals else None
 
 
+def _task_type_for_target(results: dict, target: str) -> str | None:
+    """Return 'regression' or 'classification' for a target, or None."""
+    for r in results.get("runs", []):
+        if r["target"] == target:
+            return r.get("task")
+    return None
+
+
 def _per_fold_metrics(results: dict, target: str) -> list[float]:
     """Per-fold primary metric for spatial_blocked + histgbdt."""
-    runs = results.get("runs", [])
-    task_type = None
-    for r in runs:
-        if r["target"] == target:
-            task_type = r["task"]
-            break
+    task_type = _task_type_for_target(results, target)
     if not task_type:
         return []
 
     metric_name = PRIMARY_METRIC[task_type]
     vals = []
-    for r in runs:
+    for r in results.get("runs", []):
         if r["target"] != target or r["split"] != "spatial_blocked" or r["solver"] != "histgbdt":
             continue
         v = r["metrics"].get(metric_name)
@@ -381,6 +384,7 @@ def _paired_fold_test(
 ) -> dict:
     """Wilcoxon signed-rank test on paired fold metrics (B - A).
 
+    Drops pairs where either fold value is NaN before testing.
     Returns test result dict with statistic, p-value, effect size, and CI.
     """
     a = np.array(folds_a, dtype=float)
@@ -390,6 +394,15 @@ def _paired_fold_test(
         return {"n_folds": n, "note": "too few paired folds"}
     a, b = a[:n], b[:n]
     deltas = b - a
+
+    # Drop NaN pairs (missing fold metrics)
+    finite_mask = np.isfinite(deltas)
+    n_dropped = int((~finite_mask).sum())
+    deltas = deltas[finite_mask]
+    n = len(deltas)
+    if n < 3:
+        return {"n_folds": n, "n_dropped_nan": n_dropped,
+                "note": "too few finite paired folds"}
 
     d = _cohens_d(deltas)
     mean_delta = float(np.mean(deltas))
@@ -424,6 +437,32 @@ def _paired_fold_test(
     }
 
 
+def _pooled_wilcoxon(deltas: list[float], min_n: int = 5) -> dict:
+    """Pooled one-sided Wilcoxon signed-rank on fold deltas.
+
+    Filters NaN before testing.  Returns empty dict if fewer than
+    min_n finite deltas remain.
+    """
+    arr = np.array(deltas, dtype=float)
+    arr = arr[np.isfinite(arr)]
+    if len(arr) < min_n:
+        return {}
+    d = _cohens_d(arr)
+    try:
+        stat, p_val = stats.wilcoxon(arr, alternative="greater")
+        stat, p_val = float(stat), float(p_val)
+    except ValueError:
+        stat, p_val = float("nan"), 1.0
+    return {
+        "n_paired_folds": len(arr),
+        "mean_delta": float(np.mean(arr)),
+        "cohens_d": d,
+        "wilcoxon_stat": stat,
+        "wilcoxon_p_one_sided": p_val,
+        "verdict": "PASS" if (p_val < 0.05 and d > 0.2) else "INCONCLUSIVE",
+    }
+
+
 def run_fold_level_tests(all_results: dict) -> dict:
     """Primary hypothesis tests via fold-level paired comparisons.
 
@@ -431,11 +470,16 @@ def run_fold_level_tests(all_results: dict) -> dict:
       H2: R1 folds vs R0 folds (spatial_blocked, histgbdt)
       H3: R2 folds vs R1 folds (spatial_blocked, histgbdt)
 
-    Returns per-cell test results + pooled tests across all cells.
+    Pooled tests are run on REGRESSION cells only.  Classification cells
+    use a different primary metric (ROC-AUC vs R2) and are reported
+    separately to avoid NaN contamination and metric-scale mixing.
     """
     cell_tests = []
-    all_r0_r1_deltas = []
-    all_r1_r2_deltas = []
+    # Separate pooled deltas by task type
+    reg_r0_r1_deltas: list[float] = []
+    reg_r1_r2_deltas: list[float] = []
+    clf_r0_r1_deltas: list[float] = []
+    clf_r1_r2_deltas: list[float] = []
 
     for scenario in ("houston", "southwest_florida", "nyc", "riverside_coachella"):
         r0_data = all_results.get(f"r0_{scenario}")
@@ -446,64 +490,47 @@ def run_fold_level_tests(all_results: dict) -> dict:
 
         targets = sorted(set(r["target"] for r in r0_data.get("runs", [])))
         for target in targets:
+            task_type = _task_type_for_target(r0_data, target)
             r0_folds = _per_fold_metrics(r0_data, target)
             r1_folds = _per_fold_metrics(r1_data, target) if r1_data else []
             r2_folds = _per_fold_metrics(r2_data, target) if r2_data else []
 
-            cell = {"scenario": scenario, "target": target}
+            cell = {"scenario": scenario, "target": target, "task_type": task_type}
+            is_reg = (task_type == "regression")
 
             if r0_folds and r1_folds:
                 test_r0_r1 = _paired_fold_test(r0_folds, r1_folds)
                 cell["h2_r0_r1"] = test_r0_r1
                 n = min(len(r0_folds), len(r1_folds))
                 deltas = [r1_folds[i] - r0_folds[i] for i in range(n)]
-                all_r0_r1_deltas.extend(deltas)
+                if is_reg:
+                    reg_r0_r1_deltas.extend(deltas)
+                else:
+                    clf_r0_r1_deltas.extend(deltas)
 
             if r1_folds and r2_folds:
                 test_r1_r2 = _paired_fold_test(r1_folds, r2_folds)
                 cell["h3_r1_r2"] = test_r1_r2
                 n = min(len(r1_folds), len(r2_folds))
                 deltas = [r2_folds[i] - r1_folds[i] for i in range(n)]
-                all_r1_r2_deltas.extend(deltas)
+                if is_reg:
+                    reg_r1_r2_deltas.extend(deltas)
+                else:
+                    clf_r1_r2_deltas.extend(deltas)
 
             cell_tests.append(cell)
 
-    # Pooled tests across all cells
-    pooled_h2 = {}
-    if len(all_r0_r1_deltas) >= 5:
-        arr = np.array(all_r0_r1_deltas)
-        d = _cohens_d(arr)
-        try:
-            stat, p_val = stats.wilcoxon(arr, alternative="greater")
-            stat, p_val = float(stat), float(p_val)
-        except ValueError:
-            stat, p_val = float("nan"), 1.0
-        pooled_h2 = {
-            "n_paired_folds": len(arr),
-            "mean_delta": float(np.mean(arr)),
-            "cohens_d": d,
-            "wilcoxon_stat": stat,
-            "wilcoxon_p_one_sided": p_val,
-            "verdict": "PASS" if (p_val < 0.05 and d > 0.2) else "INCONCLUSIVE",
-        }
+    # Pooled tests: regression cells only (R2 metric, primary analysis)
+    pooled_h2 = _pooled_wilcoxon(reg_r0_r1_deltas)
+    pooled_h3 = _pooled_wilcoxon(reg_r1_r2_deltas)
 
-    pooled_h3 = {}
-    if len(all_r1_r2_deltas) >= 5:
-        arr = np.array(all_r1_r2_deltas)
-        d = _cohens_d(arr)
-        try:
-            stat, p_val = stats.wilcoxon(arr, alternative="greater")
-            stat, p_val = float(stat), float(p_val)
-        except ValueError:
-            stat, p_val = float("nan"), 1.0
-        pooled_h3 = {
-            "n_paired_folds": len(arr),
-            "mean_delta": float(np.mean(arr)),
-            "cohens_d": d,
-            "wilcoxon_stat": stat,
-            "wilcoxon_p_one_sided": p_val,
-            "verdict": "PASS" if (p_val < 0.05 and d > 0.2) else "INCONCLUSIVE",
-        }
+    # Classification cells reported separately (ROC-AUC metric)
+    pooled_h2_clf = _pooled_wilcoxon(clf_r0_r1_deltas)
+    pooled_h3_clf = _pooled_wilcoxon(clf_r1_r2_deltas)
+
+    n_reg = sum(1 for c in cell_tests if c.get("task_type") == "regression")
+    n_clf = sum(1 for c in cell_tests if c.get("task_type") == "classification")
+    log.info("Fold-level tests: %d regression cells, %d classification cells", n_reg, n_clf)
 
     return {
         "method": "Fold-level paired Wilcoxon signed-rank + Cohen's d",
@@ -512,6 +539,10 @@ def run_fold_level_tests(all_results: dict) -> dict:
         "cell_tests": cell_tests,
         "pooled_h2": pooled_h2,
         "pooled_h3": pooled_h3,
+        "pooled_h2_classification": pooled_h2_clf,
+        "pooled_h3_classification": pooled_h3_clf,
+        "n_regression_cells": n_reg,
+        "n_classification_cells": n_clf,
     }
 
 
@@ -577,12 +608,13 @@ def run_hypothesis_tests(money_table: list[dict], all_results: dict) -> dict:
     # EXPLORATORY: cell-level Spearman associations
     exploratory = run_exploratory_correlations(money_table)
 
-    # H4: audit flags predict representation uplift
-    # Use fold-level direction consistency across cells
+    # H4: audit flags predict representation uplift (regression cells only)
     cell_tests = fold_tests.get("cell_tests", [])
     h4_cells_helped = 0
     h4_cells_total = 0
     for ct in cell_tests:
+        if ct.get("task_type") != "regression":
+            continue
         h2 = ct.get("h2_r0_r1", {})
         if h2.get("mean_delta") is not None:
             h4_cells_total += 1
@@ -593,27 +625,32 @@ def run_hypothesis_tests(money_table: list[dict], all_results: dict) -> dict:
     h3_verdict = fold_tests.get("pooled_h3", {}).get("verdict", "NO_DATA")
 
     return {
-        "primary_method": "Fold-level paired Wilcoxon signed-rank + Cohen's d",
+        "primary_method": "Fold-level paired Wilcoxon signed-rank + Cohen's d (regression only)",
         "exploratory_method": "Cell-level Spearman (underpowered, n~8)",
         "fold_level_tests": fold_tests,
         "exploratory_correlations": exploratory,
         "h2_evidence": {
-            "description": "R1 > R0 under spatial-blocked CV (fold-level paired test)",
+            "description": "R1 > R0 under spatial-blocked CV (regression cells, fold-level paired test)",
             "pooled": fold_tests.get("pooled_h2", {}),
             "verdict": h2_verdict,
         },
         "h3_evidence": {
-            "description": "R2 > R1 under spatial-blocked CV (fold-level paired test)",
+            "description": "R2 > R1 under spatial-blocked CV (regression cells, fold-level paired test)",
             "pooled": fold_tests.get("pooled_h3", {}),
             "verdict": h3_verdict,
         },
         "h4_evidence": {
-            "description": "Representation uplift is consistent across cells",
+            "description": "Representation uplift is consistent across regression cells",
             "cells_with_positive_uplift": h4_cells_helped,
             "cells_total": h4_cells_total,
             "verdict": "PASS" if (h4_cells_total >= 4 and
                                    h4_cells_helped / max(h4_cells_total, 1) >= 0.75)
                        else "INCONCLUSIVE",
+        },
+        "classification_pooled": {
+            "note": "Classification cells (ROC-AUC) reported separately from regression (R2)",
+            "pooled_h2": fold_tests.get("pooled_h2_classification", {}),
+            "pooled_h3": fold_tests.get("pooled_h3_classification", {}),
         },
     }
 
@@ -877,7 +914,7 @@ def main() -> None:
               f"R0->R1={'%.1f%%' % row['uplift_r0_r1_pct'] if row['uplift_r0_r1_pct'] is not None else 'N/A':>7s}")
 
     he = hypothesis_evidence
-    print(f"\n--- HYPOTHESIS VERDICTS (fold-level paired tests) ---")
+    print(f"\n--- HYPOTHESIS VERDICTS (regression cells, fold-level paired tests) ---")
     for h in ("h2_evidence", "h3_evidence", "h4_evidence"):
         ev = he.get(h, {})
         pooled = ev.get("pooled", {})
@@ -886,6 +923,20 @@ def main() -> None:
         d_str = f"d={d:.2f}" if isinstance(d, float) else f"d={d}"
         p_str = f"p={p:.4f}" if isinstance(p, float) else f"p={p}"
         print(f"  {h}: {ev.get('verdict', 'N/A')}  ({d_str}, {p_str})")
+
+    clf_pooled = he.get("classification_pooled", {})
+    clf_h2 = clf_pooled.get("pooled_h2", {})
+    clf_h3 = clf_pooled.get("pooled_h3", {})
+    if clf_h2 or clf_h3:
+        print(f"\n--- CLASSIFICATION CELLS (ROC-AUC, reported separately) ---")
+        for label, cp in [("h2 (R0->R1)", clf_h2), ("h3 (R1->R2)", clf_h3)]:
+            if cp:
+                print(f"  {label}: {cp.get('verdict', 'N/A')}  "
+                      f"(d={cp.get('cohens_d', 'N/A'):.2f}, "
+                      f"p={cp.get('wilcoxon_p_one_sided', 'N/A'):.4f}, "
+                      f"n={cp.get('n_paired_folds', 0)})")
+            else:
+                print(f"  {label}: NO_DATA")
 
     print(f"\n--- CELL-LEVEL BOOTSTRAP CIs (uncertainty on aggregate effect) ---")
     for trans in ("r0_r1", "r1_r2"):
