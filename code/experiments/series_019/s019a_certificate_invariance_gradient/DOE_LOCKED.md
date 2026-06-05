@@ -146,7 +146,7 @@ Total: 27 cells x 5 folds = 135 fits.
 - Paired t-test on fold-level kappa: diabetes vs elevation (same embedding x solver)
 - Bootstrap 95% CI on gate margin (kappa - kappa_req), 10,000 resamples
 - Chi-square on gate decision distribution (target x gate outcome)
-- Point-biserial correlation: N_ceiling vs gate pass (EXECUTE=1, other=0)
+- Point-biserial correlation: TRF vs gate pass (EXECUTE=1, other=0)
 
 ### Calibrated-policy sensitivity
 - Re-run gatekeeper with S2 (moderate) calibrated policy

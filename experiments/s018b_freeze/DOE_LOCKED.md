@@ -72,7 +72,7 @@ Checks:
 
 Contents per row:
 - task, solver_family, split (interpolation/extrapolation)
-- R2_test, R2_train, N_ceiling, spread (max-min R2 across families)
+- R2_test, R2_train, TRF, spread (max-min R2 across families)
 - OOF artifact S3 key
 
 **Acceptance:** 27 tasks x 3 families x 2 splits = 162 rows (or 81 if interpolation-only

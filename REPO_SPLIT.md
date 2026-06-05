@@ -27,7 +27,7 @@ Researchers use the GitHub repo to audit the build pipeline, reproduce the datas
 | Content | Directory | Files |
 |---------|-----------|-------|
 | Build pipeline | `code/benchmark/` | 11 scripts: `build_geoparquet.py`, `build_flood_zones.py`, `fetch_acs_moe.py`, etc. |
-| Diagnostic tools | `code/diagnostics/` | 8 scripts: `certificate_audit.py`, `n_ceiling_estimator.py`, etc. |
+| Diagnostic tools | `code/diagnostics/` | 8 scripts: `certificate_audit.py`, `task_residual_floor_estimator.py`, etc. |
 | Solver training | `code/solvers/` | `train_and_export_gnn_v2.py`, `train_and_export_v2.py` |
 | Figures and inference | `code/` | `figures.py`, `inference.py` |
 | User-facing code (source) | `code/` | `load_georsct.py`, `quickstart.py` (canonical copies; deployed to HF) |

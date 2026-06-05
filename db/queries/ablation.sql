@@ -20,7 +20,7 @@ SELECT
     c.kappa_compat,
     c.kappa_compat - d.kappa_compat            AS kappa_compat_delta,
     c.kappa_modal_min,
-    c.sigma, c.n_ceiling,
+    c.sigma, c.task_residual_floor,
     c.public_decision,
     c.gate_reached,
     c.gate_reason,

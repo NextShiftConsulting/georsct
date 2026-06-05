@@ -321,7 +321,7 @@ all hold. Three new invariants are added.
 
 **I7. Schema invariance across archetypes.** Every scenario must
 return the same certificate field set. R, S_sup, N, alpha, kappa,
-sigma, N_ceiling, decision, gate_reached, reason are present and
+sigma, task_residual_floor, decision, gate_reached, reason are present and
 non-null for every supported scenario. A scenario-specific
 `infrastructure_evidence` block is present per §4; its discriminator
 tag is mandatory.

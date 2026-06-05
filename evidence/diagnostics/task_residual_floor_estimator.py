@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-n_ceiling_estimator.py — Estimate per-task N_ceiling from ceiling model ensemble.
+task_residual_floor_estimator.py — Estimate per-task TRF from ceiling model ensemble.
 
-N_ceiling (Definition A) is the irreducible noise floor per task, estimated as:
+Task Residual Floor (TRF, formerly N_ceiling) is the irreducible residual
+variance per task, estimated as:
 
-    N_ceiling = 1 − max_k(R²_k)
+    TRF = 1 − max_k(E[R²_k])
 
 where k indexes architecturally diverse ceiling models. This is the paper
 quantity — invariant across model versions, characterises the task, not the model.
@@ -19,15 +20,15 @@ Diagnostics:
     (high correlation → architectural diversity is insufficient)
 
 Usage:
-    from apps.geo_cert.models.ceiling.n_ceiling_estimator import NCeilingEstimator
+    from apps.geo_cert.models.ceiling.task_residual_floor_estimator import TRFEstimator
 
-    estimator = NCeilingEstimator.from_oof_dir("C:/tmp/oof_predictions/")
+    estimator = TRFEstimator.from_oof_dir("C:/tmp/oof_predictions/")
     results = estimator.estimate()
     estimator.print_report(results)
 
 CLI:
-    python n_ceiling_estimator.py --oof-dir C:/tmp/oof_predictions/
-    python n_ceiling_estimator.py --oof-dir C:/tmp/oof_predictions/ --json
+    python task_residual_floor_estimator.py --oof-dir C:/tmp/oof_predictions/
+    python task_residual_floor_estimator.py --oof-dir C:/tmp/oof_predictions/ --json
 """
 
 import argparse
@@ -63,12 +64,12 @@ CI_LEVEL = 0.95
 
 @dataclass
 class TaskCeilingResult:
-    """N_ceiling estimate for a single task."""
+    """Task residual floor estimate for a single task."""
     task: str
     n_models: int
     best_r2: float
     best_model: str
-    n_ceiling: float
+    task_residual_floor: float
     ci_lower: float
     ci_upper: float
     per_model_r2: dict                          # {model_version: R²}
@@ -79,7 +80,7 @@ class TaskCeilingResult:
 
 @dataclass
 class CeilingEstimateReport:
-    """Full N_ceiling estimation report."""
+    """Full task residual floor estimation report."""
     tasks: list                                  # list[TaskCeilingResult]
     rank_correlation_rho: float                  # Spearman ρ(best_R², mean_|ρ|)
     rank_correlation_p: float
@@ -96,8 +97,8 @@ class CeilingEstimateReport:
 # Core estimator
 # ---------------------------------------------------------------------------
 
-class NCeilingEstimator:
-    """Estimate per-task N_ceiling from an ensemble of OOF predictions."""
+class TRFEstimator:
+    """Estimate per-task task residual floor from an ensemble of OOF predictions."""
 
     def __init__(self, oof_df: pd.DataFrame):
         """Initialize from a validated OOF DataFrame.
@@ -115,13 +116,13 @@ class NCeilingEstimator:
         self.tasks = sorted(oof_df["task"].unique())
         self.model_versions = sorted(oof_df["model_version"].unique())
         log.info(
-            f"NCeilingEstimator: {len(self.tasks)} tasks, "
+            f"TRFEstimator: {len(self.tasks)} tasks, "
             f"{len(self.model_versions)} models, "
             f"{len(oof_df)} rows"
         )
 
     @classmethod
-    def from_oof_dir(cls, oof_dir: str) -> "NCeilingEstimator":
+    def from_oof_dir(cls, oof_dir: str) -> "TRFEstimator":
         """Load all OOF parquet files from a directory.
 
         Each file should be a parquet with columns matching ceiling_schema.
@@ -149,7 +150,7 @@ class NCeilingEstimator:
         return cls(combined)
 
     @classmethod
-    def from_dataframe(cls, df: pd.DataFrame) -> "NCeilingEstimator":
+    def from_dataframe(cls, df: pd.DataFrame) -> "TRFEstimator":
         """Create from a pre-built DataFrame."""
         return cls(df)
 
@@ -280,7 +281,7 @@ class NCeilingEstimator:
         return collapsed_r2, collapsed_boot, collapsed_residuals, collapsed_models
 
     def _estimate_task(self, task: str) -> TaskCeilingResult:
-        """Estimate N_ceiling for a single task."""
+        """Estimate task residual floor for a single task."""
         task_df = self.df[self.df["task"] == task]
         raw_versions = sorted(task_df["model_version"].unique())
 
@@ -314,21 +315,21 @@ class NCeilingEstimator:
             )
         )
 
-        # Best model and N_ceiling point estimate
+        # Best model and TRF point estimate
         best_model = max(per_model_r2, key=per_model_r2.get)
         best_r2 = per_model_r2[best_model]
-        n_ceiling = 1.0 - best_r2
+        trf = 1.0 - best_r2
 
-        # Bootstrap CI for N_ceiling = 1 - max_k(E[R²_k])
+        # Bootstrap CI for TRF = 1 - max_k(E[R²_k])
         boot_matrix = np.column_stack(
             [per_model_boot[mv] for mv in models]
         )
         boot_max_r2 = np.nanmax(boot_matrix, axis=1)
-        boot_n_ceiling = 1.0 - boot_max_r2
+        boot_trf = 1.0 - boot_max_r2
 
         alpha = 1.0 - CI_LEVEL
-        ci_lower = float(np.nanpercentile(boot_n_ceiling, 100 * alpha / 2))
-        ci_upper = float(np.nanpercentile(boot_n_ceiling, 100 * (1 - alpha / 2)))
+        ci_lower = float(np.nanpercentile(boot_trf, 100 * alpha / 2))
+        ci_upper = float(np.nanpercentile(boot_trf, 100 * (1 - alpha / 2)))
 
         # Residual correlation matrix (on collapsed/base models)
         corr_matrix = {}
@@ -367,7 +368,7 @@ class NCeilingEstimator:
             n_models=len(models),
             best_r2=round(best_r2, 6),
             best_model=best_model,
-            n_ceiling=round(n_ceiling, 6),
+            task_residual_floor=round(trf, 6),
             ci_lower=round(ci_lower, 6),
             ci_upper=round(ci_upper, 6),
             per_model_r2=per_model_r2,
@@ -381,22 +382,22 @@ class NCeilingEstimator:
     # ------------------------------------------------------------------
 
     def estimate(self) -> CeilingEstimateReport:
-        """Run N_ceiling estimation for all tasks.
+        """Run task residual floor estimation for all tasks.
 
         Returns:
             CeilingEstimateReport with per-task results and diagnostics.
         """
         results = []
         for task in self.tasks:
-            log.info(f"Estimating N_ceiling for {task}...")
+            log.info(f"Estimating TRF for {task}...")
             result = self._estimate_task(task)
             results.append(result)
             flag_str = " *** FLAGGED" if result.flagged else ""
             log.info(
-                f"  {task}: N_ceiling={result.n_ceiling:.4f} "
+                f"  {task}: TRF={result.task_residual_floor:.4f} "
                 f"[{result.ci_lower:.4f}, {result.ci_upper:.4f}] "
-                f"best={result.best_model} R²={result.best_r2:.4f} "
-                f"mean_|ρ|={result.mean_residual_correlation:.3f}{flag_str}"
+                f"best={result.best_model} R2={result.best_r2:.4f} "
+                f"mean_|rho|={result.mean_residual_correlation:.3f}{flag_str}"
             )
 
         # Rank correlation diagnostic: does best R² track mean |ρ|?
@@ -437,9 +438,9 @@ class NCeilingEstimator:
 
     @staticmethod
     def print_report(report: CeilingEstimateReport) -> None:
-        """Print formatted N_ceiling report to stdout."""
+        """Print formatted task residual floor report to stdout."""
         print("\n" + "=" * 90)
-        print("N_CEILING ESTIMATION REPORT")
+        print("TASK RESIDUAL FLOOR (TRF) ESTIMATION REPORT")
         print("=" * 90)
         print(f"Models: {report.n_models} ({', '.join(report.model_versions)})")
         print(f"Tasks:  {report.n_tasks}")
@@ -448,29 +449,29 @@ class NCeilingEstimator:
         print(f"Correlation flag threshold: {report.correlation_flag_threshold}")
         print()
 
-        hdr = (f"{'Task':<30} {'Best R²':>8} {'Best Model':<16} "
-               f"{'N_ceil':>8} {'CI_lo':>8} {'CI_hi':>8} "
-               f"{'mean|ρ|':>8} {'Flag':>5}")
+        hdr = (f"{'Task':<30} {'Best R2':>8} {'Best Model':<16} "
+               f"{'TRF':>8} {'CI_lo':>8} {'CI_hi':>8} "
+               f"{'mean|rho|':>9} {'Flag':>5}")
         print(hdr)
         print("-" * len(hdr))
 
-        for r in sorted(report.tasks, key=lambda x: x.n_ceiling):
+        for r in sorted(report.tasks, key=lambda x: x.task_residual_floor):
             flag = "***" if r.flagged else ""
             print(
                 f"{r.task:<30} {r.best_r2:>8.4f} {r.best_model:<16} "
-                f"{r.n_ceiling:>8.4f} {r.ci_lower:>8.4f} {r.ci_upper:>8.4f} "
-                f"{r.mean_residual_correlation:>8.3f} {flag:>5}"
+                f"{r.task_residual_floor:>8.4f} {r.ci_lower:>8.4f} {r.ci_upper:>8.4f} "
+                f"{r.mean_residual_correlation:>9.3f} {flag:>5}"
             )
 
         print("-" * len(hdr))
 
         # Summary stats
-        n_ceilings = [r.n_ceiling for r in report.tasks]
-        print(f"\nN_ceiling summary: "
-              f"mean={np.mean(n_ceilings):.4f}, "
-              f"median={np.median(n_ceilings):.4f}, "
-              f"min={np.min(n_ceilings):.4f}, "
-              f"max={np.max(n_ceilings):.4f}")
+        trf_vals = [r.task_residual_floor for r in report.tasks]
+        print(f"\nTRF summary: "
+              f"mean={np.mean(trf_vals):.4f}, "
+              f"median={np.median(trf_vals):.4f}, "
+              f"min={np.min(trf_vals):.4f}, "
+              f"max={np.max(trf_vals):.4f}")
 
         print(f"\nRank correlation diagnostic (best R² vs mean |ρ|):")
         print(f"  Spearman ρ = {report.rank_correlation_rho}, "
@@ -478,7 +479,7 @@ class NCeilingEstimator:
         if report.rank_correlation_rho is not None and report.rank_correlation_rho > 0.5:
             print("  WARNING: High rank correlation suggests models with "
                   "higher R² also have more correlated residuals.")
-            print("  N_ceiling estimates for those tasks may be optimistic. "
+            print("  TRF estimates for those tasks may be optimistic. "
                   "Consider adding architecturally diverse models.")
 
         if report.n_flagged > 0:
@@ -514,7 +515,7 @@ class NCeilingEstimator:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Estimate per-task N_ceiling from ceiling model OOF predictions."
+        description="Estimate per-task task residual floor (TRF) from ceiling model OOF predictions."
     )
     parser.add_argument(
         "--oof-dir", required=True,
@@ -530,21 +531,21 @@ def main():
     )
     args = parser.parse_args()
 
-    estimator = NCeilingEstimator.from_oof_dir(args.oof_dir)
+    estimator = TRFEstimator.from_oof_dir(args.oof_dir)
     report = estimator.estimate()
 
     if args.json:
-        output = NCeilingEstimator.to_json(report)
+        output = TRFEstimator.to_json(report)
         if args.output:
             Path(args.output).write_text(output, encoding="utf-8")
             log.info(f"JSON report written to {args.output}")
         else:
             print(output)
     else:
-        NCeilingEstimator.print_report(report)
+        TRFEstimator.print_report(report)
         if args.output:
             Path(args.output).write_text(
-                NCeilingEstimator.to_json(report), encoding="utf-8"
+                TRFEstimator.to_json(report), encoding="utf-8"
             )
             log.info(f"JSON report also written to {args.output}")
 

@@ -34,8 +34,8 @@ CREATE TABLE IF NOT EXISTS certificate (
 
     -- Geo-specific (ADR-030 D1)
     sigma                  DOUBLE NOT NULL CHECK (sigma >= 0.0),
-    n_ceiling              DOUBLE CHECK (n_ceiling IS NULL OR (n_ceiling >= 0.0 AND n_ceiling <= 1.0)),
-    n_ceiling_unavailable_reason VARCHAR,  -- required when n_ceiling IS NULL (I4)
+    task_residual_floor              DOUBLE CHECK (task_residual_floor IS NULL OR (task_residual_floor >= 0.0 AND task_residual_floor <= 1.0)),
+    task_residual_floor_unavailable_reason VARCHAR,  -- required when task_residual_floor IS NULL (I4)
 
     -- Public projection (ADR-034 D2)
     public_decision        VARCHAR NOT NULL CHECK (public_decision IN ('EXECUTE', 'CAUTION', 'REFUSE')),
@@ -61,8 +61,8 @@ CREATE TABLE IF NOT EXISTS certificate (
     FOREIGN KEY (scenario_id, snapshot_t) REFERENCES scenario_snapshots(scenario_id, snapshot_t),
     FOREIGN KEY (scenario_id, zcta_id)   REFERENCES scenario_zctas(scenario_id, zcta_id),
 
-    -- I4: every cert has n_ceiling or an explanation
-    CHECK (n_ceiling IS NOT NULL OR n_ceiling_unavailable_reason IS NOT NULL),
+    -- I4: every cert has task_residual_floor or an explanation
+    CHECK (task_residual_floor IS NOT NULL OR task_residual_floor_unavailable_reason IS NOT NULL),
 
     -- gate_reached and gate_reason must both be NULL or both be non-NULL
     CHECK (
@@ -129,7 +129,7 @@ CREATE TABLE IF NOT EXISTS alternative_arm (
     alpha                 DOUBLE,
     kappa_compat          DOUBLE,
     sigma                 DOUBLE,
-    n_ceiling             DOUBLE,
+    task_residual_floor             DOUBLE,
     public_decision       VARCHAR CHECK (public_decision IN ('EXECUTE', 'CAUTION', 'REFUSE', NULL)),
     gate_reached          VARCHAR,
     would_change_decision BOOLEAN NOT NULL,

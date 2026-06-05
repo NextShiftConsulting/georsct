@@ -8,7 +8,7 @@ All artifacts referenced by `V3/combine_georsct.tex`, collected from
 ```
 evidence/
   specifications/       # Taxonomy, injection results, Croissant, manifest
-  diagnostics/          # Injection harness, N-ceiling, certificate pipeline, OOF generators
+  diagnostics/          # Injection harness, task residual floor, certificate pipeline, OOF generators
   solvers/              # PCA32-GBDT, Spatial Lag-GBDT, GraphSAGE GNN training code
   certificates/         # Issued certificate triples (alpha, kappa, sigma)
   predictions/          # Solver metrics, distances, clustering, PCA loadings
@@ -24,7 +24,7 @@ evidence/
 | S3 (Audit Pipeline) | 5-gate sequential evaluator, oobleck threshold | `diagnostics/certificate_audit.py` |
 | S4 (Taxonomy) | 6 modes, 3 categories, signal patterns | `specifications/georsct_taxonomy.json` |
 | S5 (Injection) | 9/9 top-1 classification, 8 seeds | `specifications/injection_validation.json`, `diagnostics/stress_geocert.py` |
-| S6 (N-ceiling) | N_ceil = 1 - max_k(R^2_k), block bootstrap B=1000 | `diagnostics/n_ceiling_estimator.py` |
+| S6 (task residual floor) | TRF = 1 - max_k(R^2_k), block bootstrap B=1000 | `diagnostics/task_residual_floor_estimator.py` |
 | S7 (Results) | Table 2 (CONUS-27 R^2 by family) | `predictions/solver_metrics.parquet`, `predictions/target_family_metrics.parquet` |
 | S7 (Results) | Certificate triples per solver-task pair | `certificates/certificate_rsn.parquet`, `predictions/certificate_rsn.parquet` |
 | S7 (Results) | Cross-family spread, solver distances | `predictions/pairwise_solver_distances.csv`, `predictions/solver_metric_summary.csv` |
@@ -34,7 +34,7 @@ evidence/
 | App B (Enrichment) | SVI, HIFLD, drive times, flood, CDC CI, ACS MOE | `../data/geocert/v24/*.parquet` |
 | App C (Solvers) | PCA32-GBDT, Spatial Lag-GBDT | `solvers/train_and_export_v2.py` |
 | App C (Solvers) | GraphSAGE GNN + GBDT | `solvers/train_and_export_gnn_v2.py` |
-| App D (N-ceiling) | Synthetic validation, bootstrap CIs | `diagnostics/n_ceiling_estimator.py`, `../figures/fig8_*.py` |
+| App D (task residual floor) | Synthetic validation, bootstrap CIs | `diagnostics/task_residual_floor_estimator.py`, `../figures/fig8_*.py` |
 | App F (Experiments) | S018B freeze, S018D sweep, S018H canonical | `experiments/run_s018b_freeze.py`, `experiments/run_s018d_solver_diversity.py`, `experiments/sagemaker_s018h.py` |
 | App G (Failure Modes) | Per-mode exemplars and diagnostics | `diagnostics/certificate_mixture.py`, `specifications/georsct_taxonomy.json` |
 | App H (Reproducibility) | Spatial validation, leakage checks | `validation/spatial.py` |

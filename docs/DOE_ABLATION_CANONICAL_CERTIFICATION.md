@@ -38,7 +38,7 @@ The SequentialGatekeeper evaluates gates in fixed order (P2). Evaluation stops a
 | Gate | Name | Input | Threshold | Fail Decision | Default |
 |------|------|-------|-----------|---------------|---------|
 | **1** | Integrity Guard | `noise_admissibility` (or `N` fallback), `alpha` | N < 0.5 OR alpha >= 0.3 | REJECT | Mandatory |
-| **1B** | N-Ceiling | `n_ceiling` | n_ceiling < 0.6 | BLOCK | Off (opt-in) |
+| **1B** | Task Residual Floor | `task_residual_floor` | task_residual_floor < 0.6 | BLOCK | Off (opt-in) |
 | **2** | Consensus | `coherence` | coherence >= 0.4 | BLOCK | Pass-if-absent (evaluates when provided) |
 | **3** | Admissibility | `kappa_compat`, `sigma` | sigma <= 0.5 + Oobleck curve | RE_ENCODE | Mandatory |
 | **3B** | Trajectory | `trajectory_aux.r_bar` | r_bar >= 0.65 | RE_ENCODE | Fires when `trajectory_aux` is populated |
@@ -53,7 +53,7 @@ Each gate requires specific inputs. For CONUS-27 geospatial regression, the sour
 |------|-------------|----------------|------------|
 | 1 | `noise_admissibility` / `N` | Classifier softmax → N column | Via classifier rerun |
 | 1 | `alpha` | R/(R+N) from classifier softmax | Via classifier rerun |
-| 1B | `n_ceiling` | Table 2 N-ceiling values (0.155-0.593) | YES — precomputed per task |
+| 1B | `task_residual_floor` | Table 2 N-ceiling values (0.155-0.593) | YES — precomputed per task |
 | 2 | `coherence` | Multi-solver agreement: 3 solver families provide natural multi-source structure | COMPUTE — see design below |
 | 3 | `kappa_compat` | R*(1-N) from classifier softmax | Via classifier rerun |
 | 3 | `sigma` | std(kappa_per_sample) via `compute_sigma_from_kappa_array` | Via classifier rerun |
@@ -61,14 +61,14 @@ Each gate requires specific inputs. For CONUS-27 geospatial regression, the sour
 | 4 | `kappa_L` | Per-solver kappa (unimodal path) | Via classifier rerun |
 | 5 | `contract_coverage` | Certificate field completeness ratio | COMPUTE — deterministic |
 
-#### Gate 1B: N-Ceiling Evidence
+#### Gate 1B: Task Residual Floor Evidence
 
 Already available from s018n CONUS-27 analysis. Each task has a precomputed N-ceiling value:
 - Range: 0.155 (SoilMoisture) to 0.593 (WindSpeed)
 - 14/27 tasks have N-ceiling > 0.3 (moderate noise floor)
 - 3/27 tasks have N-ceiling > 0.5 (high — may trigger Gate 1B)
 
-Populate `evidence["n_ceiling"]` from the task metadata.
+Populate `evidence["task_residual_floor"]` from the task metadata.
 
 #### Gate 2: Coherence from Multi-Solver Agreement
 
@@ -347,7 +347,7 @@ def compute_contract_coverage(cert) -> float:
 def make_7gate_config() -> GatekeeperConfig:
     """Enable all 7 gates for full pipeline evaluation."""
     return GatekeeperConfig(
-        enable_n_ceiling_gate=True,       # Gate 1B (default off)
+        enable_task_residual_floor_gate=True,       # Gate 1B (default off)
         gate_2_require_coherence=True,    # Gate 2 fail-closed
         enable_gate_3b=True,             # Gate 3B (default on)
         enable_contract_coverage_gate=True,  # Gate 5 (default off)
@@ -369,25 +369,25 @@ def arm_a2_kappa_only(probs, task, model):
     scores = compute_per_sample_scores(probs)
     ...
 
-def arm_a3_full_7gate(probs, labels, task, model, n_ceiling,
+def arm_a3_full_7gate(probs, labels, task, model, task_residual_floor,
                        coherence, r_bar, contract_coverage):
     """Full 7-gate: all gates enabled, evidence dict populated."""
     gatekeeper = SequentialGatekeeper(config=make_7gate_config())
     # Build CPGatekeeperInput with full evidence
     cert = certify_task_7gate(
         probs, labels, task, model, "mlp", gatekeeper,
-        n_ceiling=n_ceiling,
+        task_residual_floor=task_residual_floor,
         coherence=coherence,
         r_bar=r_bar,
         contract_coverage=contract_coverage,
     )
     return cert
 
-def arm_a4_gate_routing(probs, labels, task, model, n_ceiling,
+def arm_a4_gate_routing(probs, labels, task, model, task_residual_floor,
                          coherence, r_bar, contract_coverage):
     """7-gate certification + gate decision drives routing."""
     cert = arm_a3_full_7gate(probs, labels, task, model,
-                              n_ceiling, coherence, r_bar, 
+                              task_residual_floor, coherence, r_bar, 
                               contract_coverage)
     # Use cert.gate_decision to filter solver candidates
     ...

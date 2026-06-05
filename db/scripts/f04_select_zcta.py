@@ -43,7 +43,7 @@ class AlternativeArmRow:
     alpha: Optional[float]
     kappa_compat: Optional[float]
     sigma: Optional[float]
-    n_ceiling: Optional[float]
+    task_residual_floor: Optional[float]
     public_decision: Optional[str]
     gate_reached: Optional[str]
     would_change_decision: bool
@@ -76,8 +76,8 @@ class ZCTADetail:
     kappa_int: Optional[float]
     kappa_modal_min: Optional[float]
     sigma: float
-    n_ceiling: Optional[float]
-    n_ceiling_unavailable_reason: Optional[str]
+    task_residual_floor: Optional[float]
+    task_residual_floor_unavailable_reason: Optional[str]
     public_decision: str
     public_decision_source: str
     gate_reached: Optional[str]
@@ -149,8 +149,8 @@ def select_zcta(
         kappa_h=cr.get("kappa_h"), kappa_l=cr.get("kappa_l"),
         kappa_int=cr.get("kappa_int"), kappa_modal_min=cr.get("kappa_modal_min"),
         sigma=cr["sigma"],
-        n_ceiling=cr.get("n_ceiling"),
-        n_ceiling_unavailable_reason=cr.get("n_ceiling_unavailable_reason"),
+        task_residual_floor=cr.get("task_residual_floor"),
+        task_residual_floor_unavailable_reason=cr.get("task_residual_floor_unavailable_reason"),
         public_decision=cr["public_decision"],
         public_decision_source=cr["public_decision_source"],
         gate_reached=cr.get("gate_reached"),

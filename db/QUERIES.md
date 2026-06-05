@@ -205,7 +205,7 @@ Ordering belongs in `policy_view_queue.ordering_rule`, declared with a named
 
 | Invariant | Enforcement |
 |-----------|-------------|
-| I4: every cert has `n_ceiling` or `n_ceiling_unavailable_reason` | `CHECK` constraint in `002_certificate.sql` |
+| I4: every cert has `task_residual_floor` or `task_residual_floor_unavailable_reason` | `CHECK` constraint in `002_certificate.sql` |
 | I7: schema invariance across scenarios | `verify_adr034_compliance()` in `db_init.py` |
 | I8: gate ordering invariance | Gate names are fixed strings; no per-scenario gate columns |
 | I9: decision determinism | Cert keyed by `(scenario_id, snapshot_t, zcta_id, embedding_arm, target)`; `UNIQUE` constraint |

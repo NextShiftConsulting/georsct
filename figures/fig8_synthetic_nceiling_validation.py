@@ -1,10 +1,10 @@
-"""Figure 8: Synthetic N-ceiling validation.
+"""Figure 8: Synthetic TRF validation.
 
 Generates synthetic datasets with KNOWN ground-truth noise levels,
-runs 3 model families, estimates N-ceiling with block bootstrap,
+runs 3 model families, estimates TRF with block bootstrap,
 verifies CI contains truth.
 
-Plot: estimated N-ceiling vs true N-ceiling with 95% CI bands.
+Plot: estimated TRF vs true TRF with 95% CI bands.
 Also: naive bootstrap CI for comparison (too narrow).
 """
 
@@ -154,8 +154,8 @@ def main():
                 best_r2 = r2
                 best_preds = preds
 
-        n_ceiling_est = 1 - best_r2
-        n_ceiling_true = actual_nf
+        trf_est = 1 - best_r2
+        trf_true = actual_nf
 
         # Block bootstrap CI on best family
         boot_r2 = block_bootstrap_r2(y, best_preds, blocks)
@@ -170,8 +170,8 @@ def main():
         naive_hi = np.nanpercentile(naive_nceiling, 97.5)
 
         results.append({
-            "true": n_ceiling_true,
-            "est": n_ceiling_est,
+            "true": trf_true,
+            "est": trf_est,
             "block_ci_lo": ci_lo,
             "block_ci_hi": ci_hi,
             "naive_ci_lo": naive_lo,
@@ -179,8 +179,8 @@ def main():
             "family_r2": family_r2s,
         })
 
-        in_ci = ci_lo <= n_ceiling_true <= ci_hi
-        print(f"  True={n_ceiling_true:.3f} Est={n_ceiling_est:.3f} "
+        in_ci = ci_lo <= trf_true <= ci_hi
+        print(f"  True={trf_true:.3f} Est={trf_est:.3f} "
               f"BlockCI=[{ci_lo:.3f}, {ci_hi:.3f}] "
               f"NaiveCI=[{naive_lo:.3f}, {naive_hi:.3f}] "
               f"InCI={in_ci}")
@@ -208,7 +208,7 @@ def main():
 
     # Point estimates
     ax.scatter(trues, ests, c="#1f77b4", s=80, zorder=5, edgecolors="black",
-               linewidths=0.5, label="N-ceiling estimate")
+               linewidths=0.5, label="TRF estimate")
 
     # Check coverage
     coverage_block = sum(1 for r in results
@@ -216,8 +216,8 @@ def main():
     coverage_naive = sum(1 for r in results
                          if r["naive_ci_lo"] <= r["true"] <= r["naive_ci_hi"])
 
-    ax.set_xlabel("True N-ceiling (known ground truth)", fontsize=12)
-    ax.set_ylabel("Estimated N-ceiling", fontsize=12)
+    ax.set_xlabel("True TRF (known ground truth)", fontsize=12)
+    ax.set_ylabel("Estimated TRF", fontsize=12)
     # Compute mean bias (conservative overestimate expected)
     mean_bias = np.mean([r["est"] - r["true"] for r in results])
     ax.set_title(

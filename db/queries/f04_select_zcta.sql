@@ -16,7 +16,7 @@ SELECT
 
     c.r, c.s_sup, c.n, c.alpha,
     c.kappa_compat, c.kappa_h, c.kappa_l, c.kappa_int, c.kappa_modal_min,
-    c.sigma, c.n_ceiling, c.n_ceiling_unavailable_reason,
+    c.sigma, c.task_residual_floor, c.task_residual_floor_unavailable_reason,
 
     c.public_decision,
     c.public_decision_source,
@@ -77,7 +77,7 @@ WHERE c.scenario_id   = $scenario_id
 SELECT
     aa.embedding_arm,
     aa.r, aa.s_sup, aa.n, aa.alpha,
-    aa.kappa_compat, aa.sigma, aa.n_ceiling,
+    aa.kappa_compat, aa.sigma, aa.task_residual_floor,
     aa.public_decision, aa.gate_reached,
     aa.would_change_decision
 FROM alternative_arm aa

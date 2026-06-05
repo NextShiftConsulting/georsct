@@ -1,5 +1,5 @@
 """
-S019D Interaction Diagnostic: arch_spread vs N_ceiling
+S019D Interaction Diagnostic: arch_spread vs TRF
 Proof artifact for GeoRSCT §4.4 framing decision.
 
 Source file: data/s019d/seed_42/s019d_results.json
@@ -25,14 +25,14 @@ task_emb = df.groupby(['target','embedding','target_family'])['r2'].mean().reset
 core_df = task_emb[task_emb['embedding'].isin(core3)]
 spread = core_df.groupby(['target','target_family'])['r2'].agg(lambda x: x.max()-x.min()).reset_index()
 spread.columns = ['target','target_family','arch_spread']
-nceil = df.groupby('target')['n_ceiling'].mean().reset_index()
-merged = spread.merge(nceil, on='target').sort_values('n_ceiling')
+nceil = df.groupby('target')['task_residual_floor'].mean().reset_index()
+merged = spread.merge(nceil, on='target').sort_values('task_residual_floor')
 
-print(f"{'target':32s} {'family':14s} {'arch_spread':>11s} {'n_ceiling':>9s}")
+print(f"{'target':32s} {'family':14s} {'arch_spread':>11s} {'task_residual_floor':>9s}")
 for _, row in merged.iterrows():
-    print(f"{row['target']:32s} {row['target_family']:14s} {row['arch_spread']:11.4f} {row['n_ceiling']:9.4f}")
+    print(f"{row['target']:32s} {row['target_family']:14s} {row['arch_spread']:11.4f} {row['task_residual_floor']:9.4f}")
 
-rs, ps = stats.spearmanr(merged['arch_spread'], merged['n_ceiling'])
-rp, pp = stats.pearsonr(merged['arch_spread'], merged['n_ceiling'])
+rs, ps = stats.spearmanr(merged['arch_spread'], merged['task_residual_floor'])
+rp, pp = stats.pearsonr(merged['arch_spread'], merged['task_residual_floor'])
 print(f"\nSpearman r={rs:.4f}, p={ps:.4f}, n={len(merged)}")
 print(f"Pearson  r={rp:.4f}, p={pp:.4f}, n={len(merged)}")

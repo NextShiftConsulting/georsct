@@ -95,7 +95,7 @@ Released: `yrsn` certificate library, OOF predictions for all 16 text models and
 - ALL 16 models fail Gate 3 with RE_ENCODE decision
 
 **Geospatial (3 families x 27 CONUS tasks):**
-- Mean N_ceiling = 0.328, range 0.156 (night_lights) to 0.593 (cholesterol_screening)
+- Mean TRF = 0.328, range 0.156 (night_lights) to 0.593 (cholesterol_screening)
 - Cross-family R-squared spread is small (~0.037) — representation choice matters less than task noise floor
 - Task difficulty varies 4x while model family ranking is nearly constant
 

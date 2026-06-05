@@ -100,7 +100,7 @@ certificates evaluated at the active snapshot.
     alpha              : float
     kappa              : float
     sigma              : float
-    N_ceiling          : float | null
+    task_residual_floor          : float | null
     decision           : "EXECUTE" | "CAUTION" | "REFUSE"
     gate_reached       : str       (ADR-016 identifier or "NONE")
     reason             : str       (human-readable)
@@ -320,7 +320,7 @@ ensembles) uses fixed seeds keyed to (event, snapshot, zcta_id).
 
 **I4. Certificate completeness.** Every returned certificate carries
 all six core fields (R, S_sup, N, alpha, kappa, sigma) and either a
-non-null N_ceiling or an explicit `N_ceiling_unavailable_reason`. No
+non-null task_residual_floor or an explicit `task_residual_floor_unavailable_reason`. No
 silent omissions.
 
 **I5. Disclosure propagation.** Every response from every function

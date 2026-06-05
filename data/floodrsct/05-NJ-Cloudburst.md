@@ -117,7 +117,7 @@ SELECT
     c.alpha,
     c.kappa_compat,
     c.sigma,
-    c.N_ceiling,
+    c.task_residual_floor,
     c.public_decision,
     c.gate_reached,
     c.gate_reason
@@ -421,7 +421,7 @@ downstream consequence is different (sewer overflow vs. bayou backflow).
 ```text
 zcta_id, scenario_id, snapshot_t
 R, S_sup, N, alpha
-kappa_compat, sigma, N_ceiling
+kappa_compat, sigma, task_residual_floor
 public_decision, gate_reached, gate_reason, reason_codes, policy_id
 
 population_density

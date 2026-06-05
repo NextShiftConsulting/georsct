@@ -1,7 +1,7 @@
-"""Figure 4: CONUS-27 N_ceiling heatmap.
+"""Figure 4: CONUS-27 TRF heatmap.
 
 Shows R-squared across 3 model families and 27 geospatial tasks,
-with N_ceiling column. Sorted by N_ceiling to reveal task difficulty spectrum.
+with TRF column. Sorted by TRF to reveal task difficulty spectrum.
 """
 
 import matplotlib.pyplot as plt
@@ -44,20 +44,20 @@ TASK_R2 = {
 
 
 def main():
-    # Sort by N_ceiling (ascending = easiest tasks first)
+    # Sort by TRF (ascending = easiest tasks first)
     tasks_sorted = sorted(TASK_R2.keys(), key=lambda t: -max(TASK_R2[t]))
     n_tasks = len(tasks_sorted)
 
     # Build matrix
     r2_matrix = np.array([TASK_R2[t] for t in tasks_sorted])
-    n_ceilings = 1.0 - np.max(r2_matrix, axis=1)
+    trf_vals = 1.0 - np.max(r2_matrix, axis=1)
 
-    # Add N_ceiling as a 4th column
-    display_matrix = np.column_stack([r2_matrix, n_ceilings])
+    # Add TRF as a 4th column
+    display_matrix = np.column_stack([r2_matrix, trf_vals])
 
     fig, ax = plt.subplots(figsize=(8, 10))
 
-    # Custom colormap: R2 columns in blues, N_ceiling column in reds
+    # Custom colormap: R2 columns in blues, TRF column in reds
     im = ax.imshow(
         r2_matrix,
         cmap="YlGnBu",
@@ -65,9 +65,9 @@ def main():
         vmin=0.3, vmax=0.85,
     )
 
-    # Overlay N_ceiling as separate colored cells
-    for i, nc in enumerate(n_ceilings):
-        # N_ceiling color: red intensity proportional to noise floor
+    # Overlay TRF as separate colored cells
+    for i, nc in enumerate(trf_vals):
+        # TRF color: red intensity proportional to noise floor
         red_val = nc / 0.6  # normalize to [0, 1] roughly
         color = plt.cm.Reds(min(red_val, 1.0))
         ax.add_patch(plt.Rectangle((2.5, i - 0.5), 1, 1, facecolor=color, edgecolor="white", linewidth=0.5))
@@ -78,26 +78,26 @@ def main():
             val = r2_matrix[i, j]
             color = "white" if val > 0.7 else "black"
             ax.text(j, i, f"{val:.2f}", ha="center", va="center", fontsize=7, color=color)
-        # N_ceiling column
-        nc = n_ceilings[i]
+        # TRF column
+        nc = trf_vals[i]
         color = "white" if nc > 0.4 else "black"
         ax.text(3, i, f"{nc:.2f}", ha="center", va="center", fontsize=7, fontweight="bold", color=color)
 
     ax.set_xticks(range(4))
-    ax.set_xticklabels(FAMILIES + ["N_ceiling"], fontsize=10)
+    ax.set_xticklabels(FAMILIES + ["TRF"], fontsize=10)
     ax.set_yticks(range(n_tasks))
     ax.set_yticklabels([t.replace("_", " ") for t in tasks_sorted], fontsize=8)
 
     ax.set_title(
         "CONUS-27: R-squared by Model Family and N-Ceiling per Task\n"
-        "N_ceiling = irreducible noise floor (higher = harder task)",
+        "TRF = irreducible noise floor (higher = harder task)",
         fontsize=11,
     )
 
     cbar = fig.colorbar(im, ax=ax, shrink=0.5, pad=0.02)
     cbar.set_label("R-squared", fontsize=10)
 
-    # Divider line before N_ceiling column
+    # Divider line before TRF column
     ax.axvline(x=2.5, color="black", linewidth=2)
 
     fig.tight_layout()

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-generate_oof_predictions.py — Generate OOF prediction parquets for N_ceiling estimation.
+generate_oof_predictions.py — Generate OOF prediction parquets for TRF estimation.
 
 Retrains each ceiling model architecture on the standard split, captures
 test-set predictions, and writes one parquet per model in ceiling_schema format.
@@ -690,7 +690,7 @@ def generate_all(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Generate OOF prediction parquets for N_ceiling estimation."
+        description="Generate OOF prediction parquets for TRF estimation."
     )
     parser.add_argument(
         "--local-data", type=str, default="C:/tmp/geo_data",

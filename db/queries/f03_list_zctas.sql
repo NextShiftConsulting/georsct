@@ -27,8 +27,8 @@ SELECT
 
     -- Geo-specific
     c.sigma,
-    c.n_ceiling,
-    c.n_ceiling_unavailable_reason,
+    c.task_residual_floor,
+    c.task_residual_floor_unavailable_reason,
 
     -- Public projection (ADR-034 D2)
     c.public_decision,
@@ -56,6 +56,6 @@ GROUP BY
     sz.zcta_id, sz.state_fips, sz.county_fips, sz.huc8_id,
     c.certificate_id, c.r, c.s_sup, c.n, c.alpha,
     c.kappa_compat, c.kappa_modal_min,
-    c.sigma, c.n_ceiling, c.n_ceiling_unavailable_reason,
+    c.sigma, c.task_residual_floor, c.task_residual_floor_unavailable_reason,
     c.public_decision, c.gate_reached, c.gate_reason
 ORDER BY sz.zcta_id;  -- alphabetic, not scalar-ranked

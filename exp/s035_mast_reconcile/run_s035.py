@@ -189,7 +189,7 @@ def classify_s018d():
         "alpha_profile_corr": 0.214,
         "target_variance": 0.70,
         "solver_specificity": 0.75,
-        "n_ceiling_correlation": 0.55,
+        "trf_correlation": 0.55,
         "proxy_success_corr": 0.25,
         "noisy_control_similarity": 0.80,
         "aggregate_separation": 0.55,

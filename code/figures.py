@@ -91,7 +91,7 @@ TEXT_MODELS = [
 ]
 
 # Table 2 CONUS-27 — post EVIDENCE_AUDIT 2026-04-29 (canonical OOF test-fold).
-# Columns: category, task, pca32_r2, gnn_r2, slag_r2, n_ceiling, spread
+# Columns: category, task, pca32_r2, gnn_r2, slag_r2, task_residual_floor, spread
 CONUS_27 = [
     ("Environ.", "Night lights",           0.799, 0.833, 0.845, 0.155, 0.045),
     ("Health",   "Smoking",                0.803, 0.793, 0.808, 0.192, 0.016),
@@ -384,7 +384,7 @@ def _load_from_hf():
     """Load CONUS-27 values from the published HF dataset.
 
     Returns a list shaped like CONUS_27 (category, task, pca, gnn, slag,
-    n_ceiling, spread) drawn from the canonical OOF artifacts on HF.
+    task_residual_floor, spread) drawn from the canonical OOF artifacts on HF.
 
     This is a verification path; the figures ship with hard-coded values
     so that paper text and figures cannot drift apart.
@@ -400,11 +400,11 @@ def _load_from_hf():
     ds = load_dataset("rudymartin/geocert", "conus27_oof_test", split="train")
     rows = []
     for r in ds:
-        # Schema must match: category, task, pca32_r2, gnn_r2, slag_r2, n_ceiling, spread
+        # Schema must match: category, task, pca32_r2, gnn_r2, slag_r2, task_residual_floor, spread
         rows.append(
             (r["category"], r["task"],
              r["pca32_r2"], r["gnn_r2"], r["slag_r2"],
-             r["n_ceiling"], r["spread"])
+             r["task_residual_floor"], r["spread"])
         )
     return rows
 
@@ -425,7 +425,7 @@ def _verify_against_hf(tolerance: float = 1e-3) -> None:
             continue
         hf = by_task_hf[task]
         for col_idx, col_name in enumerate(
-            ["pca", "gnn", "slag", "n_ceiling", "spread"], start=2
+            ["pca", "gnn", "slag", "task_residual_floor", "spread"], start=2
         ):
             if abs(local[col_idx] - hf[col_idx]) > tolerance:
                 print(

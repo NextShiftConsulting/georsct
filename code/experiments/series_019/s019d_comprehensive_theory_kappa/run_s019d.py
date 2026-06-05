@@ -413,7 +413,7 @@ def run_experiment(data_dir: str, repr_dir: str, output_dir: str):
         log.warning("FAILED TARGETS (%d): %s", len(failed_targets), failed_targets)
 
     # --------------- N-ceiling estimate per task ---------------
-    n_ceiling_by_task = {}
+    task_residual_floor_by_task = {}
     for target in CONUS27_TASKS:
         task_results = [r for r in all_results if r["target"] == target]
         if not task_results:
@@ -423,10 +423,10 @@ def run_experiment(data_dir: str, repr_dir: str, output_dir: str):
             for emb in EMBEDDINGS
             if any(r["embedding"] == emb for r in task_results)
         )
-        n_ceiling_by_task[target] = round(1.0 - best_r2, 4)
+        task_residual_floor_by_task[target] = round(1.0 - best_r2, 4)
 
     for r in all_results:
-        r["n_ceiling"] = n_ceiling_by_task.get(r["target"])
+        r["task_residual_floor"] = task_residual_floor_by_task.get(r["target"])
 
     elapsed = time.time() - t0
     log.info("S019D complete: %d results in %.1f seconds", len(all_results), elapsed)
@@ -474,7 +474,7 @@ def run_experiment(data_dir: str, repr_dir: str, output_dir: str):
                 sum(1 for r in task_rows
                     if r["gate_oobleck"]["gate_decision"] == "EnforcementDecision.EXECUTE") / len(task_rows), 4
             ),
-            "n_ceiling": n_ceiling_by_task.get(target),
+            "task_residual_floor": task_residual_floor_by_task.get(target),
         })
 
     # Git hash for reproducibility (Appendix H)
@@ -507,8 +507,8 @@ def run_experiment(data_dir: str, repr_dir: str, output_dir: str):
     with open(out_path / "s019d_summary.json", "w") as f:
         json.dump(summary, f, indent=2, default=str)
 
-    with open(out_path / "s019d_n_ceiling.json", "w") as f:
-        json.dump(n_ceiling_by_task, f, indent=2)
+    with open(out_path / "s019d_task_residual_floor.json", "w") as f:
+        json.dump(task_residual_floor_by_task, f, indent=2)
 
     log.info("Results saved to %s", out_path)
     return all_results

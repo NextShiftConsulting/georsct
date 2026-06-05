@@ -85,7 +85,7 @@ Same endpoint. Same response schema. Same audit log format.
 │  │  • SequentialGatekeeper.decide(certificate)                  │  │
 │  │                                                              │  │
 │  │  Async path: SQS → SageMaker Processing Job                  │  │
-│  │  • n_ceiling_estimator (state-FIPS blocked, 200 bootstraps)  │  │
+│  │  • task_residual_floor_estimator (state-FIPS blocked, 200 bootstraps)  │  │
 │  └──────────────────────────────────────────────────────────────┘  │
 └─────────────────────┬───────────────────────────┬───────────────────┘
                       │                           │
@@ -242,7 +242,7 @@ Content-Type: application/json
     "alpha":      0.78,
     "kappa":      0.62,
     "sigma":      0.18,
-    "N_ceiling":  0.18,
+    "task_residual_floor":  0.18,
     "decision":   "EXECUTE",
     "gate_reason":  "all gates passed",
     "gate_fired":   null
@@ -270,7 +270,7 @@ Content-Type: application/json
 }
 ```
 
-**`N_ceiling` in the sync response** is pulled from DynamoDB (written
+**`task_residual_floor` in the sync response** is pulled from DynamoDB (written
 by the async `/ceiling` job). If no ceiling has been computed for this
 target + protocol, the field is `null`. The certificate is still valid
 without it — the notebooks treat a null ceiling as "not yet estimated"
@@ -488,7 +488,7 @@ The ADK is a thin client. It contains:
 
 It does **not** contain:
 
-- Simplex / α / κ / σ / N_ceiling / gatekeeper compute.
+- Simplex / α / κ / σ / task_residual_floor / gatekeeper compute.
 - Any data loading from S3 or HF (the API handles all data access).
 - Any local caching beyond a per-process LRU on response objects for
   the duration of a single notebook session.

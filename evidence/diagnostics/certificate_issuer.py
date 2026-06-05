@@ -4,11 +4,11 @@ certificate_issuer.py — Issue YRSNCertificates for geo_cert model predictions.
 
 Maps geo_cert model performance onto the RSCT simplex:
   R = model R² (representation adequacy)
-  S = 1 - R - N  (supportive structure, computed from the other two)
-  N = N_ceiling[task] or N_proxy[zcta, task, model]
+  S = 1 - R - TRF  (supportive structure, computed from the other two)
+  TRF = task_residual_floor[task] or N_proxy[zcta, task, model]
 
 Two certificate modes per (zcta, task, model):
-  - ceiling: uses N_ceiling[task] (invariant, for paper)
+  - ceiling: uses task_residual_floor[task] (invariant, for paper)
   - proxy:   uses N_proxy = 1 - R² per prediction (operational, for allocator)
 
 Emits frozen YRSNCertificate instances from the yrsn core package.
@@ -16,7 +16,7 @@ Emits frozen YRSNCertificate instances from the yrsn core package.
 Usage:
     from apps.geo_cert.certificates.issuer import GeoCertIssuer
 
-    issuer = GeoCertIssuer(n_ceiling_table, oof_df)
+    issuer = GeoCertIssuer(trf_table, oof_df)
     certs = issuer.issue_all()
     ceiling_certs = issuer.issue_ceiling()
     proxy_certs = issuer.issue_proxy()
@@ -47,7 +47,7 @@ class GeoCertRow:
     # Ceiling decomposition (paper)
     R_ceiling: float
     S_ceiling: float
-    N_ceiling: float
+    task_residual_floor: float
     cert_ceiling: YRSNCertificate
     # Proxy decomposition (operational)
     R_proxy: float
@@ -119,7 +119,7 @@ class GeoCertIssuer:
     """Issue YRSNCertificates for geo_cert OOF predictions.
 
     Args:
-        n_ceiling_table: {task: N_ceiling} from the N_ceiling estimator.
+        trf_table: {task: task_residual_floor} from the TRF estimator.
         oof_df: OOF predictions DataFrame in ceiling_schema format.
         model_r2_table: Optional {(task, model_version): R²} for aggregate R.
             If None, R² is computed per-model from oof_df.
@@ -128,12 +128,12 @@ class GeoCertIssuer:
 
     def __init__(
         self,
-        n_ceiling_table: dict,
+        trf_table: dict,
         oof_df: pd.DataFrame,
         model_r2_table: dict = None,
         calibration: dict = None,
     ):
-        self.n_ceiling = n_ceiling_table
+        self.trf_table = trf_table
         self.oof = oof_df
         self.calibration = calibration or {}
 
@@ -147,7 +147,7 @@ class GeoCertIssuer:
         self.models = sorted(oof_df["model_version"].unique())
         log.info(f"GeoCertIssuer: {len(self.tasks)} tasks, "
                  f"{len(self.models)} models, "
-                 f"{len(n_ceiling_table)} ceiling entries")
+                 f"{len(trf_table)} TRF entries")
 
     def _compute_model_r2(self) -> dict:
         """Compute per-(task, model_version) R² from OOF predictions."""
@@ -175,21 +175,21 @@ class GeoCertIssuer:
         y_pred: float,
     ) -> GeoCertRow:
         """Issue a certificate pair (ceiling + proxy) for one prediction."""
-        # Ceiling decomposition: R = model R², N = N_ceiling[task]
+        # Ceiling decomposition: R = model R², TRF = task_residual_floor[task]
         r2_model = self.model_r2.get((task, model_version), 0.0)
-        n_ceil = self.n_ceiling.get(task)
-        if n_ceil is None:
+        trf_val = self.trf_table.get(task)
+        if trf_val is None:
             raise ValueError(
-                f"No N_ceiling for task '{task}'. "
-                f"Available: {sorted(self.n_ceiling.keys())}"
+                f"No task_residual_floor for task '{task}'. "
+                f"Available: {sorted(self.trf_table.keys())}"
             )
 
         R_ceiling = _clamp(r2_model)
-        N_ceiling = _clamp(n_ceil)
-        S_ceiling = _clamp(1.0 - R_ceiling - N_ceiling)
+        trf = _clamp(trf_val)
+        S_ceiling = _clamp(1.0 - R_ceiling - trf)
 
         calibration = self._get_calibration(model_version)
-        cert_ceiling = _make_cert(R_ceiling, S_ceiling, N_ceiling, omega=calibration)
+        cert_ceiling = _make_cert(R_ceiling, S_ceiling, trf, omega=calibration)
 
         # Proxy decomposition: per-prediction residual
         residual_sq = (y_true - y_pred) ** 2
@@ -214,7 +214,7 @@ class GeoCertIssuer:
             r2_model=r2_model,
             R_ceiling=R_ceiling,
             S_ceiling=S_ceiling,
-            N_ceiling=N_ceiling,
+            task_residual_floor=trf,
             cert_ceiling=cert_ceiling,
             R_proxy=R_proxy,
             S_proxy=S_proxy,
@@ -258,7 +258,7 @@ class GeoCertIssuer:
                 "r2_model": r.r2_model,
                 "R_ceiling": r.R_ceiling,
                 "S_ceiling": r.S_ceiling,
-                "N_ceiling": r.N_ceiling,
+                "task_residual_floor": r.task_residual_floor,
                 "R_proxy": r.R_proxy,
                 "S_proxy": r.S_proxy,
                 "N_proxy": r.N_proxy,
@@ -281,7 +281,7 @@ class GeoCertIssuer:
                 "n_models": group["model_version"].nunique(),
                 "R_ceiling_mean": round(float(group["R_ceiling"].mean()), 4),
                 "S_ceiling_mean": round(float(group["S_ceiling"].mean()), 4),
-                "N_ceiling": round(float(group["N_ceiling"].iloc[0]), 4),
+                "task_residual_floor": round(float(group["task_residual_floor"].iloc[0]), 4),
                 "R_proxy_mean": round(float(group["R_proxy"].mean()), 4),
                 "alpha_ceiling_mean": round(float(group["alpha_ceiling"].mean()), 4),
             }

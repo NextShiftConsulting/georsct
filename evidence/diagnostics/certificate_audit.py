@@ -9,15 +9,15 @@ Three audit checks:
    goes *up* between versions for the same task, the newer model is explaining
    less structure — either a regression or the task is noisy.
 
-2. N_ceiling invariance: N_ceiling is a per-task constant (Definition A).
-   Within bootstrap CI, all models should agree on the same N_ceiling[task].
-   If a model's implied N deviates beyond CI, the ceiling ensemble is
+2. TRF invariance: task_residual_floor is a per-task constant (ADR-042).
+   Within bootstrap CI, all models should agree on the same TRF[task].
+   If a model's implied TRF deviates beyond CI, the ceiling ensemble is
    inconsistent for that task.
 
-3. Flagged-task handling: Tasks flagged by the N_ceiling estimator (high
+3. Flagged-task handling: Tasks flagged by the TRF estimator (high
    residual correlation) get a warning annotation on their certificates
    rather than suppression — the certificate is still valid, but consumers
-   should treat the N_ceiling bound as optimistic.
+   should treat the TRF bound as optimistic.
 
 Usage:
     from apps.geo_cert.certificates.audit import CertificateAuditor
@@ -34,7 +34,7 @@ from typing import Optional
 import numpy as np
 
 from apps.geo_cert.certificates.issuer import GeoCertRow
-from apps.geo_cert.models.ceiling.n_ceiling_estimator import (
+from apps.geo_cert.models.ceiling.task_residual_floor_estimator import (
     CeilingEstimateReport,
     TaskCeilingResult,
 )
@@ -65,10 +65,10 @@ class AuditReport:
 
 
 class CertificateAuditor:
-    """Audit geo_cert certificates against the N_ceiling estimate.
+    """Audit geo_cert certificates against the task residual floor estimate.
 
     Args:
-        ceiling_report: CeilingEstimateReport from NCeilingEstimator.
+        ceiling_report: CeilingEstimateReport from TRFEstimator.
         cert_rows: list of GeoCertRow from GeoCertIssuer.
     """
 
@@ -129,7 +129,7 @@ class CertificateAuditor:
         constant per task. So S should decrease as R increases. If S goes
         up between a worse and better model, something is wrong.
 
-        Since N_ceiling is fixed per task, S_ceiling = 1 - R_ceiling - N_ceiling.
+        Since task_residual_floor is fixed per task, S_ceiling = 1 - R_ceiling - TRF.
         Monotonicity of S w.r.t. R is algebraically guaranteed when N is constant.
         This check catches cases where the issuer computed inconsistent values.
         """
@@ -198,87 +198,87 @@ class CertificateAuditor:
         return findings
 
     # ------------------------------------------------------------------
-    # Check 2: N_ceiling invariance within bootstrap CI
+    # Check 2: TRF invariance within bootstrap CI
     # ------------------------------------------------------------------
 
     def _check_n_invariance(self) -> list:
-        """Check that N_ceiling values used in certificates match the
-        ceiling estimate within bootstrap CI.
+        """Check that task_residual_floor values used in certificates match
+        the ceiling estimate within bootstrap CI.
 
-        N_ceiling is a per-task constant. Every certificate for a given task
-        should use the same N_ceiling value, and that value should fall within
+        TRF is a per-task constant. Every certificate for a given task
+        should use the same TRF value, and that value should fall within
         the bootstrap confidence interval from the ceiling estimator.
         """
         findings = []
 
-        # Collect unique N_ceiling values per task from certificates
-        task_n_values = {}
+        # Collect unique TRF values per task from certificates
+        task_trf_values = {}
         for r in self.rows:
-            task_n_values.setdefault(r.task, set()).add(round(r.N_ceiling, 6))
+            task_trf_values.setdefault(r.task, set()).add(round(r.task_residual_floor, 6))
 
-        for task, n_values in task_n_values.items():
-            # All certs for a task should use the same N_ceiling
-            if len(n_values) > 1:
+        for task, trf_values in task_trf_values.items():
+            # All certs for a task should use the same TRF
+            if len(trf_values) > 1:
                 findings.append(AuditFinding(
-                    check="n_invariance",
+                    check="trf_invariance",
                     severity="error",
                     task=task,
                     message=(
-                        f"Multiple N_ceiling values in certificates: "
-                        f"{sorted(n_values)}"
+                        f"Multiple task_residual_floor values in certificates: "
+                        f"{sorted(trf_values)}"
                     ),
-                    details={"n_values": sorted(n_values)},
+                    details={"trf_values": sorted(trf_values)},
                 ))
                 continue
 
-            cert_n = list(n_values)[0]
+            cert_trf = list(trf_values)[0]
 
             # Check against ceiling estimate CI
             ceiling = self._ceiling_by_task.get(task)
             if ceiling is None:
                 findings.append(AuditFinding(
-                    check="n_invariance",
+                    check="trf_invariance",
                     severity="warning",
                     task=task,
                     message=(
-                        f"No ceiling estimate for task (N_ceiling={cert_n:.4f} "
+                        f"No ceiling estimate for task (TRF={cert_trf:.4f} "
                         f"used in certs but cannot validate against CI)"
                     ),
-                    details={"cert_n": cert_n},
+                    details={"cert_trf": cert_trf},
                 ))
                 continue
 
             # Value should match point estimate
-            if abs(cert_n - ceiling.n_ceiling) > 1e-4:
+            if abs(cert_trf - ceiling.task_residual_floor) > 1e-4:
                 findings.append(AuditFinding(
-                    check="n_invariance",
+                    check="trf_invariance",
                     severity="error",
                     task=task,
                     message=(
-                        f"Certificate N_ceiling={cert_n:.6f} differs from "
-                        f"ceiling estimate N_ceiling={ceiling.n_ceiling:.6f}"
+                        f"Certificate TRF={cert_trf:.6f} differs from "
+                        f"ceiling estimate TRF={ceiling.task_residual_floor:.6f}"
                     ),
                     details={
-                        "cert_n": cert_n,
-                        "estimate_n": ceiling.n_ceiling,
-                        "diff": abs(cert_n - ceiling.n_ceiling),
+                        "cert_trf": cert_trf,
+                        "estimate_trf": ceiling.task_residual_floor,
+                        "diff": abs(cert_trf - ceiling.task_residual_floor),
                     },
                 ))
             else:
                 # Check within bootstrap CI
-                in_ci = ceiling.ci_lower <= cert_n <= ceiling.ci_upper
+                in_ci = ceiling.ci_lower <= cert_trf <= ceiling.ci_upper
                 findings.append(AuditFinding(
-                    check="n_invariance",
+                    check="trf_invariance",
                     severity="info" if in_ci else "warning",
                     task=task,
                     message=(
-                        f"N_ceiling={cert_n:.4f} "
+                        f"TRF={cert_trf:.4f} "
                         f"{'within' if in_ci else 'outside'} "
                         f"bootstrap CI [{ceiling.ci_lower:.4f}, "
                         f"{ceiling.ci_upper:.4f}]"
                     ),
                     details={
-                        "cert_n": cert_n,
+                        "cert_trf": cert_trf,
                         "ci_lower": ceiling.ci_lower,
                         "ci_upper": ceiling.ci_upper,
                         "in_ci": in_ci,
@@ -296,7 +296,7 @@ class CertificateAuditor:
 
         Flagged tasks have high mean residual correlation across models,
         meaning the ceiling models are capturing similar structure and
-        N_ceiling may be optimistic. Certificates are still valid but
+        TRF may be optimistic. Certificates are still valid but
         consumers should treat the bound cautiously.
         """
         findings = []
@@ -316,12 +316,12 @@ class CertificateAuditor:
                 message=(
                     f"Task flagged for high residual correlation "
                     f"(mean |rho|={ceiling_result.mean_residual_correlation:.3f}). "
-                    f"N_ceiling={ceiling_result.n_ceiling:.4f} may be optimistic. "
+                    f"TRF={ceiling_result.task_residual_floor:.4f} may be optimistic. "
                     f"{n_certs} certificates affected."
                 ),
                 details={
                     "mean_residual_correlation": ceiling_result.mean_residual_correlation,
-                    "n_ceiling": ceiling_result.n_ceiling,
+                    "task_residual_floor": ceiling_result.task_residual_floor,
                     "n_certs": n_certs,
                     "best_model": ceiling_result.best_model,
                     "residual_correlation_matrix": ceiling_result.residual_correlation_matrix,
@@ -345,7 +345,7 @@ class CertificateAuditor:
 
         for r in self.rows:
             # Ceiling decomposition
-            total_c = r.R_ceiling + r.S_ceiling + r.N_ceiling
+            total_c = r.R_ceiling + r.S_ceiling + r.task_residual_floor
             if abs(total_c - 1.0) > 1e-4:
                 violations += 1
                 if violations <= 5:  # Cap detailed findings
@@ -356,7 +356,7 @@ class CertificateAuditor:
                         message=(
                             f"Ceiling simplex violation: "
                             f"R={r.R_ceiling:.6f} + S={r.S_ceiling:.6f} + "
-                            f"N={r.N_ceiling:.6f} = {total_c:.6f} != 1.0 "
+                            f"TRF={r.task_residual_floor:.6f} = {total_c:.6f} != 1.0 "
                             f"(zcta={r.zcta}, model={r.model_version})"
                         ),
                         details={
@@ -364,7 +364,7 @@ class CertificateAuditor:
                             "model": r.model_version,
                             "R": r.R_ceiling,
                             "S": r.S_ceiling,
-                            "N": r.N_ceiling,
+                            "task_residual_floor": r.task_residual_floor,
                             "total": total_c,
                         },
                     ))

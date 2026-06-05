@@ -34,7 +34,7 @@
 - ALL 16 models fail Gate 3 with RE_ENCODE decision
 
 **Geospatial (3 families x 27 CONUS tasks):**
-- Mean N_ceiling = 0.328, range 0.156 (night_lights) to 0.593 (cholesterol_screening)
+- Mean TRF = 0.328, range 0.156 (night_lights) to 0.593 (cholesterol_screening)
 - Cross-family R² spread is small (~0.037) — representation choice matters less than task noise floor
 - Task difficulty varies 4x while model family ranking is nearly constant
 
@@ -108,7 +108,7 @@ Same R/S/N code, completely different domain.
 **Setup:** 27 CDC health outcome variables predicted from ACS census features across ~25K ZCTAs. 3 model families: PCA (linear), Spatial Lag (spatial econometric), GNN (graph neural).
 
 **Results:**
-- N_ceiling spectrum: 0.156 (night_lights) to 0.593 (cholesterol_screening)
+- TRF spectrum: 0.156 (night_lights) to 0.593 (cholesterol_screening)
 - Cross-family spread ~0.037 R² — small vs 4x task difficulty variation
 - Policy implication: for cholesterol_screening (N_ceil=0.59), no model improvement can recover more than 41% of variance — the right response is better data, not a better model
 
@@ -140,13 +140,13 @@ S1(1.0) + S2(0.75) + S3(1.25) + S4(1.0) + S5(1.25) + S6(1.75) + S7(1.0) + S8(0.5
 | Fig 1 | Accuracy rank vs alpha-rank scatter (16 models) | leaderboard.json | DATA READY |
 | Fig 2 | R/S/N simplex with 16 models plotted | leaderboard.json | DATA READY |
 | Fig 3 | nova_embed vs openai_3_small confusion matrices | leaderboard.json | DATA READY |
-| Fig 4 | N_ceiling heatmap across 27 CONUS tasks | geo_cert S3 data | DATA READY |
+| Fig 4 | TRF heatmap across 27 CONUS tasks | geo_cert S3 data | DATA READY |
 | Fig 5 | Layer 1 substrate comparison | existing | DONE |
 | Fig 6 | Layer 2 ladder | existing | DONE |
 | Fig 7 | Layer 3 features | existing | DONE |
 | Fig 8 | Pooling comparison | existing | DONE |
 | Tbl 1 | Full certificate leaderboard (16 models) | leaderboard.json | DATA READY |
-| Tbl 2 | CONUS-27 per-task N_ceiling + best family | geo_cert S3 data | DATA READY |
+| Tbl 2 | CONUS-27 per-task TRF + best family | geo_cert S3 data | DATA READY |
 
 ---
 

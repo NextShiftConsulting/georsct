@@ -38,8 +38,8 @@ class ZCTACertificate:
     kappa_modal_min: Optional[float]
     # Geo-specific
     sigma: Optional[float]
-    n_ceiling: Optional[float]
-    n_ceiling_unavailable_reason: Optional[str]
+    task_residual_floor: Optional[float]
+    task_residual_floor_unavailable_reason: Optional[str]
     # Public projection (ADR-034 D2)
     public_decision: Optional[str]
     gate_reached: Optional[str]
@@ -98,8 +98,8 @@ def list_zctas(
             kappa_compat=r.get("kappa_compat"),
             kappa_modal_min=r.get("kappa_modal_min"),
             sigma=r.get("sigma"),
-            n_ceiling=r.get("n_ceiling"),
-            n_ceiling_unavailable_reason=r.get("n_ceiling_unavailable_reason"),
+            task_residual_floor=r.get("task_residual_floor"),
+            task_residual_floor_unavailable_reason=r.get("task_residual_floor_unavailable_reason"),
             public_decision=r.get("public_decision"),
             gate_reached=r.get("gate_reached"),
             gate_reason=r.get("gate_reason"),

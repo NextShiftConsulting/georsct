@@ -1,6 +1,6 @@
-"""Figure 5: Cross-family R-squared spread vs N-ceiling for 27 CONUS tasks.
+"""Figure 5: Cross-family R-squared spread vs TRF for 27 CONUS tasks.
 
-Key insight: task noise (N-ceiling) varies 4x while cross-family spread
+Key insight: task noise (TRF) varies 4x while cross-family spread
 is tiny (~0.02). Architecture choice is nearly invisible against task difficulty.
 """
 
@@ -45,27 +45,27 @@ TASK_R2 = {
 
 def main():
     tasks = list(TASK_R2.keys())
-    n_ceilings = []
+    trf_vals = []
     spreads = []
     labels = []
 
     for task in tasks:
         vals = TASK_R2[task]
-        n_ceil = 1.0 - max(vals)
+        trf = 1.0 - max(vals)
         spread = max(vals) - min(vals)
-        n_ceilings.append(n_ceil)
+        trf_vals.append(trf)
         spreads.append(spread)
         labels.append(task)
 
-    n_ceilings = np.array(n_ceilings)
+    trf_vals = np.array(trf_vals)
     spreads = np.array(spreads)
 
     fig, ax = plt.subplots(figsize=(8, 6))
 
-    # Color by N_ceiling magnitude
+    # Color by TRF magnitude
     scatter = ax.scatter(
-        n_ceilings, spreads,
-        c=n_ceilings,
+        trf_vals, spreads,
+        c=trf_vals,
         cmap="RdYlGn_r",
         s=80,
         edgecolors="black",
@@ -75,11 +75,11 @@ def main():
 
     # Label extreme points
     for i, label in enumerate(labels):
-        if spreads[i] > 0.04 or n_ceilings[i] > 0.5 or n_ceilings[i] < 0.17:
+        if spreads[i] > 0.04 or trf_vals[i] > 0.5 or trf_vals[i] < 0.17:
             ax.annotate(
                 label.replace("_", " "),
-                (n_ceilings[i], spreads[i]),
-                (n_ceilings[i] + 0.01, spreads[i] + 0.002),
+                (trf_vals[i], spreads[i]),
+                (trf_vals[i] + 0.01, spreads[i] + 0.002),
                 fontsize=7,
                 alpha=0.8,
             )
@@ -89,16 +89,16 @@ def main():
     ax.text(0.55, np.mean(spreads) + 0.001, f"mean spread = {np.mean(spreads):.3f}",
             fontsize=8, color="gray")
 
-    ax.set_xlabel("N-ceiling (irreducible noise)", fontsize=12)
+    ax.set_xlabel("TRF (irreducible noise)", fontsize=12)
     ax.set_ylabel("Cross-family R-squared spread", fontsize=12)
     ax.set_title(
         "Architecture Choice vs Task Difficulty: 27 CONUS Tasks\n"
-        "Spread is tiny (~0.02) while N-ceiling varies 4x",
+        "Spread is tiny (~0.02) while TRF varies 4x",
         fontsize=11,
     )
 
     cbar = fig.colorbar(scatter, ax=ax, shrink=0.7)
-    cbar.set_label("N-ceiling", fontsize=10)
+    cbar.set_label("TRF", fontsize=10)
 
     ax.set_xlim(0.1, 0.65)
     ax.set_ylim(-0.005, 0.07)

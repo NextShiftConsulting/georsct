@@ -109,7 +109,7 @@
 | Flat gate overall pass rate | 19% | 19% | **CONSISTENT** | Finding D3; not independently recomputed |
 | Flat gate pass rate (high-ceiling) | 29% | 29% | **CONSISTENT** | Same |
 | Oobleck gate pass rate (high-ceiling) | 0% | 0% | **CONSISTENT** | Same |
-| Point-biserial r(flat pass, N_ceiling) | +0.213 | +0.213 | **CONSISTENT** | Same |
+| Point-biserial r(flat pass, TRF) | +0.213 | +0.213 | **CONSISTENT** | Same |
 | p-value | p < 0.0001 | p < 0.0001 | **CONSISTENT** | Same |
 
 ---

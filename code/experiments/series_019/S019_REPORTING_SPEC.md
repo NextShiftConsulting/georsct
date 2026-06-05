@@ -78,7 +78,7 @@ Each row contains `gate_flat` and `gate_oobleck` sub-dicts:
 
 | Field | Type | Source | Description |
 |-------|------|--------|-------------|
-| `n_ceiling` | float | run script | 1 - best_embedding_r2 per task |
+| `task_residual_floor` | float | run script | 1 - best_embedding_r2 per task |
 
 ---
 
@@ -124,7 +124,7 @@ Per-experiment row:
 | Embedding comparison (6-way) | R2, kappa, gate rate per embedding x family | `r2`, `theory_kappa`, `gate_*`, `embedding`, `target_family` |
 | Proxy vs theory correlation | Spearman rho, scatter | `proxy_kappa`, `theory_kappa` |
 | Oobleck flip analysis | Certificates that change decision | `gate_flat.gate_decision`, `gate_oobleck.gate_decision` |
-| N-ceiling by task | Best-embedding R2 as noise floor | `n_ceiling`, `target` |
+| TRF by task | Best-embedding R2 as noise floor | `task_residual_floor`, `target` |
 | Cross-seed consensus (FC-5) | Per-task kappa vectors across seeds | `theory_kappa`, `seed`, `target`, `embedding` |
 
 ---
@@ -137,7 +137,7 @@ Each experiment's run script must produce:
 |------|--------|---------|
 | `s019X_results.json` | JSON array | All per-cell rows (Section 1 schema) |
 | `s019X_summary.json` | JSON object | Aggregate statistics, per-task summaries, timing |
-| `s019X_n_ceiling.json` | JSON object | Per-task N-ceiling estimates (S019D) |
+| `s019X_task_residual_floor.json` | JSON object | Per-task TRF estimates (S019D) |
 
 ---
 

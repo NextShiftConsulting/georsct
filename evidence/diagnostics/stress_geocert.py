@@ -134,7 +134,7 @@ GEOCERT_FAILURE_SPECS: Dict[GeoCertFailureMode, GeoCertFailureSpec] = {
         name="Target-Difficulty Conflation",
         description="Hard targets receive worse labels because the target is difficult, not because the representation is noisy.",
         expected_signal_pattern={
-            "n_ceiling_correlation": (0.60, 1.00),
+            "trf_correlation": (0.60, 1.00),
             "target_variance": (0.55, 1.00),
             "cross_solver_label_agreement": (0.50, 1.00),
             "solver_label_dependence": (0.00, 0.45),
@@ -217,7 +217,7 @@ GEOCERT_FAILURE_SPECS: Dict[GeoCertFailureMode, GeoCertFailureSpec] = {
             "alpha_profile_corr": (0.00, 0.35),
             "target_variance": (0.50, 1.00),
             "solver_specificity": (0.50, 1.00),
-            "n_ceiling_correlation": (0.35, 0.85),
+            "trf_correlation": (0.35, 0.85),
             "fine_routing_accuracy": (0.00, 0.45),
         },
         diagnostic_tests=[
