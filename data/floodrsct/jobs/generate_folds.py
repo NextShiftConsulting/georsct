@@ -66,32 +66,34 @@ def _merge_small_blocks(
     block_sizes: dict[str, int],
     min_size: int,
 ) -> dict[str, str]:
-    """Merge blocks smaller than min_size into the largest remaining block.
+    """Merge blocks smaller than min_size into large blocks, balancing sizes.
 
     Returns a mapping from original block_id -> merged block_id.
-    Small blocks are absorbed into the largest block to minimize
-    disruption to the bin-packing balance.
+    Each small block is absorbed into the currently-smallest large block
+    to keep the distribution balanced for downstream bin-packing.
     """
     merged_to = {b: b for b in block_sizes}
     if min_size <= 1:
         return merged_to
 
-    # Sort: largest first so merge targets are stable
     sorted_blocks = sorted(block_sizes.items(), key=lambda x: -x[1])
-    large_blocks = [(b, s) for b, s in sorted_blocks if s >= min_size]
+    large_ids = [b for b, s in sorted_blocks if s >= min_size]
 
-    if not large_blocks:
-        # All blocks are small -- nothing to merge into, return as-is
+    if not large_ids:
         return merged_to
+
+    # Track effective sizes of large blocks as we merge into them
+    effective_sizes = {b: block_sizes[b] for b in large_ids}
 
     for block, size in sorted_blocks:
         if size < min_size:
-            # Merge into the largest block
-            target = large_blocks[0][0]
+            # Merge into the currently-smallest large block
+            target = min(effective_sizes, key=effective_sizes.get)
             merged_to[block] = target
+            effective_sizes[target] += size
             log.info(
-                "Merging small block %s (%d ZCTAs) into %s",
-                block, size, target,
+                "Merging small block %s (%d ZCTAs) into %s (now %d)",
+                block, size, target, effective_sizes[target],
             )
 
     return merged_to
@@ -166,6 +168,35 @@ def assign_spatial_blocked_folds(
         b = zcta_block[z]
         block_sizes[b] = block_sizes.get(b, 0) + 1
         block_zctas.setdefault(b, []).append(z)
+
+    # Step 0.5: Split mega-blocks that exceed 40% of total ZCTAs.
+    # A single block with >40% of data makes bin-packing useless.
+    # Refine to ZIP4 (first 4 digits) to create splittable sub-blocks.
+    max_block_frac = 0.40
+    max_block_size = int(len(zctas) * max_block_frac)
+    for block_id in list(block_sizes.keys()):
+        if block_sizes[block_id] > max_block_size:
+            log.info(
+                "Splitting mega-block %s (%d/%d ZCTAs = %.0f%%) into ZIP4 sub-blocks",
+                block_id, block_sizes[block_id], len(zctas),
+                100 * block_sizes[block_id] / len(zctas),
+            )
+            # Re-key the ZCTAs in this block using a finer spatial prefix
+            for z in block_zctas[block_id]:
+                new_key = z[:4] if len(z) >= 4 else z
+                zcta_block[z] = f"{block_id}_{new_key}"
+            # Rebuild block_sizes/block_zctas for the affected block
+            del block_sizes[block_id]
+            del block_zctas[block_id]
+            for z in [z for z in zctas if zcta_block[z].startswith(f"{block_id}_")]:
+                b = zcta_block[z]
+                block_sizes[b] = block_sizes.get(b, 0) + 1
+                block_zctas.setdefault(b, []).append(z)
+            log.info(
+                "  -> %d sub-blocks: %s",
+                len([b for b in block_sizes if b.startswith(f"{block_id}_")]),
+                {b: s for b, s in sorted(block_sizes.items()) if b.startswith(f"{block_id}_")},
+            )
 
     # Step 1: Merge small blocks
     merge_map = _merge_small_blocks(block_sizes, min_block_zctas)
