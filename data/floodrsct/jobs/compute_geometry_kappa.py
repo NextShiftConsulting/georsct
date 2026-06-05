@@ -154,9 +154,13 @@ def compute_scale_stability(df: pd.DataFrame, crosswalk: pd.DataFrame,
         if total_var < 1e-12:
             continue
         county_means = vals.groupby("county_fips")[col].mean()
+        if len(county_means) < 2:
+            continue  # single county: var() returns NaN with ddof=1
         between_var = county_means.var()
         # High between/total = county structure explains variance = scale-stable
-        ratios.append(between_var / total_var)
+        ratio = between_var / total_var
+        if np.isfinite(ratio):
+            ratios.append(ratio)
 
     if not ratios:
         return 0.5
@@ -286,7 +290,8 @@ def compute_geometry_kappa(s3) -> dict:
                 "scale_stability": round(scale, 6),
                 "administrative_alignment": round(topo, 6),
             }
-            available = [v for v in terms.values() if v is not None]
+            available = [v for v in terms.values()
+                        if v is not None and np.isfinite(v)]
             kappa_geom = float(np.mean(available)) if available else 0.0
 
             cell = {
