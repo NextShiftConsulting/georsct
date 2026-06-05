@@ -349,7 +349,7 @@ def main():
             merged = merged.merge(supp[supp_cols], on=mk, how="left")
 
     folds_df = _load_parquet(s3, f"folds/{scenario}_folds.parquet")
-    merged = merged.merge(folds_df, on=merge_keys, how="left")
+    merged = merged.merge(folds_df, on=all_merge_keys, how="left")
 
     # Encode categoricals
     for col in merged.columns:

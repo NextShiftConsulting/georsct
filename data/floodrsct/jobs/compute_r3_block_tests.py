@@ -579,7 +579,7 @@ def main():
     # Load folds
     folds_key = f"folds/{scenario}_folds.parquet"
     folds_df = _load_parquet(s3, folds_key)
-    merged = merged.merge(folds_df, on=merge_keys, how="left")
+    merged = merged.merge(folds_df, on=all_merge_keys, how="left")
 
     # Available R2 features
     available_r2 = [f for f in R2_FEATURES if f in merged.columns]
