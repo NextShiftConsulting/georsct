@@ -45,7 +45,25 @@ from _coverage_common import BUCKET, get_s3_client
 from _s3_result import upload_json_result
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from georsct.domain.certificate import InternalDecision, PublicDecision
+try:
+    from georsct.domain.certificate import InternalDecision, PublicDecision
+except ImportError:
+    # SageMaker: georsct package not installed; define enums inline
+    from enum import Enum
+
+    class PublicDecision(str, Enum):
+        EXECUTE = "EXECUTE"
+        CAUTION = "CAUTION"
+        REFUSE = "REFUSE"
+
+    class InternalDecision(str, Enum):
+        EXECUTE = "EXECUTE"
+        REJECT = "REJECT"
+        BLOCK = "BLOCK"
+        RE_ENCODE = "RE_ENCODE"
+        REPAIR = "REPAIR"
+        WARN = "WARN"
+        FALLBACK = "FALLBACK"
 
 logging.basicConfig(
     level=logging.INFO,
