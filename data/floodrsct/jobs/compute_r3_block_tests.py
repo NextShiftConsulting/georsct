@@ -274,6 +274,9 @@ SOLVERS = {"histgbdt": _train_histgbdt, "ridge": _train_ridge}
 # Core: run one feature set across folds
 # ---------------------------------------------------------------------------
 
+MIN_FOLD_SAMPLES = 10  # sklearn HistGBDT binning needs >= ~10 rows
+
+
 def _run_folds(
     merged: pd.DataFrame,
     features: list[str],
@@ -285,18 +288,21 @@ def _run_folds(
 ) -> list[dict]:
     """Run solver across all folds for a given feature set. Returns per-fold metrics."""
     solver_fn = SOLVERS[solver_name]
-    X_all = merged[features].values.astype(np.float32)
-    y_all = merged[y_col].values.astype(np.float32)
-    fold_ids = sorted(merged[fold_col].unique())
+    # Drop rows where target is NaN to avoid sklearn ValueError
+    valid_mask = merged[y_col].notna().values
+    df_valid = merged[valid_mask]
+    X_all = df_valid[features].values.astype(np.float32)
+    y_all = df_valid[y_col].values.astype(np.float32)
+    fold_ids = sorted(df_valid[fold_col].unique())
     results = []
 
     for fold_id in fold_ids:
-        test_mask = (merged[fold_col] == fold_id).values
+        test_mask = (df_valid[fold_col] == fold_id).values
         train_mask = ~test_mask
         X_train, y_train = X_all[train_mask], y_all[train_mask]
         X_test, y_test = X_all[test_mask], y_all[test_mask]
 
-        if len(X_test) == 0 or len(X_train) == 0:
+        if len(X_train) < MIN_FOLD_SAMPLES or len(X_test) == 0:
             continue
         if len(np.unique(y_train)) < 2 and task == "classification":
             continue

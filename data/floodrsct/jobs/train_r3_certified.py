@@ -392,26 +392,31 @@ def main():
                 log.warning("  No features for variant %s, skipping", variant_name)
                 continue
 
-            X_all = merged[features].values.astype(np.float32)
-            y_all = merged[y_col].values.astype(np.float32)
+            # Drop rows where target is NaN
+            valid_mask = merged[y_col].notna().values
+            df_valid = merged[valid_mask]
+            X_all = df_valid[features].values.astype(np.float32)
+            y_all = df_valid[y_col].values.astype(np.float32)
+
+            MIN_FOLD_SAMPLES = 10
 
             for solver_name, solver_fn in SOLVERS.items():
                 for split_name, fold_col in SPLITS.items():
-                    if fold_col not in merged.columns:
+                    if fold_col not in df_valid.columns:
                         continue
 
-                    fold_ids = sorted(merged[fold_col].unique())
+                    fold_ids = sorted(df_valid[fold_col].unique())
                     ts = datetime.now(timezone.utc).isoformat()
 
                     for fold_id in fold_ids:
-                        test_mask = (merged[fold_col] == fold_id).values
+                        test_mask = (df_valid[fold_col] == fold_id).values
                         train_mask = ~test_mask
                         X_train = X_all[train_mask]
                         y_train = y_all[train_mask]
                         X_test = X_all[test_mask]
                         y_test = y_all[test_mask]
 
-                        if len(X_test) == 0 or len(X_train) == 0:
+                        if len(X_train) < MIN_FOLD_SAMPLES or len(X_test) == 0:
                             continue
                         if len(np.unique(y_train)) < 2 and task == "classification":
                             continue
