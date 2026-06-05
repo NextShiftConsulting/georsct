@@ -21,6 +21,22 @@ from botocore.exceptions import ClientError
 
 log = logging.getLogger(__name__)
 
+def _sanitize_nan(obj):
+    """Replace float NaN/Inf with None so JSON stays RFC-8259 compliant.
+
+    Python's json.dumps emits bare NaN/Infinity which is invalid JSON.
+    Consumers already handle None (null) — bare NaN causes silent data
+    corruption downstream (e.g., pooled Wilcoxon NaN poisoning).
+    """
+    if isinstance(obj, float) and (np.isnan(obj) or np.isinf(obj)):
+        return None
+    if isinstance(obj, dict):
+        return {k: _sanitize_nan(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_sanitize_nan(v) for v in obj]
+    return obj
+
+
 class ResultJSONEncoder(json.JSONEncoder):
     """Strict encoder: numpy scalars/arrays and datetime/date only.
 
@@ -32,9 +48,10 @@ class ResultJSONEncoder(json.JSONEncoder):
         if isinstance(obj, np.integer):
             return int(obj)
         if isinstance(obj, np.floating):
-            return float(obj)
+            v = float(obj)
+            return None if (np.isnan(v) or np.isinf(v)) else v
         if isinstance(obj, np.ndarray):
-            return obj.tolist()
+            return _sanitize_nan(obj.tolist())
         if isinstance(obj, datetime):
             return obj.isoformat()
         if isinstance(obj, date):
@@ -89,6 +106,9 @@ def upload_json_result(
     """
     if git_hash is None:
         git_hash = os.environ.get("S035_GIT_HASH", "unknown")
+
+    # Sanitize NaN/Inf -> None before serialization (RFC-8259 compliance)
+    payload = _sanitize_nan(payload)
 
     # Serialize first — fail fast on bad payload before touching S3
     body = json.dumps(payload, indent=2, cls=ResultJSONEncoder).encode()

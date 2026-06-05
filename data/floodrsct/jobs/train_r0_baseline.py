@@ -222,12 +222,17 @@ def _train_ridge(X_train, y_train, X_test, y_test, task: str) -> tuple:
         return y_pred, metrics
 
 
+def _nan_to_none(v: float) -> float | None:
+    """Convert NaN/Inf to None for JSON-safe serialization."""
+    return None if (np.isnan(v) or np.isinf(v)) else v
+
+
 def _regression_metrics(y_true, y_pred) -> dict:
     from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
     return {
-        "rmse": float(np.sqrt(mean_squared_error(y_true, y_pred))),
-        "mae": float(mean_absolute_error(y_true, y_pred)),
-        "r2": float(r2_score(y_true, y_pred)),
+        "rmse": _nan_to_none(float(np.sqrt(mean_squared_error(y_true, y_pred)))),
+        "mae": _nan_to_none(float(mean_absolute_error(y_true, y_pred))),
+        "r2": _nan_to_none(float(r2_score(y_true, y_pred))),
     }
 
 
@@ -238,7 +243,10 @@ def _classification_metrics(y_true, y_pred, y_score) -> dict:
         "f1": float(f1_score(y_true, y_pred, zero_division=0)),
     }
     try:
-        m["roc_auc"] = float(roc_auc_score(y_true, y_score))
+        auc = float(roc_auc_score(y_true, y_score))
+        # Newer sklearn returns nan instead of raising ValueError
+        # when only one class is present in y_true
+        m["roc_auc"] = None if np.isnan(auc) else auc
     except ValueError:
         m["roc_auc"] = None  # single class in test fold
     return m
