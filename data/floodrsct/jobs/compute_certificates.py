@@ -264,7 +264,7 @@ def run_certificates(s3, level: str, upload: bool = False) -> dict:
             "N_derivation": "1 - R - S_sup (simplex closure)",
             "alpha": "R / (R + N) via yrsn (or fallback)",
             "omega": "1 - S_sup via yrsn (or fallback)",
-            "kappa": "diag_leakage from Phase 4 diagnostics",
+            "kappa": "kappa_geom from Phase 0.5 geometry (pre-training, model-free)",
             "tau": "1 / (1 + CV) from per-fold variance",
             "sigma": "std(fold_metrics, ddof=1)",
             "diagnosis": "DegradationDiagnoser 3x3 grid (if yrsn available)",
