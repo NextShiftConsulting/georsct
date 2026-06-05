@@ -483,6 +483,12 @@ def run_fold_level_tests(all_results: dict) -> dict:
     clf_r0_r1_deltas: list[float] = []
     clf_r1_r2_deltas: list[float] = []
 
+    # Sensitivity: track n_folds per scenario for balanced-only subset
+    scenario_n_folds: dict[str, int] = {}
+    # Sensitivity: deltas from 5-fold scenarios only
+    reg_r0_r1_balanced: list[float] = []
+    reg_r1_r2_balanced: list[float] = []
+
     for scenario in ("houston", "southwest_florida", "nyc",
                      "riverside_coachella", "new_orleans"):
         r0_data = all_results.get(f"r0_{scenario}")
@@ -501,6 +507,11 @@ def run_fold_level_tests(all_results: dict) -> dict:
             cell = {"scenario": scenario, "target": target, "task_type": task_type}
             is_reg = (task_type == "regression")
 
+            # Track effective n_folds for this scenario
+            n_eff = max(len(r0_folds), len(r1_folds), len(r2_folds))
+            scenario_n_folds[scenario] = n_eff
+            is_balanced = (n_eff >= 5)
+
             if r0_folds and r1_folds:
                 test_r0_r1 = _paired_fold_test(r0_folds, r1_folds)
                 cell["h2_r0_r1"] = test_r0_r1
@@ -508,6 +519,8 @@ def run_fold_level_tests(all_results: dict) -> dict:
                 deltas = [r1_folds[i] - r0_folds[i] for i in range(n)]
                 if is_reg:
                     reg_r0_r1_deltas.extend(deltas)
+                    if is_balanced:
+                        reg_r0_r1_balanced.extend(deltas)
                 else:
                     clf_r0_r1_deltas.extend(deltas)
 
@@ -518,6 +531,8 @@ def run_fold_level_tests(all_results: dict) -> dict:
                 deltas = [r2_folds[i] - r1_folds[i] for i in range(n)]
                 if is_reg:
                     reg_r1_r2_deltas.extend(deltas)
+                    if is_balanced:
+                        reg_r1_r2_balanced.extend(deltas)
                 else:
                     clf_r1_r2_deltas.extend(deltas)
 
@@ -526,6 +541,10 @@ def run_fold_level_tests(all_results: dict) -> dict:
     # Pooled tests: regression cells only (R2 metric, primary analysis)
     pooled_h2 = _pooled_wilcoxon(reg_r0_r1_deltas)
     pooled_h3 = _pooled_wilcoxon(reg_r1_r2_deltas)
+
+    # Sensitivity: balanced-only (5-fold scenarios, excludes Houston/Riverside)
+    sens_h2 = _pooled_wilcoxon(reg_r0_r1_balanced)
+    sens_h3 = _pooled_wilcoxon(reg_r1_r2_balanced)
 
     # Classification cells reported separately (ROC-AUC metric)
     pooled_h2_clf = _pooled_wilcoxon(clf_r0_r1_deltas)
@@ -544,6 +563,9 @@ def run_fold_level_tests(all_results: dict) -> dict:
         "pooled_h3": pooled_h3,
         "pooled_h2_classification": pooled_h2_clf,
         "pooled_h3_classification": pooled_h3_clf,
+        "sensitivity_balanced_only_h2": sens_h2,
+        "sensitivity_balanced_only_h3": sens_h3,
+        "scenario_n_folds": scenario_n_folds,
         "n_regression_cells": n_reg,
         "n_classification_cells": n_clf,
     }

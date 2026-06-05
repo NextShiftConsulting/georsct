@@ -282,9 +282,9 @@ phases:
         per_scenario: true
         scenarios: *modelable
       - key: "results/s035/diagnostics_r0.json"
+        description: "R0 diagnostics (from Phase 4a)"
       - key: "results/s035/geometry_kappa.json"
         description: "Phase 0.5 geometry kappa (kappa defaults to 0.0 if missing)"
-        description: "R0 diagnostics (from Phase 4a)"
 
   # ── Phase 2: R1 Hydrology ─────────────────────────────────────────────
   - phase_id: r1_hydrology
@@ -701,7 +701,7 @@ phases:
     script: compute_r3_block_admission.py
     description: "Phase R3_1c: DGM gate evaluation per block using SequentialGatekeeper"
     per_scenario: false
-    depends_on: [r3_block_tests]
+    depends_on: [r3_block_tests, r3_order_robustness]
     prerequisites:
       - "P1: kappa pipeline bug must be fixed (kappa != 0.0)"
       - "P5: yrsn + yrsn-controlplane pip-installable on SageMaker"

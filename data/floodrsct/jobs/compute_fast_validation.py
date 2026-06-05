@@ -49,7 +49,7 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 RESULTS_PREFIX = "results/s035"
-FAST_SCENARIOS = ["houston", "nyc"]
+FAST_SCENARIOS = ["houston", "nyc", "southwest_florida"]
 RETURN_PERIODS = ["10yr", "50yr", "100yr", "500yr"]
 LEVELS = ["r0", "r1", "r2"]
 PRIMARY_TARGET = "obs_nfip_event_claims"
