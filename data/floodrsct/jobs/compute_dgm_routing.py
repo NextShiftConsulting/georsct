@@ -33,7 +33,7 @@ from typing import Optional
 from scipy.stats import binom
 
 sys.path.insert(0, str(Path(__file__).parent))
-from _coverage_common import BUCKET, get_s3_client, level_prefix
+from _coverage_common import BUCKET, get_s3_client
 from _s3_result import upload_json_result
 
 from yrsn.core.dgm_unified import MorphType
@@ -86,22 +86,6 @@ def _load_certificates(s3, level: str) -> dict:
     return index
 
 
-def _load_results(s3, level: str, scenario: str) -> dict:
-    """Load model results, indexed by target."""
-    data = _load_json(s3, f"{RESULTS_PREFIX}/{level_prefix(level)}_{scenario}.json")
-    if not data:
-        return {}
-    # Results JSON uses "runs", not "cells"
-    runs = data.get("runs", data.get("cells", []))
-    # Index by target: aggregate metrics across runs for each target
-    target_index: dict = {}
-    for run in runs:
-        t = run.get("target", "unknown")
-        if t not in target_index:
-            target_index[t] = run
-    return target_index
-
-
 # ---------------------------------------------------------------------------
 # Routing logic
 # ---------------------------------------------------------------------------
@@ -144,18 +128,16 @@ def apply_routing(certs: dict[str, Optional[dict]]) -> tuple[Optional[str], str]
     return "r0", "fallback"
 
 
-def determine_best_arm(results: dict[str, Optional[dict]], target: str) -> tuple[Optional[str], Optional[float]]:
-    """Find the level with the best primary metric for a target."""
+def determine_best_arm(certs: dict[str, Optional[dict]]) -> tuple[Optional[str], Optional[float]]:
+    """Find the level with the best spatial_metric from certificates."""
     metrics = {}
     for level in LEVELS:
-        cell = results.get(level, {}).get(target)
-        if cell is None:
+        cert = certs.get(level)
+        if cert is None:
             continue
-        # Binary classification uses roc_auc, regression uses R2/spatial_metric
-        if "spatial_roc_auc" in cell:
-            metrics[level] = cell["spatial_roc_auc"]
-        elif "spatial_metric" in cell:
-            metrics[level] = cell["spatial_metric"]
+        val = cert.get("spatial_metric")
+        if val is not None:
+            metrics[level] = val
 
     if not metrics:
         return None, None
@@ -204,16 +186,6 @@ def main():
         return 1
     log.info("Processing %d cells", len(cells))
 
-    # Load all results (cached per level+scenario)
-    result_index: dict[str, dict] = {}
-    scenarios = sorted({s for s, _ in cells})
-    for level in LEVELS:
-        result_index[level] = {}
-        for scenario in scenarios:
-            result_index[level].update(
-                {scenario: _load_results(s3, level, scenario)}
-            )
-
     # Route each cell
     routing_table = []
     correct_count = 0
@@ -228,9 +200,8 @@ def main():
 
         recommended_arm, morph_decision = apply_routing(certs)
 
-        # Actual best arm from results
-        level_results = {lv: result_index.get(lv, {}).get(scenario, {}) for lv in LEVELS}
-        actual_best, best_metric = determine_best_arm(level_results, target)
+        # Actual best arm from certificate spatial_metric
+        actual_best, best_metric = determine_best_arm(certs)
 
         # Correctness
         correct = recommended_arm is not None and recommended_arm == actual_best
@@ -238,8 +209,8 @@ def main():
         # Near-optimal check
         near_optimal = False
         if recommended_arm and actual_best and best_metric is not None:
-            rec_cell = level_results.get(recommended_arm, {}).get(target, {})
-            rec_metric = rec_cell.get("spatial_roc_auc", rec_cell.get("spatial_metric"))
+            rec_cert = certs.get(recommended_arm)
+            rec_metric = rec_cert.get("spatial_metric") if rec_cert else None
             if rec_metric is not None:
                 near_optimal = abs(best_metric - rec_metric) <= NEAR_OPTIMAL_DELTA
 
