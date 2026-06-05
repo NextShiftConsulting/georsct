@@ -538,6 +538,232 @@ phases:
       - key: "results/s035/diagnostics_r0.json"
         description: "R0 diagnostics for H9"
 
+  # ── Phase R3_0: Feature Registry ──────────────────────────────────────
+  - phase_id: r3_feature_registry
+    script: build_r3_feature_registry.py
+    description: "Phase R3_0: Collect R0-R2 certificates + diagnostics into per-block feature registry"
+    per_scenario: false
+    depends_on: [certificates_r0, certificates_r1, certificates_r2, diagnostics_r0, diagnostics_r1, diagnostics_r2]
+
+    packages:
+      - numpy
+      - pandas
+      - pyarrow
+
+    features: null
+
+    s3_artifacts:
+      - key: "results/s035/certificates_r0.json"
+      - key: "results/s035/certificates_r1.json"
+      - key: "results/s035/certificates_r2.json"
+      - key: "results/s035/diagnostics_r0.json"
+      - key: "results/s035/diagnostics_r1.json"
+      - key: "results/s035/diagnostics_r2.json"
+      - key: "results/s035/r0_{scenario}.json"
+        per_scenario: true
+        scenarios: *modelable
+      - key: "results/s035/r1_hydrology_{scenario}.json"
+        per_scenario: true
+        scenarios: *modelable
+      - key: "results/s035/r2_{scenario}.json"
+        per_scenario: true
+        scenarios: *modelable
+
+    outputs:
+      - key: "results/s035/r3_feature_registry.json"
+        description: "Per-block feature registry with admissibility verdicts"
+      - key: "results/s035/r3_candidate_graph.json"
+        description: "Block-level dependency graph"
+
+  # ── Phase R3_1a: Block Tests ─────────────────────────────────────────
+  - phase_id: r3_block_tests
+    script: compute_r3_block_tests.py
+    description: "Phase R3_1a: Per-block add/drop/block-only + leakage/transfer/solver tests"
+    per_scenario: true
+    depends_on: [r3_feature_registry]
+
+    packages:
+      - scikit-learn
+      - numpy
+      - pandas
+      - pyarrow
+      - scipy
+
+    features:
+      source: assembled_parquet
+      required:
+        - zcta_id
+        - event
+
+    s3_artifacts:
+      - key: assembled_parquet
+        description: "Assembled event features parquet"
+      - key: "folds/{scenario}_folds.parquet"
+        description: "Fold assignments from R0"
+      - key: "processed/{scenario}/{scenario}_r1_supplement.parquet"
+      - key: "processed/{scenario}/{scenario}_r2_supplement.parquet"
+      - key: "results/s035/r3_feature_registry.json"
+      - key: "raw/geocertdb2026/zcta_adjacency.parquet"
+        optional: true
+
+    outputs:
+      - key: "results/s035/r3_block_tests_{scenario}.json"
+        description: "Per-block test battery results"
+        per_scenario: true
+      - key: "results/s035/r3_block_certificates_{scenario}.json"
+        description: "Per-block RSCT certificates"
+        per_scenario: true
+
+  # ── Phase R3_1b: Order Robustness ───────────────────────────────────
+  - phase_id: r3_order_robustness
+    script: compute_r3_order_robustness.py
+    description: "Phase R3_1b: Permutation test for block admission order sensitivity"
+    per_scenario: true
+    depends_on: [r3_feature_registry]
+
+    packages:
+      - scikit-learn
+      - numpy
+      - pandas
+      - pyarrow
+      - scipy
+
+    features:
+      source: assembled_parquet
+      required:
+        - zcta_id
+        - event
+
+    s3_artifacts:
+      - key: assembled_parquet
+      - key: "folds/{scenario}_folds.parquet"
+      - key: "processed/{scenario}/{scenario}_r1_supplement.parquet"
+      - key: "processed/{scenario}/{scenario}_r2_supplement.parquet"
+      - key: "results/s035/r3_feature_registry.json"
+      - key: "raw/geocertdb2026/zcta_adjacency.parquet"
+        optional: true
+
+    outputs:
+      - key: "results/s035/r3_order_robustness_{scenario}.json"
+        description: "Forward/reverse/permutation order sensitivity"
+        per_scenario: true
+
+  # ── Phase R3_1c: Block Admission (DGM) ──────────────────────────────
+  - phase_id: r3_block_admission
+    script: compute_r3_block_admission.py
+    description: "Phase R3_1c: DGM gate evaluation per block using SequentialGatekeeper"
+    per_scenario: false
+    depends_on: [r3_block_tests]
+    prerequisites:
+      - "P1: kappa pipeline bug must be fixed (kappa != 0.0)"
+      - "P5: yrsn + yrsn-controlplane pip-installable on SageMaker"
+      - "P6: GEOSPATIAL_CONUS27 preset validated"
+
+    packages:
+      - numpy
+      - pandas
+      - pyarrow
+      - scipy
+
+    features: null
+
+    s3_artifacts:
+      - key: "results/s035/r3_block_tests_{scenario}.json"
+        per_scenario: true
+        scenarios: *modelable
+      - key: "results/s035/r3_block_certificates_{scenario}.json"
+        per_scenario: true
+        scenarios: *modelable
+      - key: "results/s035/r3_order_robustness_{scenario}.json"
+        per_scenario: true
+        scenarios: *modelable
+
+    outputs:
+      - key: "results/s035/r3_block_admission_table.json"
+        description: "Per-block (EnforcementDecision, GearState, admission_tier)"
+      - key: "results/s035/r3_dgm_admission_trace.json"
+        description: "Complete DGM audit trail"
+      - key: "results/s035/r3_gear_summary.json"
+        description: "Per-block gear diagnostics"
+
+  # ── Phase R3_2: Certified Training ──────────────────────────────────
+  - phase_id: r3_certified_training
+    script: train_r3_certified.py
+    description: "Phase R3_2: Train on admitted blocks only (headline/full/stabilized variants)"
+    per_scenario: true
+    depends_on: [r3_block_admission]
+
+    packages:
+      - scikit-learn
+      - numpy
+      - pandas
+      - pyarrow
+      - scipy
+
+    features:
+      source: assembled_parquet
+      required:
+        - zcta_id
+        - event
+
+    s3_artifacts:
+      - key: assembled_parquet
+      - key: "folds/{scenario}_folds.parquet"
+      - key: "processed/{scenario}/{scenario}_r1_supplement.parquet"
+      - key: "processed/{scenario}/{scenario}_r2_supplement.parquet"
+      - key: "results/s035/r3_block_admission_table.json"
+      - key: "raw/geocertdb2026/zcta_adjacency.parquet"
+        optional: true
+
+    outputs:
+      - key: "results/s035/r3_{scenario}.json"
+        description: "R3 results: 3 variants x targets x solvers x splits x folds"
+        per_scenario: true
+      - key: "results/s035/r3_{scenario}_predictions.parquet"
+        description: "Per-ZCTA predictions for spatial diagnostics"
+        per_scenario: true
+
+  # ── Phase R3_3: R3 Money Table ──────────────────────────────────────
+  - phase_id: r3_money_table
+    script: compute_r3_money_table.py
+    description: "Phase R3_3: R3 money table + H5-H8 hypothesis tests + bootstrap CIs"
+    per_scenario: false
+    depends_on: [r3_certified_training]
+
+    packages:
+      - numpy
+      - pandas
+      - pyarrow
+      - scipy
+      - scikit-learn
+
+    features: null
+
+    s3_artifacts:
+      - key: "results/s035/r0_{scenario}.json"
+        per_scenario: true
+        scenarios: *modelable
+      - key: "results/s035/r1_hydrology_{scenario}.json"
+        per_scenario: true
+        scenarios: *modelable
+      - key: "results/s035/r2_{scenario}.json"
+        per_scenario: true
+        scenarios: *modelable
+      - key: "results/s035/r3_{scenario}.json"
+        per_scenario: true
+        scenarios: *modelable
+      - key: "results/s035/r3_block_admission_table.json"
+      - key: "results/s035/r3_gear_summary.json"
+      - key: "results/s035/diagnostics_r0.json"
+      - key: "results/s035/diagnostics_r1.json"
+      - key: "results/s035/diagnostics_r2.json"
+
+    outputs:
+      - key: "results/s035/r3_money_table.json"
+        description: "R0/R1/R2/R3 comparison with uplift, Wilcoxon tests, bootstrap CIs"
+      - key: "results/s035/r3_hypothesis_evidence.json"
+        description: "H5-H8 test results with effect sizes"
+
   # ── Phase 7a: FAST ZCTA Features ──────────────────────────────────────
   - phase_id: fast_zcta
     script: run_fast_zcta.py
