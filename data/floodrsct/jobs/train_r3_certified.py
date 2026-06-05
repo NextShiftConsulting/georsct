@@ -451,17 +451,17 @@ def main():
 
                         # Collect spatial-blocked predictions for diagnostics
                         if "blocked" in split_name and solver_name == "histgbdt":
-                            test_idx = merged.index[test_mask]
+                            test_idx = df_valid.index[test_mask]
                             for i, idx in enumerate(test_idx):
                                 prediction_rows.append({
-                                    "zcta_id": str(merged.at[idx, "zcta_id"]),
-                                    "event": str(merged.at[idx, "event"]),
+                                    "zcta_id": str(df_valid.at[idx, "zcta_id"]),
+                                    "event": str(df_valid.at[idx, "event"]),
                                     "target": target_col,
                                     "solver": solver_name,
                                     "split": split_name,
                                     "fold": str(fold_id),
                                     "variant": variant_name,
-                                    "y_true": float(y_all[merged.index.get_loc(idx)]),
+                                    "y_true": float(y_test[i]),
                                     "y_pred": float(y_pred[i]),
                                 })
 
