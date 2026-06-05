@@ -237,10 +237,10 @@ def apply_routing_gear(
     if warmup is None:
         return _route_by_certificate_comparison(certs)
 
-    gear = warmup.get("gear", 2)
-    alpha_w = warmup.get("alpha_warmup", 0.0)
-    sigma_w = warmup.get("sigma", 1.0)
-    collapse = warmup.get("collapse_risk", 0.0)
+    gear = warmup.get("gear") if warmup.get("gear") is not None else 2
+    alpha_w = warmup.get("alpha_warmup") if warmup.get("alpha_warmup") is not None else 0.0
+    sigma_w = warmup.get("sigma") if warmup.get("sigma") is not None else 1.0
+    collapse = warmup.get("collapse_risk") if warmup.get("collapse_risk") is not None else 0.0
 
     # 1. Collapse -> REPAIR (no arm can help)
     if gear == -1 or collapse > 0.8:
