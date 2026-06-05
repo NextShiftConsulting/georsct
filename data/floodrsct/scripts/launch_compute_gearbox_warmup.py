@@ -26,6 +26,8 @@ def main() -> None:
 
     job_name = make_job_name("gearbox-warmup")
 
+    extra = [str(Path(__file__).parent.parent / "jobs" / "generate_folds.py")]
+
     launch_processing_job(
         job_name=job_name,
         job_script="compute_gearbox_warmup.py",
@@ -33,6 +35,7 @@ def main() -> None:
         instance_type="ml.m5.large",
         volume_size_gb=10,
         pip_packages="scipy scikit-learn",
+        extra_files=extra,
         dry_run=args.dry_run,
         phase_id="gearbox_warmup",
     )
