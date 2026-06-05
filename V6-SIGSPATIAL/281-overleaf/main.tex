@@ -1,0 +1,133 @@
+% ============================================================
+% main.tex — Submission 281
+% "One Flood Substrate, Six Decision Geometries:
+%  A Diagnostic Benchmark for Spatial AI [Experiment]"
+% SIGSPATIAL 2026, Experiment/Benchmark & Experience track (<=10pp)
+%
+% OVERLEAF: New Project -> Upload Project -> drag the zip.
+%   Compiler: pdfLaTeX. Main document: main.tex.
+%   acmart class is built into Overleaf; not vendored here.
+%
+% BLINDING: default is single-blind (author block visible), matching the
+%   submission record. If the track is double-blind, add `anonymous` to the
+%   \documentclass options below and the author block auto-hides.
+%
+% FORMAT: sigconf is the SIGSPATIAL default. Confirm against the 2026
+%   Experiment-track CFP; if different, change the class option on the
+%   next line only.
+% ============================================================
+\documentclass[sigconf,nonacm]{acmart}
+% ^ `nonacm` removes the ACM copyright/DOI block for clean DRAFT compilation.
+%   DO NOT submit with nonacm without checking the SIGSPATIAL 2026 CFP: ACM
+%   venues typically want plain [sigconf] (or [sigconf,review]) for the
+%   submitted PDF. Confirm the required options before any reviewer-facing
+%   build, and do not alter the template to gain space.
+%   For double-blind: add `anonymous`.
+
+\usepackage{booktabs}
+\usepackage{pifont}      % \ding{51} \ding{55} in the availability matrix
+\usepackage{graphicx}
+\usepackage{xcolor}
+
+% --- Placeholder + symbol macros (single source of truth) -----------------
+% Every UNMEASURED number is wrapped in \PH{} and rendered red so it cannot
+% be mistaken for a real result. Delete \PH once all results are locked.
+\providecommand{\PH}[1]{\textcolor{red}{#1}}
+\providecommand{\Rsup}{S_{\text{sup}}}
+\providecommand{\TRF}{\mathrm{TRF}}  % Task Residual Floor (ADR-042, formerly N_ceiling)
+
+% --- Front matter ----------------------------------------------------------
+\begin{document}
+
+\title{One Flood Substrate, Six Decision Geometries: A Diagnostic Benchmark for Spatial AI [Experiment]}
+% NOTE (camera-ready): the [Experiment] suffix is required by the CFP at
+% submission and removed at camera-ready.
+
+\author{Rudolph A. Martin}
+\affiliation{%
+  \institution{Next Shift Consulting LLC}
+  \city{Madison}
+  \state{Wisconsin}
+  \country{USA}
+}
+\email{rudy@nextshiftconsulting.com}
+
+% NAMING NOTE: the abstract introduces the benchmark as "GeoRSCT," which is
+% also the name of the NeurIPS D&B submission (martin2026georsct). Before
+% camera-ready, disclose the relationship explicitly (this paper = GeoRSCT
+% instantiated on a flood substrate; cite martin2026georsct as the
+% machinery/validation) so the two are not read as duplicate submissions.
+
+\begin{abstract}
+Spatial AI benchmarks often reduce flood modeling to one held-out score.
+That is insufficient for crisis decision support. A flood dataset may
+support prediction, ranking, clustering, transfer, relational propagation,
+or allocation, and each task can fail for a different spatial reason.
+
+We introduce GeoRSCT, a diagnostic benchmark for evaluating which
+flood-decision tasks a spatial dataset can support. GeoRSCT uses a
+multi-event flood substrate spanning multiple metropolitan regions, with
+radar and satellite precipitation, terrain, land cover, drainage networks,
+levee and urban infrastructure, insurance claims, citizen-reported impacts,
+and per-feature provenance and field-status annotations. The benchmark
+organizes evaluation around six spatial decision geometries: prediction,
+ranking, clustering, transfer, relational propagation, and allocation.
+
+GeoRSCT does not ask only which model scores best. It asks whether the
+evidence is sufficient for the decision being made: whether rankings change
+under infrastructure context, whether model errors cluster spatially,
+whether models transfer across storms and cities, whether drainage or
+adjacency assumptions hold across built infrastructure, and whether rainfall
+timing gives enough lead time for resource allocation. The result is a
+diagnostic account of what a flood dataset supports, what it does not, and
+where the evidence is missing or provisional --- surfacing, before a model
+is trusted, the points at which a crisis manager would be acting without
+sufficient spatial support.
+\end{abstract}
+
+\begin{CCSXML}
+<ccs2012>
+<concept>
+<concept_id>10002951.10003227.10003351</concept_id>
+<concept_desc>Information systems~Data mining</concept_desc>
+<concept_significance>500</concept_significance>
+</concept>
+<concept>
+<concept_id>10010147.10010178</concept_id>
+<concept_desc>Computing methodologies~Machine learning</concept_desc>
+<concept_significance>300</concept_significance>
+</concept>
+</ccs2012>
+\end{CCSXML}
+\ccsdesc[500]{Information systems~Data mining}
+\ccsdesc[300]{Computing methodologies~Machine learning}
+% TODO: replace with the CCS concepts you select from the ACM CCS tool.
+
+\keywords{Spatial AI, GeoAI, spatial machine learning, spatial data
+  infrastructure, geospatial benchmarks, data contracts, reproducible
+  benchmarks, flood decision support, evidence sufficiency, disaster response}
+
+\maketitle
+
+% --- Body ------------------------------------------------------------------
+\input{sections/01_introduction}
+\input{sections/02_related_work}
+\input{sections/03_problem_formulation}
+\input{sections/04_substrate}
+\input{sections/05_method}
+\input{sections/06_evaluation}   % <-- the one fully-drafted section
+\input{sections/07_results}
+\input{sections/08_conclusion}
+
+% --- Bibliography ----------------------------------------------------------
+% SIGSPATIAL: 10 pages excluding references; up to 2 appendix pages AFTER
+% references. Bibliography therefore precedes the appendix.
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{refs}
+
+% --- Appendix (after references; <=2 pages) --------------------------------
+\appendix
+\input{appendix}
+\input{sections/appendix_doe}
+
+\end{document}

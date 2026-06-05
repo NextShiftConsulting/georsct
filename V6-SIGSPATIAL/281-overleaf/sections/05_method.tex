@@ -1,0 +1,162 @@
+% ============================================================
+% SECTION 5 — Benchmark Construction (Method)
+% ============================================================
+\section{Benchmark Construction}
+\label{sec:method}
+
+The benchmark is a controlled representation intervention on a fixed
+flood substrate. The same folds, same solvers, same targets, and same
+evaluation protocol are held constant across three representation
+levels; only the feature set changes. This section describes what is
+built (the ladder), how inference is disaggregated (encode then decode),
+and how pre-training quality signals drive operational adaptation (the
+gearbox).
+
+% ------------------------------------------------------------------
+\subsection{Encode then decode}
+\label{sec:encode-decode}
+
+Geospatial prediction is encode-then-decode. The \emph{encoder}
+identifies and joins the geography: which polygon is which ZCTA, which
+addresses fall in which boundary, which units are neighbors, which
+crosswalk version is current. This is classification work---discrete,
+combinatorial, and Fano-native---and it produces the feature substrate
+that everything downstream consumes. The \emph{decoder} consumes that
+substrate: regression to predict continuous targets (claims, presence,
+high-water marks), then a decision layer that allocates resources under
+operational constraints.
+
+The RSCT certificate primitives split cleanly across the two halves:
+\begin{itemize}
+\item \textbf{Encoder side.} Signal purity $\alpha = R/(R+N)$ is
+  grounded where Fano's inequality applies natively: boundary
+  classification, crosswalk identification, and spatial join correctness
+  are discrete channel problems. The geometric compatibility
+  $\kappa_\text{geom}$ (Phase~0.5) is also encoder-side: it measures
+  spatial connectivity, feature coverage, and scale stability from
+  problem structure alone, before any model is trained.
+\item \textbf{Decoder side.} The task residual floor ($\TRF$) estimator
+  is the decoder-side analog of Fano's noise-floor role: a
+  rate-distortion lower bound on achievable prediction error,
+  regime-appropriate for continuous targets. Cross-validation fold
+  metrics (R$^2$, RMSE, ROC-AUC) are decoder-side measurements.
+\item \textbf{Decision layer.} The gate scaffolding---sequential
+  gates producing \textsc{execute}, \textsc{caution}, or
+  \textsc{refuse}---operates at the boundary between prediction and
+  operational use, where the question shifts from ``how accurate?'' to
+  ``accurate enough for this decision?''
+\end{itemize}
+
+This separation matters because the benchmark's central claim---that
+audit flags predict which representation fixes help---requires
+encoder-side signals ($\kappa_\text{geom}$, spatial structure) to
+predict decoder-side outcomes (fold-level uplift). If both sides used
+the same measurements, the prediction would be circular.
+
+% ------------------------------------------------------------------
+\subsection{The representation ladder}
+\label{sec:ladder}
+
+Three representation levels form a strict superset chain. No features
+are removed or re-tuned between levels, so any performance change is
+attributable to the added features alone.
+
+\begin{description}
+\item[R0 (static tabular).] ACS demographics, SVI vulnerability indices,
+  FEMA flood zone percentages, terrain derivatives (TWI, slope), HIFLD
+  infrastructure proximity, and temporally-gated NFIP claim history.
+  Approximately 33--36 features depending on scenario.
+\item[R1 (hydrology + spatial lag).] R0 plus NHDPlus catchment
+  attributes, levee proximity, sewershed type (NYC), and eight W-matrix
+  spatial lag features computed per fold from training data only to
+  prevent target leakage (Appendix~\ref{app:relational-ablation}).
+  Approximately 58--63 features.
+\item[R2 (temporal event dynamics).] R1 plus MRMS precipitation timing,
+  tide gauge anomaly, and HURDAT2 storm-track features. Approximately
+  67--72 features. Temporal sources have vintage boundaries
+  (Table~\ref{app:tab:availability}); events predating the source are
+  marked \texttt{not\_applicable\_temporal}, not imputed.
+\end{description}
+
+Solvers are held constant across levels: HistGBDT
+(\texttt{max\_depth=6}, \texttt{learning\_rate=0.1}, \texttt{max\_iter=200})
+and Ridge ($\alpha{=}1.0$, median imputation, standard scaling). No
+hyperparameter tuning is performed. Random seed is 42. Fold assignments
+are generated once (spatial blocking by county or ZIP3 fallback) and
+reused at all levels.
+
+% ------------------------------------------------------------------
+\subsection{The gearbox: pre-training quality signals}
+\label{sec:gearbox}
+
+The encode/decode separation creates a problem for operational routing:
+$\kappa_\text{geom}$ is encoder-side and level-invariant---it measures
+problem geometry, not model quality---so it cannot distinguish between
+R0, R1, and R2 for a given cell. A routing system that uses
+$\kappa_\text{geom}$ alone will always recommend the same arm regardless
+of representation level.
+
+The \emph{gearbox} (Phase~0.75) sits at the boundary between encode and
+decode. It runs a cheap pre-training probe---Ridge cross-validation on
+the R0 feature set---and derives five quality signals per
+(scenario, target) cell:
+
+\begin{description}
+\item[$\tau$ (stability).] $\tau = 1/(1 + \text{CV})$ where
+  $\text{CV} = \text{std}(\text{folds}) / |\text{mean}(\text{folds})|$.
+  High $\tau$ means stable fold performance; low $\tau$ means the cell
+  is sensitive to fold composition.
+\item[$\sigma$ (turbulence).] $\sigma = \text{std}(\text{fold metrics},
+  \text{ddof}{=}1)$. Raw fold variance, independent of mean level.
+\item[$\alpha_\text{warmup}$ (signal strength).] For regression,
+  $\alpha = \max(0, R^2)$; for classification,
+  $\alpha = 2 \cdot (\text{AUC} - 0.5)$. Rescaled to $[0,1]$ so both
+  task types share a common quality axis.
+\item[Collapse risk.] Fraction of folds where the Ridge solver fails to
+  beat the mean predictor ($R^2 \leq 0$ or AUC $\leq 0.5$).
+\item[Coherence.] $1 - \text{IQR} / |\text{median}|$, measuring
+  whether folds agree on the direction and scale of signal.
+\end{description}
+
+These five signals are then calibrated into a discrete \emph{gear
+assignment} per cell, following the GearboxCalibrator methodology: tau
+values are collected across all cells, winsorized, and partitioned into
+percentile-based boundaries with monotonicity guards. Each cell receives
+a gear from a five-level system (Precision, Balanced, Explore, Discovery,
+Reverse) that determines how aggressively the decoder should operate.
+
+The gearbox output feeds into Phase~6 (DGM routing), which evaluates
+two strategies side by side:
+\begin{enumerate}
+\item \textbf{Kappa-first (legacy).} Uses $\kappa_\text{geom}$ as the
+  primary discriminant. Known limitation: level-invariant, so it always
+  exits on the first branch.
+\item \textbf{Gear-informed (new).} Uses gearbox signals (gear,
+  $\alpha_\text{warmup}$, $\sigma$) as the primary discriminant, falling
+  back to certificate comparison only when signals are ambiguous. These
+  signals vary per cell, enabling actual discrimination across arms.
+\end{enumerate}
+
+The gear-informed strategy produces internal decisions
+(\textsc{execute}, \textsc{re\_encode}, \textsc{repair},
+\textsc{fallback}) that are projected to public decisions
+(\textsc{execute}, \textsc{caution}, \textsc{refuse}) at the output
+boundary---two vocabularies deliberately separated so that system-internal
+routing logic does not leak into user-facing operational guidance.
+
+% ------------------------------------------------------------------
+\subsection{Pre-registration and tamper evidence}
+\label{sec:preregistration}
+
+Diagnostics and $\kappa_\text{geom}$ are computed and uploaded to S3
+with timestamps \emph{before} the next training level executes.
+Phase~0.5 (geometry kappa) precedes Phase~1 (R0 training); Phase~0.75
+(gearbox warmup) generates its own folds from spatial structure rather
+than consuming folds produced by Phase~1, maintaining independence. S3
+object timestamps provide tamper-evident ordering: the predictor
+($\kappa_\text{geom}$, warmup signals) is frozen before the outcome
+(R1/R2 uplift) exists.
+
+The full pre-registered protocol---hypotheses, design matrix, controlled
+variables, statistical tests, kill rules, and change control---is in
+Appendix~\ref{app:doe}.

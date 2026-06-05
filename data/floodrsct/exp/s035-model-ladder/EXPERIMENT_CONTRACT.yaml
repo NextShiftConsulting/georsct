@@ -10,7 +10,7 @@
 
 experiment: s035-model-ladder
 bucket: swarm-floodrsct-data
-version: "1.1"
+version: "1.2"
 
 # ── Observation Unit ──────────────────────────────────────────────────
 # Grain: (zcta_id, event) — one row per ZCTA per flood event.
@@ -126,6 +126,40 @@ phases:
     outputs:
       - key: "results/s035/geometry_kappa.json"
         description: "Geometry-only kappa per (scenario, target) cell"
+
+  # ── Phase 0.75: Gearbox Warmup ────────────────────────────────────────
+  # Runs a cheap Ridge solver with spatial-blocked CV to produce
+  # data-grounded quality signals (tau, sigma, alpha_warmup, gear) that
+  # vary per cell.  Enables gear-informed DGM routing (Phase 6) and
+  # oobleck autocalibration.  Generates its own folds internally.
+  - phase_id: gearbox_warmup
+    script: compute_gearbox_warmup.py
+    description: "Phase 0.75: gearbox warmup (cheap Ridge CV for per-cell gear assignment)"
+    per_scenario: false
+
+    packages:
+      - scikit-learn
+      - numpy
+      - pandas
+      - pyarrow
+
+    s3_artifacts:
+      - key: assembled_parquet
+        description: "Assembled event features parquet"
+        per_scenario: true
+        scenarios: *modelable
+      - key: "raw/geocertdb2026/zcta_county_crosswalk.parquet"
+        description: "ZCTA-county crosswalk for spatial blocking"
+        optional: true
+      - key: "processed/{scenario}/{scenario}_nfip_historical.parquet"
+        description: "Temporally-gated NFIP historical features"
+        per_scenario: true
+        scenarios: *modelable
+        optional: true
+
+    outputs:
+      - key: "results/s035/gearbox_warmup.json"
+        description: "Per-cell gear assignment + quality signals (tau, sigma, alpha_warmup, collapse_risk, coherence)"
 
   # ── Phase 1: R0 Baseline ──────────────────────────────────────────────
   - phase_id: r0_baseline
@@ -248,6 +282,8 @@ phases:
         per_scenario: true
         scenarios: *modelable
       - key: "results/s035/diagnostics_r0.json"
+      - key: "results/s035/geometry_kappa.json"
+        description: "Phase 0.5 geometry kappa (kappa defaults to 0.0 if missing)"
         description: "R0 diagnostics (from Phase 4a)"
 
   # ── Phase 2: R1 Hydrology ─────────────────────────────────────────────
@@ -320,6 +356,8 @@ phases:
         per_scenario: true
         scenarios: *modelable
       - key: "results/s035/diagnostics_r1.json"
+      - key: "results/s035/geometry_kappa.json"
+        description: "Phase 0.5 geometry kappa"
 
   # ── Phase 3: R2 Temporal ───────────────────────────────────────────────
   - phase_id: r2_temporal
@@ -390,6 +428,8 @@ phases:
         per_scenario: true
         scenarios: *modelable
       - key: "results/s035/diagnostics_r2.json"
+      - key: "results/s035/geometry_kappa.json"
+        description: "Phase 0.5 geometry kappa"
 
   # ── Phase 5: Money Table ───────────────────────────────────────────────
   - phase_id: uplift_table
@@ -418,17 +458,22 @@ phases:
       - key: "results/s035/diagnostics_r0.json"
       - key: "results/s035/diagnostics_r1.json"
       - key: "results/s035/diagnostics_r2.json"
+      - key: "results/s035/certificates_r0.json"
+        description: "Phase 4.5 certificates for RSCT quality signals"
+      - key: "results/s035/certificates_r1.json"
+      - key: "results/s035/certificates_r2.json"
 
   # ── Phase 6: DGM Routing ──────────────────────────────────────────────
   - phase_id: dgm_routing
     script: compute_dgm_routing.py
-    description: "Phase 6: DGM morph routing analysis"
+    description: "Phase 6: DGM morph routing analysis (dual strategy: kappa-first + gear-informed)"
     per_scenario: false
 
     packages:
       - numpy
       - pandas
       - pyarrow
+      - scipy
 
     features: null
 
@@ -436,6 +481,9 @@ phases:
       - key: "results/s035/certificates_r0.json"
       - key: "results/s035/certificates_r1.json"
       - key: "results/s035/certificates_r2.json"
+      - key: "results/s035/gearbox_warmup.json"
+        description: "Phase 0.75 gearbox warmup signals for gear-informed routing"
+        optional: true
       - key: "results/s035/r0_{scenario}.json"
         per_scenario: true
         scenarios: *modelable
@@ -811,3 +859,216 @@ phases:
       - key: "results/s035/r2_{scenario}_predictions.parquet"
         per_scenario: true
         scenarios: [houston, nyc]
+
+# ── Verification Gates ────────────────────────────────────────────────
+# Machine-readable gate definitions.  Full prose and commands in VERIFY.md.
+# Each gate lists checks with pass_criteria.  Automated verification
+# scripts can read this section; VERIFY.md is the human-readable companion.
+#
+# Gate lifecycle:
+#   V0   Pre-launch    -- resource review (9 dimensions)
+#   V0.5 In-flight     -- AWS monitoring, kill criteria
+#   V0.7 Checkpoint    -- S3 file integrity during/after run
+#   V1   Post-flight   -- job exit status, output files present
+#   V2   Domain        -- silent pipeline bugs (simplex, kappa, gearbox, vocabulary)
+#   V3   Cross-fold    -- fold variance stability
+#   V4   Protocol      -- experiment-specific invariants
+#   V5   Paper-ready   -- final gate before citing in manuscript
+
+verification_gates:
+
+  - gate_id: V0
+    name: Pre-Launch Resource Review
+    phase: pre-launch
+    applies_to: all_phases
+    checks:
+      - id: V0.1
+        dimension: git_state
+        pass_criteria: "git status clean, git push done, commit hash recorded"
+      - id: V0.2
+        dimension: memory_budget
+        pass_criteria: "largest_parquet x folds <= 0.5 x instance_RAM"
+        default: "ml.m5.large (8 GB) sufficient for all s035 phases"
+      - id: V0.3
+        dimension: volume_sizing
+        pass_criteria: "pip_install + temp_files + safety margin"
+        default: "10 GB"
+      - id: V0.4
+        dimension: worker_count
+        pass_criteria: "n_jobs matches instance vCPUs"
+      - id: V0.5
+        dimension: image_and_drivers
+        pass_criteria: "base image + pip packages match contract phase.packages"
+      - id: V0.6
+        dimension: instance_quota
+        pass_criteria: "aws service-quotas shows availability"
+      - id: V0.7
+        dimension: dry_run
+        pass_criteria: "--dry-run shows correct config"
+      - id: V0.8
+        dimension: checkpoint_idempotency
+        pass_criteria: "job skips completed scenarios on resume"
+      - id: V0.9
+        dimension: timeout
+        pass_criteria: "MaxRuntimeInSeconds > 2x expected wall clock"
+        default: "3600s (jobs run ~5 min)"
+    contract_coverage: "validate_experiment_readiness.py covers V0.5 (packages) and V0.8 (inputs)"
+
+  - gate_id: V0.5
+    name: AWS Monitoring
+    phase: in-flight
+    applies_to: all_phases
+    checks:
+      - id: V0.5.1
+        check: job_accepted
+        pass_criteria: "ProcessingJobStatus not Failed within 5 min"
+      - id: V0.5.2
+        check: bootstrap_succeeded
+        pass_criteria: "no ModuleNotFoundError in first 50 log lines"
+      - id: V0.5.3
+        check: data_loaded
+        pass_criteria: "'Loaded N ZCTAs' log line present"
+      - id: V0.5.4
+        check: no_encoding_crash
+        pass_criteria: "no UnicodeEncodeError in log"
+    kill_criteria:
+      - "ModuleNotFoundError or ImportError in first 5 min"
+      - "UnicodeEncodeError"
+      - "KeyError: 'zcta_id'"
+      - "Job past 2x expected runtime with no new S3 output"
+      - "exit code 137 (OOM)"
+
+  - gate_id: V0.7
+    name: Checkpoint Data Integrity
+    phase: during_and_after
+    applies_to: all_phases
+    checks:
+      - id: V0.7.1
+        check: files_appearing
+        pass_criteria: "new .json files on S3 over time"
+      - id: V0.7.2
+        check: files_not_empty
+        pass_criteria: "each file > 100 bytes"
+      - id: V0.7.3
+        check: files_parseable
+        pass_criteria: "python -m json.tool succeeds"
+      - id: V0.7.4
+        check: no_duplicate_folds
+        pass_criteria: "unique (zcta_id, event) in fold files"
+
+  - gate_id: V1
+    name: Job Completion
+    phase: post-flight
+    applies_to: all_phases
+    checks:
+      - id: V1.1
+        check: exit_code
+        pass_criteria: "ProcessingJobStatus: Completed"
+      - id: V1.2
+        check: no_truncation
+        pass_criteria: "final summary line in CloudWatch, no OOM/SIGKILL"
+      - id: V1.3
+        check: all_scenarios
+        pass_criteria: "5 per-scenario result files per level"
+      - id: V1.4
+        check: result_file_exists
+        pass_criteria: "result JSON with timestamp field on S3"
+
+  - gate_id: V2
+    name: Domain Invariants
+    phase: post-flight
+    applies_to: [certificates_r0, certificates_r1, certificates_r2, gearbox_warmup, dgm_routing]
+    checks:
+      - id: V2.1
+        check: simplex_validity
+        pass_criteria: "abs(R + S_sup + N - 1.0) < 1e-6 for all cells"
+      - id: V2.2
+        check: simplex_discrimination
+        pass_criteria: "std(mean_R per level) > 0.02 for >= 3/5 scenarios"
+      - id: V2.3
+        check: kappa_geom_independence
+        pass_criteria: "kappa_geom present, >= 6/11 non-NaN, level-invariant, pre-training timestamp"
+      - id: V2.4
+        check: gearbox_signals
+        pass_criteria: "tau/sigma/alpha/collapse_risk/coherence all in valid ranges, >= 2 distinct gears"
+        applies_to: [gearbox_warmup]
+      - id: V2.5
+        check: decision_vocabulary
+        pass_criteria: "InternalDecision (not MorphType) in routing; PublicDecision in output"
+        applies_to: [dgm_routing]
+
+  - gate_id: V3
+    name: Cross-Fold Stability
+    phase: post-flight
+    applies_to: [r0_baseline, r1_hydrology, r2_temporal]
+    checks:
+      - id: V3.1
+        check: fold_spread
+        pass_criteria: "max - min fold R2 < 0.30 for >= 80% of cells"
+      - id: V3.2
+        check: split_agreement
+        pass_criteria: "Spearman rho > 0.6 between spatial and random splits"
+      - id: V3.3
+        check: best_arm_stable
+        pass_criteria: "same best arm in >= 4/5 folds for majority of cells"
+      - id: V3.4
+        check: sigma_tracks_variance
+        pass_criteria: "positive correlation between sigma and fold_r2_std"
+
+  - gate_id: V4
+    name: Protocol-Specific
+    phase: post-flight
+    checks:
+      - id: V4.1
+        check: representation_ladder
+        pass_criteria: "R1 superset of R0 features; R2 superset of R1; no target leakage; fold reuse"
+        applies_to: [r0_baseline, r1_hydrology, r2_temporal]
+      - id: V4.2
+        check: money_table
+        pass_criteria: ">= 9 cells, H2a Wilcoxon present, negative results included, bootstrap CIs"
+        applies_to: [uplift_table]
+      - id: V4.3
+        check: dgm_routing
+        pass_criteria: "both strategies evaluated, Clopper-Pearson CI, proof-of-concept framing"
+        applies_to: [dgm_routing]
+      - id: V4.4
+        check: gearbox_calibration
+        pass_criteria: "MIN_CALIBRATION_SAMPLES >= 8, winsorization, monotonicity, data-grounded sigma_c"
+        applies_to: [gearbox_warmup]
+
+  - gate_id: V5
+    name: Paper-Readiness
+    phase: final
+    applies_to: all_phases
+    prerequisite: "all V1-V4 gates passed -- no exceptions, no waivers"
+    checks:
+      - id: V5.1
+        check: git_hash_recorded
+        pass_criteria: "commit hash in CHECKLIST.md matches pushed commit"
+      - id: V5.2
+        check: all_scenarios_complete
+        pass_criteria: "R0 + R1 + R2 results for all 5 metros"
+      - id: V5.3
+        check: certificates_all_levels
+        pass_criteria: "certificates_r0/r1/r2.json on S3"
+      - id: V5.4
+        check: money_table_final
+        pass_criteria: "money_table.json reflects latest run"
+      - id: V5.5
+        check: dgm_dual_strategy
+        pass_criteria: "both kappa-first and gear-informed evaluated"
+      - id: V5.6
+        check: no_kappa_gate
+        pass_criteria: "grep -r kappa_gate results/ returns empty"
+      - id: V5.7
+        check: no_bare_S
+        pass_criteria: "always S_sup in certificate fields"
+      - id: V5.8
+        check: wall_clock_documented
+        pass_criteria: "duration in CHECKLIST.md execution record"
+      - id: V5.9
+        check: instance_type_documented
+        pass_criteria: "instance in CHECKLIST.md execution record"
+      - id: V5.10
+        check: public_decision_wired
+        pass_criteria: "routing output includes public_decision field (InternalDecision -> PublicDecision)"

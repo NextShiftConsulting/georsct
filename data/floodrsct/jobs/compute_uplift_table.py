@@ -74,7 +74,8 @@ def load_all_results(s3) -> dict[str, dict]:
     """Load all results JSONs. Key = '{level}_{scenario}'."""
     out = {}
     for level in ("r0", "r1", "r2"):
-        for scenario in ("houston", "southwest_florida", "nyc", "riverside_coachella"):
+        for scenario in ("houston", "southwest_florida", "nyc",
+                         "riverside_coachella", "new_orleans"):
             key = f"{RESULTS_PREFIX}/{level_prefix(level)}_{scenario}.json"
             data = _load_json(s3, key)
             if data:
@@ -176,7 +177,8 @@ def build_money_table(
     rows = []
 
     # Get all (scenario, target) cells from R0 results
-    for scenario in ("houston", "southwest_florida", "nyc", "riverside_coachella"):
+    for scenario in ("houston", "southwest_florida", "nyc",
+                     "riverside_coachella", "new_orleans"):
         r0_data = all_results.get(f"r0_{scenario}")
         if not r0_data:
             continue
@@ -481,7 +483,8 @@ def run_fold_level_tests(all_results: dict) -> dict:
     clf_r0_r1_deltas: list[float] = []
     clf_r1_r2_deltas: list[float] = []
 
-    for scenario in ("houston", "southwest_florida", "nyc", "riverside_coachella"):
+    for scenario in ("houston", "southwest_florida", "nyc",
+                     "riverside_coachella", "new_orleans"):
         r0_data = all_results.get(f"r0_{scenario}")
         r1_data = all_results.get(f"r1_{scenario}")
         r2_data = all_results.get(f"r2_{scenario}")

@@ -1,0 +1,281 @@
+% ============================================================
+% APPENDIX D — Design of Experiments
+% Pre-registered experimental protocol for the s035 model-ladder.
+% Covers hypotheses, design matrix, controlled variables, statistical
+% tests, kill rules, and change control.  Written before results.
+% ============================================================
+\section{Design of Experiments}
+\label{app:doe}
+
+This appendix documents the pre-registered experimental protocol for the
+representation ladder (s035). The protocol was locked before Phase~1
+execution and amended twice under change control (Table~\ref{app:tab:doe-versions}).
+All hypotheses, statistical tests, and kill rules were specified before
+any model was trained. Post-hoc adjustments to pass verification are
+forbidden by the verification gates (Appendix~\ref{app:agent-lifecycle},
+Table~\ref{app:tab:verify-lifecycle}).
+
+\subsection{Hypotheses}
+\label{app:doe-hypotheses}
+
+Four hypotheses are tested across the representation ladder. H2a is the
+single pre-registered confirmatory test; the others are descriptive or
+exploratory.
+
+\begin{table*}[t]
+\centering
+\caption{Pre-registered hypotheses. H2a is confirmatory (Wilcoxon + effect
+  size); all others are descriptive or exploratory. Kill rules halt the
+  experiment early if the baseline fails.}
+\label{app:tab:hypotheses}
+\small
+\begin{tabular}{@{}p{0.8cm}p{4.5cm}p{3.5cm}p{2.5cm}p{3.0cm}@{}}
+\toprule
+\textbf{ID} & \textbf{Statement} & \textbf{Test} & \textbf{Pass criterion} & \textbf{Type} \\
+\midrule
+H1 &
+  R0 features achieve skill above the mean predictor on $\geq 2$ of 3 targets &
+  $R^2 > 0$ under spatial-blocked CV &
+  $\geq 2$ targets with $R^2 > 0$ &
+  Descriptive baseline gate \\[4pt]
+H2a &
+  R1 improves over R0 at the fold level &
+  Wilcoxon signed-rank on paired (R0, R1) fold metrics &
+  $p < 0.05$ AND Cohen's $d > 0.2$ &
+  \textbf{Confirmatory} \\[4pt]
+H2b &
+  $\kappa_\text{geom}$ predicts which cells benefit more from R1 &
+  Spearman $\rho$($\kappa_\text{geom}$, uplift) with bootstrap CI &
+  $\rho > 0$, 95\% CI excludes zero &
+  Exploratory ($n{=}9$) \\[4pt]
+H3 &
+  R2 temporal features improve over R1 when temporal mismatch is active &
+  Paired delta: metric$_\text{R2}$ $-$ metric$_\text{R1}$ per fold &
+  Uplift $> 3\%$ on primary target &
+  Descriptive \\[4pt]
+H4 &
+  Audit flags predict representation uplift &
+  Spearman $\rho$(flag count, uplift) &
+  $\rho > 0.3$, bootstrap CI excludes zero &
+  Exploratory \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\subsection{Design matrix}
+\label{app:doe-design}
+
+The experiment is a controlled representation intervention: same folds,
+same solver, same target---only the feature set changes. This is causal
+at the pipeline level (representation is the sole intervention) but not
+at the hydrology level (we do not randomize watersheds).
+
+\begin{table}[t]
+\centering
+\caption{Design matrix. The only factor that changes across arms is the
+  representation level (R0/R1/R2). All other factors are held constant
+  or crossed.}
+\label{app:tab:design-matrix}
+\small
+\begin{tabular}{@{}llc@{}}
+\toprule
+\textbf{Factor} & \textbf{Levels} & \textbf{Type} \\
+\midrule
+Scenario        & 5 metros (Table~\ref{app:tab:cells}) & Observational \\
+Target          & 3 (claims, 311, HWM)                  & Fixed \\
+Representation  & R0, R1, R2                            & \textbf{Intervention} \\
+Solver          & HistGBDT, Ridge                       & Fixed \\
+Split protocol  & random, spatial-blocked, leave-event-out & Fixed \\
+Fold            & 5-fold spatial-blocked CV             & Fixed \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Modelable cells.}
+Not all (scenario, target) pairs are modelable: \texttt{obs\_has\_311}
+requires a 311 system (Houston, NYC only); \texttt{obs\_has\_hwm}
+requires high-water marks (Houston, New~Orleans only). The nine modelable
+cells are enumerated in Table~\ref{app:tab:cells}.
+
+\subsection{Representation levels}
+\label{app:doe-repr}
+
+Each level is a strict superset of the prior, ensuring that any
+performance change is attributable to the added features, not to
+dropped features or re-tuning.
+
+\begin{table}[t]
+\centering
+\caption{Representation ladder. Each level adds features to the prior;
+  no features are removed or re-tuned.}
+\label{app:tab:repr-levels}
+\small
+\begin{tabular}{@{}lp{4.5cm}c@{}}
+\toprule
+\textbf{Level} & \textbf{Added features} & \textbf{$\sim n_\text{feat}$} \\
+\midrule
+R0 & Static tabular: ACS demographics, SVI, FEMA flood zones,
+     terrain (TWI, slope), HIFLD infrastructure,
+     temporally-gated NFIP history & 33--36 \\
+R1 & R0 + hydrology (NHDPlus catchments, levee proximity,
+     sewershed type) + W-matrix spatial lags (8 cols) & 58--63 \\
+R2 & R1 + temporal event dynamics (MRMS precipitation timing,
+     tide gauge anomaly, HURDAT2 track features) & 67--72 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Feature count ranges.}
+Approximate counts vary by 1--3 features across scenarios due to
+scenario-specific columns (e.g., HCFCD drainage district for Houston,
+sewershed type for NYC). Runtime validation is authoritative; documented
+counts are approximate.
+
+\subsection{Controlled variables}
+\label{app:doe-controlled}
+
+The following are held constant across all representation levels to
+isolate the representation intervention:
+
+\begin{table}[t]
+\centering
+\caption{Controlled variables. No hyperparameter tuning is performed;
+  defaults are fixed before execution.}
+\label{app:tab:controlled}
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Variable} & \textbf{Value} & \textbf{Rationale} \\
+\midrule
+HistGBDT max\_iter      & 200     & No tuning \\
+HistGBDT max\_depth     & 6       & No tuning \\
+HistGBDT learning\_rate & 0.1     & No tuning \\
+Ridge alpha             & 1.0     & No tuning \\
+Random seed             & 42      & Reproducibility \\
+Imputation (Ridge)      & median  & No tuning \\
+Scaling (Ridge)         & StandardScaler & No tuning \\
+Fold assignments        & Fixed, saved to S3 & Shared across R0/R1/R2 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Statistical tests}
+\label{app:doe-tests}
+
+\paragraph{H2a (confirmatory).}
+Fold-level Wilcoxon signed-rank test on paired deltas
+(metric$_\text{R1}$ $-$ metric$_\text{R0}$) across all folds and cells.
+The test requires \emph{both} $p < 0.05$ and Cohen's $d > 0.2$; a small
+$p$-value without meaningful effect size does not pass.
+
+\paragraph{H2b (exploratory).}
+Spearman rank correlation between $\kappa_\text{geom}$ (pre-training
+geometric compatibility, computed from problem structure alone) and
+per-cell uplift (R1 $-$ R0). Bootstrap 95\% CI ($B = 1000$) must exclude
+zero. At $n{=}9$ cells this is explicitly exploratory.
+
+\paragraph{All other tests.}
+H1 is a descriptive gate (does skill exist?). H3 and H4 are descriptive
+with bootstrap confidence intervals. No multiplicity correction is
+applied because only H2a is confirmatory; the others are reported as
+exploratory effect sizes with uncertainty.
+
+\subsection{Kill rules}
+\label{app:doe-kill}
+
+Kill rules halt the experiment early and prevent wasted compute:
+
+\begin{enumerate}
+\item \textbf{H1 FAIL on all 3 targets.} Data quality is too low for any
+  modeling. Stop. Do not proceed to R1.
+\item \textbf{H2a: Wilcoxon $p \geq 0.05$ or Cohen's $d < 0.2$.}
+  Report as null result (R1 does not improve on R0). Proceed to R2 but
+  flag as negative evidence.
+\item \textbf{All uplift $< 1\%$.} Representation differences are noise;
+  R0 is sufficient. Report and stop.
+\end{enumerate}
+
+\subsection{DO NOT constraints}
+\label{app:doe-donot}
+
+These constraints are binding for the duration of the experiment:
+\begin{itemize}
+\item Do NOT change fold assignments between representation levels.
+\item Do NOT tune hyperparameters per representation level.
+\item Do NOT run on scenarios without completed data assembly.
+\item Do NOT use GPU instances (tabular models only).
+\item Do NOT add features to R0 after the baseline is locked.
+\item Do NOT impute targets (drop rows with NaN targets).
+\end{itemize}
+
+\subsection{Four-document experiment governance}
+\label{app:doe-governance}
+
+Each experiment is governed by four complementary documents with
+non-overlapping scope:
+
+\begin{table}[t]
+\centering
+\caption{Four-document governance stack. Each document answers a different
+  question; together they form the complete experiment record.}
+\label{app:tab:four-docs}
+\small
+\begin{tabular}{@{}lp{5.0cm}@{}}
+\toprule
+\textbf{Document} & \textbf{Question answered} \\
+\midrule
+DOE (this appendix) &
+  \emph{Why} are we running this and \emph{what} do we expect to find?
+  Hypotheses, design matrix, statistical tests, kill rules. \\[4pt]
+Experiment Contract &
+  \emph{What} inputs and outputs does each phase need?
+  Packages, S3 artifacts, feature schemas, verification gate definitions. \\[4pt]
+Checklist &
+  \emph{Where} are we in execution?
+  Checkboxes, dates, job names, commit hashes. \\[4pt]
+Verification Gates &
+  \emph{How} do we know results are correct?
+  V0--V5 gates with commands, pass criteria, failure protocol. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The DOE is pre-registration: it prevents post-hoc hypothesis invention.
+The contract ensures data dependencies are met before launch. The
+checklist tracks progress. The verification gates (Appendix~\ref{app:agent-lifecycle})
+ensure correctness. Amendments to the DOE are permitted under change
+control (Table~\ref{app:tab:doe-versions}) but must be recorded before
+the affected phase executes.
+
+\subsection{Change control}
+\label{app:doe-changes}
+
+\begin{table}[t]
+\centering
+\caption{DOE version history. Amendments are permitted before the affected
+  phase executes; post-hoc amendments are forbidden.}
+\label{app:tab:doe-versions}
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Version} & \textbf{Date} & \textbf{Change} \\
+\midrule
+v1.0 & 2026-05-29 & Initial DOE (draft) \\
+v1.1 & 2026-05-29 & Locked for execution \\
+v1.2 & 2026-06-01 & R1/R2 feature bundles replaced with verified S3 sources;
+                     kappa proxy diagnostics added \\
+v1.7 & 2026-06-03 & H2 redesigned: fold-level Wilcoxon + Cohen's $d$ \\
+v1.8 & 2026-06-03 & H2b added: $\kappa_\text{geom}$ independence test \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Paper-safe framing.}
+This experiment is causal at the pipeline level: same folds, same solver,
+same target---only the representation changes. It is \emph{not} causal at
+the hydrology level (we do not randomize watersheds). The correct framing
+is: ``Under controlled representation intervention, scenarios flagged by
+audit B.1 showed $X$\% larger improvement when hydrologic features were
+added.'' The incorrect framing---``adding hydrologic features causes better
+flood prediction''---is confounded by feature quality, spatial coverage,
+and data vintage.

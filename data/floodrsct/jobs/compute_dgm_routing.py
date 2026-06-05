@@ -44,7 +44,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 from _coverage_common import BUCKET, get_s3_client
 from _s3_result import upload_json_result
 
-from yrsn.core.dgm_unified import MorphType
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+from georsct.domain.certificate import InternalDecision, PublicDecision
 
 logging.basicConfig(
     level=logging.INFO,
@@ -82,6 +83,23 @@ NEAR_OPTIMAL_DELTA = 0.02
 ALPHA_WARMUP_HIGH = 0.3
 ALPHA_WARMUP_LOW = 0.1
 SIGMA_STABLE = 0.10
+
+# InternalDecision -> PublicDecision projection (ADR-029/034).
+# System-internal routing decisions map to user-facing operational guidance.
+DECISION_PROJECTION = {
+    InternalDecision.EXECUTE:   PublicDecision.EXECUTE,
+    InternalDecision.REJECT:    PublicDecision.REFUSE,
+    InternalDecision.BLOCK:     PublicDecision.REFUSE,
+    InternalDecision.RE_ENCODE: PublicDecision.CAUTION,
+    InternalDecision.REPAIR:    PublicDecision.REFUSE,
+    InternalDecision.WARN:      PublicDecision.CAUTION,
+    InternalDecision.FALLBACK:  PublicDecision.CAUTION,
+}
+
+
+def project_public_decision(internal: InternalDecision) -> PublicDecision:
+    """Project an internal gatekeeper decision to a public decision."""
+    return DECISION_PROJECTION.get(internal, PublicDecision.REFUSE)
 
 
 # ---------------------------------------------------------------------------
@@ -139,39 +157,39 @@ def apply_routing_kappa(certs: dict[str, Optional[dict]]) -> tuple[Optional[str]
     Known limitation: kappa_geom is level-invariant, so this always
     exits on the first branch when kappa >= 0.7 (all cells).
 
-    Returns (recommended_arm, morph_decision).
-    recommended_arm is None for REPAIR/PRUNING (no single arm recommended).
+    Returns (recommended_arm, internal_decision).
+    recommended_arm is None for REPAIR/REJECT (no single arm recommended).
     """
     c0 = certs.get("r0")
     if c0 and c0.get("kappa", 0) >= KAPPA_GOOD:
-        return "r0", MorphType.VERIFICATION.value
+        return "r0", InternalDecision.EXECUTE.value
 
     if c0 and c0.get("S_sup", 0) > S_SUP_HIGH:
         c1 = certs.get("r1")
         if c1 and c1.get("kappa", 0) >= KAPPA_GOOD:
-            return "r1", MorphType.RE_ENCODE.value if hasattr(MorphType, "RE_ENCODE") else "re_encode"
+            return "r1", InternalDecision.RE_ENCODE.value
 
     c1 = certs.get("r1")
     diag_transfer = c1.get("diag_transfer", 1.0) if c1 else 1.0
     if diag_transfer < DIAG_TRANSFER_LOW:
         c2 = certs.get("r2")
         if c2 and c2.get("kappa", 0) >= KAPPA_GOOD:
-            return "r2", MorphType.RE_ENCODE.value if hasattr(MorphType, "RE_ENCODE") else "re_encode"
+            return "r2", InternalDecision.RE_ENCODE.value
 
     # Fallback: check R2 cert for terminal decisions
     c2 = certs.get("r2")
     if c2:
         if c2.get("sigma", 0) > SIGMA_HIGH:
-            return None, MorphType.REPAIR.value
+            return None, InternalDecision.REPAIR.value
         if c2.get("kappa", 0) < KAPPA_BAD:
-            return None, MorphType.PRUNING.value
+            return None, InternalDecision.REJECT.value
         # R2 kappa is between BAD and GOOD -- recommend R2 as best available
-        return "r2", MorphType.ENSEMBLE.value
+        return "r2", InternalDecision.WARN.value
 
     # No R2 cert available -- fall back to best available
     if c1:
-        return "r1", "fallback"
-    return "r0", "fallback"
+        return "r1", InternalDecision.FALLBACK.value
+    return "r0", InternalDecision.FALLBACK.value
 
 
 # ---------------------------------------------------------------------------
@@ -195,7 +213,7 @@ def apply_routing_gear(
          (hard cell, needs more representation power)
       4. SECOND gear -> compare R0 vs R1 certificates (borderline)
 
-    Returns (recommended_arm, morph_decision).
+    Returns (recommended_arm, internal_decision).
     """
     # No warmup data -> fall back to certificate-only comparison
     if warmup is None:
@@ -208,13 +226,13 @@ def apply_routing_gear(
 
     # 1. Collapse -> REPAIR (no arm can help)
     if gear == -1 or collapse > 0.8:
-        return None, MorphType.REPAIR.value
+        return None, InternalDecision.REPAIR.value
 
     # 2. FIRST gear: easy cell, R0 likely sufficient
     if gear == 1 and alpha_w >= ALPHA_WARMUP_HIGH and sigma_w <= SIGMA_STABLE:
         c0 = certs.get("r0")
         if c0 and c0.get("R", 0) > 0.3:
-            return "r0", MorphType.VERIFICATION.value
+            return "r0", InternalDecision.EXECUTE.value
         # R0 cert doesn't confirm -- escalate to comparison
         return _route_by_certificate_comparison(certs)
 
@@ -225,13 +243,13 @@ def apply_routing_gear(
         # noise floor actually invalidates it.
         c2 = certs.get("r2")
         if c2 and c2.get("R", 0) > c2.get("S_sup", 1.0) and c2.get("N", 1.0) < 0.5:
-            return "r2", MorphType.RE_ENCODE.value if hasattr(MorphType, "RE_ENCODE") else "re_encode"
+            return "r2", InternalDecision.RE_ENCODE.value
         c1 = certs.get("r1")
         if c1 and c1.get("R", 0) > c1.get("S_sup", 1.0) and c1.get("N", 1.0) < 0.5:
-            return "r1", MorphType.RE_ENCODE.value if hasattr(MorphType, "RE_ENCODE") else "re_encode"
+            return "r1", InternalDecision.RE_ENCODE.value
         # No arm shows R-dominant with contained N -- pruning candidate
         if c2 and c2.get("kappa", 0) < KAPPA_BAD:
-            return None, MorphType.PRUNING.value
+            return None, InternalDecision.REJECT.value
         return _route_by_certificate_comparison(certs)
 
     # 4. SECOND gear: borderline -- compare certificates, but respect
@@ -252,14 +270,14 @@ def _route_by_certificate_comparison(
     """
     best_arm, best_metric = determine_best_arm(certs)
     if best_arm is None:
-        return "r0", "fallback"
+        return "r0", InternalDecision.FALLBACK.value
 
-    # Determine morph type from how much improvement the best arm shows
+    # Best arm from certificate comparison
     if best_arm == "r0":
-        return "r0", MorphType.VERIFICATION.value
+        return "r0", InternalDecision.EXECUTE.value
     elif best_arm in ("r1", "r2"):
-        return best_arm, MorphType.ENSEMBLE.value
-    return best_arm, "fallback"
+        return best_arm, InternalDecision.RE_ENCODE.value
+    return best_arm, InternalDecision.FALLBACK.value
 
 
 def determine_best_arm(certs: dict[str, Optional[dict]]) -> tuple[Optional[str], Optional[float]]:
@@ -326,9 +344,10 @@ def _evaluate_strategy(
         # Route using the specified strategy
         if strategy_name == "gear_informed":
             warmup = warmup_index.get((scenario, target))
-            recommended_arm, morph_decision = route_fn(certs, warmup)
+            recommended_arm, internal_decision = route_fn(certs, warmup)
         else:
-            recommended_arm, morph_decision = route_fn(certs)
+            recommended_arm, internal_decision = route_fn(certs)
+        morph_decision = internal_decision  # legacy alias for output key
 
         # Actual best arm from certificate spatial_metric
         actual_best, best_metric = determine_best_arm(certs)
@@ -349,13 +368,21 @@ def _evaluate_strategy(
         if near_optimal or correct:
             near_optimal_count += 1
 
+        # Project internal decision to public decision (ADR-029/034)
+        try:
+            internal = InternalDecision(morph_decision)
+        except ValueError:
+            internal = InternalDecision.FALLBACK
+        public = project_public_decision(internal)
+
         row = {
             "scenario": scenario,
             "target": target,
             "cert_r0": {k: certs["r0"].get(k) for k in ("kappa", "S_sup", "sigma", "R", "N")} if certs["r0"] else None,
             "cert_r1": {k: certs["r1"].get(k) for k in ("kappa", "S_sup", "sigma", "R", "N")} if certs["r1"] else None,
             "cert_r2": {k: certs["r2"].get(k) for k in ("kappa", "S_sup", "sigma", "R", "N")} if certs["r2"] else None,
-            "morph_decision": morph_decision,
+            "internal_decision": morph_decision,
+            "public_decision": public.value,
             "recommended_arm": recommended_arm,
             "actual_best_arm": actual_best,
             "correct": correct,

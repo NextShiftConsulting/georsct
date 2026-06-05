@@ -233,13 +233,15 @@ def derive_quality_signals(fold_metrics: list[float],
         cv = float("inf") if std_m > 1e-12 else 0.0
     tau = 1.0 / (1.0 + cv)
 
-    # collapse_risk: any negative fold metric signals collapse
-    if min_m < 0:
-        collapse_risk = 1.0
-    elif med_m > 1e-12:
-        collapse_risk = float(np.clip(1.0 - min_m / med_m, 0.0, 1.0))
+    # collapse_risk: fraction of folds where the solver fails to beat
+    # the naive predictor.  R2 <= 0 for regression, AUC <= 0.5 for
+    # classification.  A simple, interpretable metric: 0.0 = all folds
+    # have skill, 1.0 = no fold has skill.
+    if task == "classification":
+        n_fail = int(np.sum(arr <= 0.5))
     else:
-        collapse_risk = 0.5
+        n_fail = int(np.sum(arr <= 0.0))
+    collapse_risk = n_fail / len(arr)
 
     # coherence: fold agreement measured by IQR rather than range.
     # range/|median| is sensitive to a single outlier fold; IQR (q75-q25)
