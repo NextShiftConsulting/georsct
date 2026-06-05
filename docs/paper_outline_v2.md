@@ -108,8 +108,8 @@ Released: `yrsn` certificate library, OOF predictions for all 16 text models and
 | Fig 1 | Accuracy rank vs alpha-rank scatter, 16 text models | Ready | `figures/fig1_rank_inversion_scatter.py` |
 | Fig 2 | R/S/N simplex ternary plot, 16 text models | Ready | `figures/fig2_simplex_ternary.py` |
 | Fig 3 | nova_embed vs openai_3_small confusion matrices | Ready | `figures/fig3_confusion_comparison.py` |
-| Fig 4 | N-ceiling heatmap across 27 CONUS tasks | Ready | `figures/fig4_nceiling_heatmap.py` |
-| Fig 5 | Cross-family R-squared spread vs N-ceiling, 27 tasks | Ready | `figures/fig5_spread_vs_nceiling.py` |
+| Fig 4 | TRF heatmap across 27 CONUS tasks | Ready | `figures/fig4_trf_heatmap.py` |
+| Fig 5 | Cross-family R-squared spread vs TRF, 27 tasks | Ready | `figures/fig5_spread_vs_trf.py` |
 | Fig 6 | Existing: layer 1 substrate | Done | existing |
 | Fig 7 | Existing: layer 2 ladder | Done | existing |
 | Fig 8 | Synthetic N-ceiling validation (ground truth recovery) | Pending synthetic experiment | Not built |

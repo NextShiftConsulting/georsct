@@ -12,8 +12,8 @@ Legend: `[READY]` data exists, can fill now | `[NEEDS RUN]` requires SageMaker e
 
 | # | Issue | File | Line(s) | Fix |
 |---|-------|------|---------|-----|
-| C1 | `figures/fig4_conus27_heatmap.pdf` missing from V3 | combine_georsct.tex | 259 | Copy from `../figures/fig4_nceiling_heatmap.pdf` (name mismatch) |
-| C2 | `figures/fig5_spread_vs_nceil.pdf` missing from V3 | combine_georsct.tex | 270 | Copy from `../figures/fig5_spread_vs_nceiling.pdf` (name mismatch) |
+| C1 | `figures/fig4_conus27_heatmap.pdf` missing from V3 | combine_georsct.tex | 259 | Copy from `../figures/fig4_trf_heatmap.pdf` (name mismatch) |
+| C2 | `figures/fig5_spread_vs_trf.pdf` missing from V3 | combine_georsct.tex | 270 | Copy from `../figures/fig5_spread_vs_trf.pdf` (name mismatch) |
 | C3 | `V3/figures/` directory does not exist | — | — | `mkdir V3/figures/` then copy or symlink |
 | C4 | `table2_conus27.tex` missing (referenced by `\input` in appendix_h) | appendix_h_reproducibility.tex | 7 | Generate from `V2/figures/figures.py` CONUS_27 array |
 
@@ -130,14 +130,14 @@ Mirrors main Table 2; same data needed.
 
 | Figure | Paper ref | File needed in V3 | Exists? | Source |
 |---|---|---|---|---|
-| Fig 4 (heatmap) | line 259 | `figures/fig4_conus27_heatmap.pdf` | NO (name mismatch) | `../figures/fig4_nceiling_heatmap.pdf` exists |
-| Fig 5 (spread) | line 270 | `figures/fig5_spread_vs_nceil.pdf` | NO (name mismatch) | `../figures/fig5_spread_vs_nceiling.pdf` exists |
+| Fig 4 (heatmap) | line 259 | `figures/fig4_conus27_heatmap.pdf` | NO (name mismatch) | `../figures/fig4_trf_heatmap.pdf` exists |
+| Fig 5 (spread) | line 270 | `figures/fig5_spread_vs_trf.pdf` | NO (name mismatch) | `../figures/fig5_spread_vs_trf.pdf` exists |
 
 **NOT referenced in combine but available:**
 - `fig1_rank_inversion_scatter.pdf` — rank scatter (text retrieval domain, S6 of V2)
 - `fig2_simplex_ternary.pdf` — simplex illustration
 - `fig3_confusion_comparison.pdf` — confusion matrix comparison
-- `fig8_synthetic_nceiling_validation.pdf` — N-ceiling synthetic validation (App D)
+- `fig8_synthetic_trf_validation.pdf` — TRF synthetic validation (App D)
 
 ---
 

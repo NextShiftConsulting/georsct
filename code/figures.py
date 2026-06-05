@@ -9,12 +9,12 @@ text and the figures cannot drift apart:
         Source: table1_leaderboard.tex (canonical text-side OOF artifacts).
 
     Figure 4: fig4_conus27_heatmap.pdf
-        CONUS-27 holdout R^2 by family + N-ceiling, 27 tasks x 4 columns.
+        CONUS-27 holdout R^2 by family + TRF, 27 tasks x 4 columns.
         Source: table2_conus27.tex (canonical OOF test-fold values per
         EVIDENCE_AUDIT 2026-04-29).
 
-    Figure 5: fig5_spread_vs_nceil.pdf
-        Cross-family R^2 spread vs N-ceiling for 27 CONUS tasks.
+    Figure 5: fig5_spread_vs_trf.pdf
+        Cross-family R^2 spread vs TRF for 27 CONUS tasks.
         Source: derived from table2_conus27.tex.
 
 Usage:
@@ -225,10 +225,10 @@ def figure_4_conus27_heatmap(out_path: str) -> None:
     task_names = [row[1] for row in CONUS_27]
     categories = [row[0] for row in CONUS_27]
 
-    # Sort by N-ceiling ascending (rows already sorted in source).
+    # Sort by TRF ascending (rows already sorted in source).
     fig = plt.figure(figsize=(6.5, 7.5))
 
-    # Two side-by-side subplots: R^2 columns (3) and N-ceiling column (1).
+    # Two side-by-side subplots: R^2 columns (3) and TRF column (1).
     # Use gridspec for variable width allocation.
     gs = fig.add_gridspec(
         nrows=1, ncols=4,
@@ -304,10 +304,10 @@ def figure_4_conus27_heatmap(out_path: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Figure 5 — Cross-family R^2 spread vs N-ceiling
+# Figure 5 — Cross-family R^2 spread vs TRF
 # ---------------------------------------------------------------------------
 
-def figure_5_spread_vs_nceil(out_path: str) -> None:
+def figure_5_spread_vs_trf(out_path: str) -> None:
     fig, ax = plt.subplots(figsize=(3.3, 2.7))
 
     # Mean spread reference line.
@@ -459,7 +459,7 @@ def main() -> None:
 
     figure_1_rank_scatter(os.path.join(args.out, "fig1_rank_scatter.pdf"))
     figure_4_conus27_heatmap(os.path.join(args.out, "fig4_conus27_heatmap.pdf"))
-    figure_5_spread_vs_nceil(os.path.join(args.out, "fig5_spread_vs_nceil.pdf"))
+    figure_5_spread_vs_trf(os.path.join(args.out, "fig5_spread_vs_trf.pdf"))
 
     print(f"wrote 3 figures to {args.out}/")
 

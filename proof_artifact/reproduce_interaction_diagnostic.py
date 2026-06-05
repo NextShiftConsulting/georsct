@@ -25,8 +25,8 @@ task_emb = df.groupby(['target','embedding','target_family'])['r2'].mean().reset
 core_df = task_emb[task_emb['embedding'].isin(core3)]
 spread = core_df.groupby(['target','target_family'])['r2'].agg(lambda x: x.max()-x.min()).reset_index()
 spread.columns = ['target','target_family','arch_spread']
-nceil = df.groupby('target')['task_residual_floor'].mean().reset_index()
-merged = spread.merge(nceil, on='target').sort_values('task_residual_floor')
+trf = df.groupby('target')['task_residual_floor'].mean().reset_index()
+merged = spread.merge(trf, on='target').sort_values('task_residual_floor')
 
 print(f"{'target':32s} {'family':14s} {'arch_spread':>11s} {'task_residual_floor':>9s}")
 for _, row in merged.iterrows():

@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
 
-OUTPUT = Path(__file__).parent / "fig5_spread_vs_nceiling.pdf"
+OUTPUT = Path(__file__).parent / "fig5_spread_vs_trf.pdf"
 
 # Data from S3 geo_cert artifacts (2026-04-20)
 # Format: task -> [PCA32, GNN, SpatialLag]

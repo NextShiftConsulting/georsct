@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
 
-OUTPUT = Path(__file__).parent / "fig4_nceiling_heatmap.pdf"
+OUTPUT = Path(__file__).parent / "fig4_trf_heatmap.pdf"
 
 # Data from S3 geo_cert artifacts (2026-04-20)
 FAMILIES = ["PCA32", "GNN", "Spatial Lag"]
@@ -89,7 +89,7 @@ def main():
     ax.set_yticklabels([t.replace("_", " ") for t in tasks_sorted], fontsize=8)
 
     ax.set_title(
-        "CONUS-27: R-squared by Model Family and N-Ceiling per Task\n"
+        "CONUS-27: R-squared by Model Family and TRF per Task\n"
         "TRF = irreducible noise floor (higher = harder task)",
         fontsize=11,
     )

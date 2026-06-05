@@ -28,7 +28,7 @@ evidence/
 | S7 (Results) | Table 2 (CONUS-27 R^2 by family) | `predictions/solver_metrics.parquet`, `predictions/target_family_metrics.parquet` |
 | S7 (Results) | Certificate triples per solver-task pair | `certificates/certificate_rsn.parquet`, `predictions/certificate_rsn.parquet` |
 | S7 (Results) | Cross-family spread, solver distances | `predictions/pairwise_solver_distances.csv`, `predictions/solver_metric_summary.csv` |
-| S7 (Figures) | Fig 4 heatmap, Fig 5 spread vs N-ceil | `../figures/fig4_nceiling_heatmap.py`, `../figures/fig5_spread_vs_nceiling.py` |
+| S7 (Figures) | Fig 4 heatmap, Fig 5 spread vs TRF | `../figures/fig4_trf_heatmap.py`, `../figures/fig5_spread_vs_trf.py` |
 | App B (Benchmark) | 31,789 ZCTAs, 33 ACS features, 27 targets | `../data/geocert/v24/zcta_features_labels.parquet` |
 | App B (Splits) | County-holdout, state-holdout protocols | `../data/geocert/v24/geocert_splits_v24.parquet` |
 | App B (Enrichment) | SVI, HIFLD, drive times, flood, CDC CI, ACS MOE | `../data/geocert/v24/*.parquet` |

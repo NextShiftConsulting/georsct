@@ -16,7 +16,7 @@ from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.neural_network import MLPRegressor
 from sklearn.model_selection import KFold
 
-OUTPUT = Path(__file__).parent / "fig8_synthetic_nceiling_validation.pdf"
+OUTPUT = Path(__file__).parent / "fig8_synthetic_trf_validation.pdf"
 
 N_SAMPLES = 10000
 N_FEATURES = 32
@@ -159,15 +159,15 @@ def main():
 
         # Block bootstrap CI on best family
         boot_r2 = block_bootstrap_r2(y, best_preds, blocks)
-        boot_nceiling = 1 - boot_r2
-        ci_lo = np.nanpercentile(boot_nceiling, 2.5)
-        ci_hi = np.nanpercentile(boot_nceiling, 97.5)
+        boot_trf = 1 - boot_r2
+        ci_lo = np.nanpercentile(boot_trf, 2.5)
+        ci_hi = np.nanpercentile(boot_trf, 97.5)
 
         # Naive bootstrap for comparison
         naive_r2 = naive_bootstrap_r2(y, best_preds)
-        naive_nceiling = 1 - naive_r2
-        naive_lo = np.nanpercentile(naive_nceiling, 2.5)
-        naive_hi = np.nanpercentile(naive_nceiling, 97.5)
+        naive_trf = 1 - naive_r2
+        naive_lo = np.nanpercentile(naive_trf, 2.5)
+        naive_hi = np.nanpercentile(naive_trf, 97.5)
 
         results.append({
             "true": trf_true,
@@ -221,7 +221,7 @@ def main():
     # Compute mean bias (conservative overestimate expected)
     mean_bias = np.mean([r["est"] - r["true"] for r in results])
     ax.set_title(
-        f"Synthetic Validation: N-Ceiling Estimator Recovery\n"
+        f"Synthetic Validation: TRF Estimator Recovery\n"
         f"Mean bias: +{mean_bias:.3f} (conservative upper bound) | "
         f"Block vs naive CI width ratio: "
         f"{np.mean([r['block_ci_hi']-r['block_ci_lo'] for r in results]):.3f} / "

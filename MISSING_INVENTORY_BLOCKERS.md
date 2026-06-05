@@ -13,8 +13,8 @@ This file lists everything that must be resolved before the paper compiles and i
 | # | Issue | File:Line | Fix | Effort |
 |---|-------|-----------|-----|--------|
 | A1 | `V3/figures/` directory missing | combine:259,270 | `mkdir V3/figures/` | 1 min |
-| A2 | `figures/fig4_conus27_heatmap.pdf` not found | combine:259 | Copy `../figures/fig4_nceiling_heatmap.pdf` -> `V3/figures/fig4_conus27_heatmap.pdf` | 1 min |
-| A3 | `figures/fig5_spread_vs_nceil.pdf` not found | combine:270 | Copy `../figures/fig5_spread_vs_nceiling.pdf` -> `V3/figures/fig5_spread_vs_nceil.pdf` | 1 min |
+| A2 | `figures/fig4_conus27_heatmap.pdf` not found | combine:259 | Copy `../figures/fig4_trf_heatmap.pdf` -> `V3/figures/fig4_conus27_heatmap.pdf` | 1 min |
+| A3 | `figures/fig5_spread_vs_trf.pdf` not found | combine:270 | Copy `../figures/fig5_spread_vs_trf.pdf` -> `V3/figures/fig5_spread_vs_trf.pdf` | 1 min |
 | A4 | `table2_conus27.tex` not found (`\input{table2_conus27}`) | appendix_h:7 | Generate 27-row LaTeX table from `V2/figures/figures.py` CONUS_27 | 15 min |
 | A5 | `\ref{tab:conus27}` has no `\label{tab:conus27}` — label must be inside `table2_conus27.tex` which doesn't exist | combine:255 | Include `\label{tab:conus27}` in generated table2_conus27.tex | 0 min (part of A4) |
 
@@ -122,7 +122,7 @@ Available but not `\includegraphics`'d in combine_georsct.tex:
 | `fig1_rank_inversion_scatter.pdf` | Accuracy rank vs alpha rank (text retrieval, 16 models) | Was in V2 S6; no section in V3 uses text-retrieval results |
 | `fig2_simplex_ternary.pdf` | Probability simplex illustration | Would strengthen S3 (RSN decomposition) |
 | `fig3_confusion_comparison.pdf` | Confusion matrix comparison | Would support taxonomy exemplars |
-| `fig8_synthetic_nceiling_validation.pdf` | N-ceiling bootstrap synthetic validation | Referenced in App D text but no `\includegraphics` |
+| `fig8_synthetic_trf_validation.pdf` | TRF bootstrap synthetic validation | Referenced in App D text but no `\includegraphics` |
 
 **Decision**: Which figures to include? Page budget is finite. Fig 8 is the most useful (validates App D claims).
 

@@ -92,8 +92,8 @@ H4 3/3 tasks improved, zero rollbacks. Source: `yrsn-experiments/exp/series_018/
 
 | Figure | Script | Data source | Key result |
 |--------|--------|-------------|------------|
-| Fig 4 | `figures/fig4_nceiling_heatmap.py` | Table 2 data / S018 results | 27-task N-ceiling heatmap |
-| Fig 5 | `figures/fig5_spread_vs_nceiling.py` | Table 2 data | Spread vs N-ceiling (architecture invisible) |
+| Fig 4 | `figures/fig4_trf_heatmap.py` | Table 2 data / S018 results | 27-task TRF heatmap |
+| Fig 5 | `figures/fig5_spread_vs_trf.py` | Table 2 data | Spread vs TRF (architecture invisible) |
 
 ### Three model families (training artifacts)
 
@@ -120,7 +120,7 @@ H4 3/3 tasks improved, zero rollbacks. Source: `yrsn-experiments/exp/series_018/
 
 | Claim | Source | Status |
 |-------|--------|--------|
-| N-ceiling estimator validated on synthetic ground truth | `figures/fig8_synthetic_nceiling_validation.py` | Pending synthetic experiment completion |
+| TRF estimator validated on synthetic ground truth | `figures/fig8_synthetic_trf_validation.py` | Pending synthetic experiment completion |
 | Block-bootstrap with seed-collapse diagnostic | `rsct/` library | Implemented |
 
 ---
