@@ -102,6 +102,15 @@ ALPHA_WARMUP_HIGH = 0.3
 ALPHA_WARMUP_LOW = 0.1
 SIGMA_STABLE = 0.10
 
+
+def _v(d: Optional[dict], key: str, default: float) -> float:
+    """Get value from dict, coalescing None to default."""
+    if d is None:
+        return default
+    val = d.get(key)
+    return val if val is not None else default
+
+
 # InternalDecision -> PublicDecision projection (ADR-029/034).
 # System-internal routing decisions map to user-facing operational guidance.
 DECISION_PROJECTION = {
@@ -179,27 +188,27 @@ def apply_routing_kappa(certs: dict[str, Optional[dict]]) -> tuple[Optional[str]
     recommended_arm is None for REPAIR/REJECT (no single arm recommended).
     """
     c0 = certs.get("r0")
-    if c0 and c0.get("kappa", 0) >= KAPPA_GOOD:
+    if c0 and _v(c0, "kappa", 0) >= KAPPA_GOOD:
         return "r0", InternalDecision.EXECUTE.value
 
-    if c0 and c0.get("S_sup", 0) > S_SUP_HIGH:
+    if c0 and _v(c0, "S_sup", 0) > S_SUP_HIGH:
         c1 = certs.get("r1")
-        if c1 and c1.get("kappa", 0) >= KAPPA_GOOD:
+        if c1 and _v(c1, "kappa", 0) >= KAPPA_GOOD:
             return "r1", InternalDecision.RE_ENCODE.value
 
     c1 = certs.get("r1")
-    diag_transfer = c1.get("diag_transfer", 1.0) if c1 else 1.0
+    diag_transfer = _v(c1, "diag_transfer", 1.0)
     if diag_transfer < DIAG_TRANSFER_LOW:
         c2 = certs.get("r2")
-        if c2 and c2.get("kappa", 0) >= KAPPA_GOOD:
+        if c2 and _v(c2, "kappa", 0) >= KAPPA_GOOD:
             return "r2", InternalDecision.RE_ENCODE.value
 
     # Fallback: check R2 cert for terminal decisions
     c2 = certs.get("r2")
     if c2:
-        if c2.get("sigma", 0) > SIGMA_HIGH:
+        if _v(c2, "sigma", 0) > SIGMA_HIGH:
             return None, InternalDecision.REPAIR.value
-        if c2.get("kappa", 0) < KAPPA_BAD:
+        if _v(c2, "kappa", 0) < KAPPA_BAD:
             return None, InternalDecision.REJECT.value
         # R2 kappa is between BAD and GOOD -- recommend R2 as best available
         return "r2", InternalDecision.WARN.value
@@ -249,7 +258,7 @@ def apply_routing_gear(
     # 2. FIRST gear: easy cell, R0 likely sufficient
     if gear == 1 and alpha_w >= ALPHA_WARMUP_HIGH and sigma_w <= SIGMA_STABLE:
         c0 = certs.get("r0")
-        if c0 and c0.get("R", 0) > 0.3:
+        if c0 and _v(c0, "R", 0) > 0.3:
             return "r0", InternalDecision.EXECUTE.value
         # R0 cert doesn't confirm -- escalate to comparison
         return _route_by_certificate_comparison(certs)
@@ -260,13 +269,13 @@ def apply_routing_gear(
         # Ignoring N would treat a high-R, high-N cell as adequate when the
         # noise floor actually invalidates it.
         c2 = certs.get("r2")
-        if c2 and c2.get("R", 0) > c2.get("S_sup", 1.0) and c2.get("N", 1.0) < 0.5:
+        if c2 and _v(c2, "R", 0) > _v(c2, "S_sup", 1.0) and _v(c2, "N", 1.0) < 0.5:
             return "r2", InternalDecision.RE_ENCODE.value
         c1 = certs.get("r1")
-        if c1 and c1.get("R", 0) > c1.get("S_sup", 1.0) and c1.get("N", 1.0) < 0.5:
+        if c1 and _v(c1, "R", 0) > _v(c1, "S_sup", 1.0) and _v(c1, "N", 1.0) < 0.5:
             return "r1", InternalDecision.RE_ENCODE.value
         # No arm shows R-dominant with contained N -- pruning candidate
-        if c2 and c2.get("kappa", 0) < KAPPA_BAD:
+        if c2 and _v(c2, "kappa", 0) < KAPPA_BAD:
             return None, InternalDecision.REJECT.value
         return _route_by_certificate_comparison(certs)
 
