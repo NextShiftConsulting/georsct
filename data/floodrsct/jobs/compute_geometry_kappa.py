@@ -121,50 +121,82 @@ def compute_support_coverage(df: pd.DataFrame, target: str,
     return float(sub.notna().mean().mean())
 
 
-def compute_scale_stability(df: pd.DataFrame, crosswalk: pd.DataFrame,
-                            features: list[str]) -> float:
-    """Aggregation stability proxy: between-county / total variance ratio.
+def _spatial_quadrant(df: pd.DataFrame) -> pd.Series:
+    """Assign ZCTAs to spatial quadrants by median lat/lon split.
 
-    High value = feature structure aligns with county aggregation.
-    Low value = county boundaries do not capture feature variation.
-    This is a proxy for aggregation sensitivity, not full MAUP testing.
-    Uses feature values and county assignments only. No model outputs.
+    Fallback grouping when county assignment yields a single group
+    (e.g., Houston scenario is entirely within Harris County).
+    Always produces 2-4 groups from lat/lon coordinates.
     """
-    if crosswalk is None or crosswalk.empty:
-        return 0.5  # Neutral if no crosswalk
+    med_lat = df["latitude"].median()
+    med_lon = df["longitude"].median()
+    return (
+        (df["latitude"] >= med_lat).astype(int) * 2
+        + (df["longitude"] >= med_lon).astype(int)
+    ).astype(str)
 
-    df = df.copy()
-    df["zcta_id"] = df["zcta_id"].astype(str)
-    xwalk = crosswalk.copy()
-    xwalk["zcta_id"] = xwalk["zcta_id"].astype(str)
 
-    merged = df.merge(
-        xwalk[["zcta_id", "county_fips"]].drop_duplicates(),
-        on="zcta_id", how="left",
-    )
-
+def _between_total_ratios(df: pd.DataFrame, group_col: str,
+                          features: list[str]) -> list[float]:
+    """Compute between-group / total variance ratio per feature."""
     ratios = []
     for col in features:
-        if col not in merged.columns:
+        if col not in df.columns:
             continue
-        vals = merged[[col, "county_fips"]].dropna()
+        vals = df[[col, group_col]].dropna()
         if len(vals) < 10:
             continue
         total_var = vals[col].var()
         if total_var < 1e-12:
             continue
-        county_means = vals.groupby("county_fips")[col].mean()
-        if len(county_means) < 2:
-            continue  # single county: var() returns NaN with ddof=1
-        between_var = county_means.var()
-        # High between/total = county structure explains variance = scale-stable
+        group_means = vals.groupby(group_col)[col].mean()
+        if len(group_means) < 2:
+            continue
+        between_var = group_means.var()
         ratio = between_var / total_var
         if np.isfinite(ratio):
             ratios.append(ratio)
+    return ratios
 
-    if not ratios:
-        return 0.5
-    return float(np.clip(np.mean(ratios), 0.0, 1.0))
+
+def compute_scale_stability(df: pd.DataFrame, crosswalk: pd.DataFrame,
+                            features: list[str]) -> float:
+    """Aggregation stability proxy: between-group / total variance ratio.
+
+    Primary grouping: county (from crosswalk).
+    Fallback: spatial quadrants (median lat/lon split) when all ZCTAs
+    map to a single county (e.g., Houston = Harris County only).
+
+    High value = feature structure aligns with spatial aggregation.
+    Low value = group boundaries do not capture feature variation.
+    Uses feature values, county assignments, and coordinates only.
+    No model outputs.
+    """
+    df = df.copy()
+    df["zcta_id"] = df["zcta_id"].astype(str)
+
+    # Try county grouping first
+    if crosswalk is not None and not crosswalk.empty:
+        xwalk = crosswalk.copy()
+        xwalk["zcta_id"] = xwalk["zcta_id"].astype(str)
+        merged = df.merge(
+            xwalk[["zcta_id", "county_fips"]].drop_duplicates(),
+            on="zcta_id", how="left",
+        )
+        n_counties = merged["county_fips"].dropna().nunique()
+        if n_counties >= 2:
+            ratios = _between_total_ratios(merged, "county_fips", features)
+            if ratios:
+                return float(np.clip(np.mean(ratios), 0.0, 1.0))
+
+    # Fallback: spatial quadrants from lat/lon
+    if "latitude" in df.columns and "longitude" in df.columns:
+        df["_quadrant"] = _spatial_quadrant(df)
+        ratios = _between_total_ratios(df, "_quadrant", features)
+        if ratios:
+            return float(np.clip(np.mean(ratios), 0.0, 1.0))
+
+    return 0.5  # No grouping available
 
 
 def compute_administrative_alignment(crosswalk: pd.DataFrame,
