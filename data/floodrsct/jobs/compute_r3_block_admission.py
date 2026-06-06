@@ -124,7 +124,105 @@ def _classify_lyapunov(V: float) -> str:
         return "REVERSE"
 
 
-def evaluate_gates(cert: dict) -> dict:
+def _invalid_breakdown(invalid_entries: list[dict]) -> dict:
+    """Summarize INVALID certificates by failure mode and remediation action."""
+    by_mode = {}
+    by_action = {}
+    by_block = {}
+    for entry in invalid_entries:
+        diag = entry.get("invalid_diagnosis", {})
+        mode = diag.get("failure_mode", "UNKNOWN")
+        action = diag.get("remediation_action", "unknown")
+        block = entry.get("block", "unknown")
+
+        by_mode[mode] = by_mode.get(mode, 0) + 1
+        by_action[action] = by_action.get(action, 0) + 1
+        by_block.setdefault(block, []).append({
+            "target": entry.get("target"),
+            "failure_mode": mode,
+            "remediation": action,
+            "partial_signals": diag.get("partial_signals"),
+        })
+
+    return {
+        "by_failure_mode": by_mode,
+        "by_remediation_action": by_action,
+        "by_block": by_block,
+    }
+
+
+def _diagnose_invalid(cert: dict) -> dict:
+    """Classify WHY a certificate is INVALID and what can fix it.
+
+    Reads the certificate evidence to determine:
+      - failure_mode: what broke (solver, features, data)
+      - remediation_action: what to do about it
+      - partial_signals: any usable signal that survived
+
+    Failure modes (most specific first):
+      SOLVER_BOTH_NULL     - histgbdt and ridge both returned null metrics
+      SOLVER_HISTGBDT_ONLY - histgbdt failed but ridge wasn't tried / also failed
+      STRUCTURAL_NO_FEATURES - block has 0 features present in dataset
+      DATA_INSUFFICIENT    - too few rows or single-class target
+      UNKNOWN              - fallback
+    """
+    ev = cert.get("evidence", {})
+    indep = ev.get("independent_signal", {})
+    marg = ev.get("marginal_signal", {})
+    audit = ev.get("feature_audit", {})
+
+    # Collect partial signals that DID produce values
+    partial = {}
+    if marg.get("full_metric") is not None:
+        partial["full_R2_metric"] = marg["full_metric"]
+        partial["full_R2_solver"] = marg.get("full_solver")
+    if marg.get("drop_metric") is not None:
+        partial["drop_block_metric"] = marg["drop_metric"]
+        partial["drop_block_solver"] = marg.get("drop_solver")
+    if marg.get("delta") is not None:
+        partial["ablation_delta"] = marg["delta"]
+
+    # Classify failure mode
+    block_only_valid = audit.get("block_only_valid", False)
+    indep_metric = indep.get("metric")
+    indep_solver = indep.get("solver")
+
+    if not block_only_valid:
+        failure_mode = "STRUCTURAL_NO_FEATURES"
+        remediation = "check-feature-registry"
+        detail = "Block has 0 features present in the dataset"
+    elif indep_metric is None and indep_solver is None:
+        # Both solvers returned null on block_only
+        failure_mode = "SOLVER_BOTH_NULL"
+        remediation = "retrain-with-larger-sample"
+        detail = (
+            "Both histgbdt and ridge returned null metrics on block_only. "
+            "Likely cause: insufficient training rows, single-class target, "
+            "or all-NaN features in this block."
+        )
+    elif indep_metric is None:
+        failure_mode = "SOLVER_PRIMARY_NULL"
+        remediation = "investigate-solver-crash"
+        detail = f"Solver '{indep_solver}' returned null metric on block_only"
+    else:
+        failure_mode = "UNKNOWN"
+        remediation = "investigate"
+        detail = "Certificate marked INVALID but independent signal exists"
+
+    return {
+        "failure_mode": failure_mode,
+        "remediation_action": remediation,
+        "detail": detail,
+        "partial_signals": partial if partial else None,
+        "feature_audit_summary": {
+            "add_status": audit.get("add_status"),
+            "drop_status": audit.get("drop_status"),
+            "block_only_valid": block_only_valid,
+        },
+    }
+
+
+
     """Evaluate the 4-gate pipeline on a block certificate.
 
     Returns gate result with decision, gear, and full trace.
@@ -405,16 +503,19 @@ def main():
     gear_summary = []
 
     skipped_invalid = 0
+    invalid_details = []  # Track remediation paths for INVALID certs
 
     for cert in all_certs:
-        # Skip INVALID certificates -- NaN RSN must not be gate-evaluated
+        # INVALID certificates: don't gate-evaluate, but DO diagnose and track
         if cert.get("certificate_status") == "INVALID":
             skipped_invalid += 1
+            diag = _diagnose_invalid(cert)
             log.warning(
-                "SKIP %s/%s/%s: certificate_status=INVALID (no valid contrasts)",
+                "INVALID %s/%s/%s: %s -> %s",
                 cert.get("scenario"), cert.get("block"), cert.get("target"),
+                diag["failure_mode"], diag["remediation_action"],
             )
-            admission_table.append({
+            entry = {
                 "block": cert.get("block"),
                 "scenario": cert.get("scenario"),
                 "target": cert.get("target"),
@@ -422,9 +523,13 @@ def main():
                 "gate_reached": "PRE_GATE_INVALID",
                 "certificate_status": "INVALID",
                 "admission_tier": "invalid",
-                "admission_action": "skip",
-                "labels": ["invalid-certificate"],
-            })
+                "admission_action": diag["remediation_action"],
+                "labels": ["invalid-certificate", diag["failure_mode"]],
+                "invalid_diagnosis": diag,
+                "certificate_evidence": cert.get("evidence", {}),
+            }
+            admission_table.append(entry)
+            invalid_details.append(entry)
             continue
 
         result = evaluate_gates(cert)
@@ -511,8 +616,11 @@ def main():
         },
         "summary": {
             "n_blocks_evaluated": len(admission_table),
+            "n_invalid": skipped_invalid,
+            "n_gate_evaluated": len(admission_table) - skipped_invalid,
             "decision_counts": decision_counts,
             "tier_counts": tier_counts,
+            "invalid_breakdown": _invalid_breakdown(invalid_details),
         },
         "admission_table": admission_table,
     }
@@ -554,13 +662,28 @@ def main():
 
     # Summary
     log.info("\n=== R3_1c Block Admission Summary ===")
-    log.info("  Evaluated: %d block certificates (%d skipped INVALID)",
-             len(admission_table), skipped_invalid)
+    log.info("  Total: %d | Gate-evaluated: %d | INVALID: %d",
+             len(admission_table), len(admission_table) - skipped_invalid, skipped_invalid)
+    log.info("  Decisions:")
     for d, count in sorted(decision_counts.items()):
-        log.info("  %s: %d", d, count)
+        log.info("    %s: %d", d, count)
     log.info("  Admission tiers:")
     for t, count in sorted(tier_counts.items()):
         log.info("    %s: %d", t, count)
+
+    if invalid_details:
+        breakdown = _invalid_breakdown(invalid_details)
+        log.info("  INVALID breakdown by failure mode:")
+        for mode, count in sorted(breakdown["by_failure_mode"].items()):
+            log.info("    %s: %d", mode, count)
+        log.info("  INVALID remediation actions:")
+        for action, count in sorted(breakdown["by_remediation_action"].items()):
+            log.info("    %s: %d", action, count)
+        # Flag blocks with partial signals (some data survived)
+        for block, entries in breakdown["by_block"].items():
+            has_partial = any(e.get("partial_signals") for e in entries)
+            if has_partial:
+                log.info("    %s: has partial signals -- remediation possible", block)
 
     return 0
 
