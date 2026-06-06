@@ -47,81 +47,37 @@ log = logging.getLogger(__name__)
 
 RESULTS_PREFIX = "results/s035"
 
-# Import canonical thresholds from yrsn-controlplane (single source of truth)
-from yrsn_controlplane import PRESET_GEOSPATIAL_CONUS27 as _CFG
+# Import controlplane pipeline (single source of truth for gate logic)
+from yrsn_controlplane import (
+    PRESET_GEOSPATIAL_CONUS27 as _CFG,
+    CPGatekeeperInput,
+    SequentialGatekeeper,
+    GatekeeperConfig,
+    coordinate,
+    CoordinatorAction,
+    EnforcementDecision,
+    GearState,
+    tau_to_gear,
+)
 
+# Expose thresholds for summary/logging (read-only)
 KAPPA_BASE = _CFG.kappa_base
 SIGMA_THR = _CFG.sigma_thr
-LAMBDA_TURBULENCE = _CFG.lambda_turbulence
 EPSILON_L = _CFG.epsilon_L
 KAPPA_L_MIN = _CFG.kappa_L_min
 N_THR = _CFG.N_thr
 ALPHA_MIN = _CFG.alpha_min
-GATE_2_REQUIRE_COHERENCE = _CFG.gate_2_require_coherence
 
-# Oobleck sigmoidal parameters
-OOBLECK_STEEPNESS = _CFG.steepness
-OOBLECK_SIGMA_C = _CFG.sigma_c
-LANDAUER_SIGMA_TIEBREAKER = _CFG.landauer_sigma_tiebreaker
-
-# Gear thresholds (P14, from yrsn-controlplane/types.py)
-TAU_FIRST = 1.0
-TAU_SECOND = 1.43
-TAU_THIRD = 2.5
-
-# Sigma warning threshold
+# Sigma warning threshold (used by coordinator)
 SIGMA_WARNING_THR = 0.40
 
+# Instantiate gatekeeper once (frozen config, thread-safe)
+_GATEKEEPER = SequentialGatekeeper(_CFG)
+
 
 # ---------------------------------------------------------------------------
-# Gate evaluation (mirrors SequentialGatekeeper logic)
+# Gate evaluation via controlplane SequentialGatekeeper + Coordinator
 # ---------------------------------------------------------------------------
-
-def _sigmoid(x: float) -> float:
-    """Numerically stable sigmoid."""
-    if x >= 0:
-        z = math.exp(-x)
-        return 1.0 / (1.0 + z)
-    else:
-        z = math.exp(x)
-        return z / (1.0 + z)
-
-
-def _oobleck_kappa_req(sigma: float) -> float:
-    """Oobleck dynamic threshold: kappa_req(sigma).
-
-    Uses LAMBDA_TURBULENCE (== delta_kappa) from canonical preset.
-    For GEOSPATIAL_CONUS27, lambda_turbulence=0.0 so this is flat at KAPPA_BASE.
-    """
-    return KAPPA_BASE + LAMBDA_TURBULENCE * _sigmoid(
-        OOBLECK_STEEPNESS * (sigma - OOBLECK_SIGMA_C)
-    )
-
-
-def _tau_to_gear(tau: float) -> str:
-    """Map tau to gear state (P14)."""
-    if tau < TAU_FIRST:
-        return "FIRST"
-    elif tau < TAU_SECOND:
-        return "SECOND"
-    elif tau < TAU_THIRD:
-        return "THIRD"
-    else:
-        return "FOURTH"
-
-
-def _classify_lyapunov(V: float) -> str:
-    """Lyapunov advisory gear recommendation."""
-    if V < 0.2:
-        return "FIRST"
-    elif V < 0.5:
-        return "SECOND"
-    elif V < 1.0:
-        return "THIRD"
-    elif V < 1.5:
-        return "FOURTH"
-    else:
-        return "REVERSE"
 
 
 def _invalid_breakdown(invalid_entries: list[dict]) -> dict:
@@ -230,212 +186,208 @@ def _diagnose_invalid(cert: dict) -> dict:
     }
 
 
-def evaluate_gates(cert: dict) -> dict:
-    """Evaluate the 4-gate pipeline on a block certificate.
+def _safe_float(val, default: float) -> float:
+    """Coalesce None/NaN/Inf to default."""
+    if val is None:
+        return default
+    try:
+        if math.isnan(val) or math.isinf(val):
+            return default
+    except TypeError:
+        return default
+    return float(val)
 
-    Returns gate result with decision, gear, and full trace.
+
+def _project_to_gatekeeper_input(cert: dict) -> CPGatekeeperInput:
+    """Project a block certificate dict to CPGatekeeperInput.
+
+    Block certificates are proxy measurements (tabular feature-space metrics),
+    not direct rotor-derived embeddings. source_mode="proxy" reflects this.
+
+    The gatekeeper is path-agnostic: proxy and direct paths converge to the
+    same CPGatekeeperInput type and are evaluated identically through gates.
     """
-    def _safe(val, default):
-        """Coalesce None/NaN to default."""
-        if val is None:
-            return default
-        try:
-            if math.isnan(val) or math.isinf(val):
-                return default
-        except TypeError:
-            return default
-        return float(val)
+    alpha = _safe_float(cert.get("alpha"), 0.0)
+    kappa = _safe_float(cert.get("kappa"), 0.0)
+    sigma = _safe_float(cert.get("sigma"), 1.0)
 
-    R = _safe(cert.get("R"), 0.0)
-    S_sup = _safe(cert.get("S_sup"), 0.0)
-    N = _safe(cert.get("N"), 1.0)
-    alpha = _safe(cert.get("alpha"), 0.0)
-    sigma = _safe(cert.get("sigma"), 1.0)
-    kappa = _safe(cert.get("kappa"), 0.0)
+    # Clamp to [0, 1] for CPGatekeeperInput validation
+    alpha = max(0.0, min(1.0, alpha))
+    kappa = max(0.0, min(1.0, kappa))
+    sigma = max(0.0, min(1.0, sigma))
 
-    gate_evidence = {}
-
-    # Gate 1: Integrity Guard (OR logic — canonical SequentialGatekeeper)
-    # V-011: read noise_admissibility from evidence, fall back to raw N
-    evidence_block = cert.get("evidence", {})
-    noise_admissibility = evidence_block.get("noise_admissibility")
-    noise_fallback = noise_admissibility is None
-    if noise_fallback:
-        noise_admissibility = N
-
-    gate1_n_pass = noise_admissibility < N_THR
-    gate1_alpha_pass = alpha >= ALPHA_MIN
-    gate1_pass = gate1_n_pass or gate1_alpha_pass
-
-    gate_evidence["gate_1"] = {
-        "noise_admissibility": noise_admissibility,
-        "noise_fallback_to_raw_N": noise_fallback,
-        "N_thr": N_THR,
-        "N_pass": gate1_n_pass,
-        "alpha": alpha,
-        "alpha_min": ALPHA_MIN,
-        "alpha_pass": gate1_alpha_pass,
-        "pass": gate1_pass,
-    }
-    if not gate1_pass:
-        return _build_result(cert, "REJECT", "GATE_1_INTEGRITY", gate_evidence, kappa, sigma, alpha)
-
-    # Gate 2: Consensus Gate (canonical 3-path logic)
-    coherence = cert.get("coherence") or evidence_block.get("coherence")
-    if coherence is not None:
-        gate2_pass = coherence >= _CFG.c_min
-        gate_evidence["gate_2"] = {
-            "coherence": coherence, "c_min": _CFG.c_min,
-            "require_coherence": GATE_2_REQUIRE_COHERENCE, "pass": gate2_pass,
-        }
-        if not gate2_pass:
-            return _build_result(cert, "BLOCK", "GATE_2_CONSENSUS", gate_evidence, kappa, sigma, alpha)
-    elif GATE_2_REQUIRE_COHERENCE:
-        gate_evidence["gate_2"] = {
-            "coherence": None, "require_coherence": True, "pass": False,
-            "failure_path": "coherence_absent_fail_closed",
-        }
-        return _build_result(cert, "BLOCK", "GATE_2_CONSENSUS", gate_evidence, kappa, sigma, alpha)
-    else:
-        gate_evidence["gate_2"] = {
-            "coherence": None, "require_coherence": False, "pass": True,
-            "failure_path": "coherence_absent_legacy_pass",
-        }
-
-    # Gate 3: Admissibility (Oobleck sigmoidal)
-    kappa_req = _oobleck_kappa_req(sigma)
-    landauer_lo = kappa_req - EPSILON_L
-
-    gate_evidence["gate_3"] = {
-        "kappa": kappa,
-        "kappa_req": round(kappa_req, 6),
-        "epsilon_L": EPSILON_L,
-        "landauer_lo": round(landauer_lo, 6),
-        "sigma": sigma,
-        "landauer_sigma_tiebreaker": LANDAUER_SIGMA_TIEBREAKER,
+    # Build evidence dict for audit trail
+    cert_evidence = cert.get("evidence", {})
+    evidence = {
+        "block": cert.get("block"),
+        "scenario": cert.get("scenario"),
+        "target": cert.get("target"),
+        "R": cert.get("R"),
+        "S_sup": cert.get("S_sup"),
+        "N": cert.get("N"),
+        "solver_lineage": cert_evidence.get("independent_signal", {}),
     }
 
-    if kappa >= kappa_req:
-        gate_evidence["gate_3"]["zone"] = "clear_pass"
-        gate_evidence["gate_3"]["pass"] = True
-    elif kappa >= landauer_lo:
-        # Landauer gray zone: sigma tiebreaker
-        gate_evidence["gate_3"]["zone"] = "landauer_gray"
-        if sigma <= LANDAUER_SIGMA_TIEBREAKER:
-            gate_evidence["gate_3"]["pass"] = True
-            gate_evidence["gate_3"]["tiebreaker"] = "sigma_low"
-        else:
-            gate_evidence["gate_3"]["pass"] = False
-            gate_evidence["gate_3"]["tiebreaker"] = "sigma_high"
-            return _build_result(cert, "RE_ENCODE", "GATE_3_ADMISSIBILITY", gate_evidence, kappa, sigma, alpha)
-    else:
-        gate_evidence["gate_3"]["zone"] = "clear_fail"
-        gate_evidence["gate_3"]["pass"] = False
-        return _build_result(cert, "RE_ENCODE", "GATE_3_ADMISSIBILITY", gate_evidence, kappa, sigma, alpha)
+    # V-011: noise_admissibility from evidence, fallback to raw N
+    noise_admissibility = cert_evidence.get("noise_admissibility")
+    if noise_admissibility is not None:
+        evidence["noise_admissibility"] = noise_admissibility
 
-    # Gate 4: Grounding Gate (modal kappa check)
-    # For block certificates, we use kappa as kappa_L proxy
-    kappa_L = kappa  # Single-modal: kappa_L == kappa
-    gate_evidence["gate_4"] = {
-        "kappa_L": kappa_L,
-        "kappa_L_min": KAPPA_L_MIN,
-        "pass": kappa_L >= KAPPA_L_MIN,
-    }
-    if kappa_L < KAPPA_L_MIN:
-        return _build_result(cert, "REPAIR", "GATE_4_GROUNDING", gate_evidence, kappa, sigma, alpha)
-
-    # All gates pass
-    return _build_result(cert, "EXECUTE", "ALL_PASSED", gate_evidence, kappa, sigma, alpha)
+    return CPGatekeeperInput(
+        alpha=alpha,
+        kappa_compat=kappa,
+        sigma=sigma,
+        source_mode="proxy",
+        evidence={
+            **evidence,
+            "proxy_domain": "geospatial_tabular",
+            "proxy_remediation_space": "feature_solver_sample",
+        },
+    )
 
 
-def _build_result(
-    cert: dict,
-    decision: str,
-    gate_reached: str,
-    gate_evidence: dict,
-    kappa: float,
-    sigma: float,
-    alpha: float,
-) -> dict:
-    """Build the full admission result with gear computation."""
-    # Compute tau and gear
-    omega = cert.get("omega", 1.0) or 1.0
-    prior = 0.5  # Default prior for alpha_omega blending
+def _morph_hint_for_geo(cert: dict, decision: EnforcementDecision) -> Optional[str]:
+    """Select morph operator hint for geo block certificates.
+
+    Geo blocks are feature-space representations (tabular), not latent-space
+    embeddings. DGM morph cycle operates in feature-space:
+      - RE_ENCODE: augment features, retrain with different solver, reduce noise
+      - REPAIR: re-calibrate grounding via feature selection
+
+    This is explicitly NOT latent-space re-projection (PCA, SVD, rotor).
+    """
+    if decision == EnforcementDecision.RE_ENCODE:
+        ev = cert.get("evidence", {})
+        audit = ev.get("feature_audit", {})
+        indep = ev.get("independent_signal", {})
+
+        # If solver fallback was already triggered, suggest augmentation
+        if indep.get("fallback_triggered"):
+            return "augment_features"
+        # If add_block was NO_OP, the block is already in R2 -- suggest solver_swap
+        if audit.get("add_status") == "NO_OP_B_SUBSET_R2":
+            return "solver_swap"
+        return "retrain_with_augmentation"
+    elif decision == EnforcementDecision.REPAIR:
+        return "feature_selection"
+    return None
+
+
+def evaluate_gates(cert: dict) -> dict:
+    """Evaluate block certificate through controlplane SequentialGatekeeper + Coordinator.
+
+    Projects the block cert to CPGatekeeperInput (source_mode="proxy"), runs
+    the canonical gate pipeline, then routes through the coordinator for
+    gear selection and morph hints. No local gate reimplementation.
+
+    For geo blocks, morph hints are feature-space operators (not latent-space).
+    """
+    # Project to gatekeeper input type
+    gk_input = _project_to_gatekeeper_input(cert)
+
+    # Run canonical gate pipeline
+    gate_result = _GATEKEEPER.evaluate(gk_input)
+
+    # Compute tau for gear selection (P14: tau = 1/alpha_omega)
+    alpha = gk_input.alpha
+    omega = _safe_float(cert.get("omega"), 1.0)
+    prior = 0.5
     alpha_omega = alpha * omega + prior * (1.0 - omega)
     tau = 1.0 / alpha_omega if alpha_omega > 0 else 999.0
-    gear = _tau_to_gear(tau)
 
-    # Sigma warning gear bump (only for EXECUTE)
-    sigma_warning = False
-    gear_after_bump = gear
-    if decision == "EXECUTE" and sigma > SIGMA_WARNING_THR:
-        sigma_warning = True
-        bump_map = {"FIRST": "SECOND", "SECOND": "THIRD", "THIRD": "FOURTH", "FOURTH": "FOURTH"}
-        gear_after_bump = bump_map.get(gear, gear)
+    # Route through coordinator for execution plan
+    morph_hint = _morph_hint_for_geo(cert, gate_result.decision)
+    plan = coordinate(
+        gate_result,
+        tau=tau,
+        sigma_warning_threshold=SIGMA_WARNING_THR,
+        morph_hint=morph_hint,
+    )
 
-    # Lyapunov advisory (V approximated from certificate)
-    # V = tau * sigma (simplified Lyapunov proxy)
-    V = tau * sigma
-    lyapunov_gear = _classify_lyapunov(V)
-    gear_agreement = gear_after_bump == lyapunov_gear
+    # Map ExecutionPlan to admission tier
+    decision = gate_result.decision.value  # string form
+    gear = plan.gear.value
 
-    # Admission tier classification
-    effective_gear = gear_after_bump
-    if decision == "EXECUTE":
-        if effective_gear in ("FIRST", "SECOND"):
+    if plan.action == CoordinatorAction.PROCEED:
+        if gear in ("FIRST", "SECOND"):
             admission_tier = "headline"
             admission_action = "admit-headline"
-        elif effective_gear == "THIRD":
+        elif gear == "THIRD":
             admission_tier = "diagnostic-stabilizer"
             admission_action = "admit-stabilizer"
-        elif effective_gear == "FOURTH":
+        else:
             admission_tier = "marginal"
             admission_action = "admit-marginal"
-        else:
-            admission_tier = "integrity-reject"
-            admission_action = "integrity-reject"
-    elif decision == "WARN":
-        if effective_gear in ("FIRST", "SECOND"):
-            admission_tier = "headline"
-            admission_action = "admit-headline"
-        else:
+    elif plan.action == CoordinatorAction.PROCEED_ELEVATED:
+        if gear in ("FIRST", "SECOND", "THIRD"):
             admission_tier = "diagnostic-stabilizer"
             admission_action = "admit-stabilizer"
-    elif decision in ("RE_ENCODE", "REPAIR"):
+        else:
+            admission_tier = "marginal"
+            admission_action = "admit-marginal"
+    elif plan.action == CoordinatorAction.RE_ENCODE:
         admission_tier = "morph-candidate"
-        admission_action = "morph-cycle"
-    elif decision == "REJECT":
+        admission_action = "morph-cycle-feature-space"
+    elif plan.action == CoordinatorAction.REPAIR:
+        admission_tier = "morph-candidate"
+        admission_action = "morph-cycle-feature-space"
+    elif plan.action == CoordinatorAction.REJECT:
         admission_tier = "rejected"
         admission_action = "reject"
-    elif decision == "BLOCK":
+    elif plan.action == CoordinatorAction.BLOCK:
         admission_tier = "quarantined"
         admission_action = "quarantine"
+    elif plan.action == CoordinatorAction.FALLBACK:
+        admission_tier = "fallback"
+        admission_action = "fallback"
     else:
         admission_tier = "unknown"
         admission_action = "unknown"
+
+    # Lyapunov advisory (V = tau * sigma proxy)
+    V = tau * gk_input.sigma
+    # Classify Lyapunov gear advisory
+    if V < 0.2:
+        lyapunov_gear = "FIRST"
+    elif V < 0.5:
+        lyapunov_gear = "SECOND"
+    elif V < 1.0:
+        lyapunov_gear = "THIRD"
+    elif V < 1.5:
+        lyapunov_gear = "FOURTH"
+    else:
+        lyapunov_gear = "REVERSE"
+    gear_agreement = gear == lyapunov_gear
+
+    # Serialize gate evidence from GatekeeperResult
+    gate_evidence = gate_result.gate_evidence if hasattr(gate_result, "gate_evidence") else {}
 
     return {
         "block": cert.get("block"),
         "scenario": cert.get("scenario"),
         "target": cert.get("target"),
         "enforcement_decision": decision,
-        "gate_reached": gate_reached,
+        "gate_reached": gate_result.gate_reached.value,
         "gate_evidence": gate_evidence,
-        "kappa": kappa,
-        "sigma": sigma,
-        "alpha": alpha,
+        "coordinator_action": plan.action,
+        "morph_hint": plan.morph_hint,
+        "source_mode": "proxy",
+        "kappa": gk_input.kappa_compat,
+        "sigma": gk_input.sigma,
+        "alpha": gk_input.alpha,
         "tau": round(tau, 6),
         "gear": gear,
-        "sigma_warning": sigma_warning,
-        "gear_after_bump": gear_after_bump,
+        "gear_after_bump": gear,  # coordinator already applied bump
+        "sigma_warning": plan.sigma_warning,
         "lyapunov_V": round(V, 6),
         "lyapunov_gear": lyapunov_gear,
         "gear_agreement": gear_agreement,
+        "should_execute": plan.should_execute,
         "admission_tier": admission_tier,
         "admission_action": admission_action,
-        "driving_mode": "ECO",
-        "grid_used": "grid_A",
         "preset_id": "GEOSPATIAL_CONUS27",
+        "evaluator": "SequentialGatekeeper",
+        "coordinator_notes": list(plan.notes) if plan.notes else [],
     }
 
 
