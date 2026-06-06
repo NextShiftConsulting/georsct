@@ -167,7 +167,7 @@ def _train_histgbdt(X_train, y_train, X_test, y_test, task: str) -> float:
             model.fit(X_train, y_train)
             return float(r2_score(y_test, model.predict(X_test)))
     except ValueError as exc:
-        log.warning("HistGBDT fit failed (n_train=%d): %s", len(X_train), exc)
+        log.error("[DATA_QUALITY] HistGBDT fit FAILED n_train=%d: %s", len(X_train), exc)
         return float("nan")
 
 

@@ -1,0 +1,188 @@
+% =====================================================================
+% results_spatial_diagnostics.tex
+% Spatial-validity subsection scaffold for the SIGSPATIAL paper.
+% \input{} this fragment. Requires: booktabs, graphicx (acmart provides both).
+%
+% PLACEHOLDER CONVENTION
+%   Every [X] / [N.NN] is a bracketed placeholder to fill at data lock.
+%   Each is annotated with the JSON/parquet field it maps to in a % comment.
+%   grep '\[' this file to find every value still to populate.
+%
+% These captions deliberately carry their hedges INLINE so the epistemics are
+% fixed before any number lands -- do not soften them when filling values.
+% =====================================================================
+
+\subsection{Spatial validity of the representation ladder}
+\label{sec:spatial-diagnostics}
+
+The headline test (Section~\ref{sec:results}) establishes \emph{whether} the
+representation ladder improves prediction under spatially-blocked validation.
+This subsection asks the spatial-computing questions behind that result: are
+the model's errors spatially structured, does the underlying relationship vary
+across space, do the spatial features dissolve the structure they target, and
+does the finding survive an alternative block geometry. All quantities here are
+\textbf{descriptive}; the pre-registered fold-level Wilcoxon test remains the
+sole basis for inference, and none of these diagnostics enters the geometric
+compatibility index $\kappa_{\text{geom}}$.
+
+% ---------------------------------------------------------------------
+% Narrative arc (fill the bracketed values; keep the hedges):
+%   1. Errors are spatially structured        -> global Moran's I + Geary's C
+%   2. WHERE they cluster                      -> LISA (Fig. ref{fig:lisa})
+%   3. WHY spatial structure helps             -> GWR non-stationarity (Fig. ref{fig:gwr})
+%   4. Spatial features attenuate the clusters -> LISA R0->R1 (Fig. ref{fig:lisa})
+%   5. Finding survives alternative blocking   -> regionalization (Table ref{tab:robustness})
+% ---------------------------------------------------------------------
+
+On the primary cell (Houston, NFIP event claims, HistGBDT), out-of-fold R0
+residuals exhibit significant global spatial autocorrelation
+(Moran's $I = [0.NN]$, % lisa_rollup.parquet: global_moran_I @ level=r0
+$p = [0.NNN]$),
+% lisa_results.json: global Moran pseudo-p (or note permutation inference)
+corroborated by Geary's $C = [0.NN]$
+% geary_rollup.parquet: geary_C @ r0
+(Table~\ref{tab:residual-diagnostics}). Local Moran's~$I$ localizes this
+structure to a contiguous High--High cluster covering $[N]\%$
+% lisa_rollup.parquet: frac_HH @ r0 (as percent)
+of ZCTAs, where the model systematically under-predicts
+(Figure~\ref{fig:lisa}, left). Under R1's spatial features the
+significant-cluster fraction falls to $[M]\%$;
+% lisa_rollup.parquet: frac_HH + frac_LL @ r1
+across all modelable cells, clusters attenuated in $[k]$ of $[n]$
+% lisa_results.json: attenuation_summary.n_attenuated_R0_R1 / n_cells
+(Clopper--Pearson 95\% CI $[[lo, hi]]$,
+% lisa_results.json: attenuation_summary.clopper_pearson_95_ci
+reported descriptively; $n{=}[n]$ precludes a formal test). Attenuation is
+consistent with the W-matrix features absorbing the spatial error structure;
+because the design is a controlled representation intervention rather than a
+randomized one, we make no causal claim at the hydrologic level.
+
+A geographically weighted regression of claims on the frozen R0 feature subset
+shows the relationship is non-stationary across space: GWR improves on global
+OLS ($\Delta$AICc $= [N.N]$)
+% gwr_nonstationarity.json: cells[houston].gwr_delta_aicc
+and local $R^2$ ranges from $[0.NN]$ to $[0.NN]$
+% gwr_local_r2_houston.parquet: min/max of local_r2
+(Figure~\ref{fig:gwr}). The regions of lowest local fit coincide with the LISA
+clusters and, by rank, with the cells of largest R0$\rightarrow$R1 uplift
+(Spearman $\rho = [0.NN]$, bootstrap 95\% CI $[[lo, hi]]$);
+% gwr_nonstationarity.json: triangulation.spearman.gwr_vs_uplift
+we report this as an observed triangulation across $n{=}[n]$ cells, not a
+hypothesis test, and it is excluded from the Holm--Bonferroni family. GWR is fit
+on the full cross-section and describes structure only; it carries no
+generalization claim.
+
+% =====================================================================
+% TABLE 1 -- Residual spatial-diagnostics
+% One row per (scenario, target, level). Promote the primary cell to the top.
+% Source: lisa_rollup.parquet (frac_*, global_moran_I) + geary_rollup.parquet (geary_C, geary_p)
+% =====================================================================
+\begin{table}[t]
+  \centering
+  \caption{Residual spatial diagnostics by representation level. Global
+    Moran's~$I$ and Geary's~$C$ on out-of-fold HistGBDT residuals (Queen
+    contiguity, 999 permutations); LISA cluster fractions are FDR-controlled
+    (Benjamini--Hochberg, $q{=}0.05$). Geary's~$C<1$ indicates positive
+    autocorrelation. All values descriptive.}
+  \label{tab:residual-diagnostics}
+  \small
+  \begin{tabular}{lll rr rrr}
+    \toprule
+    Scenario & Target & Lvl & Moran $I$ & Geary $C$ & HH & LL & Sig. \\
+    \midrule
+    % --- primary cell first ---
+    houston & nfip & R0 & [0.NN] & [0.NN] & [0.NN] & [0.NN] & [0.NN] \\
+    houston & nfip & R1 & [0.NN] & [0.NN] & [0.NN] & [0.NN] & [0.NN] \\
+    houston & nfip & R2 & [0.NN] & [0.NN] & [0.NN] & [0.NN] & [0.NN] \\
+    % --- remaining cells (one triple per scenario/target) ---
+    % $\vdots$
+    \bottomrule
+  \end{tabular}
+  % Column sources (per row, keyed on scenario+target+level):
+  %   Moran I : lisa_rollup.parquet  -> global_moran_I
+  %   Geary C : geary_rollup.parquet -> geary_C   (geary_p available for text)
+  %   HH      : lisa_rollup.parquet  -> frac_HH
+  %   LL      : lisa_rollup.parquet  -> frac_LL
+  %   Sig.    : lisa_rollup.parquet  -> frac_significant
+\end{table}
+
+% =====================================================================
+% FIGURE 5 -- LISA residual clusters (main triptych)
+% Rendered by render_fig5_lisa_clusters.py --mode main
+% =====================================================================
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=\textwidth]{fig5_lisa_clusters.pdf}
+  \caption{Local Moran's~$I$ on out-of-fold residuals for the primary cell
+    (Houston, NFIP event claims, HistGBDT) across representation levels.
+    Categories are FDR-significant (Benjamini--Hochberg, $q{=}0.05$); grey
+    ZCTAs are not significant. Panel subtitles give global Moran's~$I$ and the
+    significant-cluster fraction. The contiguous High--High block at R0 marks
+    where the tabular model systematically under-predicts; it attenuates under
+    R1's spatial features. Attenuation is consistent with, but not proof of,
+    the spatial features absorbing the error structure.}
+  \label{fig:lisa}
+\end{figure*}
+
+% =====================================================================
+% FIGURE 6 -- GWR non-stationarity
+% Rendered by render_fig6_gwr_nonstationarity.py
+% NOTE: coefficient-surface panels require the gwr_params_{scenario}.parquet
+%       sidecar amendment (see render_fig6 docstring). Until then the figure is
+%       a single local-R^2 panel -- adjust width accordingly.
+% =====================================================================
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{fig6_gwr_nonstationarity.pdf}
+  \caption{Geographically weighted regression of NFIP claims on the frozen R0
+    feature subset (Houston). Left: local~$R^2$, showing where the global
+    relationship holds versus collapses. Remaining panels: local coefficient
+    surfaces for selected covariates. GWR is fit on the full cross-section and
+    describes spatial non-stationarity of the relationship; it is a structural
+    diagnostic, not a measure of predictive performance, and is independent of
+    $\kappa_{\text{geom}}$.}
+  \label{fig:gwr}
+\end{figure}
+
+% =====================================================================
+% TABLE 2 -- Regionalization robustness (Appendix R)
+% Source: compute_spatial_sidecar_regionalize.py --compare output
+%   header counts: n_county_cells, n_region_cells, dropped_county_only, dropped_region_only
+%   rows: comparisons[] -> uplift_county_blocked, uplift_region_blocked, direction_agrees
+% =====================================================================
+\begin{table}[t]
+  \centering
+  \caption{Robustness of R0$\rightarrow$R1 uplift to block geometry. County
+    blocks (registered primary) versus Skater regionalization on structural
+    geography ($K{=}5$). We report sign agreement only; the county-blocked
+    Wilcoxon remains the primary inference. \emph{Compared $[m]$ of $[9]$ cells}
+    % compare: n_cells_compared of (n_county_cells); name dropped keys below
+    --- dropped cells (regionalization degenerate or empty fold): $[\text{keys}]$.
+    % compare: dropped_county_only + dropped_region_only
+    Contiguous holdout raises the missing-value rate of \texttt{wlag\_nfip\_claims}
+    in region-fold test ZCTAs ($[X]\%$ vs.\ $[Y]\%$ under county folds),
+    % RunResult.wlag_nan_rates aggregated by split; region vs county
+    a consequence of the block geometry rather than a modeling change.}
+  \label{tab:robustness}
+  \small
+  \begin{tabular}{ll rr c}
+    \toprule
+    Scenario & Target & Uplift (county) & Uplift (region) & Dir.\ agrees \\
+    \midrule
+    houston & nfip & [+0.NN] & [+0.NN] & [yes] \\
+    % $\vdots$  one row per compared cell
+    \bottomrule
+  \end{tabular}
+  % Row sources (compare comparisons[]):
+  %   Uplift (county) : uplift_county_blocked
+  %   Uplift (region) : uplift_region_blocked
+  %   Dir. agrees     : direction_agrees
+\end{table}
+
+We close with two robustness checks. Geary's~$C$ corroborates the Moran's~$I$
+direction at every level (Table~\ref{tab:residual-diagnostics}). Under an
+alternative hydrologically-coherent block definition the sign of the
+R0$\rightarrow$R1 uplift agrees with county blocking in $[k]$ of $[m]$ compared
+% compare: n_direction_agrees of n_cells_compared
+cells (Table~\ref{tab:robustness}); where it disagrees we read this as
+sensitivity to block geometry, not as a failed result.

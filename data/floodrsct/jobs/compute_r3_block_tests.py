@@ -216,7 +216,7 @@ def _train_histgbdt(X_train, y_train, X_test, y_test, task: str) -> tuple:
             y_pred = model.predict(X_test)
             return y_pred, _regression_metrics(y_test, y_pred)
     except ValueError as exc:
-        log.warning("HistGBDT fit failed (n_train=%d): %s", len(X_train), exc)
+        log.error("[DATA_QUALITY] HistGBDT fit FAILED n_train=%d: %s", len(X_train), exc)
         null_metrics = {"r2": None, "rmse": None, "roc_auc": None, "f1": None}
         return np.full(len(X_test), np.nan), null_metrics
 
@@ -296,9 +296,13 @@ def _run_folds(
 ) -> list[dict]:
     """Run solver across all folds for a given feature set. Returns per-fold metrics."""
     solver_fn = SOLVERS[solver_name]
-    # Drop rows where target is NaN to avoid sklearn ValueError
+    # Drop rows where target is NaN
     valid_mask = merged[y_col].notna().values
+    n_dropped = int((~valid_mask).sum())
     df_valid = merged[valid_mask]
+    if n_dropped > 0:
+        log.error("[DATA_QUALITY] target=%s dropped %d/%d NaN rows (%.1f%%)",
+                  y_col, n_dropped, len(merged), 100 * n_dropped / len(merged))
     X_all = df_valid[features].values.astype(np.float32)
     y_all = df_valid[y_col].values.astype(np.float32)
     fold_ids = sorted(df_valid[fold_col].unique())
@@ -311,8 +315,12 @@ def _run_folds(
         X_test, y_test = X_all[test_mask], y_all[test_mask]
 
         if len(X_train) < MIN_FOLD_SAMPLES or len(X_test) == 0:
+            log.error("[DATA_QUALITY] fold=%s SKIPPED: n_train=%d n_test=%d (min=%d)",
+                      fold_id, len(X_train), len(X_test), MIN_FOLD_SAMPLES)
             continue
         if len(np.unique(y_train)) < 2 and task == "classification":
+            log.error("[DATA_QUALITY] fold=%s SKIPPED: single-class y_train (n=%d)",
+                      fold_id, len(y_train))
             continue
 
         _, metrics = solver_fn(X_train, y_train, X_test, y_test, task)

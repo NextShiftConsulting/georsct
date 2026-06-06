@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from _launcher_base import launch_processing_job, make_job_name
+from _launcher_base import launch_processing_job, make_job_name, wait_for_job
 
 SCENARIOS = [
     "houston", "new_orleans", "nyc", "riverside_coachella", "southwest_florida"
@@ -33,6 +33,8 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--scenario", default="houston", choices=SCENARIOS)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--wait", action="store_true",
+                        help="Wait for job to complete and sync figures to overleaf")
     args = parser.parse_args()
 
     job_name = make_job_name(
@@ -48,6 +50,17 @@ def main() -> None:
         pip_packages="geopandas matplotlib pyproj",
         dry_run=args.dry_run,
     )
+
+    if not args.dry_run and args.wait:
+        status = wait_for_job(job_name)
+        if status == "Completed":
+            import subprocess as _sp
+            _sp.run([sys.executable, str(Path(__file__).resolve().parents[2] /
+                     "V6-SIGSPATIAL" / "render_figures.py"), "--sync"])
+    elif not args.dry_run:
+        print("\n--- POST-JOB: sync figures to overleaf ---")
+        print("After job completes, run:")
+        print("  python V6-SIGSPATIAL/render_figures.py --sync")
 
 
 if __name__ == "__main__":

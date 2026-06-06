@@ -1,0 +1,231 @@
+{
+  "experiment": "E5_adjacency_fisher",
+  "n_tasks": 27,
+  "kappa_range": [
+    0.22097708271961425,
+    0.619182799924754
+  ],
+  "per_task": {
+    "annual_checkup": {
+      "kappa": 0.47712872525570627,
+      "fisher_ratio": 1.9125166141172978,
+      "d_adj": 0.2223797069369585,
+      "d_non": 0.42530488416138135,
+      "n_adj_pairs": 1936,
+      "n_non_adj_sampled": 10000
+    },
+    "arthritis": {
+      "kappa": 0.4063065346308752,
+      "fisher_ratio": 1.6843709057392833,
+      "d_adj": 0.338106167650794,
+      "d_non": 0.5694961918436902,
+      "n_adj_pairs": 1936,
+      "n_non_adj_sampled": 10000
+    },
+    "asthma": {
+      "kappa": 0.4512721114037638,
+      "fisher_ratio": 1.8223968942998057,
+      "d_adj": 0.23719933994226264,
+      "d_non": 0.4322713404425657,
+      "n_adj_pairs": 1936,
+      "n_non_adj_sampled": 10000
+    },
+    "binge_drinking": {
+      "kappa": 0.619182799924754,
+      "fisher_ratio": 2.6259318113580212,
+      "d_adj": 0.1364529950251684,
+      "d_non": 0.35831626039429343,
+      "n_adj_pairs": 1936,
+      "n_non_adj_sampled": 10000
+    },
+    "bp_medicated": {
+      "kappa": 0.48593857022394193,
+      "fisher_ratio": 1.9452928036827775,
+      "d_adj": 0.26308539375388856,
+      "d_non": 0.5117781232254346,
+      "n_adj_pairs": 1936,
+      "n_non_adj_sampled": 10000
+    },
+    "cancer": {
+      "kappa": 0.4928814202608046,
+      "fisher_ratio": 1.971925383816823,
+      "d_adj": 0.2109346067963818,
+      "d_non": 0.41594730546917774,
+      "n_adj_pairs": 1936,
+      "n_non_adj_sampled": 10000
+    },
+    "cholesterol_screening": {
+      "kappa": 0.5577191045200516,
+      "fisher_ratio": 2.2610065463163442,
+      "d_adj": 0.15707930542473306,
+      "d_non": 0.3551573378584069,
+      "n_adj_pairs": 1936,
+      "n_non_adj_sampled": 10000
+    },
+    "chronic_kidney_disease": {
+      "kappa": 0.4462997546652526,
+      "fisher_ratio": 1.806031347140806,
+      "d_adj": 0.26371517570432484,
+      "d_non": 0.47627787404056215,
+      "n_adj_pairs": 1936,
+      "n_non_adj_sampled": 10000
+    },
+    "copd": {
+      "kappa": 0.35032585851378084,
+      "fisher_ratio": 1.5392331880545884,
+      "d_adj": 0.46609568273192226,
+      "d_non": 0.7174299436714758,
+      "n_adj_pairs": 1936,
+      "n_non_adj_sampled": 10000
+    },
+    "coronary_heart_disease": {
+      "kappa": 0.4492219044334328,
+      "fisher_ratio": 1.8156132352459577,
+      "d_adj": 0.2684117251023485,
+      "d_non": 0.4873318805928392,
+      "n_adj_pairs": 1936,
+      "n_non_adj_sampled": 10000
+    },
+    "dental_visit": {
+      "kappa": 0.27561444822850034,
+      "fisher_ratio": 1.3804803223244708,
+      "d_adj": 0.524036536320508,
+      "d_non": 0.7234221265709145,
+      "n_adj_pairs": 1936,
+      "n_non_adj_sampled": 10000
+    },
+    "diabetes": {
+      "kappa": 0.3433655872243089,
+      "fisher_ratio": 1.5229174416386044,
+      "d_adj": 0.4385876982734737,
+      "d_non": 0.6679328553903257,
+      "n_adj_pairs": 1936,
+      "n_non_adj_sampled": 10000
+    },
+    "elevation": {
+      "kappa": 0.5349096215677124,
+      "fisher_ratio": 2.150119732341921,
+      "d_adj": 0.14132315672705464,
+      "d_non": 0.30386170791784023,
+      "n_adj_pairs": 1936,
+      "n_non_adj_sampled": 10000
+    },
+    "high_blood_pressure": {
+      "kappa": 0.3683206654200456,
+      "fisher_ratio": 1.5830817081592188,
+      "d_adj": 0.3805897254559177,
+      "d_non": 0.6025046326841853,
+      "n_adj_pairs": 1936,
+      "n_non_adj_sampled": 10000
+    },
+    "high_cholesterol": {
+      "kappa": 0.49616725410300144,
+      "fisher_ratio": 1.984785641932777,
+      "d_adj": 0.18630340258725384,
+      "d_non": 0.369772318500388,
+      "n_adj_pairs": 1936,
+      "n_non_adj_sampled": 10000
+    },
+    "home_value": {
+      "kappa": 0.35886677065984496,
+      "fisher_ratio": 1.5597382170093768,
+      "d_adj": 0.4658608558870167,
+      "d_non": 0.7266209807372374,
+      "n_adj_pairs": 1936,
+      "n_non_adj_sampled": 10000
+    },
+    "income": {
+      "kappa": 0.4243899707402372,
+      "fisher_ratio": 1.7372873111345497,
+      "d_adj": 0.30141122794943764,
+      "d_non": 0.5236379017517786,
+      "n_adj_pairs": 1936,
+      "n_non_adj_sampled": 10000
+    },
+    "mental_health_not_good": {
+      "kappa": 0.3174766542205498,
+      "fisher_ratio": 1.465151347832122,
+      "d_adj": 0.38685985403806855,
+      "d_non": 0.5668082365674793,
+      "n_adj_pairs": 1936,
+      "n_non_adj_sampled": 10000
+    },
+    "night_lights": {
+      "kappa": 0.22097708271961425,
+      "fisher_ratio": 1.2836592837200396,
+      "d_adj": 0.7524016919751942,
+      "d_non": 0.9658274169919073,
+      "n_adj_pairs": 1936,
+      "n_non_adj_sampled": 10000
+    },
+    "obesity": {
+      "kappa": 0.38785886175463347,
+      "fisher_ratio": 1.6336101881053202,
+      "d_adj": 0.4048638157600552,
+      "d_non": 0.6613896542224551,
+      "n_adj_pairs": 1936,
+      "n_non_adj_sampled": 10000
+    },
+    "physical_health_not_good": {
+      "kappa": 0.2945905203527469,
+      "fisher_ratio": 1.4176163332780494,
+      "d_adj": 0.5912859026119036,
+      "d_non": 0.8382165531811062,
+      "n_adj_pairs": 1936,
+      "n_non_adj_sampled": 10000
+    },
+    "physical_inactivity": {
+      "kappa": 0.32575357439080166,
+      "fisher_ratio": 1.4831372655676929,
+      "d_adj": 0.5260199545931693,
+      "d_non": 0.7801597970908382,
+      "n_adj_pairs": 1936,
+      "n_non_adj_sampled": 10000
+    },
+    "population_density": {
+      "kappa": 0.28900966085892543,
+      "fisher_ratio": 1.406488871853083,
+      "d_adj": 0.564810555904478,
+      "d_non": 0.7943997615862084,
+      "n_adj_pairs": 1936,
+      "n_non_adj_sampled": 10000
+    },
+    "sleep_less_7hr": {
+      "kappa": 0.46133453178001027,
+      "fisher_ratio": 1.8564397738338996,
+      "d_adj": 0.2772030524088668,
+      "d_non": 0.5146107719218397,
+      "n_adj_pairs": 1936,
+      "n_non_adj_sampled": 10000
+    },
+    "smoking": {
+      "kappa": 0.2950276229197847,
+      "fisher_ratio": 1.4184952950048115,
+      "d_adj": 0.5079217301203506,
+      "d_non": 0.7204845844078395,
+      "n_adj_pairs": 1936,
+      "n_non_adj_sampled": 10000
+    },
+    "stroke": {
+      "kappa": 0.3859291241954741,
+      "fisher_ratio": 1.6284765153285252,
+      "d_adj": 0.3158478817545397,
+      "d_non": 0.5143508578551573,
+      "n_adj_pairs": 1936,
+      "n_non_adj_sampled": 10000
+    },
+    "tree_cover": {
+      "kappa": 0.5849159822456831,
+      "fisher_ratio": 2.4091508157830472,
+      "d_adj": 0.16297919857161966,
+      "d_non": 0.3926414691968939,
+      "n_adj_pairs": 1936,
+      "n_non_adj_sampled": 10000
+    }
+  },
+  "pass_criteria": {
+    "range_in_0.3_0.9": true,
+    "fisher_varies": true
+  },
+  "note": "Uses synthetic adjacency + spatially correlated residuals. Full experiment requires queen contiguity from geoparquet + actual OOF residuals."
+}

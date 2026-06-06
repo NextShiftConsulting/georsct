@@ -1,0 +1,335 @@
+{
+  "experiment": "E9_gate_flips",
+  "threshold": 0.22,
+  "total_flips": 36,
+  "total_fp_rescued": 0,
+  "total_fn_rescued": 36,
+  "per_proxy": {
+    "kappa_smooth": {
+      "n_flips": 12,
+      "confusion": {
+        "TP": 15,
+        "TN": 0,
+        "FP_rescued": 0,
+        "FN_rescued": 12
+      },
+      "flips": [
+        {
+          "target": "asthma",
+          "kappa_compat": 0.2178,
+          "kappa_smooth": 0.8373,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        },
+        {
+          "target": "copd",
+          "kappa_compat": 0.2117,
+          "kappa_smooth": 0.8924,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        },
+        {
+          "target": "dental_visit",
+          "kappa_compat": 0.2176,
+          "kappa_smooth": 0.8942,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        },
+        {
+          "target": "diabetes",
+          "kappa_compat": 0.2198,
+          "kappa_smooth": 0.8992,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        },
+        {
+          "target": "income",
+          "kappa_compat": 0.2091,
+          "kappa_smooth": 0.8996,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        },
+        {
+          "target": "mental_health_not_good",
+          "kappa_compat": 0.2184,
+          "kappa_smooth": 0.877,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        },
+        {
+          "target": "night_lights",
+          "kappa_compat": 0.171,
+          "kappa_smooth": 0.8851,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        },
+        {
+          "target": "physical_health_not_good",
+          "kappa_compat": 0.2112,
+          "kappa_smooth": 0.9052,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        },
+        {
+          "target": "physical_inactivity",
+          "kappa_compat": 0.2164,
+          "kappa_smooth": 0.9079,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        },
+        {
+          "target": "sleep_less_7hr",
+          "kappa_compat": 0.2188,
+          "kappa_smooth": 0.874,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        },
+        {
+          "target": "smoking",
+          "kappa_compat": 0.2167,
+          "kappa_smooth": 0.9049,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        },
+        {
+          "target": "tree_cover",
+          "kappa_compat": 0.1994,
+          "kappa_smooth": 0.7033,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        }
+      ]
+    },
+    "kappa_hierarchical": {
+      "n_flips": 12,
+      "confusion": {
+        "TP": 15,
+        "TN": 0,
+        "FP_rescued": 0,
+        "FN_rescued": 12
+      },
+      "flips": [
+        {
+          "target": "asthma",
+          "kappa_compat": 0.2178,
+          "kappa_hierarchical": 0.3142,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        },
+        {
+          "target": "copd",
+          "kappa_compat": 0.2117,
+          "kappa_hierarchical": 0.3211,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        },
+        {
+          "target": "dental_visit",
+          "kappa_compat": 0.2176,
+          "kappa_hierarchical": 0.2447,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        },
+        {
+          "target": "diabetes",
+          "kappa_compat": 0.2198,
+          "kappa_hierarchical": 0.3201,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        },
+        {
+          "target": "income",
+          "kappa_compat": 0.2091,
+          "kappa_hierarchical": 0.2807,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        },
+        {
+          "target": "mental_health_not_good",
+          "kappa_compat": 0.2184,
+          "kappa_hierarchical": 0.2662,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        },
+        {
+          "target": "night_lights",
+          "kappa_compat": 0.171,
+          "kappa_hierarchical": 0.3727,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        },
+        {
+          "target": "physical_health_not_good",
+          "kappa_compat": 0.2112,
+          "kappa_hierarchical": 0.3013,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        },
+        {
+          "target": "physical_inactivity",
+          "kappa_compat": 0.2164,
+          "kappa_hierarchical": 0.3229,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        },
+        {
+          "target": "sleep_less_7hr",
+          "kappa_compat": 0.2188,
+          "kappa_hierarchical": 0.2778,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        },
+        {
+          "target": "smoking",
+          "kappa_compat": 0.2167,
+          "kappa_hierarchical": 0.3317,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        },
+        {
+          "target": "tree_cover",
+          "kappa_compat": 0.1994,
+          "kappa_hierarchical": 0.3168,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        }
+      ]
+    },
+    "kappa_logical": {
+      "n_flips": 12,
+      "confusion": {
+        "TP": 15,
+        "TN": 0,
+        "FP_rescued": 0,
+        "FN_rescued": 12
+      },
+      "flips": [
+        {
+          "target": "asthma",
+          "kappa_compat": 0.2178,
+          "kappa_logical": 0.4513,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        },
+        {
+          "target": "copd",
+          "kappa_compat": 0.2117,
+          "kappa_logical": 0.3503,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        },
+        {
+          "target": "dental_visit",
+          "kappa_compat": 0.2176,
+          "kappa_logical": 0.2756,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        },
+        {
+          "target": "diabetes",
+          "kappa_compat": 0.2198,
+          "kappa_logical": 0.3434,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        },
+        {
+          "target": "income",
+          "kappa_compat": 0.2091,
+          "kappa_logical": 0.4244,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        },
+        {
+          "target": "mental_health_not_good",
+          "kappa_compat": 0.2184,
+          "kappa_logical": 0.3175,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        },
+        {
+          "target": "night_lights",
+          "kappa_compat": 0.171,
+          "kappa_logical": 0.221,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        },
+        {
+          "target": "physical_health_not_good",
+          "kappa_compat": 0.2112,
+          "kappa_logical": 0.2946,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        },
+        {
+          "target": "physical_inactivity",
+          "kappa_compat": 0.2164,
+          "kappa_logical": 0.3258,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        },
+        {
+          "target": "sleep_less_7hr",
+          "kappa_compat": 0.2188,
+          "kappa_logical": 0.4613,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        },
+        {
+          "target": "smoking",
+          "kappa_compat": 0.2167,
+          "kappa_logical": 0.295,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        },
+        {
+          "target": "tree_cover",
+          "kappa_compat": 0.1994,
+          "kappa_logical": 0.5849,
+          "compat_gate": "RE_ENCODE",
+          "geometry_gate": "EXECUTE",
+          "flip_type": "FN_rescued"
+        }
+      ]
+    }
+  },
+  "pass_criteria": {
+    "total_flips_ge_5": true,
+    "has_fp_rescued": false,
+    "has_fn_rescued": true
+  }
+}
