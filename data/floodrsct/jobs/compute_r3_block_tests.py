@@ -369,14 +369,40 @@ def run_block_tests(
     r2_base = [f for f in available_r2 if f in merged.columns]
     r0_base = [f for f in R0_FEATURES if f in merged.columns]
 
+    r2_set = set(r2_base)
+    block_set = set(present)
+
     # Add-block: R2 + B (only features not already in R2)
-    add_features = r2_base + [f for f in present if f not in r2_base]
+    effective_added = [f for f in present if f not in r2_set]
+    add_features = r2_base + effective_added
 
     # Drop-block: R2 - B
-    drop_features = [f for f in r2_base if f not in present]
+    effective_dropped = [f for f in r2_base if f in block_set]
+    drop_features = [f for f in r2_base if f not in block_set]
 
     # Block-only: R0 + B
-    block_only_features = r0_base + [f for f in present if f not in r0_base]
+    block_only_features = r0_base + [f for f in present if f not in set(r0_base)]
+
+    # Feature-set audit: prove each contrast is structurally valid
+    feature_audit = {
+        "r2_base_n": len(r2_base),
+        "r0_base_n": len(r0_base),
+        "block_n": len(present),
+        "effective_added_n": len(effective_added),
+        "effective_added": effective_added,
+        "effective_dropped_n": len(effective_dropped),
+        "effective_dropped": effective_dropped,
+        "block_only_n": len(block_only_features),
+        "add_block_valid": len(effective_added) > 0,
+        "drop_block_valid": len(effective_dropped) > 0,
+        "block_only_valid": len(present) > 0,
+    }
+
+    if not feature_audit["add_block_valid"]:
+        log.warning(
+            "    %s: add_block is a no-op (B subset of R2, 0 effective additions)",
+            block_name,
+        )
 
     tests = {}
 
@@ -485,6 +511,7 @@ def run_block_tests(
         "tests": tests,
         "r2_baseline": r2_baseline,
         "deltas": deltas,
+        "feature_audit": feature_audit,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -493,57 +520,171 @@ def run_block_tests(
 # Block certificate computation
 # ---------------------------------------------------------------------------
 
+def _pick_solver_metric(
+    tests: dict,
+    test_prefix: str,
+    split: str = "spatial_blocked",
+) -> tuple[float | None, str | None, bool]:
+    """Try histgbdt first, then ridge fallback. Returns (metric, solver, fallback_used).
+
+    Returns (None, None, False) if all solvers produced null metrics.
+    """
+    for solver in ("histgbdt", "ridge"):
+        key = f"{test_prefix}_{solver}_{split}"
+        entry = tests.get(key, {})
+        val = entry.get("mean_metric")
+        if val is not None and not (isinstance(val, float) and np.isnan(val)):
+            fallback = solver != "histgbdt"
+            return val, solver, fallback
+    return None, None, False
+
+
 def compute_block_certificate(block_result: dict) -> dict:
     """Compute an RSCT-style certificate from block test results.
 
-    Uses spatial-blocked histgbdt metrics to derive R, S_sup, N, sigma.
+    Evidence structure:
+      - independent_signal: from block_only (R0 + B), measures B's standalone value.
+      - marginal_signal: full_R2 minus drop_block (R2 - B) ablation delta,
+        measures B's marginal contribution within R2.
+      - feature_audit: structural validity of each contrast.
+
+    Certificate R/S/N is derived from independent + marginal signals.
+    Solver fallback: histgbdt primary, ridge secondary, with lineage.
+    certificate_status = INVALID when all required contrasts are unavailable.
     """
     tests = block_result.get("tests", {})
     deltas = block_result.get("deltas", {})
+    audit = block_result.get("feature_audit", {})
 
-    # Primary: add-block spatial_blocked histgbdt
-    add_sb = tests.get("add_block_histgbdt_spatial_blocked", {})
-    add_rnd = tests.get("add_block_histgbdt_random", {})
+    # --- Independent signal: block_only (R0 + B) ---
+    indep_metric, indep_solver, indep_fallback = _pick_solver_metric(
+        tests, "block_only",
+    )
+    independent_signal = {
+        "source": "block_only",
+        "metric": indep_metric,
+        "solver": indep_solver,
+        "fallback_used": indep_fallback,
+    }
 
-    spatial_metric = add_sb.get("mean_metric")
-    random_metric = add_rnd.get("mean_metric")
+    # --- Marginal signal: full_R2 - drop_block ablation delta ---
+    # full_R2 metric (from r2_baseline computed alongside tests)
+    r2_baseline = block_result.get("r2_baseline", {})
+    full_metric, full_solver, full_fallback = None, None, False
+    for solver in ("histgbdt", "ridge"):
+        key = f"{solver}_spatial_blocked"
+        val = r2_baseline.get(key)
+        if val is not None and not (isinstance(val, float) and np.isnan(val)):
+            full_metric = val
+            full_solver = solver
+            full_fallback = solver != "histgbdt"
+            break
 
-    # R: proportion of signal that is relevant (spatial-blocked performance)
-    # S_sup: superfluous signal (random - spatial gap)
-    # N: noise (1 - R - S_sup)
-    if spatial_metric is not None and random_metric is not None:
-        # Normalize to [0, 1] range using max(spatial, random, 0.001)
-        denom = max(abs(random_metric), abs(spatial_metric), 0.001)
-        R = max(0.0, min(1.0, spatial_metric / denom)) if spatial_metric > 0 else 0.0
-        S_sup = max(0.0, min(1.0, (random_metric - spatial_metric) / denom)) if random_metric > spatial_metric else 0.0
-        N = max(0.0, 1.0 - R - S_sup)
-    else:
+    # drop_block metric
+    drop_valid = audit.get("drop_block_valid", False)
+    drop_metric, drop_solver, drop_fallback = None, None, False
+    if drop_valid:
+        drop_metric, drop_solver, drop_fallback = _pick_solver_metric(
+            tests, "drop_block",
+        )
+
+    # Ablation delta: full_R2 - drop_block
+    # Positive = useful (removing block hurts), zero = redundant, negative = harmful
+    ablation_delta = None
+    if full_metric is not None and drop_metric is not None:
+        ablation_delta = full_metric - drop_metric
+
+    marginal_signal = {
+        "source": "full_R2_minus_drop_block",
+        "full_metric": full_metric,
+        "full_solver": full_solver,
+        "full_fallback_used": full_fallback,
+        "drop_metric": drop_metric,
+        "drop_solver": drop_solver,
+        "drop_fallback_used": drop_fallback,
+        "delta": ablation_delta,
+    }
+
+    # --- Feature audit summary ---
+    add_valid = audit.get("add_block_valid", False)
+    feature_audit_summary = {
+        "add_effective_features": audit.get("effective_added", []),
+        "drop_effective_features": audit.get("effective_dropped", []),
+        "add_status": "VALID" if add_valid else "NO_OP_B_SUBSET_R2",
+        "drop_status": "VALID" if drop_valid else "NO_FEATURES_TO_DROP",
+        "block_only_valid": audit.get("block_only_valid", False),
+    }
+
+    # --- Certificate R/S/N derivation ---
+    # R comes from independent signal (block_only spatial_blocked performance)
+    # Ablation delta informs marginal contribution but doesn't override R
+    certificate_status = "VALID"
+
+    if indep_metric is None:
+        # No independent signal at all -- certificate is invalid
+        certificate_status = "INVALID"
         R, S_sup, N = float("nan"), float("nan"), float("nan")
+    else:
+        # Block-only spatial_blocked vs block-only random to get R/S/N
+        indep_rnd_metric, _, _ = _pick_solver_metric(tests, "block_only", "random")
 
-    # Sigma: fold-level instability
-    fold_std = deltas.get("fold_stability_std", float("nan"))
+        if indep_rnd_metric is not None:
+            denom = max(abs(indep_rnd_metric), abs(indep_metric), 0.001)
+            R = max(0.0, min(1.0, indep_metric / denom)) if indep_metric > 0 else 0.0
+            S_sup = max(0.0, min(1.0, (indep_rnd_metric - indep_metric) / denom)) if indep_rnd_metric > indep_metric else 0.0
+            N = max(0.0, 1.0 - R - S_sup)
+        else:
+            # Only spatial_blocked available, no random contrast
+            R = max(0.0, min(1.0, indep_metric)) if indep_metric > 0 else 0.0
+            S_sup = 0.0
+            N = max(0.0, 1.0 - R)
 
-    # Alpha: R / (R + N)
+    # Sigma: fold-level instability (from block_only folds, not add_block)
+    bo_sb_folds = tests.get("block_only_histgbdt_spatial_blocked", {}).get("folds", [])
+    if not bo_sb_folds:
+        bo_sb_folds = tests.get("block_only_ridge_spatial_blocked", {}).get("folds", [])
+    fold_vals = [f["metric_value"] for f in bo_sb_folds if f.get("metric_value") is not None]
+    sigma = float(np.std(fold_vals)) if len(fold_vals) > 1 else float("nan")
+
+    # Alpha
     alpha = R / (R + N) if (R + N) > 0 else float("nan")
 
-    # Delta leakage
+    # Kappa: use independent signal metric as proxy
+    kappa = max(0.0, indep_metric) if indep_metric is not None else float("nan")
+
+    # Delta leakage (from existing deltas)
     delta_leakage = deltas.get("delta_leakage_histgbdt", float("nan"))
+
+    # Protect: negative ablation delta = harmful block (flag but don't break)
+    ablation_interpretation = None
+    if ablation_delta is not None:
+        if ablation_delta > 0.001:
+            ablation_interpretation = "useful"
+        elif ablation_delta < -0.001:
+            ablation_interpretation = "harmful_or_superfluous"
+        else:
+            ablation_interpretation = "redundant"
 
     return {
         "block": block_result["block"],
         "scenario": block_result["scenario"],
         "target": block_result["target"],
+        "certificate_status": certificate_status,
         "R": R,
         "S_sup": S_sup,
         "N": N,
         "alpha": alpha,
-        "sigma": fold_std,
-        "spatial_metric": spatial_metric,
-        "random_metric": random_metric,
-        "delta_spatial": deltas.get("delta_spatial_histgbdt"),
+        "kappa": kappa,
+        "sigma": sigma,
+        "evidence": {
+            "independent_signal": independent_signal,
+            "marginal_signal": marginal_signal,
+            "feature_audit": feature_audit_summary,
+            "ablation_interpretation": ablation_interpretation,
+        },
         "delta_leakage": delta_leakage,
         "solver_agreement": deltas.get("solver_agreement"),
-        "fold_stability_std": fold_std,
+        "fold_stability_std": sigma,
         "fold_stability_all_positive": deltas.get("fold_stability_all_positive"),
     }
 
@@ -684,10 +825,19 @@ def main():
     # Summary
     log.info("\n=== R3_1a Block Tests Summary (%s) ===", scenario)
     for cert in all_block_certs:
-        log.info("  %s/%s: R=%.3f S=%.3f N=%.3f delta_spatial=%.4f leakage=%.4f",
-                 cert["block"], cert["target"],
-                 cert.get("R", 0) or 0, cert.get("S_sup", 0) or 0, cert.get("N", 0) or 0,
-                 cert.get("delta_spatial") or 0, cert.get("delta_leakage") or 0)
+        status = cert.get("certificate_status", "?")
+        ev = cert.get("evidence", {})
+        indep = ev.get("independent_signal", {})
+        marg = ev.get("marginal_signal", {})
+        log.info(
+            "  %s/%s [%s]: R=%.3f S=%.3f N=%.3f "
+            "indep=%.4f(%s) delta=%.4f(%s)",
+            cert["block"], cert["target"], status,
+            cert.get("R", 0) or 0, cert.get("S_sup", 0) or 0,
+            cert.get("N", 0) or 0,
+            indep.get("metric") or 0, indep.get("solver") or "none",
+            marg.get("delta") or 0, ev.get("ablation_interpretation") or "n/a",
+        )
 
     return 0
 
