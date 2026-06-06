@@ -173,19 +173,21 @@ def _diagnose_invalid(cert: dict) -> dict:
 
     # Collect partial signals that DID produce values
     partial = {}
-    if marg.get("full_metric") is not None:
-        partial["full_R2_metric"] = marg["full_metric"]
-        partial["full_R2_solver"] = marg.get("full_solver")
-    if marg.get("drop_metric") is not None:
-        partial["drop_block_metric"] = marg["drop_metric"]
-        partial["drop_block_solver"] = marg.get("drop_solver")
+    full_r2 = marg.get("full_R2", {})
+    drop_block = marg.get("drop_block", {})
+    if full_r2.get("metric") is not None:
+        partial["full_R2_metric"] = full_r2["metric"]
+        partial["full_R2_solver"] = full_r2.get("solver_used")
+    if drop_block.get("metric") is not None:
+        partial["drop_block_metric"] = drop_block["metric"]
+        partial["drop_block_solver"] = drop_block.get("solver_used")
     if marg.get("delta") is not None:
         partial["ablation_delta"] = marg["delta"]
 
     # Classify failure mode
     block_only_valid = audit.get("block_only_valid", False)
     indep_metric = indep.get("metric")
-    indep_solver = indep.get("solver")
+    indep_solver = indep.get("solver_used")
 
     if not block_only_valid:
         failure_mode = "STRUCTURAL_NO_FEATURES"
@@ -213,6 +215,12 @@ def _diagnose_invalid(cert: dict) -> dict:
         "failure_mode": failure_mode,
         "remediation_action": remediation,
         "detail": detail,
+        "solver_trace": {
+            "primary_solver": indep.get("primary_solver"),
+            "fallback_solver": indep.get("fallback_solver"),
+            "fallback_triggered": indep.get("fallback_triggered"),
+            "primary_failure_reason": indep.get("primary_failure_reason"),
+        },
         "partial_signals": partial if partial else None,
         "feature_audit_summary": {
             "add_status": audit.get("add_status"),
@@ -222,7 +230,7 @@ def _diagnose_invalid(cert: dict) -> dict:
     }
 
 
-
+def evaluate_gates(cert: dict) -> dict:
     """Evaluate the 4-gate pipeline on a block certificate.
 
     Returns gate result with decision, gear, and full trace.
@@ -683,7 +691,7 @@ def main():
         for block, entries in breakdown["by_block"].items():
             has_partial = any(e.get("partial_signals") for e in entries)
             if has_partial:
-                log.info("    %s: has partial signals -- remediation possible", block)
+                log.info("    %s: partial evidence available -- diagnostic recovery possible", block)
 
     return 0
 

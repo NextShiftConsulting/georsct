@@ -520,23 +520,74 @@ def run_block_tests(
 # Block certificate computation
 # ---------------------------------------------------------------------------
 
+_SOLVER_PRIORITY = ("histgbdt", "ridge")
+
+
 def _pick_solver_metric(
     tests: dict,
     test_prefix: str,
     split: str = "spatial_blocked",
-) -> tuple[float | None, str | None, bool]:
-    """Try histgbdt first, then ridge fallback. Returns (metric, solver, fallback_used).
+) -> dict:
+    """Try histgbdt first, then ridge fallback. Returns full solver trace.
 
-    Returns (None, None, False) if all solvers produced null metrics.
+    Returns dict with:
+      metric: winning metric value (or None)
+      solver_used: which solver produced the metric (or None)
+      primary_solver: always "histgbdt"
+      fallback_solver: "ridge" if fallback was triggered
+      fallback_triggered: bool
+      primary_failure_reason: why primary was skipped (or None)
     """
-    for solver in ("histgbdt", "ridge"):
-        key = f"{test_prefix}_{solver}_{split}"
-        entry = tests.get(key, {})
-        val = entry.get("mean_metric")
-        if val is not None and not (isinstance(val, float) and np.isnan(val)):
-            fallback = solver != "histgbdt"
-            return val, solver, fallback
-    return None, None, False
+    primary = _SOLVER_PRIORITY[0]
+    primary_key = f"{test_prefix}_{primary}_{split}"
+    primary_entry = tests.get(primary_key, {})
+    primary_val = primary_entry.get("mean_metric")
+    primary_ok = primary_val is not None and not (
+        isinstance(primary_val, float) and np.isnan(primary_val)
+    )
+
+    if primary_ok:
+        return {
+            "metric": primary_val,
+            "solver_used": primary,
+            "primary_solver": primary,
+            "fallback_solver": None,
+            "fallback_triggered": False,
+            "primary_failure_reason": None,
+        }
+
+    # Primary failed — diagnose why
+    if primary_key not in tests:
+        primary_reason = "no_test_entry"
+    elif primary_val is None:
+        primary_reason = "null_metric"
+    else:
+        primary_reason = "nan_metric"
+
+    # Try fallback
+    for fallback in _SOLVER_PRIORITY[1:]:
+        fb_key = f"{test_prefix}_{fallback}_{split}"
+        fb_entry = tests.get(fb_key, {})
+        fb_val = fb_entry.get("mean_metric")
+        if fb_val is not None and not (isinstance(fb_val, float) and np.isnan(fb_val)):
+            return {
+                "metric": fb_val,
+                "solver_used": fallback,
+                "primary_solver": primary,
+                "fallback_solver": fallback,
+                "fallback_triggered": True,
+                "primary_failure_reason": primary_reason,
+            }
+
+    # All solvers failed
+    return {
+        "metric": None,
+        "solver_used": None,
+        "primary_solver": primary,
+        "fallback_solver": _SOLVER_PRIORITY[-1],
+        "fallback_triggered": True,
+        "primary_failure_reason": primary_reason,
+    }
 
 
 def compute_block_certificate(block_result: dict) -> dict:
@@ -557,36 +608,31 @@ def compute_block_certificate(block_result: dict) -> dict:
     audit = block_result.get("feature_audit", {})
 
     # --- Independent signal: block_only (R0 + B) ---
-    indep_metric, indep_solver, indep_fallback = _pick_solver_metric(
-        tests, "block_only",
-    )
+    indep_trace = _pick_solver_metric(tests, "block_only")
+    indep_metric = indep_trace["metric"]
     independent_signal = {
         "source": "block_only",
-        "metric": indep_metric,
-        "solver": indep_solver,
-        "fallback_used": indep_fallback,
+        **indep_trace,
     }
 
     # --- Marginal signal: full_R2 - drop_block ablation delta ---
-    # full_R2 metric (from r2_baseline computed alongside tests)
+    # full_R2 metric: use _pick_solver_metric against r2_baseline keys
+    # (r2_baseline is keyed as "{solver}_{split}", so we build synthetic test dict)
     r2_baseline = block_result.get("r2_baseline", {})
-    full_metric, full_solver, full_fallback = None, None, False
-    for solver in ("histgbdt", "ridge"):
-        key = f"{solver}_spatial_blocked"
-        val = r2_baseline.get(key)
-        if val is not None and not (isinstance(val, float) and np.isnan(val)):
-            full_metric = val
-            full_solver = solver
-            full_fallback = solver != "histgbdt"
-            break
+    r2_as_tests = {}
+    for bkey, bval in r2_baseline.items():
+        r2_as_tests[f"full_R2_{bkey}"] = {"mean_metric": bval}
+    full_trace = _pick_solver_metric(r2_as_tests, "full_R2")
+    full_metric = full_trace["metric"]
 
     # drop_block metric
     drop_valid = audit.get("drop_block_valid", False)
-    drop_metric, drop_solver, drop_fallback = None, None, False
+    drop_trace = {"metric": None, "solver_used": None, "primary_solver": "histgbdt",
+                  "fallback_solver": None, "fallback_triggered": False,
+                  "primary_failure_reason": "contrast_invalid"}
     if drop_valid:
-        drop_metric, drop_solver, drop_fallback = _pick_solver_metric(
-            tests, "drop_block",
-        )
+        drop_trace = _pick_solver_metric(tests, "drop_block")
+    drop_metric = drop_trace["metric"]
 
     # Ablation delta: full_R2 - drop_block
     # Positive = useful (removing block hurts), zero = redundant, negative = harmful
@@ -596,12 +642,8 @@ def compute_block_certificate(block_result: dict) -> dict:
 
     marginal_signal = {
         "source": "full_R2_minus_drop_block",
-        "full_metric": full_metric,
-        "full_solver": full_solver,
-        "full_fallback_used": full_fallback,
-        "drop_metric": drop_metric,
-        "drop_solver": drop_solver,
-        "drop_fallback_used": drop_fallback,
+        "full_R2": {**full_trace},
+        "drop_block": {**drop_trace},
         "delta": ablation_delta,
     }
 
@@ -626,7 +668,8 @@ def compute_block_certificate(block_result: dict) -> dict:
         R, S_sup, N = float("nan"), float("nan"), float("nan")
     else:
         # Block-only spatial_blocked vs block-only random to get R/S/N
-        indep_rnd_metric, _, _ = _pick_solver_metric(tests, "block_only", "random")
+        indep_rnd_trace = _pick_solver_metric(tests, "block_only", "random")
+        indep_rnd_metric = indep_rnd_trace["metric"]
 
         if indep_rnd_metric is not None:
             denom = max(abs(indep_rnd_metric), abs(indep_metric), 0.001)
@@ -829,13 +872,16 @@ def main():
         ev = cert.get("evidence", {})
         indep = ev.get("independent_signal", {})
         marg = ev.get("marginal_signal", {})
+        solver_tag = indep.get("solver_used") or "none"
+        if indep.get("fallback_triggered"):
+            solver_tag += "*"  # asterisk marks fallback
         log.info(
             "  %s/%s [%s]: R=%.3f S=%.3f N=%.3f "
             "indep=%.4f(%s) delta=%.4f(%s)",
             cert["block"], cert["target"], status,
             cert.get("R", 0) or 0, cert.get("S_sup", 0) or 0,
             cert.get("N", 0) or 0,
-            indep.get("metric") or 0, indep.get("solver") or "none",
+            indep.get("metric") or 0, solver_tag,
             marg.get("delta") or 0, ev.get("ablation_interpretation") or "n/a",
         )
 
