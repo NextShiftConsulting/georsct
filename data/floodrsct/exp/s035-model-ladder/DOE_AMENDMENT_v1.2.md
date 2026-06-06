@@ -1216,6 +1216,7 @@ features, R1 explicitly encodes spatial structure:
 | v1.8 | 2026-06-02 | Kappa independence: geometry-only kappa (Phase 0.5); model-derived diagnostics demoted to diagnostic fields, not kappa inputs; causal boundary guard on training features; R1/R2 supplements required |
 | v1.9 | 2026-06-02 | Statistical reporting framework: three-axis distinction (RSN simplex / kappa_geom / bootstrap CI); cell-level bootstrap CIs on aggregate uplift and certificate signals; bootstrap framed as uncertainty not inference |
 | v1.10 | 2026-06-05 | Spatially-blocked paired loss analysis (Statistical-Considerations.md §14): supplementary test using per-ZCTA loss deltas aggregated to county-level spatial blocks; four-layer separation (spatial dependence / inference / certificate / DGM); naming rules; applies to H2a, H3, H5 |
+| v1.11 | 2026-06-05 | Event-level dependence (Statistical-Considerations.md §14.5): two-stage aggregation rule for multi-event scenarios; cascade effect table for adding events post-DOE (R2 hard regeneration, NFIP historical regeneration, fold balance re-verification); V4.10/V4.11/V5.15/V5.16 verification gates |
 
 ---
 

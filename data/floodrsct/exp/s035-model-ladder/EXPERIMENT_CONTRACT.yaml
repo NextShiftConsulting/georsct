@@ -1080,6 +1080,16 @@ verification_gates:
         pass_criteria: "R4 excluded from paired Wilcoxon and spatially-blocked paired loss; R4 reported as descriptive reference column only (zero_shot=true, event_invariant=true, excluded_from_wilcoxon=true); no R0->R4 or R4->Rk uplift cells in money table"
         applies_to: [r4_vlm_comparison]
         reference: "Statistical-Considerations.md §3 (R4 broadcast quarantine)"
+      - id: V4.10
+        check: two_stage_event_aggregation
+        pass_criteria: "spatially_blocked_paired_loss uses two-stage aggregation: (zcta_id, event) -> zcta mean -> county mean; NOT single-stage (zcta_id, event) -> county mean; verified by asserting n_block_obs <= n_unique_zctas (not n_rows)"
+        applies_to: [uplift_table, r3_money_table]
+        reference: "Statistical-Considerations.md §14.5 (event-level dependence)"
+      - id: V4.11
+        check: event_cascade_regeneration
+        pass_criteria: "if events added to a scenario post-DOE: r2_supplement.parquet regenerated, nfip_historical.parquet regenerated, fold balance re-verified (<10% imbalance), all downstream certificates + models retrained; change control entry in DOE_AMENDMENT"
+        applies_to: [r2_temporal, diagnostics_r2, r3_block_admission, r3_certified_training, r3_money_table]
+        reference: "Statistical-Considerations.md §14.5 (cascade effect table)"
 
   - gate_id: V5
     name: Paper-Readiness
@@ -1131,3 +1141,9 @@ verification_gates:
         check: r3_three_variants
         pass_criteria: "r3_money_table.json contains headline, full, and stabilized variant results"
         applies_to_phase: r3_money_table
+      - id: V5.15
+        check: two_stage_aggregation_documented
+        pass_criteria: "paper methodology section states two-stage aggregation: per-ZCTA mean across events, then per-county mean; not single-stage"
+      - id: V5.16
+        check: event_count_reported
+        pass_criteria: "paper reports events per scenario (Houston 3, NOLA 4, etc.) and states that events within a scenario share spatial substrate and are not independent spatial evidence"

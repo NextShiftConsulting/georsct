@@ -597,6 +597,54 @@ independence structure. It does not replace the primary test.
 > structure of the experiment while avoiding inflated power from
 > spatially autocorrelated ZCTAs.
 
+### Event-Level Dependence (§14.5)
+
+The observation unit is `(zcta_id, event)`. Within a scenario, the same
+ZCTA appears once per event (Houston: 3, NOLA: 4, etc.). Events within a
+scenario share the full spatial substrate — same drainage, same
+infrastructure, same NFIP participation rates. Adding events to a
+scenario adds rows but does **not** add independent spatial evidence.
+
+**Two-stage aggregation rule.** The spatially-blocked paired loss
+analysis must aggregate in two stages:
+
+```
+Stage 1:  (zcta_id, event) deltas  →  mean delta per zcta_id
+          (absorbs within-ZCTA across-event correlation)
+
+Stage 2:  per-zcta_id deltas       →  mean delta per county block
+          (absorbs within-county spatial autocorrelation)
+```
+
+Single-stage aggregation — `(zcta_id, event)` directly to county —
+inflates the effective n within each block by the event count, treating
+correlated replications of the same ZCTA as independent observations.
+
+**Why events are correlated within ZCTA:**
+- Same structure (impervious surface, elevation, drainage capacity)
+- Same institutional context (NFIP CRS class, building codes, zoning)
+- Same measurement apparatus (gauge density, MRMS radar coverage)
+- Only the meteorological forcing and temporal features differ
+
+**Cascade effect of adding events post-DOE:**
+
+| Phase | Impact | Action |
+|-------|--------|--------|
+| R0 (ACS) | Features invariant; target rows increase | Retrain with expanded `(zcta_id, event)` |
+| R1 (hydrology) | Supplements invariant (infrastructure); target rows increase | Retrain; supplements do NOT regenerate |
+| R2 (temporal) | **Hard dependency**: MRMS + HRRR must be fetched per event storm window | Regenerate `_r2_supplement.parquet` + retrain |
+| NFIP historical | Temporal boundary shifts per event (`dateOfLoss < incidentBeginDate`) | Regenerate `_nfip_historical.parquet` |
+| Fold assignments | County membership unchanged; row counts per fold change | Re-verify fold balance; regenerate if >10% imbalance |
+| Certificates | Upstream models changed → certificates change | Regenerate all `certificates_r0/r1/r2.json` |
+| R3 admission | Certificate inputs changed → admission decisions may change | Re-run admission after certificate regeneration |
+| Uplift table | More `(zcta_id, event)` rows in `_predictions.parquet` | Regenerate with two-stage aggregation |
+| Money table | Fold-level Wilcoxon: n unchanged (folds × scenarios). Spatially-blocked: same effective independent n (counties) | Regenerate; note power unchanged |
+
+**Rule:** Adding events to a scenario triggers a full downstream
+regeneration from R2 onward (R0/R1 supplements are event-invariant but
+models must retrain). The contract must verify that two-stage aggregation
+is applied whenever events > 1 per scenario.
+
 ### Implementation
 
 - Input: `_predictions.parquet` files (already produced by all phases)
@@ -604,6 +652,7 @@ independence structure. It does not replace the primary test.
 - New function in `compute_uplift_table.py`:
   `spatially_blocked_paired_loss()` — computes per-ZCTA loss deltas,
   aggregates to county, runs exact permutation + block bootstrap
+- Two-stage aggregation: `(zcta_id, event)` → zcta mean → county mean
 - Output: `spatially_blocked_loss` block in `money_table.json`
 
 ---
@@ -615,3 +664,4 @@ independence structure. It does not replace the primary test.
 | v1.0 | 2026-06-02 | Initial consolidation from DOE documents |
 | v1.1 | 2026-06-02 | R4 broadcast analysis: quarantine rationale + r4_ref_r2 reference column spec |
 | v1.2 | 2026-06-05 | Spatially-blocked paired loss analysis: power problem diagnosis, four-layer separation (spatial/inference/certificate/DGM), county-level block testing, naming rules |
+| v1.3 | 2026-06-05 | Event-level dependence (§14.5): two-stage aggregation rule, cascade effect table for adding events post-DOE, R2 hard regeneration dependency |
