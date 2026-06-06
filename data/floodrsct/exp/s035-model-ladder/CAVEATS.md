@@ -149,6 +149,161 @@ Route fold uploads through an archive-safe mechanism, or add an
 
 ---
 
+## C-004: Henri DR=None Produces Structurally Zero NFIP Target
+
+**Severity:** High
+**Affects:** NYC scenario NFIP target (obs_nfip_event_claims), all phases R0-R3
+**Discovered by:** Root-cause analysis of degenerate NYC R2 results (2026-06-06)
+**GeoRSCT taxonomy:** GEO-C.3 (Spatial Missingness Bias) — non-random geographic
+missingness shifts N_ceiling under imputation
+
+### The Problem
+
+In `build_event_dataset.py`, the NYC event_map entry for Henri 2021 has
+`"dr": None`:
+
+```python
+"henri2021": {"dr": None, "storm_id": "AL082021",
+              "peak_window": ("2021-08-21", "2021-08-22")}
+```
+
+When `dr` is None, `fetch_openfema_event.py` fetches zero NFIP claims for
+that event. All 211 Henri ZCTAs get `obs_nfip_event_claims = 0` by
+construction — not because there was no flooding, but because no federal
+disaster was declared for Henri in NY.
+
+### Why This Is Worse Than Missing Data
+
+Unlike a random missing-at-random gap, DR=None produces **structurally zero
+target** for half the dataset (211 of 422 rows). The model trains on:
+- 211 rows where NFIP claims reflect real flood damage (Ida)
+- 211 rows where NFIP claims are zero by bureaucratic construction (Henri)
+
+This is contradictory training signal: ZCTAs that flooded during Henri
+(confirmed by 311 reports and MRMS rainfall) show zero claims, teaching
+the model that flooding features predict zero claims. The result is
+degenerate R2 (-0.352 at R0 baseline) and complete R2 failure (n_folds=0)
+at the temporal arm.
+
+### Taxonomy Classification
+
+This is a **data-pipeline collapse** (GEO-C family), specifically:
+
+| Taxonomy Mode | Match | Signal |
+|---------------|-------|--------|
+| C.3 Spatial Missingness Bias | **Primary** | Non-random missingness (bureaucratic, not spatial) shifts N_ceiling for Henri rows |
+| B.3 Crosswalk Gap | **Secondary** | DR=None is a crosswalk failure between FEMA disaster declarations and the event catalog |
+
+The signature is distinctive: the missingness is **event-structured**, not
+spatially random. All 211 Henri ZCTAs are affected identically. This makes
+it invisible to per-ZCTA diagnostics (no spatial pattern) but visible in
+leave-event-out cross-validation (Henri fold is structurally degenerate).
+
+### Resolution
+
+Added Sandy 2012 (DR-4085, 57,500 claims) and NYC Flood Sep 2023
+(DR-4755, 1,698 claims) to the NYC scenario. NYC now has 4 events,
+3 of which have real NFIP claims. Henri retains DR=None (correct — there
+was no federal disaster declaration) but the model can now learn from
+the other 3 events.
+
+Post-fix R0 baseline: R2 = +0.025 (was -0.352). No longer degenerate,
+but NFIP remains the hardest target. Henri fold excluded from NFIP
+leave-event-out since there is no ground truth to predict.
+
+### Diagnostic Checklist for Future Scenarios
+
+Before adding a new event to any scenario, verify:
+
+1. Does a FEMA disaster declaration exist for this event in this state?
+2. If DR=None, is there an alternative target source (311, HWM)?
+3. What fraction of the scenario's total rows will have DR=None?
+4. If >25% of rows have structurally zero target, flag as GEO-C.3.
+
+---
+
+## C-005: MRMS Archive Temporal Coverage Boundary
+
+**Severity:** Low (handled gracefully by build pipeline)
+**Affects:** Sandy 2012 MRMS rainfall features
+**Discovered by:** Fetch job failure (2026-06-06)
+
+### The Problem
+
+NOAA MRMS (Multi-Radar Multi-Sensor) archive does not reliably cover
+events before late October 2012. Sandy 2012 (Oct 28-Nov 2) is right
+at the operational boundary. The fetch job attempted 120 hourly files
+and all 120 failed (0% success rate).
+
+### Impact
+
+`build_event_dataset.py` handles missing MRMS gracefully:
+`obs_mrms_coverage_pct = 0.0` and `rainfall_total_mm = NaN` for Sandy
+rows. These become valid feature values (zero coverage is informative),
+not pipeline failures.
+
+Updated `data_availability.json`: Sandy MRMS marked as `source_empty`
+(was incorrectly `available`).
+
+### Diagnostic Rule
+
+For any event before 2014: MRMS may be unavailable. Check
+`data_availability.json` temporal_coverage before assuming availability.
+HRRR has the same issue (operational from Sep 2014). SMAP from Mar 2015.
+
+---
+
+## C-006: Pipeline Dependency Ordering for Regeneration
+
+**Severity:** Medium (operational, produces stale artifacts if violated)
+**Affects:** All downstream phases when a scenario's data changes
+**Discovered by:** Control flow error during NYC event addition (2026-06-06)
+
+### The Problem
+
+When events are added to a scenario mid-experiment, the following
+**must be regenerated in strict order**:
+
+```
+1. Fetch (parallel OK within fetch phase)
+2. build_event_dataset (assembles base parquet with new events)
+3. build_nfip_historical (reads assembled parquet for ZCTA lists)
+4. R0 baseline (generates new folds for changed row count)
+5. build_r1_features + build_r2_features (parallel OK)
+6. R1 training + R2 training (sequential: R1 before R2)
+7. diagnostics_r0 → diagnostics_r1 → diagnostics_r2 (sequential)
+8. certificates_r0 → certificates_r1 → certificates_r2 (sequential,
+   each requires corresponding diagnostics)
+9. uplift_table (requires all diagnostics + certificates)
+10. R3 pipeline (block tests → order robustness → admission →
+    certified training → R3 money table)
+```
+
+**Violated in the initial NYC rebuild:** Certificates R1 were launched
+before diagnostics R1 completed (consumed stale diagnostics from the
+previous 2-event run). Uplift table was launched before certificates
+were regenerated with fresh diagnostics.
+
+### Rule
+
+**Certificates must consume same-generation diagnostics.** Never launch
+`certificates_r{k}` until `diagnostics_r{k}` from the current data
+generation has completed. The readiness check will pass (file exists
+on S3) but the file may be stale.
+
+**Uplift table requires all 3 levels of diagnostics and certificates.**
+The EXPERIMENT_CONTRACT.yaml `s3_artifacts` for `uplift_table` lists
+all 6 files. The readiness checker validates existence, not freshness.
+
+### Mitigation
+
+Verification gate V4.11 (`event_cascade_regeneration`) was added to
+EXPERIMENT_CONTRACT.yaml to enforce this ordering when events change.
+Operational discipline: when regenerating after data changes, run the
+full chain sequentially. Do not parallelize across dependency boundaries.
+
+---
+
 ## MMAR Reviewer Blind Spot Log
 
 Tracking cases where the multi-model adversarial review (6 LLMs) failed
@@ -167,3 +322,6 @@ to catch an issue that human review found.
 | 2026-06-02 | C-001 | Documented ZIP ≠ ZCTA mismatch |
 | 2026-06-02 | C-002 | Documented observation unit gap; added to contract |
 | 2026-06-02 | C-003 | Documented fold archive risk |
+| 2026-06-06 | C-004 | Documented Henri DR=None structural zero; mapped to GEO-C.3 |
+| 2026-06-06 | C-005 | Documented MRMS temporal coverage boundary for Sandy 2012 |
+| 2026-06-06 | C-006 | Documented pipeline dependency ordering for regeneration |
