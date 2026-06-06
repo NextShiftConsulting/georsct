@@ -3,15 +3,13 @@
 fetch_nyc_311.py -- SageMaker job: pull NYC 311 flood complaints.
 
 Queries NYC Open Data (Socrata) for flooding-related 311 service requests
-during the Ida 2021 and Henri 2021 event windows.
+during NYC flood event windows.
 
 Source: NYC Open Data — "311 Service Requests from 2010 to Present"
 Dataset: erm2-nwe9
-~10K+ geocoded complaints expected for Ida 2021 (Sep 1-2 window).
 
 Outputs:
-  s3://swarm-floodrsct-data/raw/nyc_311/ida2021_flooding_311.parquet
-  s3://swarm-floodrsct-data/raw/nyc_311/henri2021_flooding_311.parquet
+  s3://swarm-floodrsct-data/raw/nyc_311/{event}_flooding_311.parquet
 """
 
 import logging
@@ -40,6 +38,10 @@ SOCRATA_BASE = f"https://{SOCRATA_DOMAIN}/resource/{DATASET_ID}.json"
 PAGE_SIZE = 50_000
 
 EVENTS = {
+    "sandy2012": {
+        "start": "2012-10-28T00:00:00",
+        "end": "2012-10-31T23:59:59",
+    },
     "ida2021": {
         "start": "2021-09-01T00:00:00",
         "end": "2021-09-03T23:59:59",
@@ -47,6 +49,10 @@ EVENTS = {
     "henri2021": {
         "start": "2021-08-21T00:00:00",
         "end": "2021-08-23T23:59:59",
+    },
+    "nyc_flood_2023": {
+        "start": "2023-09-28T00:00:00",
+        "end": "2023-09-30T23:59:59",
     },
 }
 

@@ -1128,11 +1128,15 @@ def build_nyc(s3, cfg: dict) -> pd.DataFrame:
     subway_evidence = _load_local_evidence("/opt/ml/processing/input/evidence/nyc_subway_flooding_ida2021.csv")
 
     event_map = {
-        "ida2021":   {"dr": 4615, "storm_id": "AL092021",
-                      "peak_window": ("2021-09-01", "2021-09-02"),
-                      "s3_event_key": "ida2021_nyc"},
-        "henri2021": {"dr": None, "storm_id": "AL082021",
-                      "peak_window": ("2021-08-21", "2021-08-22")},
+        "sandy2012":     {"dr": 4085, "storm_id": "AL182012",
+                          "peak_window": ("2012-10-29", "2012-10-30")},
+        "ida2021":       {"dr": 4615, "storm_id": "AL092021",
+                          "peak_window": ("2021-09-01", "2021-09-02"),
+                          "s3_event_key": "ida2021_nyc"},
+        "henri2021":     {"dr": None, "storm_id": "AL082021",
+                          "peak_window": ("2021-08-21", "2021-08-22")},
+        "nyc_flood_2023": {"dr": 4755, "storm_id": None,
+                           "peak_window": ("2023-09-29", "2023-09-30")},
     }
 
     rows = []

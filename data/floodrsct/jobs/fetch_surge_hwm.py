@@ -65,6 +65,8 @@ EVENT_REGISTRY = {
     "milton2024": (347, "FL"),
     "ar_flood_2023": (327, "CA"),
     "henri2021": (310, "NY"),
+    "sandy2012": (24, "NY"),
+    "nyc_flood_2023": (None, "NY"),  # No STN deployment for this event
 }
 
 # Existing S3 parquets (pre-uploaded)

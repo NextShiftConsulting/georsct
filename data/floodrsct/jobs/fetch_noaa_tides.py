@@ -92,6 +92,8 @@ EVENT_WINDOWS = {
     "milton2024": {"start": "20241005", "end": "20241012", "scenario": "southwest_florida"},
     "hilary2023": {"start": "20230819", "end": "20230823", "scenario": "southern_california"},
     "henri2021": {"start": "20210820", "end": "20210824", "scenario": "nyc_nj"},
+    "sandy2012": {"start": "20121027", "end": "20121103", "scenario": "nyc_nj"},
+    "nyc_flood_2023": {"start": "20230928", "end": "20231001", "scenario": "nyc_nj"},
     "katrina2005_nola": {"start": "20050828", "end": "20050905", "scenario": "new_orleans"},
     "isaac2012_nola": {"start": "20120826", "end": "20120902", "scenario": "new_orleans"},
     "barry2019_nola": {"start": "20190710", "end": "20190717", "scenario": "new_orleans"},

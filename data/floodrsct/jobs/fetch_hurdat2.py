@@ -58,6 +58,8 @@ STORMS_OF_INTEREST = {
     "AL022024",  # Beryl (Houston)
     "AL092024",  # Helene (SW Florida)
     "AL142024",  # Milton (SW Florida)
+    "AL182012",  # Sandy (NYC)
+    # nyc_flood_2023: extratropical, no HURDAT2 track
 }
 
 # IBTrACS SID format differs from HURDAT2.  Mapping: HURDAT2 -> IBTrACS SID.

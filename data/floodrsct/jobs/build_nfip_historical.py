@@ -59,8 +59,10 @@ SCENARIO_EVENTS = {
         {"event": "ida2021",     "dr": 4611, "start_date": "2021-08-26"},
     ],
     "nyc": [
-        {"event": "henri2021",   "dr": 4615, "start_date": "2021-08-22"},
-        {"event": "ida2021",     "dr": 4615, "start_date": "2021-09-01"},
+        {"event": "sandy2012",      "dr": 4085, "start_date": "2012-10-29"},
+        {"event": "henri2021",      "dr": 4615, "start_date": "2021-08-22"},
+        {"event": "ida2021",        "dr": 4615, "start_date": "2021-09-01"},
+        {"event": "nyc_flood_2023", "dr": 4755, "start_date": "2023-09-29"},
     ],
     "riverside_coachella": [
         {"event": "hilary2023",    "dr": 4699, "start_date": "2023-08-20"},

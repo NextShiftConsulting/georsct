@@ -86,6 +86,14 @@ EVENT_WINDOWS = {
         "start": datetime(2021, 8, 20, tzinfo=timezone.utc),
         "end": datetime(2021, 8, 24, tzinfo=timezone.utc),
     },
+    "sandy2012": {
+        "start": datetime(2012, 10, 28, tzinfo=timezone.utc),
+        "end": datetime(2012, 11, 2, tzinfo=timezone.utc),
+    },
+    "nyc_flood_2023": {
+        "start": datetime(2023, 9, 28, tzinfo=timezone.utc),
+        "end": datetime(2023, 10, 1, tzinfo=timezone.utc),
+    },
     "ar_flood_2023": {
         "start": datetime(2023, 1, 7, tzinfo=timezone.utc),
         "end": datetime(2023, 1, 28, tzinfo=timezone.utc),

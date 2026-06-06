@@ -11,6 +11,13 @@ borough_counties:
 zcta_state_filter: "NY"
 
 events:
+  sandy2012:
+    disaster_declaration: DR-4085-NY
+    start_date: "2012-10-27"
+    end_date: "2012-11-08"
+    nhc_storm_id: AL182012
+    peak_window: ["2012-10-29", "2012-10-30"]
+    # Storm surge + rainfall; all 5 boroughs designated for Individual Assistance
   ida2021:
     disaster_declaration: DR-4615-NY
     start_date: "2021-09-01"
@@ -24,6 +31,13 @@ events:
     end_date: "2021-08-23"
     nhc_storm_id: AL082021
     peak_window: ["2021-08-21", "2021-08-22"]
+  nyc_flood_2023:
+    disaster_declaration: DR-4755-NY
+    start_date: "2023-09-28"
+    end_date: "2023-09-30"
+    nhc_storm_id: null  # Extratropical system, not a named tropical cyclone
+    peak_window: ["2023-09-29", "2023-09-30"]
+    # Extreme rainfall; DR designates Kings (Brooklyn) for Public Assistance
 
 # USGS NWIS — limited coastal-influenced gauges
 usgs_anchor_sites:

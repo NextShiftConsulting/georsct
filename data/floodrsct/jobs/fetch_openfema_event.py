@@ -47,7 +47,9 @@ S035_DISASTERS = [
     {"dr": "DR-4080-LA", "number": 4080, "state": "LA", "start": "2012-08-26", "end": "2012-09-30", "event": "Isaac 2012"},
     {"dr": "DR-4458-LA", "number": 4458, "state": "LA", "start": "2019-07-10", "end": "2019-08-15", "event": "Barry 2019"},
     {"dr": "DR-4611-LA", "number": 4611, "state": "LA", "start": "2021-08-26", "end": "2021-10-31", "event": "Ida 2021 LA"},
+    {"dr": "DR-4085-NY", "number": 4085, "state": "NY", "start": "2012-10-27", "end": "2012-11-30", "event": "Sandy 2012"},
     {"dr": "DR-4615-NY", "number": 4615, "state": "NY", "start": "2021-09-01", "end": "2021-10-31", "event": "Ida 2021 NY"},
+    {"dr": "DR-4755-NY", "number": 4755, "state": "NY", "start": "2023-09-28", "end": "2023-10-31", "event": "NYC Flooding Sep 2023"},
     # Southwest Florida
     {"dr": "DR-4673-FL", "number": 4673, "state": "FL", "start": "2022-09-23", "end": "2022-10-15", "event": "Ian 2022"},
     {"dr": "DR-4828-FL", "number": 4828, "state": "FL", "start": "2024-09-24", "end": "2024-10-15", "event": "Helene 2024"},
