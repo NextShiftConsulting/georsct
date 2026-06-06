@@ -125,7 +125,7 @@
       "openfema": "available"
     },
     "sandy2012_nyc": {
-      "mrms": "available",
+      "mrms": "source_empty",
       "hrrr": "not_applicable_temporal",
       "gpm_imerg": "available",
       "smap": "not_applicable_temporal",

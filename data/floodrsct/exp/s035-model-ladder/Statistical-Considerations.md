@@ -425,9 +425,193 @@ features are labels/outcomes. See FEATURE_CONTRACT.yaml header.
 
 ---
 
+## 14. Spatially-Blocked Paired Loss Analysis (v1.2)
+
+### The Power Problem
+
+The fold-level Wilcoxon signed-rank test (§2) pools across
+(scenario × target × fold). After filtering degenerate folds
+(NaN metrics from single-class test sets, insufficient ZCTAs), the
+effective sample sizes are:
+
+| Test | Nominal n | Effective n | Bottleneck |
+|------|----------:|------------:|------------|
+| H2a (R0→R1) | 45 | 18 | Regression folds only; NOLA/Riverside degenerate |
+| H3 (R1→R2) | 45 | 13 | NYC R2 produces 0 spatial_blocked folds |
+| H5 (R2→R3) | 45 | ~13-18 | Same constraints as H2a/H3 |
+
+At n=13, Wilcoxon signed-rank has ~60% power to detect a medium effect
+(d=0.5) at alpha=0.05. At n=18, power reaches ~75%. Both are below the
+conventional 80% threshold for confirmatory testing.
+
+### Why More Folds Does Not Fix This
+
+Increasing K from 5 to 10 doubles the fold count but does not add
+independent spatial evidence. Every fold is drawn from the same
+scenarios, targets, and geography. The additional folds are
+**within-scenario resamples of the same ZCTAs** — they share:
+
+- rainfall and surge fields (spatially autocorrelated)
+- infrastructure networks (roads, hospitals, drainage)
+- claims behavior patterns (NFIP participation rates)
+- sensor coverage gaps (MRMS radar shadows, gauge density)
+
+K=10 may serve as a sensitivity check but should not be presented as
+real statistical power. The fundamental bottleneck is the number of
+**independent spatial units**, not the number of folds.
+
+### Why Raw Per-ZCTA Testing Is Invalid
+
+The experiment produces per-ZCTA predictions (`_predictions.parquet`)
+which could yield n=600-2,000 paired observations. However, raw
+per-ZCTA Wilcoxon tests violate the independence assumption:
+
+- Adjacent ZCTAs share rainfall, terrain, drainage, and infrastructure
+- Within-county ZCTAs share administrative flood policy (NFIP CRS class)
+- Within-event ZCTAs share temporal dynamics (storm track, surge timing)
+- Moran's I on R0 residuals is typically 0.15-0.35 (significant positive
+  spatial autocorrelation)
+
+A Wilcoxon test on 2,000 correlated observations produces artificially
+narrow p-values. The effective degrees of freedom are far fewer than
+the row count.
+
+### Solution: Spatially-Blocked Paired Loss Analysis
+
+To improve statistical resolution without inflating power from spatial
+autocorrelation, we supplement fold-level tests with **paired
+prediction-level loss analysis aggregated to spatial dependence units**.
+
+For each model comparison R_k versus R_{k-1}:
+
+**Step 1: Compute per-ZCTA paired loss delta.**
+
+For regression targets:
+
+```
+delta_i = (y_i - y_hat_{i,k-1})^2 - (y_i - y_hat_{i,k})^2
+```
+
+For classification targets:
+
+```
+delta_i = brier(y_i, p_hat_{i,k-1}) - brier(y_i, p_hat_{i,k})
+```
+
+Positive values indicate improvement under R_k.
+
+**Step 2: Aggregate deltas to spatial dependence units.**
+
+Per-ZCTA deltas are NOT treated as independent observations. Instead,
+deltas are aggregated (mean) to spatial dependence units defined by
+the experiment's geographic substrate:
+
+| Spatial Unit | Source | Approximate n |
+|-------------|--------|------------:|
+| County | `zcta_county_crosswalk.parquet` | 50-100 |
+| Watershed/catchment | R1 hydrology features | 30-60 |
+| W-matrix community | Louvain on ZCTA adjacency graph | 40-80 |
+| Event footprint | Scenario × event membership | 15-25 |
+
+Primary analysis uses **county** as the spatial block (consistent with
+the spatial-blocked CV design in §7). Watershed and W-matrix community
+are sensitivity checks.
+
+**Step 3: Test at the block level.**
+
+| Test | Purpose |
+|------|---------|
+| Exact sign test on block deltas | Conservative; no distributional assumptions |
+| Exact permutation test on block deltas | Exact p-value at small n |
+| Block bootstrap CI (10,000 resamples) | Effect-size uncertainty |
+
+**Step 4: Report.**
+
+| Quantity | Description |
+|----------|-------------|
+| Mean block-level loss delta | Average improvement per spatial unit |
+| Median block-level loss delta | Robust center |
+| % blocks improved | Fraction with positive delta |
+| Exact permutation p-value | Block-level inference |
+| 95% block bootstrap CI | Effect-size uncertainty |
+| Number of valid spatial blocks | Effective independent n |
+
+### Four-Layer Separation
+
+The statistical design separates four layers that must not be conflated:
+
+| Layer | What It Does | Correct Object |
+|-------|-------------|----------------|
+| **Spatial dependence** | Defines non-independent geographic units | County, watershed, W-matrix community, event footprint |
+| **Statistical inference** | Tests paired improvement without fake n | Spatially-blocked paired loss analysis |
+| **Certificate** | Scores readiness / evidence quality | RSN certificate output (R, S_sup, N, kappa, sigma) |
+| **DGM** | Routes action based on certificate | `EXECUTE`, `REJECT`, `RE_ENCODE` |
+
+**Naming rule:**
+
+```
+Use:    spatially-blocked paired loss analysis
+Avoid:  DGM-blocked paired loss analysis
+```
+
+DGM is an enforcement-routing mechanism that **consumes** certificate
+outputs and maps them to downstream actions. It does not define spatial
+dependence structure. Spatial blocking belongs to the geographic
+substrate and inference design; DGM belongs to certificate consumption
+and action routing.
+
+**DGM is relevant to a different question:** "Did the enforcement
+decision improve outcomes?" That is H5/H8 — where DGM serves as
+**treatment assignment**, not as a spatial partition:
+
+```
+Correct:  ZCTAs in EXECUTE blocks vs ZCTAs in REJECT blocks —
+          do EXECUTE ZCTAs have lower loss?
+          (DGM as treatment assignment for H5/H8)
+
+Wrong:    Resample at the DGM-block level for H2a/H3.
+          (DGM does not define spatial independence)
+```
+
+### Relationship to Existing Tests
+
+| Test | Role After This Amendment |
+|------|--------------------------|
+| Fold-level Wilcoxon (§2) | **Primary** — pre-registered, conservative, honest about small n |
+| Spatially-blocked paired loss | **Supplementary** — higher resolution, explicit independence control |
+| Cell-level bootstrap CI (§6) | **Descriptive** — unchanged, effect-size uncertainty |
+| Cell-level Spearman (§4) | **Exploratory** — unchanged, kappa prediction |
+
+The fold-level Wilcoxon remains the pre-registered primary test.
+Spatially-blocked paired loss analysis is a supplementary analysis
+that uses the same prediction outputs with a more defensible
+independence structure. It does not replace the primary test.
+
+### Paper Language
+
+> Because fold counts are small (n=13-18 after filtering degenerate
+> cells), we supplement fold-level Wilcoxon tests with paired
+> prediction outputs aggregated to county-level spatial blocks.
+> Inference is performed by exact permutation and block bootstrap
+> over spatially independent units. This preserves the paired
+> structure of the experiment while avoiding inflated power from
+> spatially autocorrelated ZCTAs.
+
+### Implementation
+
+- Input: `_predictions.parquet` files (already produced by all phases)
+- Input: `zcta_county_crosswalk.parquet` (already on S3)
+- New function in `compute_uplift_table.py`:
+  `spatially_blocked_paired_loss()` — computes per-ZCTA loss deltas,
+  aggregates to county, runs exact permutation + block bootstrap
+- Output: `spatially_blocked_loss` block in `money_table.json`
+
+---
+
 ## Change Log
 
 | Version | Date | Change |
 |---------|------|--------|
 | v1.0 | 2026-06-02 | Initial consolidation from DOE documents |
 | v1.1 | 2026-06-02 | R4 broadcast analysis: quarantine rationale + r4_ref_r2 reference column spec |
+| v1.2 | 2026-06-05 | Spatially-blocked paired loss analysis: power problem diagnosis, four-layer separation (spatial/inference/certificate/DGM), county-level block testing, naming rules |

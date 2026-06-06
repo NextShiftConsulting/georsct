@@ -1215,6 +1215,7 @@ features, R1 explicitly encodes spatial structure:
 | v1.7 | 2026-06-02 | Pre-registered primary outcomes; NFIP temporal gate (IBNR boundary); storm features moved to R2; fold-level Wilcoxon as primary test; random-features ablation; git provenance in launchers |
 | v1.8 | 2026-06-02 | Kappa independence: geometry-only kappa (Phase 0.5); model-derived diagnostics demoted to diagnostic fields, not kappa inputs; causal boundary guard on training features; R1/R2 supplements required |
 | v1.9 | 2026-06-02 | Statistical reporting framework: three-axis distinction (RSN simplex / kappa_geom / bootstrap CI); cell-level bootstrap CIs on aggregate uplift and certificate signals; bootstrap framed as uncertainty not inference |
+| v1.10 | 2026-06-05 | Spatially-blocked paired loss analysis (Statistical-Considerations.md §14): supplementary test using per-ZCTA loss deltas aggregated to county-level spatial blocks; four-layer separation (spatial dependence / inference / certificate / DGM); naming rules; applies to H2a, H3, H5 |
 
 ---
 

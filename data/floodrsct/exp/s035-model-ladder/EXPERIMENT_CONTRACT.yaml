@@ -455,6 +455,18 @@ phases:
       - key: "results/s035/r2_{scenario}.json"
         per_scenario: true
         scenarios: *modelable
+      - key: "results/s035/r0_{scenario}_predictions.parquet"
+        description: "Per-ZCTA predictions for spatially-blocked paired loss (§14)"
+        per_scenario: true
+        scenarios: *modelable
+      - key: "results/s035/r1_hydrology_{scenario}_predictions.parquet"
+        per_scenario: true
+        scenarios: *modelable
+      - key: "results/s035/r2_{scenario}_predictions.parquet"
+        per_scenario: true
+        scenarios: *modelable
+      - key: "raw/geocertdb2026/zcta_county_crosswalk.parquet"
+        description: "County crosswalk for spatial block aggregation (§14)"
       - key: "results/s035/diagnostics_r0.json"
       - key: "results/s035/diagnostics_r1.json"
       - key: "results/s035/diagnostics_r2.json"
@@ -774,7 +786,7 @@ phases:
   # ── Phase R3_3: R3 Money Table ──────────────────────────────────────
   - phase_id: r3_money_table
     script: compute_r3_money_table.py
-    description: "Phase R3_3: R3 money table + H5-H8 hypothesis tests + bootstrap CIs"
+    description: "Phase R3_3: R3 money table + H5-H8 hypothesis tests + bootstrap CIs + spatially-blocked paired loss"
     per_scenario: false
     depends_on: [r3_certified_training]
 
@@ -800,6 +812,16 @@ phases:
       - key: "results/s035/r3_{scenario}.json"
         per_scenario: true
         scenarios: *modelable
+      - key: "results/s035/r2_{scenario}_predictions.parquet"
+        description: "Per-ZCTA R2 predictions for spatially-blocked paired loss (§14)"
+        per_scenario: true
+        scenarios: *modelable
+      - key: "results/s035/r3_{scenario}_predictions.parquet"
+        description: "Per-ZCTA R3 predictions for spatially-blocked paired loss (§14)"
+        per_scenario: true
+        scenarios: *modelable
+      - key: "raw/geocertdb2026/zcta_county_crosswalk.parquet"
+        description: "County crosswalk for spatial block aggregation (§14)"
       - key: "results/s035/r3_block_admission_table.json"
       - key: "results/s035/r3_gear_summary.json"
       - key: "results/s035/diagnostics_r0.json"
@@ -977,7 +999,7 @@ verification_gates:
   - gate_id: V2
     name: Domain Invariants
     phase: post-flight
-    applies_to: [certificates_r0, certificates_r1, certificates_r2, gearbox_warmup, dgm_routing]
+    applies_to: [certificates_r0, certificates_r1, certificates_r2, gearbox_warmup, dgm_routing, r3_block_tests, r3_block_admission]
     checks:
       - id: V2.1
         check: simplex_validity
@@ -1000,7 +1022,7 @@ verification_gates:
   - gate_id: V3
     name: Cross-Fold Stability
     phase: post-flight
-    applies_to: [r0_baseline, r1_hydrology, r2_temporal]
+    applies_to: [r0_baseline, r1_hydrology, r2_temporal, r3_certified_training]
     checks:
       - id: V3.1
         check: fold_spread
@@ -1035,6 +1057,29 @@ verification_gates:
         check: gearbox_calibration
         pass_criteria: "MIN_CALIBRATION_SAMPLES >= 8, winsorization, monotonicity, data-grounded sigma_c"
         applies_to: [gearbox_warmup]
+      - id: V4.5
+        check: spatially_blocked_paired_loss
+        pass_criteria: "spatially_blocked_loss block present in money_table.json; county-level aggregation; exact permutation p-value; block bootstrap CI; n_blocks >= 20"
+        applies_to: [uplift_table, r3_money_table]
+        reference: "Statistical-Considerations.md §14"
+      - id: V4.6
+        check: independence_unit_separation
+        pass_criteria: "spatial blocks defined by county crosswalk, NOT by DGM decisions; DGM used only as treatment assignment for H5/H8"
+        applies_to: [r3_money_table]
+        reference: "Statistical-Considerations.md §14 (four-layer separation)"
+      - id: V4.7
+        check: r3_block_admission
+        pass_criteria: "all 6 blocks evaluated; (EnforcementDecision, GearState) pair per block; admission trace present; GEOSPATIAL_CONUS27 preset used"
+        applies_to: [r3_block_admission]
+      - id: V4.8
+        check: r3_money_table
+        pass_criteria: "H5-H8 test results present; 3 R3_2 variants (headline/full/stabilized); negative results included; fold-level Wilcoxon + spatially-blocked paired loss both reported"
+        applies_to: [r3_money_table]
+      - id: V4.9
+        check: vlm_quarantine
+        pass_criteria: "R4 excluded from paired Wilcoxon and spatially-blocked paired loss; R4 reported as descriptive reference column only (zero_shot=true, event_invariant=true, excluded_from_wilcoxon=true); no R0->R4 or R4->Rk uplift cells in money table"
+        applies_to: [r4_vlm_comparison]
+        reference: "Statistical-Considerations.md §3 (R4 broadcast quarantine)"
 
   - gate_id: V5
     name: Paper-Readiness
@@ -1072,3 +1117,17 @@ verification_gates:
       - id: V5.10
         check: public_decision_wired
         pass_criteria: "routing output includes public_decision field (InternalDecision -> PublicDecision)"
+      - id: V5.11
+        check: spatially_blocked_loss_reported
+        pass_criteria: "spatially_blocked_loss in money_table.json AND r3_money_table.json; county-level block n documented"
+      - id: V5.12
+        check: four_layer_separation
+        pass_criteria: "no DGM terminology in spatial blocking; DGM used only as treatment assignment in H5/H8 reporting"
+      - id: V5.13
+        check: r3_admission_trace
+        pass_criteria: "r3_dgm_admission_trace.json on S3; all blocks have (Decision, Gear) pair"
+        applies_to_phase: r3_block_admission
+      - id: V5.14
+        check: r3_three_variants
+        pass_criteria: "r3_money_table.json contains headline, full, and stabilized variant results"
+        applies_to_phase: r3_money_table
