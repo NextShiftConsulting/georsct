@@ -20,6 +20,7 @@ ALL_EVENTS = [
     "ian2022", "helene2024", "milton2024",
     "hilary2023", "henri2021",
     "katrina2005_nola", "isaac2012_nola", "barry2019_nola",
+    "sandy2012", "nyc_flood_2023",
 ]
 
 

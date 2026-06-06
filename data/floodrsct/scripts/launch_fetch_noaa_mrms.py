@@ -33,6 +33,8 @@ EVENT_INSTANCES = {
     "ar_flood_2023": "ml.m5.xlarge",  # ~22 days
     "isaac2012_nola": "ml.m5.large",
     "barry2019_nola": "ml.m5.large",
+    "sandy2012":   "ml.m5.large",   # ~6 days, Oct 2012 (MRMS just operational)
+    "nyc_flood_2023": "ml.m5.large",  # ~4 days
 }
 
 
