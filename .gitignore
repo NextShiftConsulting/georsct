@@ -61,7 +61,21 @@ V2/
 V3/
 V4/
 V5/
+V5-*/
 V6/
+V6-*/
+
+# Raw data downloads (too large for git)
+data/floodrsct/data/
+
+# MMAR review artifacts
+.mmar/
+.mmar-*/
+mmar-input/
+mmar-output/
+
+# Model archives
+MODELS.zip
 
 # Claude session data
 .claude/
