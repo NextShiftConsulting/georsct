@@ -53,7 +53,8 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 RESULTS_PREFIX = "results/s035"
-MMAR_DIR = Path(__file__).parent.parent / "exp" / "s035-model-ladder" / "mmar-input"
+SIDECAR_PREFIX = "results/s035/sidecar"
+LOCAL_MMAR_DIR = Path(__file__).parent.parent / "exp" / "s035-model-ladder" / "mmar-input"
 PRIMARY_TARGET = "obs_nfip_event_claims"
 PRIMARY_SOLVER = "histgbdt"
 
@@ -99,14 +100,43 @@ EVENT_VINTAGE = {
 # Data loading
 # ---------------------------------------------------------------------------
 
-def load_local_json(name: str) -> dict | None:
-    """Load a JSON from mmar-input directory."""
-    path = MMAR_DIR / name
-    if not path.exists():
-        log.warning("Missing local file: %s", path)
-        return None
-    with open(path) as f:
-        return json.load(f)
+_s3_client = None
+
+
+def _get_s3() -> object:
+    global _s3_client
+    if _s3_client is None:
+        _s3_client = get_s3_client()
+    return _s3_client
+
+
+def load_json(name: str, s3_prefix: str = RESULTS_PREFIX) -> dict | None:
+    """Load a JSON from S3 (primary) or local mmar-input (fallback).
+
+    Args:
+        name: filename like 'diagnostics_r0.json' or 'lisa_results.json'
+        s3_prefix: S3 key prefix (default: results/s035)
+    """
+    # Try S3 first
+    s3 = _get_s3()
+    key = f"{s3_prefix}/{name}"
+    try:
+        resp = s3.get_object(Bucket=BUCKET, Key=key)
+        data = json.loads(resp["Body"].read())
+        log.info("Loaded from s3://%s/%s", BUCKET, key)
+        return data
+    except Exception:
+        pass
+
+    # Fallback to local
+    path = LOCAL_MMAR_DIR / name
+    if path.exists():
+        with open(path) as f:
+            log.info("Loaded from local: %s", path)
+            return json.load(f)
+
+    log.warning("Could not load %s from S3 or local", name)
+    return None
 
 
 def load_parquet_s3(s3, key: str) -> pd.DataFrame | None:
@@ -191,10 +221,7 @@ def compute_ranking_verdict(s3) -> dict:
         })
 
     # Try to load FAST validation for fidelity-delta
-    fast_data = load_local_json("../results/fast_validation.json")
-    if fast_data is None:
-        # Check S3
-        fast_data = _load_fast_from_s3(s3)
+    fast_data = load_json("fast_validation.json")
 
     fidelity_deltas = _compute_fidelity_deltas(fast_data) if fast_data else {}
 
@@ -298,15 +325,6 @@ def _ranking_zcta_level(
     }
 
 
-def _load_fast_from_s3(s3) -> dict | None:
-    """Try loading fast_validation.json from S3."""
-    key = f"{RESULTS_PREFIX}/fast_validation.json"
-    try:
-        resp = s3.get_object(Bucket=BUCKET, Key=key)
-        return json.loads(resp["Body"].read())
-    except Exception:
-        return None
-
 
 def _compute_fidelity_deltas(fast_data: dict) -> dict:
     """Extract fidelity-delta from FAST validation results.
@@ -335,7 +353,7 @@ def compute_clustering_verdict() -> dict:
     INSUFFICIENT if errors remain spatially clustered.
     """
     log.info("=== CLUSTERING VERDICT ===")
-    lisa = load_local_json("lisa_results.json")
+    lisa = load_json("lisa_results.json", s3_prefix=SIDECAR_PREFIX)
     if lisa is None:
         return {
             "geometry": "clustering",
@@ -425,7 +443,7 @@ def compute_transfer_verdict() -> dict:
 
     per_cell = []
     for level in ["r0", "r1", "r2"]:
-        diag = load_local_json(f"diagnostics_{level}.json")
+        diag = load_json(f"diagnostics_{level}.json")
         if diag is None:
             continue
         for cell in diag.get("cells", []):
@@ -588,7 +606,7 @@ def compute_allocation_verdict() -> dict:
         })
 
     # Check R2 certificates exist
-    r2_certs = load_local_json("certificates_r2.json")
+    r2_certs = load_json("certificates_r2.json")
     has_r2 = r2_certs is not None and len(r2_certs.get("certificates", [])) > 0
 
     verdict = "PARTIAL"
@@ -624,7 +642,7 @@ def extract_prediction_verdict() -> dict:
     compute_uplift_table.py. We extract and reformat for consistency.
     """
     log.info("=== PREDICTION VERDICT (extract) ===")
-    money = load_local_json("money_table.json")
+    money = load_json("money_table.json")
     if money is None:
         return {
             "geometry": "prediction",
@@ -680,7 +698,9 @@ def main():
         log.info("  Writes: %s/verdicts.json", RESULTS_PREFIX)
         return 0
 
-    s3 = get_s3_client()
+    global _s3_client
+    _s3_client = get_s3_client()
+    s3 = _s3_client
 
     prediction = extract_prediction_verdict()
     ranking = compute_ranking_verdict(s3)
@@ -699,19 +719,13 @@ def main():
         "verdicts": verdicts,
     }
 
-    # Write local copy
-    out_dir = MMAR_DIR
+    # Write local copy (works on SageMaker and local)
+    out_dir = Path("/tmp/verdicts")
     out_dir.mkdir(parents=True, exist_ok=True)
     local_file = out_dir / "verdicts.json"
     with open(local_file, "w") as f:
         json.dump(result, f, indent=2, default=str)
     log.info("Written to %s", local_file)
-
-    # Also write to results dir
-    results_dir = Path(__file__).parent.parent / "exp" / "s035-model-ladder" / "results"
-    results_dir.mkdir(parents=True, exist_ok=True)
-    with open(results_dir / "verdicts.json", "w") as f:
-        json.dump(result, f, indent=2, default=str)
 
     if args.upload:
         key = f"{RESULTS_PREFIX}/verdicts.json"

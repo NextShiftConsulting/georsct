@@ -40,7 +40,6 @@ def main() -> None:
         volume_size_gb=10,
         pip_packages="scipy",
         dry_run=args.dry_run,
-        phase_id="verdicts",
     )
 
 
