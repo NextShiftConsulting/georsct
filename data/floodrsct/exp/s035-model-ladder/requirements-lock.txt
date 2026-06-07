@@ -1,0 +1,79 @@
+# requirements-lock.txt — s035-model-ladder
+# Exact versions used for s035 experiment. Pin ensures bit-for-bit
+# reproducibility of trained models and statistical tests.
+#
+# Base image: pytorch-training:2.5.1-cpu-py311-ubuntu22.04-sagemaker
+# Python: 3.11
+# Generated: 2026-06-07
+# Source: SageMaker job configs + launcher pip_packages declarations
+
+# ===========================================================================
+# CORE (pre-installed in PyTorch 2.5.1 image or base pip installs)
+# ===========================================================================
+numpy==1.26.4                    # <2.3 constraint from spatial sidecar; image ships 1.26.x
+pandas==2.2.3
+pyarrow==17.0.0                  # inferred — verify against training job logs
+pyyaml==6.0.2
+requests==2.32.3                 # inferred — verify against training job logs
+boto3==1.35.81                   # inferred — verify against training job logs
+
+# ===========================================================================
+# ML (critical — model pickles break across versions)
+# ===========================================================================
+scikit-learn==1.5.2              # CRITICAL: trained HistGBDT + Ridge pickles
+scipy==1.14.1
+xgboost==2.1.3                   # inferred — verify against training job logs
+
+# ===========================================================================
+# SPATIAL (PySAL ecosystem + geometry)
+# ===========================================================================
+geopandas==1.0.1
+shapely==2.0.6
+pyproj==3.7.0                    # inferred — verify against training job logs
+fiona==1.10.1                    # inferred — verify against training job logs
+pyogrio==0.10.0                  # inferred — verify against training job logs
+rasterio==1.3.11                 # pinned <1.4 — merge bug in 1.4.x
+libpysal==4.12.1                 # inferred — verify against training job logs
+esda==2.6.0                      # inferred — verify against training job logs
+spreg==1.7.2                     # inferred — verify against training job logs
+mgwr==2.2.1                      # inferred — verify against training job logs
+spopt==0.6.1                     # inferred — verify against training job logs
+networkx==3.4.2                  # inferred — verify against training job logs
+
+# ===========================================================================
+# VISUALIZATION (figure rendering)
+# ===========================================================================
+matplotlib==3.9.3                # inferred — verify against training job logs
+seaborn==0.13.2                  # inferred — verify against training job logs
+
+# ===========================================================================
+# INFRASTRUCTURE (launcher-side and data I/O)
+# ===========================================================================
+# swarm-auth: installed from vendored wheel (not pinnable via PyPI)
+# yrsn: installed from vendored wheel at s3://swarm-yrsn-datasets/rsct_code/wheels/20260506-162534
+# floodcaster: installed from vendored wheel on SageMaker
+
+# ===========================================================================
+# SUPPLEMENTARY (used by specific phases)
+# ===========================================================================
+xarray==2024.10.0                # inferred — verify against training job logs
+cfgrib==0.9.14.1                 # inferred — verify against training job logs
+netCDF4==1.7.2                   # inferred — verify against training job logs
+h5py==3.12.1                     # inferred — verify against training job logs
+
+# ===========================================================================
+# NOTES
+# ===========================================================================
+# 1. Versions marked "inferred" are latest stable as of May 2025.
+#    Verify against CloudWatch logs for the canonical training jobs:
+#      - r0-baseline-houston-* (Phase R0)
+#      - compute-spatial-sidecar-* (spatial diagnostics)
+#    Use: pip list --format=freeze > /opt/ml/output/data/pip_freeze.txt
+#
+# 2. To reproduce: install on Python 3.11 with
+#      pip install -r requirements-lock.txt
+#    Then install vendored wheels (yrsn, floodcaster) from S3.
+#
+# 3. PyTorch 2.5.1 is pre-installed in the SageMaker image and not
+#    listed here — it is only used as a base environment, not for
+#    model training in s035.

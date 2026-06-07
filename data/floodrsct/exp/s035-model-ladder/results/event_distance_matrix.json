@@ -1,0 +1,380 @@
+{
+  "scenarios": {
+    "houston": {
+      "events": [
+        "harvey2017",
+        "imelda2019",
+        "beryl2024"
+      ],
+      "n_zctas": {
+        "harvey2017": 132,
+        "imelda2019": 132,
+        "beryl2024": 132
+      },
+      "pairwise": {
+        "harvey2017_vs_imelda2019": {
+          "n_common_zctas": 132,
+          "jaccard_affected": 0.8769,
+          "pearson_r": 0.3601,
+          "spearman_r": 0.3552,
+          "wasserstein_normalized": 0.4223,
+          "zero_fraction_diff": 0.1212,
+          "intensity_ratio": 2.31
+        },
+        "harvey2017_vs_beryl2024": {
+          "n_common_zctas": 132,
+          "jaccard_affected": 0.9462,
+          "pearson_r": 0.5374,
+          "spearman_r": 0.4727,
+          "wasserstein_normalized": 0.4369,
+          "zero_fraction_diff": 0.053,
+          "intensity_ratio": 2.64
+        },
+        "imelda2019_vs_beryl2024": {
+          "n_common_zctas": 132,
+          "jaccard_affected": 0.8661,
+          "pearson_r": 0.5368,
+          "spearman_r": 0.538,
+          "wasserstein_normalized": 0.0861,
+          "zero_fraction_diff": 0.0682,
+          "intensity_ratio": 1.14
+        }
+      },
+      "event_stats": {
+        "harvey2017": {
+          "zero_fraction": 0.0152,
+          "mean_all": 5.3355,
+          "std_all": 1.273,
+          "mean_nonzero": 5.4176,
+          "std_nonzero": 1.0958,
+          "max": 7.834,
+          "n_affected": 130,
+          "n_total": 132
+        },
+        "imelda2019": {
+          "zero_fraction": 0.1364,
+          "mean_all": 2.0275,
+          "std_all": 1.5821,
+          "mean_nonzero": 2.3476,
+          "std_nonzero": 1.4652,
+          "max": 6.2634,
+          "n_affected": 114,
+          "n_total": 132
+        },
+        "beryl2024": {
+          "zero_fraction": 0.0682,
+          "mean_all": 1.9125,
+          "std_all": 0.9642,
+          "mean_nonzero": 2.0525,
+          "std_nonzero": 0.8428,
+          "max": 4.654,
+          "n_affected": 123,
+          "n_total": 132
+        }
+      }
+    },
+    "new_orleans": {
+      "events": [
+        "katrina2005",
+        "isaac2012",
+        "barry2019",
+        "ida2021"
+      ],
+      "n_zctas": {
+        "katrina2005": 66,
+        "isaac2012": 66,
+        "barry2019": 66,
+        "ida2021": 66
+      },
+      "pairwise": {
+        "katrina2005_vs_isaac2012": {
+          "n_common_zctas": 66,
+          "jaccard_affected": 0.9385,
+          "pearson_r": 0.7573,
+          "spearman_r": 0.5422,
+          "wasserstein_normalized": 0.2952,
+          "zero_fraction_diff": 0.0303,
+          "intensity_ratio": 1.64
+        },
+        "katrina2005_vs_barry2019": {
+          "n_common_zctas": 66,
+          "jaccard_affected": 0.6094,
+          "pearson_r": 0.4514,
+          "spearman_r": 0.5254,
+          "wasserstein_normalized": 0.5768,
+          "zero_fraction_diff": 0.3788,
+          "intensity_ratio": 3.04
+        },
+        "katrina2005_vs_ida2021": {
+          "n_common_zctas": 66,
+          "jaccard_affected": 0.9219,
+          "pearson_r": 0.7896,
+          "spearman_r": 0.5989,
+          "wasserstein_normalized": 0.3051,
+          "zero_fraction_diff": 0.0758,
+          "intensity_ratio": 1.6
+        },
+        "isaac2012_vs_barry2019": {
+          "n_common_zctas": 66,
+          "jaccard_affected": 0.629,
+          "pearson_r": 0.2301,
+          "spearman_r": 0.3016,
+          "wasserstein_normalized": 0.3868,
+          "zero_fraction_diff": 0.3485,
+          "intensity_ratio": 1.86
+        },
+        "isaac2012_vs_ida2021": {
+          "n_common_zctas": 66,
+          "jaccard_affected": 0.9516,
+          "pearson_r": 0.936,
+          "spearman_r": 0.9088,
+          "wasserstein_normalized": 0.0253,
+          "zero_fraction_diff": 0.0455,
+          "intensity_ratio": 1.03
+        },
+        "barry2019_vs_ida2021": {
+          "n_common_zctas": 66,
+          "jaccard_affected": 0.661,
+          "pearson_r": 0.3117,
+          "spearman_r": 0.4166,
+          "wasserstein_normalized": 0.3962,
+          "zero_fraction_diff": 0.303,
+          "intensity_ratio": 1.91
+        }
+      },
+      "event_stats": {
+        "katrina2005": {
+          "zero_fraction": 0.0303,
+          "mean_all": 6.6476,
+          "std_all": 2.2411,
+          "mean_nonzero": 6.8553,
+          "std_nonzero": 1.9379,
+          "max": 9.219,
+          "n_affected": 64,
+          "n_total": 66
+        },
+        "isaac2012": {
+          "zero_fraction": 0.0606,
+          "mean_all": 3.926,
+          "std_all": 1.6832,
+          "mean_nonzero": 4.1793,
+          "std_nonzero": 1.3991,
+          "max": 6.7105,
+          "n_affected": 62,
+          "n_total": 66
+        },
+        "barry2019": {
+          "zero_fraction": 0.4091,
+          "mean_all": 1.3304,
+          "std_all": 1.4998,
+          "mean_nonzero": 2.2515,
+          "std_nonzero": 1.3163,
+          "max": 5.5013,
+          "n_affected": 39,
+          "n_total": 66
+        },
+        "ida2021": {
+          "zero_fraction": 0.1061,
+          "mean_all": 3.8346,
+          "std_all": 1.8176,
+          "mean_nonzero": 4.2896,
+          "std_nonzero": 1.3206,
+          "max": 6.3208,
+          "n_affected": 59,
+          "n_total": 66
+        }
+      }
+    },
+    "nyc": {
+      "events": [
+        "sandy2012",
+        "ida2021",
+        "nyc_flood_2023",
+        "henri2021"
+      ],
+      "n_zctas": {
+        "sandy2012": 211,
+        "ida2021": 211,
+        "nyc_flood_2023": 211,
+        "henri2021": 211
+      },
+      "pairwise": {
+        "sandy2012_vs_ida2021": {
+          "n_common_zctas": 211,
+          "jaccard_affected": 0.6,
+          "pearson_r": 0.6151,
+          "spearman_r": 0.5721,
+          "wasserstein_normalized": 0.0707,
+          "zero_fraction_diff": 0.0758,
+          "intensity_ratio": 1.55
+        },
+        "sandy2012_vs_nyc_flood_2023": {
+          "n_common_zctas": 211,
+          "jaccard_affected": 0.4697,
+          "pearson_r": 0.7343,
+          "spearman_r": 0.5683,
+          "wasserstein_normalized": 0.1239,
+          "zero_fraction_diff": 0.1801,
+          "intensity_ratio": 1.91
+        },
+        "sandy2012_vs_henri2021": {
+          "n_common_zctas": 211,
+          "jaccard_affected": 0.5932,
+          "pearson_r": 0.235,
+          "spearman_r": 0.3007,
+          "wasserstein_normalized": 0.1596,
+          "zero_fraction_diff": 0.237,
+          "intensity_ratio": 2.72
+        },
+        "ida2021_vs_nyc_flood_2023": {
+          "n_common_zctas": 211,
+          "jaccard_affected": 0.5328,
+          "pearson_r": 0.5206,
+          "spearman_r": 0.5823,
+          "wasserstein_normalized": 0.1189,
+          "zero_fraction_diff": 0.2559,
+          "intensity_ratio": 1.23
+        },
+        "ida2021_vs_henri2021": {
+          "n_common_zctas": 211,
+          "jaccard_affected": 0.7225,
+          "pearson_r": 0.431,
+          "spearman_r": 0.4744,
+          "wasserstein_normalized": 0.1515,
+          "zero_fraction_diff": 0.1611,
+          "intensity_ratio": 1.75
+        },
+        "nyc_flood_2023_vs_henri2021": {
+          "n_common_zctas": 211,
+          "jaccard_affected": 0.4438,
+          "pearson_r": 0.2424,
+          "spearman_r": 0.3135,
+          "wasserstein_normalized": 0.1736,
+          "zero_fraction_diff": 0.4171,
+          "intensity_ratio": 1.43
+        }
+      },
+      "event_stats": {
+        "sandy2012": {
+          "zero_fraction": 0.4502,
+          "mean_all": 1.4939,
+          "std_all": 1.9628,
+          "mean_nonzero": 2.7174,
+          "std_nonzero": 1.919,
+          "max": 7.8018,
+          "n_affected": 116,
+          "n_total": 211
+        },
+        "ida2021": {
+          "zero_fraction": 0.3744,
+          "mean_all": 1.0941,
+          "std_all": 1.1119,
+          "mean_nonzero": 1.7489,
+          "std_nonzero": 0.9116,
+          "max": 4.7707,
+          "n_affected": 132,
+          "n_total": 211
+        },
+        "nyc_flood_2023": {
+          "zero_fraction": 0.6303,
+          "mean_all": 0.527,
+          "std_all": 0.8946,
+          "mean_nonzero": 1.4256,
+          "std_nonzero": 0.9401,
+          "max": 3.912,
+          "n_affected": 78,
+          "n_total": 211
+        },
+        "henri2021": {
+          "zero_fraction": 0.2133,
+          "mean_all": 0.7867,
+          "std_all": 0.4096,
+          "mean_nonzero": 1.0,
+          "std_nonzero": 0.0,
+          "max": 1.0,
+          "n_affected": 166,
+          "n_total": 211
+        }
+      }
+    },
+    "southwest_florida": {
+      "events": [
+        "ian2022",
+        "helene2024",
+        "milton2024"
+      ],
+      "n_zctas": {
+        "ian2022": 202,
+        "helene2024": 202,
+        "milton2024": 202
+      },
+      "pairwise": {
+        "ian2022_vs_helene2024": {
+          "n_common_zctas": 202,
+          "jaccard_affected": 0.6406,
+          "pearson_r": 0.1629,
+          "spearman_r": 0.1209,
+          "wasserstein_normalized": 0.2086,
+          "zero_fraction_diff": 0.1634,
+          "intensity_ratio": 1.56
+        },
+        "ian2022_vs_milton2024": {
+          "n_common_zctas": 202,
+          "jaccard_affected": 0.6146,
+          "pearson_r": 0.3101,
+          "spearman_r": 0.2251,
+          "wasserstein_normalized": 0.1415,
+          "zero_fraction_diff": 0.1386,
+          "intensity_ratio": 1.23
+        },
+        "helene2024_vs_milton2024": {
+          "n_common_zctas": 202,
+          "jaccard_affected": 0.9713,
+          "pearson_r": 0.9003,
+          "spearman_r": 0.8876,
+          "wasserstein_normalized": 0.1071,
+          "zero_fraction_diff": 0.0248,
+          "intensity_ratio": 1.27
+        }
+      },
+      "event_stats": {
+        "ian2022": {
+          "zero_fraction": 0.302,
+          "mean_all": 1.9789,
+          "std_all": 2.3086,
+          "mean_nonzero": 2.8351,
+          "std_nonzero": 2.2822,
+          "max": 8.8157,
+          "n_affected": 141,
+          "n_total": 202
+        },
+        "helene2024": {
+          "zero_fraction": 0.1386,
+          "mean_all": 3.8092,
+          "std_all": 2.3142,
+          "mean_nonzero": 4.4221,
+          "std_nonzero": 1.8726,
+          "max": 8.305,
+          "n_affected": 174,
+          "n_total": 202
+        },
+        "milton2024": {
+          "zero_fraction": 0.1634,
+          "mean_all": 2.9194,
+          "std_all": 1.8423,
+          "mean_nonzero": 3.4895,
+          "std_nonzero": 1.4379,
+          "max": 7.0475,
+          "n_affected": 169,
+          "n_total": 202
+        }
+      }
+    }
+  },
+  "summary": {
+    "mean_jaccard": 0.7216,
+    "mean_pearson": 0.5034,
+    "mean_wasserstein_norm": 0.2326,
+    "interpretation": "Low Jaccard + low correlation = events affect different ZCTAs with different intensities, explaining LEO transfer failure"
+  }
+}

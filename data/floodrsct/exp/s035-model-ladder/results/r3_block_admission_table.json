@@ -1,0 +1,4426 @@
+{
+  "phase": "R3_1c_block_admission",
+  "timestamp": "2026-06-07T01:21:55.030675+00:00",
+  "preset": "GEOSPATIAL_CONUS27",
+  "thresholds": {
+    "kappa_base": 0.22,
+    "sigma_thr": 0.5,
+    "epsilon_L": 0.01,
+    "kappa_L_min": 0.15,
+    "N_thr": 0.5,
+    "alpha_min": 0.3
+  },
+  "summary": {
+    "n_blocks_evaluated": 66,
+    "n_invalid": 12,
+    "n_gate_evaluated": 54,
+    "decision_counts": {
+      "RE_ENCODE": 29,
+      "EXECUTE": 20,
+      "SKIP": 12,
+      "REJECT": 5
+    },
+    "tier_counts": {
+      "morph-candidate": 29,
+      "headline": 20,
+      "invalid": 12,
+      "rejected": 5
+    },
+    "invalid_breakdown": {
+      "by_failure_mode": {
+        "SOLVER_BOTH_NULL": 12
+      },
+      "by_remediation_action": {
+        "retrain-with-larger-sample": 12
+      },
+      "by_block": {
+        "hydrology": [
+          {
+            "target": "obs_has_hwm",
+            "failure_mode": "SOLVER_BOTH_NULL",
+            "remediation": "retrain-with-larger-sample",
+            "partial_signals": null
+          },
+          {
+            "target": "obs_has_hwm",
+            "failure_mode": "SOLVER_BOTH_NULL",
+            "remediation": "retrain-with-larger-sample",
+            "partial_signals": null
+          }
+        ],
+        "spatial_relation": [
+          {
+            "target": "obs_has_hwm",
+            "failure_mode": "SOLVER_BOTH_NULL",
+            "remediation": "retrain-with-larger-sample",
+            "partial_signals": null
+          },
+          {
+            "target": "obs_has_hwm",
+            "failure_mode": "SOLVER_BOTH_NULL",
+            "remediation": "retrain-with-larger-sample",
+            "partial_signals": null
+          }
+        ],
+        "temporal": [
+          {
+            "target": "obs_has_hwm",
+            "failure_mode": "SOLVER_BOTH_NULL",
+            "remediation": "retrain-with-larger-sample",
+            "partial_signals": null
+          },
+          {
+            "target": "obs_has_hwm",
+            "failure_mode": "SOLVER_BOTH_NULL",
+            "remediation": "retrain-with-larger-sample",
+            "partial_signals": null
+          }
+        ],
+        "infrastructure": [
+          {
+            "target": "obs_has_hwm",
+            "failure_mode": "SOLVER_BOTH_NULL",
+            "remediation": "retrain-with-larger-sample",
+            "partial_signals": null
+          },
+          {
+            "target": "obs_has_hwm",
+            "failure_mode": "SOLVER_BOTH_NULL",
+            "remediation": "retrain-with-larger-sample",
+            "partial_signals": null
+          }
+        ],
+        "socioeconomic": [
+          {
+            "target": "obs_has_hwm",
+            "failure_mode": "SOLVER_BOTH_NULL",
+            "remediation": "retrain-with-larger-sample",
+            "partial_signals": null
+          },
+          {
+            "target": "obs_has_hwm",
+            "failure_mode": "SOLVER_BOTH_NULL",
+            "remediation": "retrain-with-larger-sample",
+            "partial_signals": null
+          }
+        ],
+        "terrain": [
+          {
+            "target": "obs_has_hwm",
+            "failure_mode": "SOLVER_BOTH_NULL",
+            "remediation": "retrain-with-larger-sample",
+            "partial_signals": null
+          },
+          {
+            "target": "obs_has_hwm",
+            "failure_mode": "SOLVER_BOTH_NULL",
+            "remediation": "retrain-with-larger-sample",
+            "partial_signals": null
+          }
+        ]
+      }
+    }
+  },
+  "admission_table": [
+    {
+      "block": "hydrology",
+      "scenario": "houston",
+      "target": "obs_nfip_event_claims",
+      "enforcement_decision": "RE_ENCODE",
+      "gate_reached": "GATE_3_ADMISSIBILITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 0.0,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "failed",
+          "failure_path": "sigma_hard_barrier",
+          "sigma": 1.0,
+          "sigma_thr": 0.5
+        }
+      },
+      "coordinator_action": "re_encode",
+      "morph_hint": "solver_swap",
+      "source_mode": "proxy",
+      "kappa": 0.00900205373764038,
+      "sigma": 1.0,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": true,
+      "lyapunov_V": 1.0,
+      "lyapunov_gear": "FOURTH",
+      "gear_agreement": false,
+      "should_execute": false,
+      "admission_tier": "morph-candidate",
+      "admission_action": "morph-cycle-feature-space",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "sigma=1.000 > 0.4: gear bumped to SECOND",
+        "morph_hint=solver_swap"
+      ],
+      "labels": [
+        "sigma-bumped",
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "spatial_relation",
+      "scenario": "houston",
+      "target": "obs_nfip_event_claims",
+      "enforcement_decision": "EXECUTE",
+      "gate_reached": "ALL_PASSED",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 0.0,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "passed",
+          "failure_path": null,
+          "active_metric": "kappa_compat",
+          "kappa": 0.7972795468510665,
+          "kappa_req": 0.22,
+          "kappa_base": 0.22,
+          "lambda_turbulence": 0.0,
+          "sigma": 0.03704597752706945,
+          "epsilon_L": 0.01,
+          "in_gray_zone": false
+        },
+        "gate_3b_trajectory": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_4_grounding": {
+          "status": "absent"
+        },
+        "gate_5_contract_coverage": {
+          "status": "disabled",
+          "enabled": false
+        }
+      },
+      "coordinator_action": "proceed",
+      "morph_hint": null,
+      "source_mode": "proxy",
+      "kappa": 0.7972795468510665,
+      "sigma": 0.03704597752706945,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": false,
+      "lyapunov_V": 0.037046,
+      "lyapunov_gear": "FIRST",
+      "gear_agreement": false,
+      "should_execute": true,
+      "admission_tier": "headline",
+      "admission_action": "admit-headline",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [],
+      "labels": [
+        "path-dependent",
+        "lyapunov-divergent"
+      ],
+      "order_robust": false
+    },
+    {
+      "block": "temporal",
+      "scenario": "houston",
+      "target": "obs_nfip_event_claims",
+      "enforcement_decision": "RE_ENCODE",
+      "gate_reached": "GATE_3_ADMISSIBILITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 0.0,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "failed",
+          "failure_path": "sigma_hard_barrier",
+          "sigma": 1.0,
+          "sigma_thr": 0.5
+        }
+      },
+      "coordinator_action": "re_encode",
+      "morph_hint": "solver_swap",
+      "source_mode": "proxy",
+      "kappa": 0.6104752898216248,
+      "sigma": 1.0,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": true,
+      "lyapunov_V": 1.0,
+      "lyapunov_gear": "FOURTH",
+      "gear_agreement": false,
+      "should_execute": false,
+      "admission_tier": "morph-candidate",
+      "admission_action": "morph-cycle-feature-space",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "sigma=1.000 > 0.4: gear bumped to SECOND",
+        "morph_hint=solver_swap"
+      ],
+      "labels": [
+        "sigma-bumped",
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "infrastructure",
+      "scenario": "houston",
+      "target": "obs_nfip_event_claims",
+      "enforcement_decision": "RE_ENCODE",
+      "gate_reached": "GATE_3_ADMISSIBILITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 2.7755575615628914e-17,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "failed",
+          "failure_path": "kappa_below_oobleck",
+          "active_metric": "kappa_compat",
+          "kappa": 0.07984391911092319,
+          "kappa_req": 0.22,
+          "kappa_base": 0.22,
+          "lambda_turbulence": 0.0,
+          "sigma": 0.07591156280749264,
+          "epsilon_L": 0.01,
+          "in_gray_zone": false
+        }
+      },
+      "coordinator_action": "re_encode",
+      "morph_hint": "solver_swap",
+      "source_mode": "proxy",
+      "kappa": 0.07984391911092319,
+      "sigma": 0.07591156280749264,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": false,
+      "lyapunov_V": 0.075912,
+      "lyapunov_gear": "FIRST",
+      "gear_agreement": false,
+      "should_execute": false,
+      "admission_tier": "morph-candidate",
+      "admission_action": "morph-cycle-feature-space",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "morph_hint=solver_swap"
+      ],
+      "labels": [
+        "path-dependent",
+        "lyapunov-divergent"
+      ],
+      "order_robust": false
+    },
+    {
+      "block": "socioeconomic",
+      "scenario": "houston",
+      "target": "obs_nfip_event_claims",
+      "enforcement_decision": "RE_ENCODE",
+      "gate_reached": "GATE_3_ADMISSIBILITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 2.7755575615628914e-17,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "failed",
+          "failure_path": "kappa_below_oobleck",
+          "active_metric": "kappa_compat",
+          "kappa": 0.09344933287860697,
+          "kappa_req": 0.22,
+          "kappa_base": 0.22,
+          "lambda_turbulence": 0.0,
+          "sigma": 0.07377182066872291,
+          "epsilon_L": 0.01,
+          "in_gray_zone": false
+        }
+      },
+      "coordinator_action": "re_encode",
+      "morph_hint": "solver_swap",
+      "source_mode": "proxy",
+      "kappa": 0.09344933287860697,
+      "sigma": 0.07377182066872291,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": false,
+      "lyapunov_V": 0.073772,
+      "lyapunov_gear": "FIRST",
+      "gear_agreement": false,
+      "should_execute": false,
+      "admission_tier": "morph-candidate",
+      "admission_action": "morph-cycle-feature-space",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "morph_hint=solver_swap"
+      ],
+      "labels": [
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "terrain",
+      "scenario": "houston",
+      "target": "obs_nfip_event_claims",
+      "enforcement_decision": "RE_ENCODE",
+      "gate_reached": "GATE_3_ADMISSIBILITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 2.7755575615628914e-17,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "failed",
+          "failure_path": "kappa_below_oobleck",
+          "active_metric": "kappa_compat",
+          "kappa": 0.09344933287860697,
+          "kappa_req": 0.22,
+          "kappa_base": 0.22,
+          "lambda_turbulence": 0.0,
+          "sigma": 0.07377182066872291,
+          "epsilon_L": 0.01,
+          "in_gray_zone": false
+        }
+      },
+      "coordinator_action": "re_encode",
+      "morph_hint": "retrain_with_augmentation",
+      "source_mode": "proxy",
+      "kappa": 0.09344933287860697,
+      "sigma": 0.07377182066872291,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": false,
+      "lyapunov_V": 0.073772,
+      "lyapunov_gear": "FIRST",
+      "gear_agreement": false,
+      "should_execute": false,
+      "admission_tier": "morph-candidate",
+      "admission_action": "morph-cycle-feature-space",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "morph_hint=retrain_with_augmentation"
+      ],
+      "labels": [
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "hydrology",
+      "scenario": "houston",
+      "target": "obs_has_311",
+      "enforcement_decision": "RE_ENCODE",
+      "gate_reached": "GATE_3_ADMISSIBILITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 0.0,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "failed",
+          "failure_path": "sigma_hard_barrier",
+          "sigma": 1.0,
+          "sigma_thr": 0.5
+        }
+      },
+      "coordinator_action": "re_encode",
+      "morph_hint": "solver_swap",
+      "source_mode": "proxy",
+      "kappa": 0.652008400073277,
+      "sigma": 1.0,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": true,
+      "lyapunov_V": 1.0,
+      "lyapunov_gear": "FOURTH",
+      "gear_agreement": false,
+      "should_execute": false,
+      "admission_tier": "morph-candidate",
+      "admission_action": "morph-cycle-feature-space",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "sigma=1.000 > 0.4: gear bumped to SECOND",
+        "morph_hint=solver_swap"
+      ],
+      "labels": [
+        "sigma-bumped",
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "spatial_relation",
+      "scenario": "houston",
+      "target": "obs_has_311",
+      "enforcement_decision": "EXECUTE",
+      "gate_reached": "ALL_PASSED",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 0.0,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "passed",
+          "failure_path": null,
+          "active_metric": "kappa_compat",
+          "kappa": 0.793304687569522,
+          "kappa_req": 0.22,
+          "kappa_base": 0.22,
+          "lambda_turbulence": 0.0,
+          "sigma": 0.08286894165553685,
+          "epsilon_L": 0.01,
+          "in_gray_zone": false
+        },
+        "gate_3b_trajectory": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_4_grounding": {
+          "status": "absent"
+        },
+        "gate_5_contract_coverage": {
+          "status": "disabled",
+          "enabled": false
+        }
+      },
+      "coordinator_action": "proceed",
+      "morph_hint": null,
+      "source_mode": "proxy",
+      "kappa": 0.793304687569522,
+      "sigma": 0.08286894165553685,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": false,
+      "lyapunov_V": 0.082869,
+      "lyapunov_gear": "FIRST",
+      "gear_agreement": false,
+      "should_execute": true,
+      "admission_tier": "headline",
+      "admission_action": "admit-headline",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [],
+      "labels": [
+        "path-dependent",
+        "lyapunov-divergent"
+      ],
+      "order_robust": false
+    },
+    {
+      "block": "temporal",
+      "scenario": "houston",
+      "target": "obs_has_311",
+      "enforcement_decision": "RE_ENCODE",
+      "gate_reached": "GATE_3_ADMISSIBILITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 0.0,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "failed",
+          "failure_path": "sigma_hard_barrier",
+          "sigma": 1.0,
+          "sigma_thr": 0.5
+        }
+      },
+      "coordinator_action": "re_encode",
+      "morph_hint": "solver_swap",
+      "source_mode": "proxy",
+      "kappa": 0.6596349579539644,
+      "sigma": 1.0,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": true,
+      "lyapunov_V": 1.0,
+      "lyapunov_gear": "FOURTH",
+      "gear_agreement": false,
+      "should_execute": false,
+      "admission_tier": "morph-candidate",
+      "admission_action": "morph-cycle-feature-space",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "sigma=1.000 > 0.4: gear bumped to SECOND",
+        "morph_hint=solver_swap"
+      ],
+      "labels": [
+        "sigma-bumped",
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "infrastructure",
+      "scenario": "houston",
+      "target": "obs_has_311",
+      "enforcement_decision": "EXECUTE",
+      "gate_reached": "ALL_PASSED",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 0.0,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "passed",
+          "failure_path": null,
+          "active_metric": "kappa_compat",
+          "kappa": 0.6810153045101809,
+          "kappa_req": 0.22,
+          "kappa_base": 0.22,
+          "lambda_turbulence": 0.0,
+          "sigma": 0.13965700537216247,
+          "epsilon_L": 0.01,
+          "in_gray_zone": false
+        },
+        "gate_3b_trajectory": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_4_grounding": {
+          "status": "absent"
+        },
+        "gate_5_contract_coverage": {
+          "status": "disabled",
+          "enabled": false
+        }
+      },
+      "coordinator_action": "proceed",
+      "morph_hint": null,
+      "source_mode": "proxy",
+      "kappa": 0.6810153045101809,
+      "sigma": 0.13965700537216247,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": false,
+      "lyapunov_V": 0.139657,
+      "lyapunov_gear": "FIRST",
+      "gear_agreement": false,
+      "should_execute": true,
+      "admission_tier": "headline",
+      "admission_action": "admit-headline",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [],
+      "labels": [
+        "path-dependent",
+        "lyapunov-divergent"
+      ],
+      "order_robust": false
+    },
+    {
+      "block": "socioeconomic",
+      "scenario": "houston",
+      "target": "obs_has_311",
+      "enforcement_decision": "EXECUTE",
+      "gate_reached": "ALL_PASSED",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 4.683753385137379e-17,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "passed",
+          "failure_path": null,
+          "active_metric": "kappa_compat",
+          "kappa": 0.6857391767051536,
+          "kappa_req": 0.22,
+          "kappa_base": 0.22,
+          "lambda_turbulence": 0.0,
+          "sigma": 0.14375330798214034,
+          "epsilon_L": 0.01,
+          "in_gray_zone": false
+        },
+        "gate_3b_trajectory": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_4_grounding": {
+          "status": "absent"
+        },
+        "gate_5_contract_coverage": {
+          "status": "disabled",
+          "enabled": false
+        }
+      },
+      "coordinator_action": "proceed",
+      "morph_hint": null,
+      "source_mode": "proxy",
+      "kappa": 0.6857391767051536,
+      "sigma": 0.14375330798214034,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": false,
+      "lyapunov_V": 0.143753,
+      "lyapunov_gear": "FIRST",
+      "gear_agreement": false,
+      "should_execute": true,
+      "admission_tier": "headline",
+      "admission_action": "admit-headline",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [],
+      "labels": [
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "terrain",
+      "scenario": "houston",
+      "target": "obs_has_311",
+      "enforcement_decision": "EXECUTE",
+      "gate_reached": "ALL_PASSED",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 4.683753385137379e-17,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "passed",
+          "failure_path": null,
+          "active_metric": "kappa_compat",
+          "kappa": 0.6857391767051536,
+          "kappa_req": 0.22,
+          "kappa_base": 0.22,
+          "lambda_turbulence": 0.0,
+          "sigma": 0.14375330798214034,
+          "epsilon_L": 0.01,
+          "in_gray_zone": false
+        },
+        "gate_3b_trajectory": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_4_grounding": {
+          "status": "absent"
+        },
+        "gate_5_contract_coverage": {
+          "status": "disabled",
+          "enabled": false
+        }
+      },
+      "coordinator_action": "proceed",
+      "morph_hint": null,
+      "source_mode": "proxy",
+      "kappa": 0.6857391767051536,
+      "sigma": 0.14375330798214034,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": false,
+      "lyapunov_V": 0.143753,
+      "lyapunov_gear": "FIRST",
+      "gear_agreement": false,
+      "should_execute": true,
+      "admission_tier": "headline",
+      "admission_action": "admit-headline",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [],
+      "labels": [
+        "solver-specific",
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "hydrology",
+      "scenario": "new_orleans",
+      "target": "obs_nfip_event_claims",
+      "enforcement_decision": "RE_ENCODE",
+      "gate_reached": "GATE_3_ADMISSIBILITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 0.021309374371767276,
+          "N_thr": 0.5,
+          "alpha": 0.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": false
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "failed",
+          "failure_path": "sigma_hard_barrier",
+          "sigma": 1.0,
+          "sigma_thr": 0.5
+        }
+      },
+      "coordinator_action": "re_encode",
+      "morph_hint": "solver_swap",
+      "source_mode": "proxy",
+      "kappa": 0.0,
+      "sigma": 1.0,
+      "alpha": 0.0,
+      "tau": 999.0,
+      "gear": "FOURTH",
+      "gear_after_bump": "FOURTH",
+      "sigma_warning": true,
+      "lyapunov_V": 999.0,
+      "lyapunov_gear": "REVERSE",
+      "gear_agreement": false,
+      "should_execute": false,
+      "admission_tier": "morph-candidate",
+      "admission_action": "morph-cycle-feature-space",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "sigma=1.000 > 0.4: gear bumped to FOURTH",
+        "morph_hint=solver_swap"
+      ],
+      "labels": [
+        "sigma-bumped",
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "spatial_relation",
+      "scenario": "new_orleans",
+      "target": "obs_nfip_event_claims",
+      "enforcement_decision": "EXECUTE",
+      "gate_reached": "ALL_PASSED",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 4.163336342344337e-17,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "passed",
+          "failure_path": null,
+          "active_metric": "kappa_compat",
+          "kappa": 0.5763353027517447,
+          "kappa_req": 0.22,
+          "kappa_base": 0.22,
+          "lambda_turbulence": 0.0,
+          "sigma": 0.2073890947946359,
+          "epsilon_L": 0.01,
+          "in_gray_zone": false
+        },
+        "gate_3b_trajectory": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_4_grounding": {
+          "status": "absent"
+        },
+        "gate_5_contract_coverage": {
+          "status": "disabled",
+          "enabled": false
+        }
+      },
+      "coordinator_action": "proceed",
+      "morph_hint": null,
+      "source_mode": "proxy",
+      "kappa": 0.5763353027517447,
+      "sigma": 0.2073890947946359,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": false,
+      "lyapunov_V": 0.207389,
+      "lyapunov_gear": "SECOND",
+      "gear_agreement": true,
+      "should_execute": true,
+      "admission_tier": "headline",
+      "admission_action": "admit-headline",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [],
+      "labels": [
+        "path-dependent"
+      ],
+      "order_robust": false
+    },
+    {
+      "block": "temporal",
+      "scenario": "new_orleans",
+      "target": "obs_nfip_event_claims",
+      "enforcement_decision": "RE_ENCODE",
+      "gate_reached": "GATE_3_ADMISSIBILITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 0.0,
+          "N_thr": 0.5,
+          "alpha": 0.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": false
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "failed",
+          "failure_path": "sigma_hard_barrier",
+          "sigma": 1.0,
+          "sigma_thr": 0.5
+        }
+      },
+      "coordinator_action": "re_encode",
+      "morph_hint": "solver_swap",
+      "source_mode": "proxy",
+      "kappa": 0.0,
+      "sigma": 1.0,
+      "alpha": 0.0,
+      "tau": 999.0,
+      "gear": "FOURTH",
+      "gear_after_bump": "FOURTH",
+      "sigma_warning": true,
+      "lyapunov_V": 999.0,
+      "lyapunov_gear": "REVERSE",
+      "gear_agreement": false,
+      "should_execute": false,
+      "admission_tier": "morph-candidate",
+      "admission_action": "morph-cycle-feature-space",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "sigma=1.000 > 0.4: gear bumped to FOURTH",
+        "morph_hint=solver_swap"
+      ],
+      "labels": [
+        "sigma-bumped",
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "infrastructure",
+      "scenario": "new_orleans",
+      "target": "obs_nfip_event_claims",
+      "enforcement_decision": "RE_ENCODE",
+      "gate_reached": "GATE_3_ADMISSIBILITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 0.0,
+          "N_thr": 0.5,
+          "alpha": 0.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": false
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "failed",
+          "failure_path": "kappa_below_oobleck",
+          "active_metric": "kappa_compat",
+          "kappa": 0.0,
+          "kappa_req": 0.22,
+          "kappa_base": 0.22,
+          "lambda_turbulence": 0.0,
+          "sigma": 0.2446920530058781,
+          "epsilon_L": 0.01,
+          "in_gray_zone": false
+        }
+      },
+      "coordinator_action": "re_encode",
+      "morph_hint": "solver_swap",
+      "source_mode": "proxy",
+      "kappa": 0.0,
+      "sigma": 0.2446920530058781,
+      "alpha": 0.0,
+      "tau": 999.0,
+      "gear": "FOURTH",
+      "gear_after_bump": "FOURTH",
+      "sigma_warning": false,
+      "lyapunov_V": 244.447361,
+      "lyapunov_gear": "REVERSE",
+      "gear_agreement": false,
+      "should_execute": false,
+      "admission_tier": "morph-candidate",
+      "admission_action": "morph-cycle-feature-space",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "morph_hint=solver_swap"
+      ],
+      "labels": [
+        "path-dependent",
+        "lyapunov-divergent"
+      ],
+      "order_robust": false
+    },
+    {
+      "block": "socioeconomic",
+      "scenario": "new_orleans",
+      "target": "obs_nfip_event_claims",
+      "enforcement_decision": "RE_ENCODE",
+      "gate_reached": "GATE_3_ADMISSIBILITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 0.0,
+          "N_thr": 0.5,
+          "alpha": 0.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": false
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "failed",
+          "failure_path": "kappa_below_oobleck",
+          "active_metric": "kappa_compat",
+          "kappa": 0.0,
+          "kappa_req": 0.22,
+          "kappa_base": 0.22,
+          "lambda_turbulence": 0.0,
+          "sigma": 0.25109629249679766,
+          "epsilon_L": 0.01,
+          "in_gray_zone": false
+        }
+      },
+      "coordinator_action": "re_encode",
+      "morph_hint": "solver_swap",
+      "source_mode": "proxy",
+      "kappa": 0.0,
+      "sigma": 0.25109629249679766,
+      "alpha": 0.0,
+      "tau": 999.0,
+      "gear": "FOURTH",
+      "gear_after_bump": "FOURTH",
+      "sigma_warning": false,
+      "lyapunov_V": 250.845196,
+      "lyapunov_gear": "REVERSE",
+      "gear_agreement": false,
+      "should_execute": false,
+      "admission_tier": "morph-candidate",
+      "admission_action": "morph-cycle-feature-space",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "morph_hint=solver_swap"
+      ],
+      "labels": [
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "terrain",
+      "scenario": "new_orleans",
+      "target": "obs_nfip_event_claims",
+      "enforcement_decision": "RE_ENCODE",
+      "gate_reached": "GATE_3_ADMISSIBILITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 0.0,
+          "N_thr": 0.5,
+          "alpha": 0.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": false
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "failed",
+          "failure_path": "kappa_below_oobleck",
+          "active_metric": "kappa_compat",
+          "kappa": 0.0,
+          "kappa_req": 0.22,
+          "kappa_base": 0.22,
+          "lambda_turbulence": 0.0,
+          "sigma": 0.25109629249679766,
+          "epsilon_L": 0.01,
+          "in_gray_zone": false
+        }
+      },
+      "coordinator_action": "re_encode",
+      "morph_hint": "retrain_with_augmentation",
+      "source_mode": "proxy",
+      "kappa": 0.0,
+      "sigma": 0.25109629249679766,
+      "alpha": 0.0,
+      "tau": 999.0,
+      "gear": "FOURTH",
+      "gear_after_bump": "FOURTH",
+      "sigma_warning": false,
+      "lyapunov_V": 250.845196,
+      "lyapunov_gear": "REVERSE",
+      "gear_agreement": false,
+      "should_execute": false,
+      "admission_tier": "morph-candidate",
+      "admission_action": "morph-cycle-feature-space",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "morph_hint=retrain_with_augmentation"
+      ],
+      "labels": [
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "hydrology",
+      "scenario": "new_orleans",
+      "target": "obs_has_hwm",
+      "enforcement_decision": "SKIP",
+      "gate_reached": "PRE_GATE_INVALID",
+      "certificate_status": "INVALID",
+      "admission_tier": "invalid",
+      "admission_action": "retrain-with-larger-sample",
+      "labels": [
+        "invalid-certificate",
+        "SOLVER_BOTH_NULL"
+      ],
+      "invalid_diagnosis": {
+        "failure_mode": "SOLVER_BOTH_NULL",
+        "remediation_action": "retrain-with-larger-sample",
+        "detail": "Both histgbdt and ridge returned null metrics on block_only. Likely cause: insufficient training rows, single-class target, or all-NaN features in this block.",
+        "solver_trace": {
+          "primary_solver": null,
+          "fallback_solver": null,
+          "fallback_triggered": null,
+          "primary_failure_reason": null
+        },
+        "partial_signals": null,
+        "feature_audit_summary": {
+          "add_status": "NO_OP_B_SUBSET_R2",
+          "drop_status": "VALID",
+          "block_only_valid": true
+        }
+      },
+      "certificate_evidence": {
+        "independent_signal": {
+          "source": "block_only",
+          "metric": null,
+          "solver": null,
+          "fallback_used": false
+        },
+        "marginal_signal": {
+          "source": "full_R2_minus_drop_block",
+          "full_metric": null,
+          "full_solver": null,
+          "full_fallback_used": false,
+          "drop_metric": null,
+          "drop_solver": null,
+          "drop_fallback_used": false,
+          "delta": null
+        },
+        "feature_audit": {
+          "add_effective_features": [],
+          "drop_effective_features": [
+            "nhd_catchment_area_km2",
+            "slope_basin_slope",
+            "slope_stream_slope",
+            "twi_acc_twi",
+            "twi_tot_twi",
+            "levee_nearest_km",
+            "levee_condition_rating",
+            "sewershed_name"
+          ],
+          "add_status": "NO_OP_B_SUBSET_R2",
+          "drop_status": "VALID",
+          "block_only_valid": true
+        },
+        "ablation_interpretation": null
+      }
+    },
+    {
+      "block": "spatial_relation",
+      "scenario": "new_orleans",
+      "target": "obs_has_hwm",
+      "enforcement_decision": "SKIP",
+      "gate_reached": "PRE_GATE_INVALID",
+      "certificate_status": "INVALID",
+      "admission_tier": "invalid",
+      "admission_action": "retrain-with-larger-sample",
+      "labels": [
+        "invalid-certificate",
+        "SOLVER_BOTH_NULL"
+      ],
+      "invalid_diagnosis": {
+        "failure_mode": "SOLVER_BOTH_NULL",
+        "remediation_action": "retrain-with-larger-sample",
+        "detail": "Both histgbdt and ridge returned null metrics on block_only. Likely cause: insufficient training rows, single-class target, or all-NaN features in this block.",
+        "solver_trace": {
+          "primary_solver": null,
+          "fallback_solver": null,
+          "fallback_triggered": null,
+          "primary_failure_reason": null
+        },
+        "partial_signals": null,
+        "feature_audit_summary": {
+          "add_status": "NO_OP_B_SUBSET_R2",
+          "drop_status": "VALID",
+          "block_only_valid": true
+        }
+      },
+      "certificate_evidence": {
+        "independent_signal": {
+          "source": "block_only",
+          "metric": null,
+          "solver": null,
+          "fallback_used": false
+        },
+        "marginal_signal": {
+          "source": "full_R2_minus_drop_block",
+          "full_metric": null,
+          "full_solver": null,
+          "full_fallback_used": false,
+          "drop_metric": null,
+          "drop_solver": null,
+          "drop_fallback_used": false,
+          "delta": null
+        },
+        "feature_audit": {
+          "add_effective_features": [],
+          "drop_effective_features": [
+            "zcta_degree",
+            "zcta_mean_neighbor_dist_km",
+            "wlag_flood_zone_pct",
+            "wlag_population_density",
+            "wlag_median_income",
+            "wlag_impervious_pct",
+            "wlag_cropland_pct",
+            "wlag_rainfall_mm",
+            "wlag_nfip_claims"
+          ],
+          "add_status": "NO_OP_B_SUBSET_R2",
+          "drop_status": "VALID",
+          "block_only_valid": true
+        },
+        "ablation_interpretation": null
+      }
+    },
+    {
+      "block": "temporal",
+      "scenario": "new_orleans",
+      "target": "obs_has_hwm",
+      "enforcement_decision": "SKIP",
+      "gate_reached": "PRE_GATE_INVALID",
+      "certificate_status": "INVALID",
+      "admission_tier": "invalid",
+      "admission_action": "retrain-with-larger-sample",
+      "labels": [
+        "invalid-certificate",
+        "SOLVER_BOTH_NULL"
+      ],
+      "invalid_diagnosis": {
+        "failure_mode": "SOLVER_BOTH_NULL",
+        "remediation_action": "retrain-with-larger-sample",
+        "detail": "Both histgbdt and ridge returned null metrics on block_only. Likely cause: insufficient training rows, single-class target, or all-NaN features in this block.",
+        "solver_trace": {
+          "primary_solver": null,
+          "fallback_solver": null,
+          "fallback_triggered": null,
+          "primary_failure_reason": null
+        },
+        "partial_signals": null,
+        "feature_audit_summary": {
+          "add_status": "NO_OP_B_SUBSET_R2",
+          "drop_status": "VALID",
+          "block_only_valid": true
+        }
+      },
+      "certificate_evidence": {
+        "independent_signal": {
+          "source": "block_only",
+          "metric": null,
+          "solver": null,
+          "fallback_used": false
+        },
+        "marginal_signal": {
+          "source": "full_R2_minus_drop_block",
+          "full_metric": null,
+          "full_solver": null,
+          "full_fallback_used": false,
+          "drop_metric": null,
+          "drop_solver": null,
+          "drop_fallback_used": false,
+          "delta": null
+        },
+        "feature_audit": {
+          "add_effective_features": [],
+          "drop_effective_features": [
+            "peak_1h_mm",
+            "peak_3h_mm",
+            "peak_6h_mm",
+            "storm_duration_h",
+            "time_to_peak_h",
+            "rainfall_intensity_cv",
+            "tide_peak_m",
+            "surge_rain_lag_h",
+            "storm_min_dist_km",
+            "storm_landfall_category"
+          ],
+          "add_status": "NO_OP_B_SUBSET_R2",
+          "drop_status": "VALID",
+          "block_only_valid": true
+        },
+        "ablation_interpretation": null
+      }
+    },
+    {
+      "block": "infrastructure",
+      "scenario": "new_orleans",
+      "target": "obs_has_hwm",
+      "enforcement_decision": "SKIP",
+      "gate_reached": "PRE_GATE_INVALID",
+      "certificate_status": "INVALID",
+      "admission_tier": "invalid",
+      "admission_action": "retrain-with-larger-sample",
+      "labels": [
+        "invalid-certificate",
+        "SOLVER_BOTH_NULL"
+      ],
+      "invalid_diagnosis": {
+        "failure_mode": "SOLVER_BOTH_NULL",
+        "remediation_action": "retrain-with-larger-sample",
+        "detail": "Both histgbdt and ridge returned null metrics on block_only. Likely cause: insufficient training rows, single-class target, or all-NaN features in this block.",
+        "solver_trace": {
+          "primary_solver": null,
+          "fallback_solver": null,
+          "fallback_triggered": null,
+          "primary_failure_reason": null
+        },
+        "partial_signals": null,
+        "feature_audit_summary": {
+          "add_status": "NO_OP_B_SUBSET_R2",
+          "drop_status": "VALID",
+          "block_only_valid": true
+        }
+      },
+      "certificate_evidence": {
+        "independent_signal": {
+          "source": "block_only",
+          "metric": null,
+          "solver": null,
+          "fallback_used": false
+        },
+        "marginal_signal": {
+          "source": "full_R2_minus_drop_block",
+          "full_metric": null,
+          "full_solver": null,
+          "full_fallback_used": false,
+          "drop_metric": null,
+          "drop_solver": null,
+          "drop_fallback_used": false,
+          "delta": null
+        },
+        "feature_audit": {
+          "add_effective_features": [],
+          "drop_effective_features": [
+            "hifld_nearest_hospital_km",
+            "hifld_n_hospitals",
+            "drive_min_to_county_centroid",
+            "drive_min_to_county_seat",
+            "drive_min_to_nearest_hospital",
+            "hifld_n_hospital_beds",
+            "hifld_n_pharmacies",
+            "hifld_nearest_pharmacy_km",
+            "hifld_nearest_trauma_center_km"
+          ],
+          "add_status": "NO_OP_B_SUBSET_R2",
+          "drop_status": "VALID",
+          "block_only_valid": true
+        },
+        "ablation_interpretation": null
+      }
+    },
+    {
+      "block": "socioeconomic",
+      "scenario": "new_orleans",
+      "target": "obs_has_hwm",
+      "enforcement_decision": "SKIP",
+      "gate_reached": "PRE_GATE_INVALID",
+      "certificate_status": "INVALID",
+      "admission_tier": "invalid",
+      "admission_action": "retrain-with-larger-sample",
+      "labels": [
+        "invalid-certificate",
+        "SOLVER_BOTH_NULL"
+      ],
+      "invalid_diagnosis": {
+        "failure_mode": "SOLVER_BOTH_NULL",
+        "remediation_action": "retrain-with-larger-sample",
+        "detail": "Both histgbdt and ridge returned null metrics on block_only. Likely cause: insufficient training rows, single-class target, or all-NaN features in this block.",
+        "solver_trace": {
+          "primary_solver": null,
+          "fallback_solver": null,
+          "fallback_triggered": null,
+          "primary_failure_reason": null
+        },
+        "partial_signals": null,
+        "feature_audit_summary": {
+          "add_status": "NO_OP_B_SUBSET_R2",
+          "drop_status": "VALID",
+          "block_only_valid": true
+        }
+      },
+      "certificate_evidence": {
+        "independent_signal": {
+          "source": "block_only",
+          "metric": null,
+          "solver": null,
+          "fallback_used": false
+        },
+        "marginal_signal": {
+          "source": "full_R2_minus_drop_block",
+          "full_metric": null,
+          "full_solver": null,
+          "full_fallback_used": false,
+          "drop_metric": null,
+          "drop_solver": null,
+          "drop_fallback_used": false,
+          "delta": null
+        },
+        "feature_audit": {
+          "add_effective_features": [],
+          "drop_effective_features": [
+            "acs_total_pop",
+            "acs_median_hh_income",
+            "acs_pct_below_poverty",
+            "acs_pct_renter_occupied",
+            "acs_pct_owner_occupied",
+            "acs_pct_vacant",
+            "acs_pct_no_vehicle",
+            "acs_median_home_value",
+            "acs_median_year_built",
+            "svi_overall",
+            "svi_socioeconomic",
+            "svi_household_disability",
+            "svi_minority_language",
+            "svi_housing_transport",
+            "population"
+          ],
+          "add_status": "NO_OP_B_SUBSET_R2",
+          "drop_status": "VALID",
+          "block_only_valid": true
+        },
+        "ablation_interpretation": null
+      }
+    },
+    {
+      "block": "terrain",
+      "scenario": "new_orleans",
+      "target": "obs_has_hwm",
+      "enforcement_decision": "SKIP",
+      "gate_reached": "PRE_GATE_INVALID",
+      "certificate_status": "INVALID",
+      "admission_tier": "invalid",
+      "admission_action": "retrain-with-larger-sample",
+      "labels": [
+        "invalid-certificate",
+        "SOLVER_BOTH_NULL"
+      ],
+      "invalid_diagnosis": {
+        "failure_mode": "SOLVER_BOTH_NULL",
+        "remediation_action": "retrain-with-larger-sample",
+        "detail": "Both histgbdt and ridge returned null metrics on block_only. Likely cause: insufficient training rows, single-class target, or all-NaN features in this block.",
+        "solver_trace": {
+          "primary_solver": null,
+          "fallback_solver": null,
+          "fallback_triggered": null,
+          "primary_failure_reason": null
+        },
+        "partial_signals": null,
+        "feature_audit_summary": {
+          "add_status": "VALID",
+          "drop_status": "VALID",
+          "block_only_valid": true
+        }
+      },
+      "certificate_evidence": {
+        "independent_signal": {
+          "source": "block_only",
+          "metric": null,
+          "solver": null,
+          "fallback_used": false
+        },
+        "marginal_signal": {
+          "source": "full_R2_minus_drop_block",
+          "full_metric": null,
+          "full_solver": null,
+          "full_fallback_used": false,
+          "drop_metric": null,
+          "drop_solver": null,
+          "drop_fallback_used": false,
+          "delta": null
+        },
+        "feature_audit": {
+          "add_effective_features": [
+            "flood_sfha"
+          ],
+          "drop_effective_features": [
+            "flood_pct_zone_a",
+            "flood_pct_zone_x",
+            "flood_pct_zone_x500",
+            "elevation_m_msl",
+            "slope_mean_pct",
+            "twi_twi",
+            "coastal_distance_m",
+            "latitude",
+            "longitude",
+            "impervious_pct",
+            "cropland_pct"
+          ],
+          "add_status": "VALID",
+          "drop_status": "VALID",
+          "block_only_valid": true
+        },
+        "ablation_interpretation": null
+      }
+    },
+    {
+      "block": "hydrology",
+      "scenario": "nyc",
+      "target": "obs_nfip_event_claims",
+      "enforcement_decision": "REJECT",
+      "gate_reached": "GATE_1_INTEGRITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "failed",
+          "noise_admissibility": 1.0,
+          "N_thr": 0.5,
+          "alpha": 0.0,
+          "alpha_min": 0.3,
+          "n_check_passed": false,
+          "alpha_check_passed": false
+        }
+      },
+      "coordinator_action": "reject",
+      "morph_hint": null,
+      "source_mode": "proxy",
+      "kappa": 0.0,
+      "sigma": 1.0,
+      "alpha": 0.0,
+      "tau": 999.0,
+      "gear": "FOURTH",
+      "gear_after_bump": "FOURTH",
+      "sigma_warning": true,
+      "lyapunov_V": 999.0,
+      "lyapunov_gear": "REVERSE",
+      "gear_agreement": false,
+      "should_execute": false,
+      "admission_tier": "rejected",
+      "admission_action": "reject",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "sigma=1.000 > 0.4: gear bumped to FOURTH"
+      ],
+      "labels": [
+        "sigma-bumped",
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "spatial_relation",
+      "scenario": "nyc",
+      "target": "obs_nfip_event_claims",
+      "enforcement_decision": "EXECUTE",
+      "gate_reached": "ALL_PASSED",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 1.3877787807814457e-17,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "passed",
+          "failure_path": null,
+          "active_metric": "kappa_compat",
+          "kappa": 0.47654053900145676,
+          "kappa_req": 0.22,
+          "kappa_base": 0.22,
+          "lambda_turbulence": 0.0,
+          "sigma": 0.06585857747654361,
+          "epsilon_L": 0.01,
+          "in_gray_zone": false
+        },
+        "gate_3b_trajectory": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_4_grounding": {
+          "status": "absent"
+        },
+        "gate_5_contract_coverage": {
+          "status": "disabled",
+          "enabled": false
+        }
+      },
+      "coordinator_action": "proceed",
+      "morph_hint": null,
+      "source_mode": "proxy",
+      "kappa": 0.47654053900145676,
+      "sigma": 0.06585857747654361,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": false,
+      "lyapunov_V": 0.065859,
+      "lyapunov_gear": "FIRST",
+      "gear_agreement": false,
+      "should_execute": true,
+      "admission_tier": "headline",
+      "admission_action": "admit-headline",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [],
+      "labels": [
+        "path-dependent",
+        "lyapunov-divergent"
+      ],
+      "order_robust": false
+    },
+    {
+      "block": "temporal",
+      "scenario": "nyc",
+      "target": "obs_nfip_event_claims",
+      "enforcement_decision": "REJECT",
+      "gate_reached": "GATE_1_INTEGRITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "failed",
+          "noise_admissibility": 1.0,
+          "N_thr": 0.5,
+          "alpha": 0.0,
+          "alpha_min": 0.3,
+          "n_check_passed": false,
+          "alpha_check_passed": false
+        }
+      },
+      "coordinator_action": "reject",
+      "morph_hint": null,
+      "source_mode": "proxy",
+      "kappa": 0.0,
+      "sigma": 1.0,
+      "alpha": 0.0,
+      "tau": 999.0,
+      "gear": "FOURTH",
+      "gear_after_bump": "FOURTH",
+      "sigma_warning": true,
+      "lyapunov_V": 999.0,
+      "lyapunov_gear": "REVERSE",
+      "gear_agreement": false,
+      "should_execute": false,
+      "admission_tier": "rejected",
+      "admission_action": "reject",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "sigma=1.000 > 0.4: gear bumped to FOURTH"
+      ],
+      "labels": [
+        "sigma-bumped",
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "infrastructure",
+      "scenario": "nyc",
+      "target": "obs_nfip_event_claims",
+      "enforcement_decision": "RE_ENCODE",
+      "gate_reached": "GATE_3_ADMISSIBILITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 0.0,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "failed",
+          "failure_path": "kappa_below_oobleck",
+          "active_metric": "kappa_compat",
+          "kappa": 0.15098425533815046,
+          "kappa_req": 0.22,
+          "kappa_base": 0.22,
+          "lambda_turbulence": 0.0,
+          "sigma": 0.22624967716666616,
+          "epsilon_L": 0.01,
+          "in_gray_zone": false
+        }
+      },
+      "coordinator_action": "re_encode",
+      "morph_hint": "solver_swap",
+      "source_mode": "proxy",
+      "kappa": 0.15098425533815046,
+      "sigma": 0.22624967716666616,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": false,
+      "lyapunov_V": 0.22625,
+      "lyapunov_gear": "SECOND",
+      "gear_agreement": true,
+      "should_execute": false,
+      "admission_tier": "morph-candidate",
+      "admission_action": "morph-cycle-feature-space",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "morph_hint=solver_swap"
+      ],
+      "labels": [
+        "path-dependent"
+      ],
+      "order_robust": false
+    },
+    {
+      "block": "socioeconomic",
+      "scenario": "nyc",
+      "target": "obs_nfip_event_claims",
+      "enforcement_decision": "RE_ENCODE",
+      "gate_reached": "GATE_3_ADMISSIBILITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 0.0,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "failed",
+          "failure_path": "kappa_below_oobleck",
+          "active_metric": "kappa_compat",
+          "kappa": 0.15212408588101395,
+          "kappa_req": 0.22,
+          "kappa_base": 0.22,
+          "lambda_turbulence": 0.0,
+          "sigma": 0.20750676871295182,
+          "epsilon_L": 0.01,
+          "in_gray_zone": false
+        }
+      },
+      "coordinator_action": "re_encode",
+      "morph_hint": "solver_swap",
+      "source_mode": "proxy",
+      "kappa": 0.15212408588101395,
+      "sigma": 0.20750676871295182,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": false,
+      "lyapunov_V": 0.207507,
+      "lyapunov_gear": "SECOND",
+      "gear_agreement": true,
+      "should_execute": false,
+      "admission_tier": "morph-candidate",
+      "admission_action": "morph-cycle-feature-space",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "morph_hint=solver_swap"
+      ],
+      "labels": [],
+      "order_robust": true
+    },
+    {
+      "block": "terrain",
+      "scenario": "nyc",
+      "target": "obs_nfip_event_claims",
+      "enforcement_decision": "RE_ENCODE",
+      "gate_reached": "GATE_3_ADMISSIBILITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 0.0,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "failed",
+          "failure_path": "kappa_below_oobleck",
+          "active_metric": "kappa_compat",
+          "kappa": 0.15212408588101395,
+          "kappa_req": 0.22,
+          "kappa_base": 0.22,
+          "lambda_turbulence": 0.0,
+          "sigma": 0.20750676871295182,
+          "epsilon_L": 0.01,
+          "in_gray_zone": false
+        }
+      },
+      "coordinator_action": "re_encode",
+      "morph_hint": "retrain_with_augmentation",
+      "source_mode": "proxy",
+      "kappa": 0.15212408588101395,
+      "sigma": 0.20750676871295182,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": false,
+      "lyapunov_V": 0.207507,
+      "lyapunov_gear": "SECOND",
+      "gear_agreement": true,
+      "should_execute": false,
+      "admission_tier": "morph-candidate",
+      "admission_action": "morph-cycle-feature-space",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "morph_hint=retrain_with_augmentation"
+      ],
+      "labels": [
+        "solver-specific"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "hydrology",
+      "scenario": "nyc",
+      "target": "obs_has_311",
+      "enforcement_decision": "RE_ENCODE",
+      "gate_reached": "GATE_3_ADMISSIBILITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 0.0,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "failed",
+          "failure_path": "sigma_hard_barrier",
+          "sigma": 1.0,
+          "sigma_thr": 0.5
+        }
+      },
+      "coordinator_action": "re_encode",
+      "morph_hint": "solver_swap",
+      "source_mode": "proxy",
+      "kappa": 0.5447944702886904,
+      "sigma": 1.0,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": true,
+      "lyapunov_V": 1.0,
+      "lyapunov_gear": "FOURTH",
+      "gear_agreement": false,
+      "should_execute": false,
+      "admission_tier": "morph-candidate",
+      "admission_action": "morph-cycle-feature-space",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "sigma=1.000 > 0.4: gear bumped to SECOND",
+        "morph_hint=solver_swap"
+      ],
+      "labels": [
+        "sigma-bumped",
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "spatial_relation",
+      "scenario": "nyc",
+      "target": "obs_has_311",
+      "enforcement_decision": "EXECUTE",
+      "gate_reached": "ALL_PASSED",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 0.0,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "passed",
+          "failure_path": null,
+          "active_metric": "kappa_compat",
+          "kappa": 0.9862348606934939,
+          "kappa_req": 0.22,
+          "kappa_base": 0.22,
+          "lambda_turbulence": 0.0,
+          "sigma": 0.016806157506912778,
+          "epsilon_L": 0.01,
+          "in_gray_zone": false
+        },
+        "gate_3b_trajectory": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_4_grounding": {
+          "status": "absent"
+        },
+        "gate_5_contract_coverage": {
+          "status": "disabled",
+          "enabled": false
+        }
+      },
+      "coordinator_action": "proceed",
+      "morph_hint": null,
+      "source_mode": "proxy",
+      "kappa": 0.9862348606934939,
+      "sigma": 0.016806157506912778,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": false,
+      "lyapunov_V": 0.016806,
+      "lyapunov_gear": "FIRST",
+      "gear_agreement": false,
+      "should_execute": true,
+      "admission_tier": "headline",
+      "admission_action": "admit-headline",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [],
+      "labels": [
+        "path-dependent",
+        "lyapunov-divergent"
+      ],
+      "order_robust": false
+    },
+    {
+      "block": "temporal",
+      "scenario": "nyc",
+      "target": "obs_has_311",
+      "enforcement_decision": "RE_ENCODE",
+      "gate_reached": "GATE_3_ADMISSIBILITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 1.734723475976807e-17,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "failed",
+          "failure_path": "sigma_hard_barrier",
+          "sigma": 1.0,
+          "sigma_thr": 0.5
+        }
+      },
+      "coordinator_action": "re_encode",
+      "morph_hint": "solver_swap",
+      "source_mode": "proxy",
+      "kappa": 0.9110193663980569,
+      "sigma": 1.0,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": true,
+      "lyapunov_V": 1.0,
+      "lyapunov_gear": "FOURTH",
+      "gear_agreement": false,
+      "should_execute": false,
+      "admission_tier": "morph-candidate",
+      "admission_action": "morph-cycle-feature-space",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "sigma=1.000 > 0.4: gear bumped to SECOND",
+        "morph_hint=solver_swap"
+      ],
+      "labels": [
+        "sigma-bumped",
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "infrastructure",
+      "scenario": "nyc",
+      "target": "obs_has_311",
+      "enforcement_decision": "EXECUTE",
+      "gate_reached": "ALL_PASSED",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 2.7755575615628914e-17,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "passed",
+          "failure_path": null,
+          "active_metric": "kappa_compat",
+          "kappa": 0.6349622803303904,
+          "kappa_req": 0.22,
+          "kappa_base": 0.22,
+          "lambda_turbulence": 0.0,
+          "sigma": 0.11848616328241468,
+          "epsilon_L": 0.01,
+          "in_gray_zone": false
+        },
+        "gate_3b_trajectory": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_4_grounding": {
+          "status": "absent"
+        },
+        "gate_5_contract_coverage": {
+          "status": "disabled",
+          "enabled": false
+        }
+      },
+      "coordinator_action": "proceed",
+      "morph_hint": null,
+      "source_mode": "proxy",
+      "kappa": 0.6349622803303904,
+      "sigma": 0.11848616328241468,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": false,
+      "lyapunov_V": 0.118486,
+      "lyapunov_gear": "FIRST",
+      "gear_agreement": false,
+      "should_execute": true,
+      "admission_tier": "headline",
+      "admission_action": "admit-headline",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [],
+      "labels": [
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "socioeconomic",
+      "scenario": "nyc",
+      "target": "obs_has_311",
+      "enforcement_decision": "EXECUTE",
+      "gate_reached": "ALL_PASSED",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 2.7755575615628914e-17,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "passed",
+          "failure_path": null,
+          "active_metric": "kappa_compat",
+          "kappa": 0.6340917564198874,
+          "kappa_req": 0.22,
+          "kappa_base": 0.22,
+          "lambda_turbulence": 0.0,
+          "sigma": 0.11825746044728383,
+          "epsilon_L": 0.01,
+          "in_gray_zone": false
+        },
+        "gate_3b_trajectory": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_4_grounding": {
+          "status": "absent"
+        },
+        "gate_5_contract_coverage": {
+          "status": "disabled",
+          "enabled": false
+        }
+      },
+      "coordinator_action": "proceed",
+      "morph_hint": null,
+      "source_mode": "proxy",
+      "kappa": 0.6340917564198874,
+      "sigma": 0.11825746044728383,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": false,
+      "lyapunov_V": 0.118257,
+      "lyapunov_gear": "FIRST",
+      "gear_agreement": false,
+      "should_execute": true,
+      "admission_tier": "headline",
+      "admission_action": "admit-headline",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [],
+      "labels": [
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "terrain",
+      "scenario": "nyc",
+      "target": "obs_has_311",
+      "enforcement_decision": "EXECUTE",
+      "gate_reached": "ALL_PASSED",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 2.7755575615628914e-17,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "passed",
+          "failure_path": null,
+          "active_metric": "kappa_compat",
+          "kappa": 0.6340917564198874,
+          "kappa_req": 0.22,
+          "kappa_base": 0.22,
+          "lambda_turbulence": 0.0,
+          "sigma": 0.11825746044728383,
+          "epsilon_L": 0.01,
+          "in_gray_zone": false
+        },
+        "gate_3b_trajectory": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_4_grounding": {
+          "status": "absent"
+        },
+        "gate_5_contract_coverage": {
+          "status": "disabled",
+          "enabled": false
+        }
+      },
+      "coordinator_action": "proceed",
+      "morph_hint": null,
+      "source_mode": "proxy",
+      "kappa": 0.6340917564198874,
+      "sigma": 0.11825746044728383,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": false,
+      "lyapunov_V": 0.118257,
+      "lyapunov_gear": "FIRST",
+      "gear_agreement": false,
+      "should_execute": true,
+      "admission_tier": "headline",
+      "admission_action": "admit-headline",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [],
+      "labels": [
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "hydrology",
+      "scenario": "nyc",
+      "target": "obs_has_hwm",
+      "enforcement_decision": "RE_ENCODE",
+      "gate_reached": "GATE_3_ADMISSIBILITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 4.85722573273506e-17,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "failed",
+          "failure_path": "sigma_hard_barrier",
+          "sigma": 1.0,
+          "sigma_thr": 0.5
+        }
+      },
+      "coordinator_action": "re_encode",
+      "morph_hint": "solver_swap",
+      "source_mode": "proxy",
+      "kappa": 0.5951471337408838,
+      "sigma": 1.0,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": true,
+      "lyapunov_V": 1.0,
+      "lyapunov_gear": "FOURTH",
+      "gear_agreement": false,
+      "should_execute": false,
+      "admission_tier": "morph-candidate",
+      "admission_action": "morph-cycle-feature-space",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "sigma=1.000 > 0.4: gear bumped to SECOND",
+        "morph_hint=solver_swap"
+      ],
+      "labels": [
+        "sigma-bumped",
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "spatial_relation",
+      "scenario": "nyc",
+      "target": "obs_has_hwm",
+      "enforcement_decision": "EXECUTE",
+      "gate_reached": "ALL_PASSED",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 0.0,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "passed",
+          "failure_path": null,
+          "active_metric": "kappa_compat",
+          "kappa": 0.8456921318640068,
+          "kappa_req": 0.22,
+          "kappa_base": 0.22,
+          "lambda_turbulence": 0.0,
+          "sigma": 0.09804994083962754,
+          "epsilon_L": 0.01,
+          "in_gray_zone": false
+        },
+        "gate_3b_trajectory": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_4_grounding": {
+          "status": "absent"
+        },
+        "gate_5_contract_coverage": {
+          "status": "disabled",
+          "enabled": false
+        }
+      },
+      "coordinator_action": "proceed",
+      "morph_hint": null,
+      "source_mode": "proxy",
+      "kappa": 0.8456921318640068,
+      "sigma": 0.09804994083962754,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": false,
+      "lyapunov_V": 0.09805,
+      "lyapunov_gear": "FIRST",
+      "gear_agreement": false,
+      "should_execute": true,
+      "admission_tier": "headline",
+      "admission_action": "admit-headline",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [],
+      "labels": [
+        "path-dependent",
+        "lyapunov-divergent"
+      ],
+      "order_robust": false
+    },
+    {
+      "block": "temporal",
+      "scenario": "nyc",
+      "target": "obs_has_hwm",
+      "enforcement_decision": "RE_ENCODE",
+      "gate_reached": "GATE_3_ADMISSIBILITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 0.0,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "failed",
+          "failure_path": "sigma_hard_barrier",
+          "sigma": 1.0,
+          "sigma_thr": 0.5
+        }
+      },
+      "coordinator_action": "re_encode",
+      "morph_hint": "solver_swap",
+      "source_mode": "proxy",
+      "kappa": 0.7310392367814241,
+      "sigma": 1.0,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": true,
+      "lyapunov_V": 1.0,
+      "lyapunov_gear": "FOURTH",
+      "gear_agreement": false,
+      "should_execute": false,
+      "admission_tier": "morph-candidate",
+      "admission_action": "morph-cycle-feature-space",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "sigma=1.000 > 0.4: gear bumped to SECOND",
+        "morph_hint=solver_swap"
+      ],
+      "labels": [
+        "sigma-bumped",
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "infrastructure",
+      "scenario": "nyc",
+      "target": "obs_has_hwm",
+      "enforcement_decision": "EXECUTE",
+      "gate_reached": "ALL_PASSED",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 0.0,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "passed",
+          "failure_path": null,
+          "active_metric": "kappa_compat",
+          "kappa": 0.6122120334620336,
+          "kappa_req": 0.22,
+          "kappa_base": 0.22,
+          "lambda_turbulence": 0.0,
+          "sigma": 0.09153102097578333,
+          "epsilon_L": 0.01,
+          "in_gray_zone": false
+        },
+        "gate_3b_trajectory": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_4_grounding": {
+          "status": "absent"
+        },
+        "gate_5_contract_coverage": {
+          "status": "disabled",
+          "enabled": false
+        }
+      },
+      "coordinator_action": "proceed",
+      "morph_hint": null,
+      "source_mode": "proxy",
+      "kappa": 0.6122120334620336,
+      "sigma": 0.09153102097578333,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": false,
+      "lyapunov_V": 0.091531,
+      "lyapunov_gear": "FIRST",
+      "gear_agreement": false,
+      "should_execute": true,
+      "admission_tier": "headline",
+      "admission_action": "admit-headline",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [],
+      "labels": [
+        "path-dependent",
+        "lyapunov-divergent"
+      ],
+      "order_robust": false
+    },
+    {
+      "block": "socioeconomic",
+      "scenario": "nyc",
+      "target": "obs_has_hwm",
+      "enforcement_decision": "EXECUTE",
+      "gate_reached": "ALL_PASSED",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 0.0,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "passed",
+          "failure_path": null,
+          "active_metric": "kappa_compat",
+          "kappa": 0.6152386314886316,
+          "kappa_req": 0.22,
+          "kappa_base": 0.22,
+          "lambda_turbulence": 0.0,
+          "sigma": 0.07860840554317472,
+          "epsilon_L": 0.01,
+          "in_gray_zone": false
+        },
+        "gate_3b_trajectory": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_4_grounding": {
+          "status": "absent"
+        },
+        "gate_5_contract_coverage": {
+          "status": "disabled",
+          "enabled": false
+        }
+      },
+      "coordinator_action": "proceed",
+      "morph_hint": null,
+      "source_mode": "proxy",
+      "kappa": 0.6152386314886316,
+      "sigma": 0.07860840554317472,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": false,
+      "lyapunov_V": 0.078608,
+      "lyapunov_gear": "FIRST",
+      "gear_agreement": false,
+      "should_execute": true,
+      "admission_tier": "headline",
+      "admission_action": "admit-headline",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [],
+      "labels": [
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "terrain",
+      "scenario": "nyc",
+      "target": "obs_has_hwm",
+      "enforcement_decision": "EXECUTE",
+      "gate_reached": "ALL_PASSED",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 0.0,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "passed",
+          "failure_path": null,
+          "active_metric": "kappa_compat",
+          "kappa": 0.6152386314886316,
+          "kappa_req": 0.22,
+          "kappa_base": 0.22,
+          "lambda_turbulence": 0.0,
+          "sigma": 0.07860840554317472,
+          "epsilon_L": 0.01,
+          "in_gray_zone": false
+        },
+        "gate_3b_trajectory": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_4_grounding": {
+          "status": "absent"
+        },
+        "gate_5_contract_coverage": {
+          "status": "disabled",
+          "enabled": false
+        }
+      },
+      "coordinator_action": "proceed",
+      "morph_hint": null,
+      "source_mode": "proxy",
+      "kappa": 0.6152386314886316,
+      "sigma": 0.07860840554317472,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": false,
+      "lyapunov_V": 0.078608,
+      "lyapunov_gear": "FIRST",
+      "gear_agreement": false,
+      "should_execute": true,
+      "admission_tier": "headline",
+      "admission_action": "admit-headline",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [],
+      "labels": [
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "hydrology",
+      "scenario": "riverside_coachella",
+      "target": "obs_nfip_event_claims",
+      "enforcement_decision": "REJECT",
+      "gate_reached": "GATE_1_INTEGRITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "failed",
+          "noise_admissibility": 0.734458666786634,
+          "N_thr": 0.5,
+          "alpha": 0.26554133321336604,
+          "alpha_min": 0.3,
+          "n_check_passed": false,
+          "alpha_check_passed": false
+        }
+      },
+      "coordinator_action": "reject",
+      "morph_hint": null,
+      "source_mode": "proxy",
+      "kappa": 0.17309447526931762,
+      "sigma": 1.0,
+      "alpha": 0.26554133321336604,
+      "tau": 3.765892,
+      "gear": "FOURTH",
+      "gear_after_bump": "FOURTH",
+      "sigma_warning": true,
+      "lyapunov_V": 3.765892,
+      "lyapunov_gear": "REVERSE",
+      "gear_agreement": false,
+      "should_execute": false,
+      "admission_tier": "rejected",
+      "admission_action": "reject",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "sigma=1.000 > 0.4: gear bumped to FOURTH"
+      ],
+      "labels": [
+        "sigma-bumped",
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "spatial_relation",
+      "scenario": "riverside_coachella",
+      "target": "obs_nfip_event_claims",
+      "enforcement_decision": "RE_ENCODE",
+      "gate_reached": "GATE_3_ADMISSIBILITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 0.0,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "failed",
+          "failure_path": "sigma_hard_barrier",
+          "sigma": 1.0,
+          "sigma_thr": 0.5
+        }
+      },
+      "coordinator_action": "re_encode",
+      "morph_hint": "solver_swap",
+      "source_mode": "proxy",
+      "kappa": 0.2500983476638794,
+      "sigma": 1.0,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": true,
+      "lyapunov_V": 1.0,
+      "lyapunov_gear": "FOURTH",
+      "gear_agreement": false,
+      "should_execute": false,
+      "admission_tier": "morph-candidate",
+      "admission_action": "morph-cycle-feature-space",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "sigma=1.000 > 0.4: gear bumped to SECOND",
+        "morph_hint=solver_swap"
+      ],
+      "labels": [
+        "sigma-bumped",
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "temporal",
+      "scenario": "riverside_coachella",
+      "target": "obs_nfip_event_claims",
+      "enforcement_decision": "RE_ENCODE",
+      "gate_reached": "GATE_3_ADMISSIBILITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 0.0,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "failed",
+          "failure_path": "sigma_hard_barrier",
+          "sigma": 1.0,
+          "sigma_thr": 0.5
+        }
+      },
+      "coordinator_action": "re_encode",
+      "morph_hint": "solver_swap",
+      "source_mode": "proxy",
+      "kappa": 0.17544281482696533,
+      "sigma": 1.0,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": true,
+      "lyapunov_V": 1.0,
+      "lyapunov_gear": "FOURTH",
+      "gear_agreement": false,
+      "should_execute": false,
+      "admission_tier": "morph-candidate",
+      "admission_action": "morph-cycle-feature-space",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "sigma=1.000 > 0.4: gear bumped to SECOND",
+        "morph_hint=solver_swap"
+      ],
+      "labels": [
+        "sigma-bumped",
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "infrastructure",
+      "scenario": "riverside_coachella",
+      "target": "obs_nfip_event_claims",
+      "enforcement_decision": "REJECT",
+      "gate_reached": "GATE_1_INTEGRITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "failed",
+          "noise_admissibility": 1.0,
+          "N_thr": 0.5,
+          "alpha": 0.0,
+          "alpha_min": 0.3,
+          "n_check_passed": false,
+          "alpha_check_passed": false
+        }
+      },
+      "coordinator_action": "reject",
+      "morph_hint": null,
+      "source_mode": "proxy",
+      "kappa": 0.0,
+      "sigma": 1.0,
+      "alpha": 0.0,
+      "tau": 999.0,
+      "gear": "FOURTH",
+      "gear_after_bump": "FOURTH",
+      "sigma_warning": true,
+      "lyapunov_V": 999.0,
+      "lyapunov_gear": "REVERSE",
+      "gear_agreement": false,
+      "should_execute": false,
+      "admission_tier": "rejected",
+      "admission_action": "reject",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "sigma=1.000 > 0.4: gear bumped to FOURTH"
+      ],
+      "labels": [
+        "sigma-bumped",
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "socioeconomic",
+      "scenario": "riverside_coachella",
+      "target": "obs_nfip_event_claims",
+      "enforcement_decision": "RE_ENCODE",
+      "gate_reached": "GATE_3_ADMISSIBILITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 0.0,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "failed",
+          "failure_path": "sigma_hard_barrier",
+          "sigma": 1.0,
+          "sigma_thr": 0.5
+        }
+      },
+      "coordinator_action": "re_encode",
+      "morph_hint": "solver_swap",
+      "source_mode": "proxy",
+      "kappa": 0.14540635347366332,
+      "sigma": 1.0,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": true,
+      "lyapunov_V": 1.0,
+      "lyapunov_gear": "FOURTH",
+      "gear_agreement": false,
+      "should_execute": false,
+      "admission_tier": "morph-candidate",
+      "admission_action": "morph-cycle-feature-space",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "sigma=1.000 > 0.4: gear bumped to SECOND",
+        "morph_hint=solver_swap"
+      ],
+      "labels": [
+        "sigma-bumped",
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "terrain",
+      "scenario": "riverside_coachella",
+      "target": "obs_nfip_event_claims",
+      "enforcement_decision": "RE_ENCODE",
+      "gate_reached": "GATE_3_ADMISSIBILITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 0.0,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "failed",
+          "failure_path": "sigma_hard_barrier",
+          "sigma": 1.0,
+          "sigma_thr": 0.5
+        }
+      },
+      "coordinator_action": "re_encode",
+      "morph_hint": "retrain_with_augmentation",
+      "source_mode": "proxy",
+      "kappa": 0.13714189529418946,
+      "sigma": 1.0,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": true,
+      "lyapunov_V": 1.0,
+      "lyapunov_gear": "FOURTH",
+      "gear_agreement": false,
+      "should_execute": false,
+      "admission_tier": "morph-candidate",
+      "admission_action": "morph-cycle-feature-space",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "sigma=1.000 > 0.4: gear bumped to SECOND",
+        "morph_hint=retrain_with_augmentation"
+      ],
+      "labels": [
+        "solver-specific",
+        "sigma-bumped",
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "hydrology",
+      "scenario": "riverside_coachella",
+      "target": "obs_has_hwm",
+      "enforcement_decision": "SKIP",
+      "gate_reached": "PRE_GATE_INVALID",
+      "certificate_status": "INVALID",
+      "admission_tier": "invalid",
+      "admission_action": "retrain-with-larger-sample",
+      "labels": [
+        "invalid-certificate",
+        "SOLVER_BOTH_NULL"
+      ],
+      "invalid_diagnosis": {
+        "failure_mode": "SOLVER_BOTH_NULL",
+        "remediation_action": "retrain-with-larger-sample",
+        "detail": "Both histgbdt and ridge returned null metrics on block_only. Likely cause: insufficient training rows, single-class target, or all-NaN features in this block.",
+        "solver_trace": {
+          "primary_solver": null,
+          "fallback_solver": null,
+          "fallback_triggered": null,
+          "primary_failure_reason": null
+        },
+        "partial_signals": null,
+        "feature_audit_summary": {
+          "add_status": "NO_OP_B_SUBSET_R2",
+          "drop_status": "VALID",
+          "block_only_valid": true
+        }
+      },
+      "certificate_evidence": {
+        "independent_signal": {
+          "source": "block_only",
+          "metric": null,
+          "solver": null,
+          "fallback_used": false
+        },
+        "marginal_signal": {
+          "source": "full_R2_minus_drop_block",
+          "full_metric": null,
+          "full_solver": null,
+          "full_fallback_used": false,
+          "drop_metric": null,
+          "drop_solver": null,
+          "drop_fallback_used": false,
+          "delta": null
+        },
+        "feature_audit": {
+          "add_effective_features": [],
+          "drop_effective_features": [
+            "nhd_catchment_area_km2",
+            "slope_basin_slope",
+            "slope_stream_slope",
+            "twi_acc_twi",
+            "twi_tot_twi",
+            "upstream_catchment_km2",
+            "levee_nearest_km",
+            "levee_condition_rating",
+            "sewershed_name"
+          ],
+          "add_status": "NO_OP_B_SUBSET_R2",
+          "drop_status": "VALID",
+          "block_only_valid": true
+        },
+        "ablation_interpretation": null
+      }
+    },
+    {
+      "block": "spatial_relation",
+      "scenario": "riverside_coachella",
+      "target": "obs_has_hwm",
+      "enforcement_decision": "SKIP",
+      "gate_reached": "PRE_GATE_INVALID",
+      "certificate_status": "INVALID",
+      "admission_tier": "invalid",
+      "admission_action": "retrain-with-larger-sample",
+      "labels": [
+        "invalid-certificate",
+        "SOLVER_BOTH_NULL"
+      ],
+      "invalid_diagnosis": {
+        "failure_mode": "SOLVER_BOTH_NULL",
+        "remediation_action": "retrain-with-larger-sample",
+        "detail": "Both histgbdt and ridge returned null metrics on block_only. Likely cause: insufficient training rows, single-class target, or all-NaN features in this block.",
+        "solver_trace": {
+          "primary_solver": null,
+          "fallback_solver": null,
+          "fallback_triggered": null,
+          "primary_failure_reason": null
+        },
+        "partial_signals": null,
+        "feature_audit_summary": {
+          "add_status": "NO_OP_B_SUBSET_R2",
+          "drop_status": "VALID",
+          "block_only_valid": true
+        }
+      },
+      "certificate_evidence": {
+        "independent_signal": {
+          "source": "block_only",
+          "metric": null,
+          "solver": null,
+          "fallback_used": false
+        },
+        "marginal_signal": {
+          "source": "full_R2_minus_drop_block",
+          "full_metric": null,
+          "full_solver": null,
+          "full_fallback_used": false,
+          "drop_metric": null,
+          "drop_solver": null,
+          "drop_fallback_used": false,
+          "delta": null
+        },
+        "feature_audit": {
+          "add_effective_features": [],
+          "drop_effective_features": [
+            "zcta_degree",
+            "zcta_mean_neighbor_dist_km",
+            "wlag_flood_zone_pct",
+            "wlag_population_density",
+            "wlag_median_income",
+            "wlag_impervious_pct",
+            "wlag_cropland_pct",
+            "wlag_rainfall_mm",
+            "wlag_nfip_claims"
+          ],
+          "add_status": "NO_OP_B_SUBSET_R2",
+          "drop_status": "VALID",
+          "block_only_valid": true
+        },
+        "ablation_interpretation": null
+      }
+    },
+    {
+      "block": "temporal",
+      "scenario": "riverside_coachella",
+      "target": "obs_has_hwm",
+      "enforcement_decision": "SKIP",
+      "gate_reached": "PRE_GATE_INVALID",
+      "certificate_status": "INVALID",
+      "admission_tier": "invalid",
+      "admission_action": "retrain-with-larger-sample",
+      "labels": [
+        "invalid-certificate",
+        "SOLVER_BOTH_NULL"
+      ],
+      "invalid_diagnosis": {
+        "failure_mode": "SOLVER_BOTH_NULL",
+        "remediation_action": "retrain-with-larger-sample",
+        "detail": "Both histgbdt and ridge returned null metrics on block_only. Likely cause: insufficient training rows, single-class target, or all-NaN features in this block.",
+        "solver_trace": {
+          "primary_solver": null,
+          "fallback_solver": null,
+          "fallback_triggered": null,
+          "primary_failure_reason": null
+        },
+        "partial_signals": null,
+        "feature_audit_summary": {
+          "add_status": "NO_OP_B_SUBSET_R2",
+          "drop_status": "VALID",
+          "block_only_valid": true
+        }
+      },
+      "certificate_evidence": {
+        "independent_signal": {
+          "source": "block_only",
+          "metric": null,
+          "solver": null,
+          "fallback_used": false
+        },
+        "marginal_signal": {
+          "source": "full_R2_minus_drop_block",
+          "full_metric": null,
+          "full_solver": null,
+          "full_fallback_used": false,
+          "drop_metric": null,
+          "drop_solver": null,
+          "drop_fallback_used": false,
+          "delta": null
+        },
+        "feature_audit": {
+          "add_effective_features": [],
+          "drop_effective_features": [
+            "peak_1h_mm",
+            "peak_3h_mm",
+            "peak_6h_mm",
+            "storm_duration_h",
+            "time_to_peak_h",
+            "rainfall_intensity_cv",
+            "tide_peak_m",
+            "surge_rain_lag_h",
+            "storm_min_dist_km",
+            "storm_landfall_category"
+          ],
+          "add_status": "NO_OP_B_SUBSET_R2",
+          "drop_status": "VALID",
+          "block_only_valid": true
+        },
+        "ablation_interpretation": null
+      }
+    },
+    {
+      "block": "infrastructure",
+      "scenario": "riverside_coachella",
+      "target": "obs_has_hwm",
+      "enforcement_decision": "SKIP",
+      "gate_reached": "PRE_GATE_INVALID",
+      "certificate_status": "INVALID",
+      "admission_tier": "invalid",
+      "admission_action": "retrain-with-larger-sample",
+      "labels": [
+        "invalid-certificate",
+        "SOLVER_BOTH_NULL"
+      ],
+      "invalid_diagnosis": {
+        "failure_mode": "SOLVER_BOTH_NULL",
+        "remediation_action": "retrain-with-larger-sample",
+        "detail": "Both histgbdt and ridge returned null metrics on block_only. Likely cause: insufficient training rows, single-class target, or all-NaN features in this block.",
+        "solver_trace": {
+          "primary_solver": null,
+          "fallback_solver": null,
+          "fallback_triggered": null,
+          "primary_failure_reason": null
+        },
+        "partial_signals": null,
+        "feature_audit_summary": {
+          "add_status": "NO_OP_B_SUBSET_R2",
+          "drop_status": "VALID",
+          "block_only_valid": true
+        }
+      },
+      "certificate_evidence": {
+        "independent_signal": {
+          "source": "block_only",
+          "metric": null,
+          "solver": null,
+          "fallback_used": false
+        },
+        "marginal_signal": {
+          "source": "full_R2_minus_drop_block",
+          "full_metric": null,
+          "full_solver": null,
+          "full_fallback_used": false,
+          "drop_metric": null,
+          "drop_solver": null,
+          "drop_fallback_used": false,
+          "delta": null
+        },
+        "feature_audit": {
+          "add_effective_features": [],
+          "drop_effective_features": [
+            "hifld_nearest_hospital_km",
+            "hifld_n_hospitals",
+            "drive_min_to_county_centroid",
+            "drive_min_to_county_seat",
+            "drive_min_to_nearest_hospital",
+            "hifld_n_hospital_beds",
+            "hifld_n_pharmacies",
+            "hifld_nearest_pharmacy_km",
+            "hifld_nearest_trauma_center_km"
+          ],
+          "add_status": "NO_OP_B_SUBSET_R2",
+          "drop_status": "VALID",
+          "block_only_valid": true
+        },
+        "ablation_interpretation": null
+      }
+    },
+    {
+      "block": "socioeconomic",
+      "scenario": "riverside_coachella",
+      "target": "obs_has_hwm",
+      "enforcement_decision": "SKIP",
+      "gate_reached": "PRE_GATE_INVALID",
+      "certificate_status": "INVALID",
+      "admission_tier": "invalid",
+      "admission_action": "retrain-with-larger-sample",
+      "labels": [
+        "invalid-certificate",
+        "SOLVER_BOTH_NULL"
+      ],
+      "invalid_diagnosis": {
+        "failure_mode": "SOLVER_BOTH_NULL",
+        "remediation_action": "retrain-with-larger-sample",
+        "detail": "Both histgbdt and ridge returned null metrics on block_only. Likely cause: insufficient training rows, single-class target, or all-NaN features in this block.",
+        "solver_trace": {
+          "primary_solver": null,
+          "fallback_solver": null,
+          "fallback_triggered": null,
+          "primary_failure_reason": null
+        },
+        "partial_signals": null,
+        "feature_audit_summary": {
+          "add_status": "NO_OP_B_SUBSET_R2",
+          "drop_status": "VALID",
+          "block_only_valid": true
+        }
+      },
+      "certificate_evidence": {
+        "independent_signal": {
+          "source": "block_only",
+          "metric": null,
+          "solver": null,
+          "fallback_used": false
+        },
+        "marginal_signal": {
+          "source": "full_R2_minus_drop_block",
+          "full_metric": null,
+          "full_solver": null,
+          "full_fallback_used": false,
+          "drop_metric": null,
+          "drop_solver": null,
+          "drop_fallback_used": false,
+          "delta": null
+        },
+        "feature_audit": {
+          "add_effective_features": [],
+          "drop_effective_features": [
+            "acs_total_pop",
+            "acs_median_hh_income",
+            "acs_pct_below_poverty",
+            "acs_pct_renter_occupied",
+            "acs_pct_owner_occupied",
+            "acs_pct_vacant",
+            "acs_pct_no_vehicle",
+            "acs_median_home_value",
+            "acs_median_year_built",
+            "svi_overall",
+            "svi_socioeconomic",
+            "svi_household_disability",
+            "svi_minority_language",
+            "svi_housing_transport",
+            "population"
+          ],
+          "add_status": "NO_OP_B_SUBSET_R2",
+          "drop_status": "VALID",
+          "block_only_valid": true
+        },
+        "ablation_interpretation": null
+      }
+    },
+    {
+      "block": "terrain",
+      "scenario": "riverside_coachella",
+      "target": "obs_has_hwm",
+      "enforcement_decision": "SKIP",
+      "gate_reached": "PRE_GATE_INVALID",
+      "certificate_status": "INVALID",
+      "admission_tier": "invalid",
+      "admission_action": "retrain-with-larger-sample",
+      "labels": [
+        "invalid-certificate",
+        "SOLVER_BOTH_NULL"
+      ],
+      "invalid_diagnosis": {
+        "failure_mode": "SOLVER_BOTH_NULL",
+        "remediation_action": "retrain-with-larger-sample",
+        "detail": "Both histgbdt and ridge returned null metrics on block_only. Likely cause: insufficient training rows, single-class target, or all-NaN features in this block.",
+        "solver_trace": {
+          "primary_solver": null,
+          "fallback_solver": null,
+          "fallback_triggered": null,
+          "primary_failure_reason": null
+        },
+        "partial_signals": null,
+        "feature_audit_summary": {
+          "add_status": "VALID",
+          "drop_status": "VALID",
+          "block_only_valid": true
+        }
+      },
+      "certificate_evidence": {
+        "independent_signal": {
+          "source": "block_only",
+          "metric": null,
+          "solver": null,
+          "fallback_used": false
+        },
+        "marginal_signal": {
+          "source": "full_R2_minus_drop_block",
+          "full_metric": null,
+          "full_solver": null,
+          "full_fallback_used": false,
+          "drop_metric": null,
+          "drop_solver": null,
+          "drop_fallback_used": false,
+          "delta": null
+        },
+        "feature_audit": {
+          "add_effective_features": [
+            "flood_sfha"
+          ],
+          "drop_effective_features": [
+            "flood_pct_zone_a",
+            "flood_pct_zone_x",
+            "flood_pct_zone_x500",
+            "elevation_m_msl",
+            "slope_mean_pct",
+            "twi_twi",
+            "latitude",
+            "longitude",
+            "impervious_pct",
+            "cropland_pct"
+          ],
+          "add_status": "VALID",
+          "drop_status": "VALID",
+          "block_only_valid": true
+        },
+        "ablation_interpretation": null
+      }
+    },
+    {
+      "block": "hydrology",
+      "scenario": "southwest_florida",
+      "target": "obs_nfip_event_claims",
+      "enforcement_decision": "REJECT",
+      "gate_reached": "GATE_1_INTEGRITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "failed",
+          "noise_admissibility": 1.0,
+          "N_thr": 0.5,
+          "alpha": 0.0,
+          "alpha_min": 0.3,
+          "n_check_passed": false,
+          "alpha_check_passed": false
+        }
+      },
+      "coordinator_action": "reject",
+      "morph_hint": null,
+      "source_mode": "proxy",
+      "kappa": 0.0,
+      "sigma": 1.0,
+      "alpha": 0.0,
+      "tau": 999.0,
+      "gear": "FOURTH",
+      "gear_after_bump": "FOURTH",
+      "sigma_warning": true,
+      "lyapunov_V": 999.0,
+      "lyapunov_gear": "REVERSE",
+      "gear_agreement": false,
+      "should_execute": false,
+      "admission_tier": "rejected",
+      "admission_action": "reject",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "sigma=1.000 > 0.4: gear bumped to FOURTH"
+      ],
+      "labels": [
+        "sigma-bumped",
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "spatial_relation",
+      "scenario": "southwest_florida",
+      "target": "obs_nfip_event_claims",
+      "enforcement_decision": "EXECUTE",
+      "gate_reached": "ALL_PASSED",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 0.0,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "passed",
+          "failure_path": null,
+          "active_metric": "kappa_compat",
+          "kappa": 0.5927397243700587,
+          "kappa_req": 0.22,
+          "kappa_base": 0.22,
+          "lambda_turbulence": 0.0,
+          "sigma": 0.11192577872886517,
+          "epsilon_L": 0.01,
+          "in_gray_zone": false
+        },
+        "gate_3b_trajectory": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_4_grounding": {
+          "status": "absent"
+        },
+        "gate_5_contract_coverage": {
+          "status": "disabled",
+          "enabled": false
+        }
+      },
+      "coordinator_action": "proceed",
+      "morph_hint": null,
+      "source_mode": "proxy",
+      "kappa": 0.5927397243700587,
+      "sigma": 0.11192577872886517,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": false,
+      "lyapunov_V": 0.111926,
+      "lyapunov_gear": "FIRST",
+      "gear_agreement": false,
+      "should_execute": true,
+      "admission_tier": "headline",
+      "admission_action": "admit-headline",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [],
+      "labels": [
+        "path-dependent",
+        "lyapunov-divergent"
+      ],
+      "order_robust": false
+    },
+    {
+      "block": "temporal",
+      "scenario": "southwest_florida",
+      "target": "obs_nfip_event_claims",
+      "enforcement_decision": "RE_ENCODE",
+      "gate_reached": "GATE_3_ADMISSIBILITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 0.0,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "failed",
+          "failure_path": "sigma_hard_barrier",
+          "sigma": 1.0,
+          "sigma_thr": 0.5
+        }
+      },
+      "coordinator_action": "re_encode",
+      "morph_hint": "solver_swap",
+      "source_mode": "proxy",
+      "kappa": 0.19045432806015014,
+      "sigma": 1.0,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": true,
+      "lyapunov_V": 1.0,
+      "lyapunov_gear": "FOURTH",
+      "gear_agreement": false,
+      "should_execute": false,
+      "admission_tier": "morph-candidate",
+      "admission_action": "morph-cycle-feature-space",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "sigma=1.000 > 0.4: gear bumped to SECOND",
+        "morph_hint=solver_swap"
+      ],
+      "labels": [
+        "sigma-bumped",
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "infrastructure",
+      "scenario": "southwest_florida",
+      "target": "obs_nfip_event_claims",
+      "enforcement_decision": "RE_ENCODE",
+      "gate_reached": "GATE_3_ADMISSIBILITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 1.1102230246251565e-16,
+          "N_thr": 0.5,
+          "alpha": 0.9999999999999997,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "failed",
+          "failure_path": "kappa_below_oobleck",
+          "active_metric": "kappa_compat",
+          "kappa": 0.07082355064060301,
+          "kappa_req": 0.22,
+          "kappa_base": 0.22,
+          "lambda_turbulence": 0.0,
+          "sigma": 0.2861077257493867,
+          "epsilon_L": 0.01,
+          "in_gray_zone": false
+        }
+      },
+      "coordinator_action": "re_encode",
+      "morph_hint": "solver_swap",
+      "source_mode": "proxy",
+      "kappa": 0.07082355064060301,
+      "sigma": 0.2861077257493867,
+      "alpha": 0.9999999999999997,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": false,
+      "lyapunov_V": 0.286108,
+      "lyapunov_gear": "SECOND",
+      "gear_agreement": true,
+      "should_execute": false,
+      "admission_tier": "morph-candidate",
+      "admission_action": "morph-cycle-feature-space",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "morph_hint=solver_swap"
+      ],
+      "labels": [
+        "path-dependent"
+      ],
+      "order_robust": false
+    },
+    {
+      "block": "socioeconomic",
+      "scenario": "southwest_florida",
+      "target": "obs_nfip_event_claims",
+      "enforcement_decision": "RE_ENCODE",
+      "gate_reached": "GATE_3_ADMISSIBILITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 0.0,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "failed",
+          "failure_path": "kappa_below_oobleck",
+          "active_metric": "kappa_compat",
+          "kappa": 0.13264297235173797,
+          "kappa_req": 0.22,
+          "kappa_base": 0.22,
+          "lambda_turbulence": 0.0,
+          "sigma": 0.24166583953183002,
+          "epsilon_L": 0.01,
+          "in_gray_zone": false
+        }
+      },
+      "coordinator_action": "re_encode",
+      "morph_hint": "solver_swap",
+      "source_mode": "proxy",
+      "kappa": 0.13264297235173797,
+      "sigma": 0.24166583953183002,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": false,
+      "lyapunov_V": 0.241666,
+      "lyapunov_gear": "SECOND",
+      "gear_agreement": true,
+      "should_execute": false,
+      "admission_tier": "morph-candidate",
+      "admission_action": "morph-cycle-feature-space",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "morph_hint=solver_swap"
+      ],
+      "labels": [],
+      "order_robust": true
+    },
+    {
+      "block": "terrain",
+      "scenario": "southwest_florida",
+      "target": "obs_nfip_event_claims",
+      "enforcement_decision": "RE_ENCODE",
+      "gate_reached": "GATE_3_ADMISSIBILITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 0.0,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "failed",
+          "failure_path": "kappa_below_oobleck",
+          "active_metric": "kappa_compat",
+          "kappa": 0.13264297235173797,
+          "kappa_req": 0.22,
+          "kappa_base": 0.22,
+          "lambda_turbulence": 0.0,
+          "sigma": 0.24166583953183002,
+          "epsilon_L": 0.01,
+          "in_gray_zone": false
+        }
+      },
+      "coordinator_action": "re_encode",
+      "morph_hint": "retrain_with_augmentation",
+      "source_mode": "proxy",
+      "kappa": 0.13264297235173797,
+      "sigma": 0.24166583953183002,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": false,
+      "lyapunov_V": 0.241666,
+      "lyapunov_gear": "SECOND",
+      "gear_agreement": true,
+      "should_execute": false,
+      "admission_tier": "morph-candidate",
+      "admission_action": "morph-cycle-feature-space",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "morph_hint=retrain_with_augmentation"
+      ],
+      "labels": [],
+      "order_robust": true
+    },
+    {
+      "block": "hydrology",
+      "scenario": "southwest_florida",
+      "target": "obs_has_hwm",
+      "enforcement_decision": "RE_ENCODE",
+      "gate_reached": "GATE_3_ADMISSIBILITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 4.163336342344337e-17,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "failed",
+          "failure_path": "sigma_hard_barrier",
+          "sigma": 1.0,
+          "sigma_thr": 0.5
+        }
+      },
+      "coordinator_action": "re_encode",
+      "morph_hint": "solver_swap",
+      "source_mode": "proxy",
+      "kappa": 0.7532430230720534,
+      "sigma": 1.0,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": true,
+      "lyapunov_V": 1.0,
+      "lyapunov_gear": "FOURTH",
+      "gear_agreement": false,
+      "should_execute": false,
+      "admission_tier": "morph-candidate",
+      "admission_action": "morph-cycle-feature-space",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "sigma=1.000 > 0.4: gear bumped to SECOND",
+        "morph_hint=solver_swap"
+      ],
+      "labels": [
+        "sigma-bumped",
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "spatial_relation",
+      "scenario": "southwest_florida",
+      "target": "obs_has_hwm",
+      "enforcement_decision": "EXECUTE",
+      "gate_reached": "ALL_PASSED",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 2.7755575615628914e-17,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "passed",
+          "failure_path": null,
+          "active_metric": "kappa_compat",
+          "kappa": 0.7637518757930415,
+          "kappa_req": 0.22,
+          "kappa_base": 0.22,
+          "lambda_turbulence": 0.0,
+          "sigma": 0.19641302071378766,
+          "epsilon_L": 0.01,
+          "in_gray_zone": false
+        },
+        "gate_3b_trajectory": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_4_grounding": {
+          "status": "absent"
+        },
+        "gate_5_contract_coverage": {
+          "status": "disabled",
+          "enabled": false
+        }
+      },
+      "coordinator_action": "proceed",
+      "morph_hint": null,
+      "source_mode": "proxy",
+      "kappa": 0.7637518757930415,
+      "sigma": 0.19641302071378766,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": false,
+      "lyapunov_V": 0.196413,
+      "lyapunov_gear": "FIRST",
+      "gear_agreement": false,
+      "should_execute": true,
+      "admission_tier": "headline",
+      "admission_action": "admit-headline",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [],
+      "labels": [
+        "path-dependent",
+        "lyapunov-divergent"
+      ],
+      "order_robust": false
+    },
+    {
+      "block": "temporal",
+      "scenario": "southwest_florida",
+      "target": "obs_has_hwm",
+      "enforcement_decision": "RE_ENCODE",
+      "gate_reached": "GATE_3_ADMISSIBILITY",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 4.163336342344337e-17,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "failed",
+          "failure_path": "sigma_hard_barrier",
+          "sigma": 1.0,
+          "sigma_thr": 0.5
+        }
+      },
+      "coordinator_action": "re_encode",
+      "morph_hint": "solver_swap",
+      "source_mode": "proxy",
+      "kappa": 0.8783168957624516,
+      "sigma": 1.0,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": true,
+      "lyapunov_V": 1.0,
+      "lyapunov_gear": "FOURTH",
+      "gear_agreement": false,
+      "should_execute": false,
+      "admission_tier": "morph-candidate",
+      "admission_action": "morph-cycle-feature-space",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [
+        "sigma=1.000 > 0.4: gear bumped to SECOND",
+        "morph_hint=solver_swap"
+      ],
+      "labels": [
+        "sigma-bumped",
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "infrastructure",
+      "scenario": "southwest_florida",
+      "target": "obs_has_hwm",
+      "enforcement_decision": "EXECUTE",
+      "gate_reached": "ALL_PASSED",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 0.0,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "passed",
+          "failure_path": null,
+          "active_metric": "kappa_compat",
+          "kappa": 0.7161769477238042,
+          "kappa_req": 0.22,
+          "kappa_base": 0.22,
+          "lambda_turbulence": 0.0,
+          "sigma": 0.0033796967663309208,
+          "epsilon_L": 0.01,
+          "in_gray_zone": false
+        },
+        "gate_3b_trajectory": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_4_grounding": {
+          "status": "absent"
+        },
+        "gate_5_contract_coverage": {
+          "status": "disabled",
+          "enabled": false
+        }
+      },
+      "coordinator_action": "proceed",
+      "morph_hint": null,
+      "source_mode": "proxy",
+      "kappa": 0.7161769477238042,
+      "sigma": 0.0033796967663309208,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": false,
+      "lyapunov_V": 0.00338,
+      "lyapunov_gear": "FIRST",
+      "gear_agreement": false,
+      "should_execute": true,
+      "admission_tier": "headline",
+      "admission_action": "admit-headline",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [],
+      "labels": [
+        "path-dependent",
+        "lyapunov-divergent"
+      ],
+      "order_robust": false
+    },
+    {
+      "block": "socioeconomic",
+      "scenario": "southwest_florida",
+      "target": "obs_has_hwm",
+      "enforcement_decision": "EXECUTE",
+      "gate_reached": "ALL_PASSED",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 2.7755575615628914e-17,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "passed",
+          "failure_path": null,
+          "active_metric": "kappa_compat",
+          "kappa": 0.701846158784718,
+          "kappa_req": 0.22,
+          "kappa_base": 0.22,
+          "lambda_turbulence": 0.0,
+          "sigma": 0.09575726888662697,
+          "epsilon_L": 0.01,
+          "in_gray_zone": false
+        },
+        "gate_3b_trajectory": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_4_grounding": {
+          "status": "absent"
+        },
+        "gate_5_contract_coverage": {
+          "status": "disabled",
+          "enabled": false
+        }
+      },
+      "coordinator_action": "proceed",
+      "morph_hint": null,
+      "source_mode": "proxy",
+      "kappa": 0.701846158784718,
+      "sigma": 0.09575726888662697,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": false,
+      "lyapunov_V": 0.095757,
+      "lyapunov_gear": "FIRST",
+      "gear_agreement": false,
+      "should_execute": true,
+      "admission_tier": "headline",
+      "admission_action": "admit-headline",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [],
+      "labels": [
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    },
+    {
+      "block": "terrain",
+      "scenario": "southwest_florida",
+      "target": "obs_has_hwm",
+      "enforcement_decision": "EXECUTE",
+      "gate_reached": "ALL_PASSED",
+      "gate_evidence": {
+        "gate_1_integrity": {
+          "status": "passed",
+          "noise_admissibility": 2.7755575615628914e-17,
+          "N_thr": 0.5,
+          "alpha": 1.0,
+          "alpha_min": 0.3,
+          "n_check_passed": true,
+          "alpha_check_passed": true
+        },
+        "gate_1b_task_residual_floor": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_2_consensus": {
+          "status": "absent",
+          "coherence": null,
+          "failure_path": "coherence_absent_legacy_pass"
+        },
+        "gate_3_admissibility": {
+          "status": "passed",
+          "failure_path": null,
+          "active_metric": "kappa_compat",
+          "kappa": 0.701846158784718,
+          "kappa_req": 0.22,
+          "kappa_base": 0.22,
+          "lambda_turbulence": 0.0,
+          "sigma": 0.09575726888662697,
+          "epsilon_L": 0.01,
+          "in_gray_zone": false
+        },
+        "gate_3b_trajectory": {
+          "status": "disabled",
+          "enabled": false
+        },
+        "gate_4_grounding": {
+          "status": "absent"
+        },
+        "gate_5_contract_coverage": {
+          "status": "disabled",
+          "enabled": false
+        }
+      },
+      "coordinator_action": "proceed",
+      "morph_hint": null,
+      "source_mode": "proxy",
+      "kappa": 0.701846158784718,
+      "sigma": 0.09575726888662697,
+      "alpha": 1.0,
+      "tau": 1.0,
+      "gear": "SECOND",
+      "gear_after_bump": "SECOND",
+      "sigma_warning": false,
+      "lyapunov_V": 0.095757,
+      "lyapunov_gear": "FIRST",
+      "gear_agreement": false,
+      "should_execute": true,
+      "admission_tier": "headline",
+      "admission_action": "admit-headline",
+      "preset_id": "GEOSPATIAL_CONUS27",
+      "evaluator": "SequentialGatekeeper",
+      "coordinator_notes": [],
+      "labels": [
+        "lyapunov-divergent"
+      ],
+      "order_robust": true
+    }
+  ]
+}

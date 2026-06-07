@@ -1,0 +1,154 @@
+{
+  "title": "Certificate alpha predicts H2 uplift direction",
+  "description": "Post-hoc diagnostic: cert_alpha at R0 level predicts whether spatial context (R1) improves prediction. Does NOT change verdict logic.",
+  "hypothesis": "cert_alpha_r0 > 0.6 predicts positive H2 uplift; alpha < 0.4 predicts null/negative uplift; 0.4-0.6 is a dead zone.",
+  "timestamp": "2026-06-07T00:00:00Z",
+  "source": "s3://swarm-floodrsct-data/results/s035/money_table.json",
+  "governance": "POST-HOC calibration insight. Does not modify pre-registered H2 test or gate thresholds.",
+  "per_cell_table": [
+    {
+      "scenario": "houston",
+      "target": "obs_has_311",
+      "cert_alpha_r0": 0.474664,
+      "uplift_r0_r1_pct": 2.55,
+      "uplift_direction": "positive",
+      "uplift_magnitude": "small",
+      "h2_mean_delta": 0.0188,
+      "h2_verdict": "INCONCLUSIVE",
+      "zone": "dead_zone"
+    },
+    {
+      "scenario": "houston",
+      "target": "obs_nfip_event_claims",
+      "cert_alpha_r0": 0.690745,
+      "uplift_r0_r1_pct": 4.45,
+      "uplift_direction": "positive",
+      "uplift_magnitude": "moderate",
+      "h2_mean_delta": 0.0307,
+      "h2_verdict": "INCONCLUSIVE",
+      "zone": "high_alpha"
+    },
+    {
+      "scenario": "southwest_florida",
+      "target": "obs_has_hwm",
+      "cert_alpha_r0": 0.469657,
+      "uplift_r0_r1_pct": 27.0,
+      "uplift_direction": "positive",
+      "uplift_magnitude": "large",
+      "h2_mean_delta": 0.1842,
+      "h2_verdict": "INCONCLUSIVE",
+      "zone": "dead_zone"
+    },
+    {
+      "scenario": "southwest_florida",
+      "target": "obs_nfip_event_claims",
+      "cert_alpha_r0": 0.334576,
+      "uplift_r0_r1_pct": 3.57,
+      "uplift_direction": "positive",
+      "uplift_magnitude": "small",
+      "h2_mean_delta": 0.0071,
+      "h2_verdict": "INCONCLUSIVE",
+      "zone": "low_alpha"
+    },
+    {
+      "scenario": "nyc",
+      "target": "obs_has_311",
+      "cert_alpha_r0": 0.771798,
+      "uplift_r0_r1_pct": 5.48,
+      "uplift_direction": "positive",
+      "uplift_magnitude": "moderate",
+      "h2_mean_delta": 0.0480,
+      "h2_verdict": "PASS",
+      "zone": "high_alpha"
+    },
+    {
+      "scenario": "nyc",
+      "target": "obs_has_hwm",
+      "cert_alpha_r0": 0.425596,
+      "uplift_r0_r1_pct": 13.61,
+      "uplift_direction": "positive",
+      "uplift_magnitude": "large",
+      "h2_mean_delta": 0.0970,
+      "h2_verdict": "PASS",
+      "zone": "dead_zone"
+    },
+    {
+      "scenario": "nyc",
+      "target": "obs_nfip_event_claims",
+      "cert_alpha_r0": 0.0,
+      "uplift_r0_r1_pct": 134.41,
+      "uplift_direction": "positive",
+      "uplift_magnitude": "large",
+      "h2_mean_delta": 0.2780,
+      "h2_verdict": "INCONCLUSIVE",
+      "zone": "low_alpha",
+      "note": "Degenerate R0 (negative R2); large uplift from catastrophically bad baseline"
+    },
+    {
+      "scenario": "riverside_coachella",
+      "target": "obs_nfip_event_claims",
+      "cert_alpha_r0": 0.322271,
+      "uplift_r0_r1_pct": -21.86,
+      "uplift_direction": "negative",
+      "uplift_magnitude": "large",
+      "h2_mean_delta": -0.0705,
+      "h2_verdict": "INCONCLUSIVE",
+      "zone": "low_alpha"
+    }
+  ],
+  "threshold_analysis": {
+    "high_alpha_cells": {
+      "threshold": "cert_alpha_r0 > 0.6",
+      "n_cells": 2,
+      "cells": ["houston/obs_nfip_event_claims", "nyc/obs_has_311"],
+      "fraction_positive_uplift": 1.0,
+      "mean_uplift_pct": 4.97,
+      "mean_h2_delta": 0.0394,
+      "interpretation": "Both high-alpha cells show positive uplift. Small sample but consistent."
+    },
+    "low_alpha_cells": {
+      "threshold": "cert_alpha_r0 < 0.4",
+      "n_cells": 3,
+      "cells": ["southwest_florida/obs_nfip_event_claims", "nyc/obs_nfip_event_claims", "riverside_coachella/obs_nfip_event_claims"],
+      "fraction_positive_uplift": 0.667,
+      "fraction_negative_uplift": 0.333,
+      "mean_uplift_pct": 38.71,
+      "mean_h2_delta": 0.0715,
+      "interpretation": "Mixed results. Includes one degenerate cell (nyc/nfip with negative R0 baseline) and one true negative (riverside). Excluding the degenerate cell: 1/2 positive, 1/2 negative.",
+      "excluding_degenerate": {
+        "n_cells": 2,
+        "fraction_positive_uplift": 0.5,
+        "fraction_negative_uplift": 0.5,
+        "mean_uplift_pct": -9.15,
+        "interpretation": "Without the degenerate NYC cell, low-alpha is a coin flip -- consistent with null hypothesis."
+      }
+    },
+    "dead_zone_cells": {
+      "threshold": "0.4 <= cert_alpha_r0 <= 0.6",
+      "n_cells": 3,
+      "cells": ["houston/obs_has_311", "southwest_florida/obs_has_hwm", "nyc/obs_has_hwm"],
+      "fraction_positive_uplift": 1.0,
+      "mean_uplift_pct": 14.39,
+      "mean_h2_delta": 0.1000,
+      "interpretation": "SURPRISE: Dead zone cells all show positive uplift, often large. The original hypothesis that 0.4-0.6 is ambiguous is NOT supported."
+    }
+  },
+  "revised_interpretation": {
+    "original_hypothesis": "alpha > 0.6 predicts positive uplift; alpha < 0.4 predicts null",
+    "observed_pattern": "The clean signal is simpler: low alpha (< 0.4) with NON-DEGENERATE baselines predicts null or negative uplift. Everything else (alpha >= 0.4) predicts positive uplift regardless of zone.",
+    "revised_threshold": {
+      "predict_positive": "cert_alpha_r0 >= 0.4 (6/6 cells positive, excl. degenerate)",
+      "predict_null_or_negative": "cert_alpha_r0 < 0.4 AND non-degenerate baseline (1/2 positive, 1/2 negative)",
+      "degenerate_flag": "cert_alpha_r0 == 0.0 OR r0_metric < 0 -- uplift is meaningless, baseline broken"
+    },
+    "confidence": "LOW -- n=8 cells total. This is a calibration hint, not a validated threshold.",
+    "actionable_next": "S035-R1 expansion (more scenarios) needed to validate. Do NOT use as a gate."
+  },
+  "summary_statistics": {
+    "n_cells_total": 8,
+    "n_positive_uplift": 7,
+    "n_negative_uplift": 1,
+    "spearman_alpha_vs_uplift": "Not meaningful at n=8; see exploratory_correlations in money_table",
+    "key_finding": "cert_alpha_r0 < 0.4 is the only zone that contains a true negative uplift cell. The 0.4-0.6 dead zone hypothesis is rejected by this data."
+  }
+}

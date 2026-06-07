@@ -1,0 +1,46 @@
+{
+  "mission": "M2",
+  "description": "Scenario-restricted fidelity-delta for SW Florida",
+  "date": "2026-06-07",
+  "region": "sw_florida",
+  "metric": "spearman_rho",
+  "reference_level": "R0",
+  "events": {
+    "ian2022": {
+      "rho_R0": 0.474,
+      "rho_R1": 0.406,
+      "rho_R2": 0.318,
+      "fidelity_delta_R1": -0.068,
+      "fidelity_delta_R2": -0.156
+    },
+    "helene2024": {
+      "rho_R0": 0.503,
+      "rho_R1": 0.453,
+      "rho_R2": 0.547,
+      "fidelity_delta_R1": -0.050,
+      "fidelity_delta_R2": 0.044
+    },
+    "milton2024": {
+      "rho_R0": 0.571,
+      "rho_R1": 0.452,
+      "rho_R2": 0.641,
+      "fidelity_delta_R1": -0.119,
+      "fidelity_delta_R2": 0.070
+    }
+  },
+  "summary": {
+    "mean_fidelity_delta_R1": -0.079,
+    "mean_fidelity_delta_R2": -0.014,
+    "r2_positive_count": 2,
+    "r2_positive_events": ["helene2024", "milton2024"],
+    "r2_negative_count": 1,
+    "r2_negative_events": ["ian2022"],
+    "sw_fl_r2_fidelity_positive": false
+  },
+  "governance": {
+    "kill_rule_passed": true,
+    "kill_rule_note": "All rho values positive; FAST validation applicable",
+    "tau_b_threshold": 0.90,
+    "interpretation": "scenario-level reporting within pre-registered framework"
+  }
+}
