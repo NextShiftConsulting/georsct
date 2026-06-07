@@ -871,10 +871,10 @@ phases:
     features: null
 
     s3_artifacts:
-      - key: "processed/{scenario}/{scenario}_fast_zcta_25yr.parquet"
-        description: "FAST ZCTA aggregates (one file per return period; 25yr as sentinel)"
-        per_scenario: true
-        scenarios: [houston, nyc]
+      - key: "processed/houston/houston_fast_zcta_25yr.parquet"
+        description: "Houston FAST ZCTA aggregates (sentinel for 10 return periods)"
+      - key: "processed/nyc/nyc_fast_zcta_10yr.parquet"
+        description: "NYC FAST ZCTA aggregates (sentinel for 4 return periods)"
       - key: "results/s035/r0_{scenario}_predictions.parquet"
         per_scenario: true
         scenarios: [houston, nyc]
