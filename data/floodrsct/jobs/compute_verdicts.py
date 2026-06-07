@@ -650,26 +650,31 @@ def extract_prediction_verdict() -> dict:
             "rationale": "Money table not available",
         }
 
-    # Look for hypothesis test results
-    h2 = money.get("hypothesis_tests", {}).get("h2_pooled_regression", {})
-    if not h2:
-        # Try alternative location
-        h2 = money.get("h2_pooled_regression", {})
+    # Navigate to H2 evidence (money_table uses hypothesis_evidence.h2_evidence)
+    h2 = (money.get("hypothesis_evidence", {}).get("h2_evidence", {})
+           or money.get("hypothesis_tests", {}).get("h2_pooled_regression", {}))
 
     if not h2:
         return {
             "geometry": "prediction",
             "verdict": "INSUFFICIENT",
-            "rationale": "H2 pooled regression test not found in money table",
+            "rationale": "H2 evidence not found in money table",
         }
 
-    wilcoxon_p = h2.get("wilcoxon_p_one_sided")
-    cohens_d = h2.get("cohens_d")
-    verdict_raw = h2.get("verdict", "INCONCLUSIVE")
+    # H2 has a top-level verdict and a pooled sub-dict
+    pooled = h2.get("pooled", h2)
+    wilcoxon_p = pooled.get("wilcoxon_p_one_sided")
+    cohens_d = pooled.get("cohens_d")
+    verdict_raw = h2.get("verdict", pooled.get("verdict", "INCONCLUSIVE"))
 
-    verdict = "SUPPORTED" if verdict_raw == "PASS" else "PROVISIONAL"
+    if verdict_raw == "PASS":
+        verdict = "SUPPORTED"
+    elif verdict_raw == "INCONCLUSIVE":
+        verdict = "PROVISIONAL"
+    else:
+        verdict = "INSUFFICIENT"
     rationale = (f"Wilcoxon p={wilcoxon_p}, Cohen's d={cohens_d}; "
-                 f"verdict={verdict_raw}")
+                 f"H2 verdict={verdict_raw}")
 
     return {
         "geometry": "prediction",
