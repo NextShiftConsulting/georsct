@@ -33,7 +33,6 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 import rasterio
-from rasterio.merge import merge as rasterio_merge
 
 sys.path.insert(0, str(Path(__file__).parent))
 from _coverage_common import BUCKET, get_s3_client
@@ -191,33 +190,6 @@ def find_slosh_rasters(s3, category: str) -> list[str]:
         return []
 
 
-def _flip_raster_if_needed(path: str) -> str:
-    """Flip a raster with negative pixel height so rasterio.merge accepts it.
-
-    FloodSimBench GeoTIFFs use a top-left origin (negative dy in the
-    Affine transform).  rasterio.merge refuses to merge these.  We flip
-    the data and adjust the transform to use positive dy with a
-    bottom-left origin.
-    """
-    with rasterio.open(path) as src:
-        t = src.transform
-        if t.e >= 0:
-            return path  # already positive pixel height
-        data = src.read()
-        # Flip rows (axis=1 for [bands, rows, cols])
-        data = data[:, ::-1, :]
-        new_transform = rasterio.Affine(
-            t.a, t.b, t.c,
-            t.d, -t.e, t.f + t.e * src.height,
-        )
-        meta = src.meta.copy()
-        meta["transform"] = new_transform
-
-    flipped_path = path.replace(".tif", "_flipped.tif")
-    with rasterio.open(flipped_path, "w", **meta) as dst:
-        dst.write(data)
-    return flipped_path
-
 
 def download_and_merge_rasters(s3, keys: list[str], tmp_dir: str) -> str:
     """Download raster tiles from S3 and merge into single GeoTIFF."""
@@ -234,23 +206,68 @@ def download_and_merge_rasters(s3, keys: list[str], tmp_dir: str) -> str:
     if len(local_paths) == 1:
         return local_paths[0]
 
-    # Flip rasters with negative pixel height before merging
-    flipped_paths = []
-    for p in local_paths:
-        flipped_paths.append(_flip_raster_if_needed(p))
+    # Manual numpy merge to avoid rasterio.merge's negative-pixel-height
+    # rejection (rasterio >= 1.4).  Reads each tile, normalizes to north-up,
+    # and paints into a union-bounds canvas.
+    log.info("Merging %d tiles (numpy)...", len(local_paths))
 
-    # Merge multiple tiles
-    log.info("Merging %d tiles...", len(flipped_paths))
-    datasets = [rasterio.open(p) for p in flipped_paths]
-    mosaic, out_transform = rasterio_merge(datasets)
-    out_meta = datasets[0].meta.copy()
-    out_meta.update({
-        "height": mosaic.shape[1],
-        "width": mosaic.shape[2],
-        "transform": out_transform,
-    })
-    for ds in datasets:
-        ds.close()
+    datasets = [rasterio.open(p) for p in local_paths]
+    try:
+        # Compute union bounds (bounds are always ordered regardless of pixel sign)
+        all_bounds = [ds.bounds for ds in datasets]
+        min_left = min(b.left for b in all_bounds)
+        min_bottom = min(b.bottom for b in all_bounds)
+        max_right = max(b.right for b in all_bounds)
+        max_top = max(b.top for b in all_bounds)
+
+        res_x = abs(datasets[0].transform.a)
+        res_y = abs(datasets[0].transform.e)
+        out_width = int(round((max_right - min_left) / res_x))
+        out_height = int(round((max_top - min_bottom) / res_y))
+
+        # North-up transform (standard: negative pixel height)
+        out_transform = rasterio.Affine(res_x, 0, min_left, 0, -res_y, max_top)
+
+        nodata = datasets[0].nodata if datasets[0].nodata is not None else 0
+        mosaic = np.full(
+            (datasets[0].count, out_height, out_width),
+            nodata, dtype=datasets[0].dtypes[0],
+        )
+
+        for ds in datasets:
+            data = ds.read()
+            # Normalize to north-up if needed
+            if ds.transform.e > 0:
+                data = data[:, ::-1, :]
+
+            # Pixel offsets into the output canvas
+            col_off = int(round((ds.bounds.left - min_left) / res_x))
+            row_off = int(round((max_top - ds.bounds.top) / res_y))
+
+            h = min(data.shape[1], out_height - row_off)
+            w = min(data.shape[2], out_width - col_off)
+            if h <= 0 or w <= 0:
+                continue
+
+            tile = data[:, :h, :w]
+            if nodata == 0:
+                mask = tile != 0
+            else:
+                mask = ~np.isnan(tile) if np.issubdtype(tile.dtype, np.floating) else (tile != nodata)
+            mosaic[:, row_off:row_off+h, col_off:col_off+w] = np.where(
+                mask, tile, mosaic[:, row_off:row_off+h, col_off:col_off+w],
+            )
+
+        out_meta = datasets[0].meta.copy()
+        out_meta.update({
+            "height": out_height,
+            "width": out_width,
+            "transform": out_transform,
+            "driver": "GTiff",
+        })
+    finally:
+        for ds in datasets:
+            ds.close()
 
     merged_path = str(Path(tmp_dir) / "merged_depth.tif")
     with rasterio.open(merged_path, "w", **out_meta) as dest:
