@@ -272,22 +272,11 @@ def run_regionalization_robustness(
     region_meta = {
         "scenario": scenario,
         "n_regions": int(region_folds["fold_region_blocked"].nunique()),
-        "region_sizes": region_folds["fold_region_blocked"].value_counts().sort_index().to_dict(),
+        "region_sizes": {str(k): int(v) for k, v in
+                         region_folds["fold_region_blocked"].value_counts().sort_index().items()},
         "features_used": REGION_FEATURES,
         "folds_key": folds_key,
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "status": "FOLDS_READY",
-        "next_step": (
-            "Run training with region-blocked folds (order matters -- R0 first):\n"
-            f"  python train_r0_baseline.py --scenario {scenario} --upload "
-            f"--folds-key {folds_key} --fold-col fold_region_blocked "
-            f"--output-prefix {SIDECAR_PREFIX}\n"
-            f"  python train_r1_hydrology.py --scenario {scenario} --upload "
-            f"--folds-key {folds_key} --fold-col fold_region_blocked "
-            f"--output-prefix {SIDECAR_PREFIX}\n"
-            "Then run: python compute_spatial_sidecar_regionalize.py "
-            f"--scenario {scenario} --compare --upload"
-        ),
     }
 
     if upload:
@@ -296,6 +285,34 @@ def run_regionalization_robustness(
             f"{SIDECAR_PREFIX}/{scenario}_region_meta.json",
             region_meta,
         )
+
+    # Run training with region-blocked folds (R0 first, then R1)
+    import subprocess
+    job_dir = str(Path(__file__).parent)
+    common_args = [
+        "--scenario", scenario,
+        "--folds-key", folds_key,
+        "--fold-col", "fold_region_blocked",
+        "--output-prefix", SIDECAR_PREFIX,
+    ]
+    if upload:
+        common_args.append("--upload")
+
+    for script in ["train_r0_baseline.py", "train_r1_hydrology.py"]:
+        cmd = [sys.executable, str(Path(job_dir) / script)] + common_args
+        log.info("Running: %s", " ".join(cmd))
+        result = subprocess.run(cmd, capture_output=False, text=True)
+        if result.returncode != 0:
+            log.error("%s failed with return code %d", script, result.returncode)
+            region_meta["status"] = f"TRAINING_FAILED_{script}"
+            return region_meta
+        log.info("%s completed successfully", script)
+
+    # Compare county-blocked vs region-blocked results
+    log.info("Running comparison for %s", scenario)
+    comparison = run_comparison(s3, scenario, upload)
+    region_meta["status"] = "COMPLETE"
+    region_meta["comparison"] = comparison
 
     return region_meta
 

@@ -33,28 +33,35 @@ SCENARIOS = [
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--scenario", required=True, choices=SCENARIOS)
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--scenario", choices=SCENARIOS)
+    group.add_argument("--all-scenarios", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
-    job_name = make_job_name(
-        f"region-{args.scenario.replace('_', '-')}"
-    )
+    if args.all_scenarios:
+        job_args = ["--all-scenarios", "--upload"]
+        label = "region-all"
+    else:
+        job_args = ["--scenario", args.scenario, "--upload"]
+        label = f"region-{args.scenario.replace('_', '-')}"
+
+    job_name = make_job_name(label)
 
     launch_processing_job(
         job_name=job_name,
         job_script="compute_spatial_sidecar_regionalize.py",
-        job_args=["--scenario", args.scenario, "--upload"],
+        job_args=job_args,
         instance_type="ml.m5.xlarge",
         volume_size_gb=10,
-        pip_packages="spopt libpysal geopandas scikit-learn scipy",
+        pip_packages="spopt libpysal geopandas scikit-learn scipy networkx",
         extra_files=[
             "compute_residual_lisa.py",
             "train_r0_baseline.py",
             "train_r1_hydrology.py",
         ],
         dry_run=args.dry_run,
-        scenario=args.scenario,
+        scenario=args.scenario if args.scenario else "all",
     )
 
 
