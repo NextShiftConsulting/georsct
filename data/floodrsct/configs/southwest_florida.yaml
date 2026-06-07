@@ -8,6 +8,7 @@ state_fips: "12"
 county_fips_list:
   - "12021"  # Collier County (Ian/Milton primary landfall region)
   - "12071"  # Lee County (Fort Myers; Ian direct hit)
+  - "12015"  # Charlotte County (Port Charlotte; Ian landfall border; 13 ZCTAs)
   - "12115"  # Sarasota County
   - "12081"  # Manatee County (Helene/Milton)
   - "12057"  # Hillsborough County (Tampa Bay; Helene surge)

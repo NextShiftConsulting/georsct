@@ -2,7 +2,13 @@
 
 scenario: houston
 state_fips: "48"
-county_fips: "48201"  # Harris County
+county_fips_list:
+  - "48201"  # Harris County (core urban, 132 ZCTAs)
+  - "48157"  # Fort Bend County (Sugar Land, Missouri City; 21 ZCTAs)
+  - "48339"  # Montgomery County (The Woodlands, Conroe; 22 ZCTAs)
+  - "48167"  # Galveston County (Galveston, League City; 18 ZCTAs)
+  - "48039"  # Brazoria County (Pearland, Angleton; 16 ZCTAs)
+  - "48071"  # Chambers County (Baytown east, Trinity Bay; 7 ZCTAs)
 zcta_state_filter: "TX"
 
 events:

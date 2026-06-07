@@ -973,8 +973,9 @@ def compute_observability_flags(df: pd.DataFrame) -> pd.DataFrame:
 def build_houston(s3, cfg: dict) -> pd.DataFrame:
     """Assemble Houston (zcta, event) table."""
     xwalk = s3_read(s3, "raw/geocertdb2026/zcta_county_crosswalk.parquet")
-    harris_zctas = xwalk[xwalk["county_fips"] == "48201"]["zcta_id"].tolist()
-    log.info("Houston: %d Harris County ZCTAs", len(harris_zctas))
+    houston_fips = ["48201", "48157", "48339", "48167", "48039", "48071"]
+    harris_zctas = xwalk[xwalk["county_fips"].isin(houston_fips)]["zcta_id"].tolist()
+    log.info("Houston: %d metro ZCTAs (6 counties)", len(harris_zctas))
 
     static = load_geocert_static(s3, "houston", harris_zctas)
 
@@ -1234,7 +1235,7 @@ def build_riverside_coachella(s3, cfg: dict) -> pd.DataFrame:
 def build_southwest_florida(s3, cfg: dict) -> pd.DataFrame:
     """Assemble SW Florida (zcta, event) variogram-input table."""
     xwalk = s3_read(s3, "raw/geocertdb2026/zcta_county_crosswalk.parquet")
-    swfl_fips = ["12021", "12071", "12115", "12081", "12057", "12103"]
+    swfl_fips = ["12021", "12071", "12015", "12115", "12081", "12057", "12103"]
     swfl_zctas = xwalk[xwalk["county_fips"].isin(swfl_fips)]["zcta_id"].tolist()
     log.info("SW Florida: %d ZCTAs", len(swfl_zctas))
 

@@ -1201,6 +1201,121 @@ features, R1 explicitly encodes spatial structure:
 
 ---
 
+## Change 14: Spatial Boundary Expansion — Houston Metro + Charlotte County
+
+### Motivation
+
+Two scenarios carry spatial boundaries that truncate documented flood event
+footprints, undermining the ecological validity of the benchmark.
+
+**Houston.** The v1.1 boundary was Harris County only (FIPS 48201, 132 ZCTAs).
+Hurricane Harvey (2017), Tropical Storm Imelda (2019), and Hurricane Beryl
+(2024) all produced significant flooding in adjacent counties. The scenario's
+own USGS anchor gauges include stations in Fort Bend County, outside the
+analysis boundary. Limiting to Harris County truncates the flood event
+footprint and discards observed gauge data that the experiment already
+references.
+
+**SW Florida.** The v1.1 boundary comprised 6 counties (Collier, Lee, Sarasota,
+Manatee, Hillsborough, Pinellas; 202 ZCTAs). Hurricane Ian (2022) made
+landfall at the Lee/Charlotte County border. Port Charlotte sustained extreme
+wind and surge damage. Excluding Charlotte County from an Ian-focused
+benchmark is indefensible — it removes the landfall point from the study area.
+
+### Exact Changes to Scenario Configs
+
+**`configs/houston.yaml`** (already updated):
+
+| Parameter | Old Value | New Value |
+|-----------|-----------|-----------|
+| `county_fips` | `[48201]` | `[48201, 48157, 48339, 48167, 48039, 48071]` |
+| County names | Harris | Harris, Fort Bend, Montgomery, Galveston, Brazoria, Chambers |
+| Approximate ZCTA count | 132 | ~216 |
+| Label | Harris County | Houston 6-county metro |
+
+**`configs/southwest_florida.yaml`** (already updated):
+
+| Parameter | Old Value | New Value |
+|-----------|-----------|-----------|
+| `county_fips` | `[12021, 12071, 12115, 12081, 12057, 12103]` | `[12021, 12071, 12115, 12081, 12057, 12103, 12015]` |
+| County names | Collier, Lee, Sarasota, Manatee, Hillsborough, Pinellas | + Charlotte |
+| Approximate ZCTA count | 202 | ~215 |
+
+### Cascade Requirements
+
+This boundary change triggers **V4.11 (event_cascade_regeneration)** for
+both affected scenarios. The following artifacts must be regenerated in
+dependency order:
+
+| Phase | Artifact | Reason |
+|-------|----------|--------|
+| 0 | ZCTA feature/label assembly (`{scenario}_event_features.parquet`) | New ZCTAs added; all feature columns must be populated for the expanded set |
+| 0 | NFIP historical claims (`{scenario}_nfip_hist.parquet`) | Claims in new counties were not previously fetched |
+| 0 | ZCTA adjacency (`zcta_adjacency.parquet`) | Queen's contiguity graph changes with new ZCTAs |
+| 0 | County crosswalk (`zcta_county_crosswalk.parquet`) | New ZCTA-to-county mappings |
+| 0.5 | Geometry kappa (`kappa_geom`) | Spatial connectivity, coverage, and administrative alignment all change |
+| 1-3 | All training phases (R0, R1, R2) | Feature matrix dimensions change; fold assignments must be recomputed |
+| 4a-4c | All kappa diagnostics | Computed from new predictions on expanded ZCTA set |
+| 4.5a-4.5c | All certificates | Derived from new training results |
+| 5 | Money table and hypothesis tests | Sample sizes change |
+| 6 | DGM routing | Certificates change |
+| 7 | FAST validation (Houston) | New ZCTAs require new structure inventory and depth raster sampling |
+
+**No artifact from prior Houston or SW Florida runs may be reused.** The
+cascade is total for these two scenarios. Riverside and NYC results are
+unaffected.
+
+### Impact on Existing Results
+
+All Houston and SW Florida results produced before this amendment are
+**invalidated**. Specifically:
+
+- Any R0/R1/R2 metrics, predictions, or certificates computed on the old
+  132-ZCTA Houston boundary or the old 202-ZCTA SW Florida boundary are
+  void. They must not be cited, compared against, or used as baselines.
+- Fold files generated under the old boundaries are invalid — spatial
+  blocking groups (county-level) now include new counties.
+- W-matrix features (Change 13) must be recomputed because the adjacency
+  graph topology changes with boundary expansion.
+
+### Impact on Hypothesis Tests
+
+**Sample size changes.** Houston grows from ~132 to ~216 ZCTAs; SW Florida
+from ~202 to ~215 ZCTAs. These changes affect:
+
+1. **Fold balance.** Spatial-blocked CV folds must be rebalanced. With 6
+   Houston counties (up from 1), county-level blocking produces 6 spatial
+   blocks instead of 1 — a qualitative improvement in spatial blocking
+   granularity.
+2. **Statistical power.** More ZCTAs per scenario increases fold sizes,
+   which increases power for the fold-level Wilcoxon signed-rank test
+   (H2a, H3). The effect is modest (~60% more Houston ZCTAs).
+3. **Cell-level diagnostics.** The 7 modelable cells (Change 6) remain 7 —
+   the boundary expansion changes ZCTA counts within cells, not the number
+   of cells. Spearman correlations at n=7 are unchanged in feasibility.
+4. **Certificate baselines.** RSN simplex values (R, S_sup, N) will differ
+   because the expanded ZCTA set may include ZCTAs with different
+   signal-to-noise profiles (e.g., suburban Fort Bend vs urban Harris).
+   All certificate evolution comparisons (Change 9) must use post-expansion
+   values only.
+5. **V4.11 verification.** Per v1.11, adding spatial units to a scenario
+   triggers full event cascade regeneration. The two-stage aggregation rule
+   (ZCTA-level to county-level) applies to the expanded county set.
+
+### Verification Gate
+
+Before any training phase runs on expanded boundaries, verify:
+
+- [ ] `configs/houston.yaml` lists exactly 6 FIPS codes: 48201, 48157, 48339, 48167, 48039, 48071
+- [ ] `configs/southwest_florida.yaml` lists exactly 7 FIPS codes including 12015
+- [ ] Assembled parquet for Houston contains ZCTAs from all 6 counties
+- [ ] Assembled parquet for SW Florida contains ZCTAs from Charlotte County
+- [ ] ZCTA adjacency graph includes cross-county edges at new boundaries
+- [ ] Fold assignment script produces valid spatial blocks for the expanded county set
+- [ ] V4.11 event_cascade_regeneration gate passes for both scenarios
+
+---
+
 ## Change Control
 
 | Version | Date | Changes |
@@ -1217,6 +1332,7 @@ features, R1 explicitly encodes spatial structure:
 | v1.9 | 2026-06-02 | Statistical reporting framework: three-axis distinction (RSN simplex / kappa_geom / bootstrap CI); cell-level bootstrap CIs on aggregate uplift and certificate signals; bootstrap framed as uncertainty not inference |
 | v1.10 | 2026-06-05 | Spatially-blocked paired loss analysis (Statistical-Considerations.md §14): supplementary test using per-ZCTA loss deltas aggregated to county-level spatial blocks; four-layer separation (spatial dependence / inference / certificate / DGM); naming rules; applies to H2a, H3, H5 |
 | v1.11 | 2026-06-05 | Event-level dependence (Statistical-Considerations.md §14.5): two-stage aggregation rule for multi-event scenarios; cascade effect table for adding events post-DOE (R2 hard regeneration, NFIP historical regeneration, fold balance re-verification); V4.10/V4.11/V5.15/V5.16 verification gates |
+| v1.12 | 2026-06-07 | Spatial boundary expansion: Houston 1-county to 6-county metro; SW Florida 6-county to 7-county (+Charlotte); triggers V4.11 event_cascade_regeneration for both scenarios; all prior Houston and SW Florida results invalidated |
 
 ---
 
