@@ -54,7 +54,8 @@ def main() -> None:
         job_args=job_args,
         instance_type="ml.m5.xlarge",
         volume_size_gb=10,
-        pip_packages="'numpy<2.3' spopt libpysal scikit-learn scipy networkx",
+        pip_packages="spopt libpysal scikit-learn scipy networkx",
+        pre_install_cmd="pip install -qU 'numpy<2.3' --force-reinstall",
         extra_files=[
             "compute_residual_lisa.py",
             "train_r0_baseline.py",
