@@ -69,7 +69,7 @@ REGION_K = 5  # Match locked fold count for apples-to-apples
 # ═══════════════════════════════════════════════════════════════════════════
 
 def build_regionalized_folds(
-    gdf: "gpd.GeoDataFrame",
+    df: pd.DataFrame,
     adj_df: pd.DataFrame,
     features: list[str],
     n_regions: int = REGION_K,
@@ -79,40 +79,35 @@ def build_regionalized_folds(
     Uses STRUCTURAL GEOGRAPHY ONLY. Returns DataFrame with columns:
     zcta_id, fold_region_blocked (int 0..K-1).
 
-    Handles disconnected graphs (NYC boroughs, SW Florida coastal gaps) by
-    extracting the largest connected component and assigning singletons/small
-    components to the nearest region.
+    Builds spatial weights from the adjacency edge list (same source as LISA),
+    avoiding the need for 800 MB national ZCTA boundary geometry.
 
-    PURE FUNCTION: takes GeoDataFrame + adjacency, returns DataFrame.
+    Handles disconnected graphs (NYC boroughs, SW Florida coastal gaps) by
+    extracting the largest connected component and assigning orphans to the
+    nearest region by adjacency hop distance.
+
+    PURE FUNCTION: takes DataFrame + adjacency, returns DataFrame.
     """
-    from libpysal.weights import Queen
     from sklearn.preprocessing import robust_scale
 
-    available = [f for f in features if f in gdf.columns]
+    zcta_ids = sorted(df["zcta_id"].unique())
+
+    available = [f for f in features if f in df.columns]
     if len(available) < 2:
         raise ValueError(f"Need >= 2 structural features, got {len(available)}: {available}")
 
-    sub = gdf[["zcta_id"] + available + ["geometry"]].dropna().copy()
+    # Deduplicate to one row per ZCTA (features are static across events)
+    sub = df[["zcta_id"] + available].drop_duplicates(subset=["zcta_id"]).copy()
     sub["zcta_id"] = sub["zcta_id"].astype(str)
-
-    # Reset index so integer positions align with Queen weight node labels
-    sub = sub.reset_index(drop=True)
-
-    # Project to EPSG:5070 for consistent distance-based operations
-    if sub.crs is not None and sub.crs.to_epsg() != 5070:
-        sub = sub.to_crs(epsg=5070)
-    elif sub.crs is None:
-        log.warning("No CRS on GeoDataFrame; assuming EPSG:5070")
-        sub = sub.set_crs(epsg=5070)
+    sub = sub.dropna(subset=available).reset_index(drop=True)
 
     if len(sub) < n_regions * 3:
         raise ValueError(f"Too few ZCTAs ({len(sub)}) for {n_regions} regions")
 
-    # Build Queen weights from geometry
-    w = Queen.from_dataframe(sub, silence_warnings=True)
+    # Build spatial weights from adjacency edge list (same as LISA path)
+    w = build_weights_from_adjacency(adj_df, sub["zcta_id"].tolist())
 
     # Connectivity guard: Skater/MaxP choke on disconnected graphs.
-    # Find connected components and work on the largest.
     import networkx as nx
     G = w.to_networkx()
     components = list(nx.connected_components(G))
@@ -120,29 +115,27 @@ def build_regionalized_folds(
     if len(components) > 1:
         log.warning(
             "Graph has %d connected components (sizes: %s). "
-            "Running Skater on largest component, assigning rest by nearest centroid.",
+            "Running Skater on largest component, assigning rest by hop distance.",
             len(components),
             sorted([len(c) for c in components], reverse=True)[:5],
         )
         largest = max(components, key=len)
-        largest_idx = sorted(largest)
-        sub_main = sub.iloc[largest_idx].copy().reset_index(drop=True)
-        orphan_idx = sorted(set(range(len(sub))) - largest)
-        sub_orphan = sub.iloc[orphan_idx].copy().reset_index(drop=True)
-        w = Queen.from_dataframe(sub_main, silence_warnings=True)
+        # Map W node IDs back to zcta_ids
+        w_id_to_zcta = dict(enumerate(sub["zcta_id"].tolist()))
+        largest_zctas = {w_id_to_zcta[i] for i in largest}
+        mask_main = sub["zcta_id"].isin(largest_zctas)
+        sub_main = sub[mask_main].copy().reset_index(drop=True)
+        sub_orphan = sub[~mask_main].copy().reset_index(drop=True)
+        w = build_weights_from_adjacency(adj_df, sub_main["zcta_id"].tolist())
     else:
         sub_main = sub
         sub_orphan = pd.DataFrame()
 
-    # Scale features -- Skater reads attrs_name columns directly,
-    # so write scaled values back into the DataFrame columns it will read.
+    # Scale features -- Skater reads attrs_name columns directly
     scaled = robust_scale(sub_main[available].values)
     scaled_cols = [f"_scaled_{c}" for c in available]
     for i, col in enumerate(scaled_cols):
         sub_main[col] = scaled[:, i]
-
-    # Min region size: at least n_total / (2 * n_regions) to avoid degenerate splits
-    min_region_size = max(len(sub_main) // (2 * n_regions), 5)
 
     # Try Skater first, fall back to MaxP
     try:
@@ -154,6 +147,7 @@ def build_regionalized_folds(
         log.warning("Skater failed (%s), trying MaxPHeuristic", e_skater)
         try:
             from spopt.region import MaxPHeuristic
+            min_region_size = max(len(sub_main) // (2 * n_regions), 5)
             model = MaxPHeuristic(sub_main, w, attrs_name=scaled_cols,
                                  threshold_name=scaled_cols[0],
                                  threshold=min_region_size)
@@ -168,14 +162,31 @@ def build_regionalized_folds(
     sub_main = sub_main.copy()
     sub_main["fold_region_blocked"] = labels
 
-    # Assign orphan ZCTAs to nearest region by centroid distance (EPSG:5070)
+    # Assign orphan ZCTAs to nearest region by adjacency
     if len(sub_orphan) > 0:
-        region_centroids = sub_main.dissolve(by="fold_region_blocked").centroid
+        # Detect adjacency column names (same logic as build_weights_from_adjacency)
+        cols = adj_df.columns.tolist()
+        if "zcta_from" in cols:
+            c1, c2 = "zcta_from", "zcta_to"
+        else:
+            c1, c2 = "zcta_id_1", "zcta_id_2"
+        adj_str = adj_df.copy()
+        adj_str[c1] = adj_str[c1].astype(str)
+        adj_str[c2] = adj_str[c2].astype(str)
+
+        region_map = dict(zip(sub_main["zcta_id"], sub_main["fold_region_blocked"]))
         orphan_labels = []
         for _, row in sub_orphan.iterrows():
-            dists = {r: row.geometry.centroid.distance(rc)
-                     for r, rc in region_centroids.items()}
-            orphan_labels.append(min(dists, key=dists.get))
+            zcta = row["zcta_id"]
+            nbrs = adj_str[(adj_str[c1] == zcta) | (adj_str[c2] == zcta)]
+            nbr_ids = set(nbrs[c1].tolist() + nbrs[c2].tolist()) - {zcta}
+            nbr_regions = [region_map[n] for n in nbr_ids if n in region_map]
+            if nbr_regions:
+                # Assign to most common neighbor region
+                orphan_labels.append(max(set(nbr_regions), key=nbr_regions.count))
+            else:
+                # No adjacent neighbors in main component -- assign to region 0
+                orphan_labels.append(0)
         sub_orphan = sub_orphan.copy()
         sub_orphan["fold_region_blocked"] = orphan_labels
         result = pd.concat([sub_main, sub_orphan])
@@ -199,7 +210,7 @@ def run_regionalization_robustness(
     """Build regionalized folds + compare with county-blocked results.
 
     This does NOT reimplement training. It:
-    1. Builds region-blocked fold assignments
+    1. Builds region-blocked fold assignments from adjacency edge list
     2. Uploads them as a separate folds parquet
     3. Calls train_r0_baseline.py / train_r1_hydrology.py via subprocess
        with the swapped folds
@@ -207,8 +218,6 @@ def run_regionalization_robustness(
 
     The comparison is strictly about direction agreement, not magnitude.
     """
-    import geopandas as gpd
-
     log.info("=" * 60)
     log.info("  SECTION 3: REGIONALIZATION ROBUSTNESS -- %s", scenario)
     log.info("=" * 60)
@@ -217,29 +226,9 @@ def run_regionalization_robustness(
     df = load_processed_parquet(s3, scenario)
     df["zcta_id"] = df["zcta_id"].astype(str)
 
-    # Build GeoDataFrame (need geometry for Queen weights)
-    gdf = None
-    for zcta_key in [
-        "raw/geocertdb2026/zcta_boundaries_5070.parquet",
-        "raw/geocertdb2026/zcta_boundaries.parquet",
-    ]:
-        try:
-            obj = s3.get_object(Bucket=BUCKET, Key=zcta_key)
-            zcta_gdf = gpd.read_parquet(io.BytesIO(obj["Body"].read()))
-            if "zcta_id" in zcta_gdf.columns:
-                zcta_gdf["zcta_id"] = zcta_gdf["zcta_id"].astype(str)
-            merged = zcta_gdf[["zcta_id", "geometry"]].merge(df, on="zcta_id")
-            gdf = gpd.GeoDataFrame(merged, geometry="geometry")
-            break
-        except Exception:
-            continue
-
-    if gdf is None:
-        return {"scenario": scenario, "status": "NO_GEOMETRY"}
-
-    # Build regionalized folds (pure function)
+    # Build regionalized folds from adjacency edge list (no geometry needed)
     try:
-        region_folds = build_regionalized_folds(gdf, adj_df, REGION_FEATURES)
+        region_folds = build_regionalized_folds(df, adj_df, REGION_FEATURES)
     except Exception as e:
         log.error("Regionalization failed for %s: %s", scenario, e)
         return {"scenario": scenario, "status": "REGIONALIZATION_FAILED", "error": str(e)}

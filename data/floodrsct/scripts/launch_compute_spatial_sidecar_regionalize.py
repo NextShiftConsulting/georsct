@@ -6,9 +6,9 @@ county blocking. Compares qualitative findings (tab:robustness in paper).
 
 Deployment Resource Review
 --------------------------
-1. Memory:    Assembled parquet ~20 MB, boundaries ~800 MB (filtered <5 MB).
+1. Memory:    Assembled parquet ~20 MB. Adjacency edge list ~1 MB.
               Skater/MaxP on ~600 ZCTAs with 3 features. Training same as R0/R1.
-              Peak <8 GB.
+              Peak <4 GB (no geometry loading).
 2. S3 cache:  Reads assembled parquet, folds, adjacency, boundaries.
 3. Threads:   Single-threaded (subprocess calls to train_r0/r1 are sequential).
 4. Image:     PyTorch CPU. Needs spopt + libpysal + geopandas + scikit-learn.
@@ -54,7 +54,7 @@ def main() -> None:
         job_args=job_args,
         instance_type="ml.m5.xlarge",
         volume_size_gb=10,
-        pip_packages="spopt libpysal geopandas scikit-learn scipy networkx",
+        pip_packages="spopt libpysal scikit-learn scipy networkx",
         extra_files=[
             "compute_residual_lisa.py",
             "train_r0_baseline.py",
