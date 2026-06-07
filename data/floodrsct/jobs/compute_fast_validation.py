@@ -143,13 +143,18 @@ def load_fast_zcta(s3, scenario: str, return_period: str) -> pd.DataFrame | None
     df = _load_parquet(s3, key)
     if df is None:
         return None
+    # zcta_id may be the index (named 'zcta') or a column
+    if df.index.name in ("zcta", "zcta_id"):
+        df = df.reset_index()
+        if "zcta" in df.columns and "zcta_id" not in df.columns:
+            df = df.rename(columns={"zcta": "zcta_id"})
+    # Normalize loss column name
     if "fast_total_loss_zcta" not in df.columns:
-        # Try alternative column name
         loss_cols = [c for c in df.columns if "loss" in c.lower() and "total" in c.lower()]
         if loss_cols:
             df = df.rename(columns={loss_cols[0]: "fast_total_loss_zcta"})
         else:
-            log.error("Missing fast_total_loss_zcta in %s (cols: %s)", key, list(df.columns))
+            log.error("Missing loss column in %s (cols: %s)", key, list(df.columns))
             return None
     df["zcta_id"] = df["zcta_id"].astype(str)
     return df[["zcta_id", "fast_total_loss_zcta"]].copy()
