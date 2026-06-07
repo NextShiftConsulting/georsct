@@ -44,7 +44,7 @@ def main() -> None:
         job_args=["--section", args.section, "--upload"],
         instance_type="ml.m5.xlarge",
         volume_size_gb=10,
-        pip_packages="esda libpysal mgwr spreg geopandas shapely scipy pyproj",
+        pip_packages="numpy<2.3 esda libpysal mgwr spreg geopandas shapely scipy pyproj",
         extra_files=["compute_residual_lisa.py"],
         dry_run=args.dry_run,
     )
