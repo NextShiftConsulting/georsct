@@ -55,7 +55,7 @@ def main() -> None:
         instance_type="ml.m5.xlarge",
         volume_size_gb=10,
         pip_packages="spopt libpysal scikit-learn scipy networkx",
-        pre_install_cmd="pip install -qU 'numpy<2.3' --force-reinstall",
+        pre_install_cmd="pip install -qU 'numpy<2.3' numba --force-reinstall --no-cache-dir",
         extra_files=[
             "compute_residual_lisa.py",
             "train_r0_baseline.py",
