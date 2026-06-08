@@ -1,0 +1,25 @@
+{
+  "phase": "certificates_r0",
+  "experiment": "s035",
+  "preset_id": "GEOSPATIAL_CONUS27",
+  "certificates": [
+    {
+      "scenario": "new_orleans",
+      "target": "flood_depth",
+      "R": 0.55,
+      "S_sup": 0.10,
+      "N": 0.30,
+      "alpha": 0.60,
+      "omega": 1.0,
+      "kappa": 0.80,
+      "kappa_L": 0.10,
+      "tau": 1.0,
+      "sigma": 0.10,
+      "level": "r0",
+      "task_type": "regression",
+      "spatial_metric": 0.60,
+      "random_metric": 0.55,
+      "n_folds": 5
+    }
+  ]
+}

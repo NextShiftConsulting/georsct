@@ -15,6 +15,9 @@ geo = [
     "pandas>=2.0",
     "libpysal>=4.7",
 ]
+healthcheck = [
+    "yrsn-controlplane",
+]
 
 [tool.setuptools.packages.find]
 include = ["rsct*", "georsct*"]

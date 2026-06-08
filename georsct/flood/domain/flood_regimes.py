@@ -12,7 +12,7 @@ pre-committed before computing results.
 
 from __future__ import annotations
 
-from rsct.validation.deployment_domains import EligibilityRule, RegimeDomain
+from georsct.validation.deployment_domains import EligibilityRule, RegimeDomain
 
 
 FLOOD_REGIMES: dict[str, RegimeDomain] = {

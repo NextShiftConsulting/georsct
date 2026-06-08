@@ -1,0 +1,14 @@
+{
+  "phase": "diagnostics_r0",
+  "experiment": "s035",
+  "cells": [
+    {
+      "scenario": "riverside",
+      "target": "flood_depth",
+      "diag_leakage": 1.25,
+      "diag_transfer": 0.45,
+      "diag_solver": 0.65,
+      "diag_residual_spatial": 0.20
+    }
+  ]
+}

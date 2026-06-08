@@ -1,0 +1,17 @@
+{
+  "phase": "6_dgm_routing",
+  "experiment": "s035",
+  "strategies": {
+    "default": {
+      "routing_table": [
+        {
+          "scenario": "riverside",
+          "target": "flood_depth",
+          "internal_decision": "RE_ENCODE",
+          "public_decision": "RE_ENCODE",
+          "recommended_arm": "arm_b"
+        }
+      ]
+    }
+  }
+}
