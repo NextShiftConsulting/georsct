@@ -546,7 +546,10 @@ def aggregate_mrms_rainfall(s3, event: str, zcta_ids: list[str]) -> pd.DataFrame
     })
 
     if not files:
-        log.warning("No MRMS files for event %s", event)
+        log.warning("No MRMS files for event %s; trying GPM IMERG fallback", event)
+        imerg_result = _aggregate_gpm_imerg(s3, event, zcta_ids)
+        if imerg_result is not None:
+            return imerg_result
         return empty
 
     if not HAS_GEO:
@@ -561,6 +564,84 @@ def aggregate_mrms_rainfall(s3, event: str, zcta_ids: list[str]) -> pd.DataFrame
         log.error("MRMS spatial aggregation failed: %s", e)
         empty["obs_mrms_coverage_pct"] = 0.0
         return empty
+
+
+def _aggregate_gpm_imerg(s3, event: str, zcta_ids: list[str]) -> Optional[pd.DataFrame]:
+    """Fallback rainfall aggregation using GPM IMERG daily NetCDF4 files.
+
+    Used for pre-MRMS events (Sandy 2012) where MRMS data doesn't exist.
+    GPM IMERG Final Run V07B has 0.1° resolution, global, back to 2000.
+    """
+    prefix = f"raw/gpm_imerg/daily/{event}/"
+    all_objs = _list_s3_keys(s3, prefix)
+    nc_files = [o["Key"] for o in all_objs if o["Key"].endswith(".nc4")]
+    if not nc_files:
+        log.warning("No GPM IMERG files for event %s", event)
+        return None
+
+    log.info("GPM IMERG fallback: %d nc4 files for event %s", len(nc_files), event)
+
+    try:
+        import netCDF4
+    except ImportError:
+        log.warning("netCDF4 not available; GPM IMERG fallback skipped")
+        return None
+
+    # Load ZCTA centroids for point sampling
+    centroids_key = "raw/geocertdb2026/zcta_features_labels.parquet"
+    geo = s3_read(s3, centroids_key)
+    if geo is None:
+        return None
+    geo = geo[geo["zcta_id"].isin(zcta_ids)][["zcta_id", "latitude", "longitude"]].dropna()
+
+    # Accumulate daily precipitation across all days
+    accum = np.zeros(len(geo))
+    valid_days = 0
+
+    for key in nc_files:
+        try:
+            obj = s3.get_object(Bucket=BUCKET, Key=key)
+            import tempfile
+            with tempfile.NamedTemporaryFile(suffix=".nc4", delete=False) as tmp:
+                tmp.write(obj["Body"].read())
+                tmp_path = tmp.name
+
+            ds = netCDF4.Dataset(tmp_path, "r")
+            # GPM IMERG V07B: precipitation var = 'precipitation', dims = [time, lon, lat]
+            # Units: mm/day for daily product
+            precip = ds.variables["precipitation"][0, :, :]  # (lon, lat)
+            lats = ds.variables["lat"][:]
+            lons = ds.variables["lon"][:]
+            ds.close()
+            os.unlink(tmp_path)
+
+            # Sample at ZCTA centroids using nearest-neighbor
+            for i, (_, row) in enumerate(geo.iterrows()):
+                lat_idx = np.argmin(np.abs(lats - row["latitude"]))
+                lon_idx = np.argmin(np.abs(lons - row["longitude"]))
+                val = float(precip[lon_idx, lat_idx])
+                if val >= 0:  # GPM uses negative for missing
+                    accum[i] += val
+            valid_days += 1
+        except Exception as e:
+            log.warning("GPM IMERG file %s failed: %s", key, e)
+            continue
+
+    if valid_days == 0:
+        return None
+
+    log.info("GPM IMERG: accumulated %d days, %d ZCTAs, min=%.1f max=%.1f mean=%.1f mm",
+             valid_days, len(geo), accum.min(), accum.max(), accum.mean())
+
+    result = pd.DataFrame({
+        "zcta_id": geo["zcta_id"].values,
+        "rainfall_total_mm": accum,
+        "obs_mrms_coverage_pct": 0.0,  # Not MRMS; flag as 0 coverage
+        "obs_precip_source": "gpm_imerg",
+    })
+    # Fill ZCTAs without centroid match
+    all_zctas = pd.DataFrame({"zcta_id": zcta_ids})
+    return all_zctas.merge(result, on="zcta_id", how="left")
 
 
 def _process_one_grib(args: tuple) -> tuple:

@@ -100,6 +100,14 @@ EVENTS = {
         "start": date(2019, 7, 10),
         "end": date(2019, 7, 17),
     },
+    "sandy2012": {
+        "start": date(2012, 10, 27),
+        "end": date(2012, 11, 1),
+    },
+    "nyc_flood_2023": {
+        "start": date(2023, 9, 26),
+        "end": date(2023, 9, 30),
+    },
 }
 
 

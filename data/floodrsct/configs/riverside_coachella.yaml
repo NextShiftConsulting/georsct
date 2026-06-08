@@ -42,7 +42,7 @@ nws_rfc_url: "https://www.cnrfc.noaa.gov"
 # Regime characteristics (for §6 block-size design)
 regime:
   type: "flash_flood_arroyo"
-  spatial_autocorrelation_range_km: 15  # short-range; arid basin confinement
+  spatial_autocorrelation_range_km: 20  # arid basin; extended for arroyo propagation
   dominant_mechanism: "convective_and_atmospheric_river"
   infrastructure_stressor: "arroyo_channel_capacity"
   hypothesized_active_gate: "kappa"  # structural capacity of engineered channels
