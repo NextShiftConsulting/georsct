@@ -13,8 +13,8 @@ zcta_state_filter: "CA"
 events:
   # No single dominant tropical event; flash flood + atmospheric river regime
   # Use NOAA storm events + USGS gauge peaks for multi-year window
-  flash_flood_2023:
-    # Hilary remnants + subsequent AR events
+  hilary2023:
+    # Hilary remnants (Cat 1 → TS) — first tropical storm to hit SoCal since 1939
     start_date: "2023-08-20"
     end_date: "2023-08-22"
     nhc_storm_id: EP082023  # Hilary
