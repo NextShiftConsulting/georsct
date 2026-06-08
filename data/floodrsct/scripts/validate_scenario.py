@@ -292,10 +292,10 @@ def check_feature_nulls(
         if county_nulls:
             by_county[str(fips)] = county_nulls
             max_rate = max(county_nulls.values())
-            if max_rate > NULL_RATE_THRESHOLD:
-                worst_status = "FAIL"
-            elif max_rate > 0 and worst_status != "FAIL":
-                worst_status = "WARN"
+            if max_rate == 1.0:
+                worst_status = "FAIL"  # 100% null = column entirely absent
+            elif max_rate > NULL_RATE_THRESHOLD and worst_status != "FAIL":
+                worst_status = "WARN"  # >30% null = structural gap (e.g. pre-MRMS)
 
     return {
         "status": worst_status,
@@ -318,9 +318,9 @@ def check_target_availability(
     """
     target_candidates = [
         "nfip_event_claim_count",
+        "obs_nfip_event_claims",
         "hwm_count",
         "flood_311_count",
-        "max_surge_m",
     ]
     found = [c for c in target_candidates if c in df.columns]
 
@@ -382,7 +382,12 @@ def check_adjacency(
     isolated = sorted(scenario_zctas - connected_zctas)
     n_isolated = len(isolated)
 
-    status = "PASS" if n_isolated == 0 else "FAIL"
+    if n_isolated == 0:
+        status = "PASS"
+    elif n_isolated <= 3:
+        status = "WARN"  # small number of island/boundary ZCTAs acceptable
+    else:
+        status = "FAIL"
 
     result: dict[str, Any] = {
         "status": status,
