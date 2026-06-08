@@ -1,6 +1,6 @@
 {
   "scenario": "riverside_coachella",
-  "timestamp": "2026-06-08T02:44:01.547561+00:00",
+  "timestamp": "2026-06-08T03:05:03.572769+00:00",
   "n_zctas": 86,
   "n_rows": 172,
   "n_events": 2,
@@ -23,14 +23,14 @@
       "details": "All 86 ZCTAs present in all 2 events"
     },
     "feature_nulls": {
-      "status": "FAIL",
+      "status": "WARN",
       "by_county": {
         "06025": {
-          "peak_stage_ft": 1.0
+          "peak_stage_ft": 0.6
         },
         "06065": {
           "rainfall_total_mm": 0.0141,
-          "peak_stage_ft": 1.0,
+          "peak_stage_ft": 0.0986,
           "acs_total_pop": 0.0141
         }
       }
@@ -67,8 +67,6 @@
       "n_duplicates": 0
     }
   },
-  "overall": "FAIL",
-  "blockers": [
-    "feature_nulls"
-  ]
+  "overall": "WARN",
+  "blockers": []
 }
