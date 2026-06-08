@@ -15,8 +15,12 @@ Renders one PNG per ZCTA showing FEMA flood zone coloring for the
 target ZCTA (yellow highlight) and its Queen-contiguity neighbors.
 Output feeds VLM assessment in Phase R4.3.
 
+ThreadPoolExecutor avoids copying the 800MB GeoDataFrame across worker
+processes. Each thread renders independent figures using the Agg backend
+and closes figures after upload.
+
 Usage:
-    python render_zcta_maps.py --scenario houston --upload
+    python render_zcta_maps.py --scenario houston --upload --skip-existing
     python render_zcta_maps.py --scenario houston --dry-run
 """
 
@@ -26,7 +30,7 @@ import json
 import logging
 import os
 import sys
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -167,14 +171,14 @@ def render_one_zcta(
     local_path = out_dir / f"{zcta_id}.png"
     save_figure_png_only(fig, local_path, dpi=300, close=False)
 
-    # Upload to S3 (create client per-worker; boto3 clients aren't picklable)
+    # Upload to S3 (shared client OK with ThreadPoolExecutor)
     if upload:
         buf = io.BytesIO()
         fig.savefig(buf, format="png", dpi=300, bbox_inches="tight")
         buf.seek(0)
         s3_key = f"{RESULTS_PREFIX}/maps/{scenario}/{zcta_id}.png"
-        worker_s3 = get_s3_client()
-        worker_s3.put_object(
+        upload_s3 = get_s3_client()
+        upload_s3.put_object(
             Bucket=BUCKET, Key=s3_key,
             Body=buf.getvalue(), ContentType="image/png",
         )
@@ -191,6 +195,8 @@ def main():
     parser = argparse.ArgumentParser(description="Phase R4.1: ZCTA map rendering")
     parser.add_argument("--scenario", required=True, choices=SCENARIOS)
     parser.add_argument("--upload", action="store_true", help="Upload to S3")
+    parser.add_argument("--skip-existing", action="store_true",
+                        help="Skip ZCTAs already uploaded to S3")
     parser.add_argument("--dry-run", action="store_true", help="Print plan only")
     args = parser.parse_args()
 
@@ -230,12 +236,31 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
 
     zcta_ids = list(event_df.index)
+
+    # Skip ZCTAs already on S3 to avoid redundant work
+    if args.skip_existing and args.upload:
+        prefix = f"{RESULTS_PREFIX}/maps/{scenario}/"
+        paginator = s3.get_paginator("list_objects_v2")
+        existing = set()
+        for page in paginator.paginate(Bucket=BUCKET, Prefix=prefix):
+            for obj in page.get("Contents", []):
+                fname = obj["Key"].rsplit("/", 1)[-1]
+                if fname.endswith(".png"):
+                    existing.add(fname.removesuffix(".png"))
+        before = len(zcta_ids)
+        zcta_ids = [z for z in zcta_ids if z not in existing]
+        log.info("Skip-existing: %d/%d already on S3, %d remaining",
+                 before - len(zcta_ids), before, len(zcta_ids))
+        if not zcta_ids:
+            log.info("All maps already on S3, nothing to render")
+            return 0
+
     workers = max(1, min(os.cpu_count() or 4, 8))
     log.info("Rendering %d ZCTA maps for %s (%d workers)", len(zcta_ids), scenario, workers)
 
     success = 0
     completed = 0
-    with ProcessPoolExecutor(max_workers=workers) as executor:
+    with ThreadPoolExecutor(max_workers=workers) as executor:
         futures = {
             executor.submit(
                 render_one_zcta,
@@ -254,15 +279,23 @@ def main():
             if completed % 25 == 0 or completed == len(zcta_ids):
                 log.info("  rendered %d / %d", completed, len(zcta_ids))
 
-    log.info("Rendered %d / %d maps to %s", success, len(zcta_ids), out_dir)
+    n_failed = len(zcta_ids) - success
+    log.info("Rendered %d / %d maps to %s (failed: %d)",
+             success, len(zcta_ids), out_dir, n_failed)
 
-    # Manifest
+    # Manifest — distinguishes existing/new/failed for coverage auditing
+    n_total_zctas = len(event_df)
+    n_existing = n_total_zctas - len(zcta_ids)
     manifest = {
         "phase": "R4.1_zcta_maps",
         "scenario": scenario,
         "timestamp": datetime.now(timezone.utc).isoformat(),
+        "n_total": n_total_zctas,
+        "n_existing": n_existing,
+        "n_missing_before_run": len(zcta_ids),
         "n_rendered": success,
-        "n_total": len(zcta_ids),
+        "n_failed": n_failed,
+        "skip_existing": args.skip_existing,
     }
     local_manifest = out_dir / f"{scenario}_manifest.json"
     with open(local_manifest, "w") as f:
