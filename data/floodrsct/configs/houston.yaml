@@ -64,9 +64,8 @@ mvd:
     - zcta_id
     - event
     - rainfall_total_mm
+    - peak_stage_ft
     - nfip_event_claim_count
     - hwm_count
     - acs_total_pop
     - svi_overall
-  optional_columns:  # sensor-sparse; not required for MVD pass
-    - peak_stage_ft  # USGS gauge coverage sparse at ZCTA level

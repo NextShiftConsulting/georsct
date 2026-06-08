@@ -86,5 +86,4 @@ mvd:
     - nfip_event_claim_count
     - acs_total_pop
     - svi_overall
-  optional_columns:  # sensor-sparse; not required for MVD pass
-    - levee_condition_rating  # USACE data coverage incomplete
+    - levee_condition_rating

@@ -920,8 +920,19 @@ def aggregate_tides(s3, prefix_pattern: str, event: str,
         wl_col = next((c for c in ["observed_m", "water_level_m"] if c in df.columns), None)
         if wl_col is not None:
             station_id = df["station_id"].iloc[0] if "station_id" in df.columns else key
-            peak_wl = df[wl_col].max()
-            peak_surge = df["surge_m"].max() if "surge_m" in df.columns else np.nan
+            peak_wl = float(df[wl_col].max())
+            # surge_m = observed - predicted. If predictions missing, fall back
+            # to observed water level as surge proxy (conservative: includes tide)
+            peak_surge = np.nan
+            if "surge_m" in df.columns and df["surge_m"].notna().any():
+                peak_surge = float(df["surge_m"].max())
+            elif peak_wl > 0:
+                # Fallback: use observed water level as surge proxy
+                # This overestimates by tidal amplitude (~0.3m Gulf, ~1.5m Atlantic)
+                # but is far better than NaN for hazard characterization
+                peak_surge = peak_wl
+                log.info("  Station %s: surge_m unavailable, using observed WL=%.2fm as proxy",
+                         station_id, peak_wl)
             frames.append({"station_id": station_id,
                            "max_water_level_m": peak_wl,
                            "max_surge_m": peak_surge})
@@ -2388,11 +2399,24 @@ def build_levee_features(s3, zcta_ids: list[str], scenario: str) -> pd.DataFrame
         return empty
 
     rating_col = next((c for c in levees.columns if "condition" in c.lower() or "rating" in c.lower()), None)
-    # USACE NLD ratings may be strings ("Acceptable", etc.) -- coerce to numeric
+    # USACE NLD ratings are categorical strings -- encode as ordinal
+    # Higher = better protection
+    _LEVEE_ORDINAL = {
+        "Accredited Levee System": 4,
+        "Provisionally Accredited Levee (PAL) System": 3,
+        "A99": 2,  # area protected by levee under construction
+        "No Regulatory Flood Hazard Information Published by FEMA": 1,
+        "Non-Accredited Levee System": 0,
+    }
     if rating_col:
-        levees[rating_col] = pd.to_numeric(levees[rating_col], errors="coerce")
+        levees["_rating_numeric"] = levees[rating_col].map(_LEVEE_ORDINAL)
+        # Fallback: try direct numeric coercion for any numeric sources
+        if levees["_rating_numeric"].isna().all():
+            levees["_rating_numeric"] = pd.to_numeric(levees[rating_col], errors="coerce")
+        rating_col = "_rating_numeric"
     lat_col = next((c for c in levees.columns if "lat" in c.lower()), None)
     lon_col = next((c for c in levees.columns if "lon" in c.lower() or "lng" in c.lower()), None)
+    counties_col = next((c for c in levees.columns if "counties" in c.lower()), None)
 
     # Load ZCTA centroids
     static = s3_read(s3, "raw/geocertdb2026/zcta_features_labels.parquet")
@@ -2411,8 +2435,10 @@ def build_levee_features(s3, zcta_ids: list[str], scenario: str) -> pd.DataFrame
 
     R_KM = 6371.0
     rows = []
-    for _, crow in centroids.iterrows():
-        if lat_col and lon_col:
+
+    if lat_col and lon_col:
+        # Spatial assignment: nearest levee segment to each ZCTA centroid
+        for _, crow in centroids.iterrows():
             lats = levees[lat_col].values
             lons = levees[lon_col].values
             dlat = np.radians(lats - crow["lat"])
@@ -2423,16 +2449,58 @@ def build_levee_features(s3, zcta_ids: list[str], scenario: str) -> pd.DataFrame
             nearest_idx = int(np.argmin(dists_km))
             nearest_dist_m = float(dists_km[nearest_idx] * 1000)
             rating = float(levees.iloc[nearest_idx][rating_col]) if rating_col else np.nan
+            rows.append({
+                "zcta_id": crow["zcta_id"],
+                "levee_condition_rating": rating,
+                "levee_nearest_km": float(dists_km[nearest_idx]),
+                "canal_proximity_m": nearest_dist_m,
+            })
+    elif counties_col:
+        # County/parish-based assignment: match levee COUNTIES to ZCTA county
+        # Load crosswalk to get ZCTA -> county_name mapping
+        xwalk = s3_read(s3, "raw/geocertdb2026/zcta_county_crosswalk.parquet")
+        if xwalk is not None and "county_name" in xwalk.columns:
+            zcta_county = xwalk[xwalk["zcta_id"].isin(zcta_ids)][["zcta_id", "county_name"]].copy()
+            # Normalize county names (strip "Parish", "County" suffix for matching)
+            zcta_county["_county_norm"] = (
+                zcta_county["county_name"].str.replace(r"\s*(Parish|County)\s*$", "", regex=True).str.strip()
+            )
+            # Explode levee COUNTIES (comma-separated) and find best rating per county
+            levee_counties = levees[[counties_col, rating_col]].copy()
+            levee_counties = levee_counties.assign(
+                _county_list=levee_counties[counties_col].str.split(r",\s*")
+            ).explode("_county_list")
+            levee_counties["_county_norm"] = levee_counties["_county_list"].str.strip()
+            # Best (max) levee protection rating per county
+            county_best = (
+                levee_counties.groupby("_county_norm")[rating_col]
+                .max()
+                .reset_index()
+                .rename(columns={rating_col: "levee_condition_rating"})
+            )
+            # Join to ZCTAs
+            merged = zcta_county.merge(county_best, on="_county_norm", how="left")
+            for _, row in merged.iterrows():
+                rows.append({
+                    "zcta_id": row["zcta_id"],
+                    "levee_condition_rating": row.get("levee_condition_rating", np.nan),
+                    "levee_nearest_km": np.nan,
+                    "canal_proximity_m": np.nan,
+                })
+            log.info("build_levee_features: county-based assignment for %d ZCTAs", len(merged))
         else:
-            nearest_dist_m = np.nan
-            rating = float(levees[rating_col].median()) if rating_col else np.nan
-
-        rows.append({
-            "zcta_id": crow["zcta_id"],
-            "levee_condition_rating": rating,
-            "levee_nearest_km": float(dists_km[nearest_idx]) if lat_col and lon_col else np.nan,
-            "canal_proximity_m": nearest_dist_m,
-        })
+            # Last resort: assign scenario-wide best rating
+            best = float(levees[rating_col].max()) if rating_col else np.nan
+            for zid in zcta_ids:
+                rows.append({
+                    "zcta_id": zid,
+                    "levee_condition_rating": best,
+                    "levee_nearest_km": np.nan,
+                    "canal_proximity_m": np.nan,
+                })
+    else:
+        # No spatial or county info -- return empty
+        return empty
 
     out = pd.DataFrame(rows)
     out = pd.DataFrame({"zcta_id": zcta_ids}).merge(out, on="zcta_id", how="left")
