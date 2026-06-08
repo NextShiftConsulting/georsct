@@ -77,12 +77,12 @@ regime:
 
 # Minimum viable dataset criteria
 mvd:
-  min_sewersheds: 100
+  min_zctas: 100
   required_columns:
-    - sewershed_id
+    - zcta_id
     - event
     - rainfall_total_mm
     - flood_311_count
-    - nfip_historical_frequency
-    - acsE_total_pop
+    - nfip_event_claim_count
+    - acs_total_pop
     - svi_overall

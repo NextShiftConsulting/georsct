@@ -9,8 +9,9 @@ Target: s3://swarm-floodrsct-data/raw/geocertdb2026/
 No reprocessing — this is a pure S3-to-S3 copy. The container needs IAM
 access to both buckets (SageMakerExecutionRole covers both swarm-* buckets).
 
-Also filters to Houston, New Orleans, and NYC ZCTAs and writes scenario
-subsets to s3://swarm-floodrsct-data/raw/geocertdb2026/scenarios/.
+Also filters to all 5 scenario ZCTA sets (Houston 6-county, New Orleans
+5-parish, NYC 5-borough, SW Florida 7-county, Riverside-Coachella 2-county)
+and writes scenario subsets to s3://swarm-floodrsct-data/raw/geocertdb2026/scenarios/.
 """
 
 import logging
@@ -49,13 +50,46 @@ PARQUET_FILES = [
 # ZCTA state prefixes for scenario filtering
 # ZCTAs starting with these prefixes are in the target states
 SCENARIO_ZCTA_STATES = {
-    "houston": {"state": "TX", "county_fips": "48201"},
-    "new_orleans": {"state": "LA", "county_fips": "22071"},
-    "nyc": {"state": "NY", "county_fips_list": ["36061", "36047", "36081", "36005", "36085"]},
-    "riverside_coachella": {"state": "CA", "county_fips_list": ["06065", "06025"]},
+    "houston": {
+        "state": "TX",
+        "county_fips_list": [
+            "48201",  # Harris
+            "48157",  # Fort Bend
+            "48339",  # Montgomery
+            "48167",  # Galveston
+            "48039",  # Brazoria
+            "48071",  # Chambers
+        ],
+    },
+    "new_orleans": {
+        "state": "LA",
+        "county_fips_list": [
+            "22051",  # Jefferson Parish
+            "22071",  # Orleans Parish
+            "22075",  # Plaquemines Parish
+            "22087",  # St. Bernard Parish
+            "22103",  # St. Tammany Parish
+        ],
+    },
+    "nyc": {
+        "state": "NY",
+        "county_fips_list": ["36061", "36047", "36081", "36005", "36085"],
+    },
+    "riverside_coachella": {
+        "state": "CA",
+        "county_fips_list": ["06065", "06025"],
+    },
     "southwest_florida": {
         "state": "FL",
-        "county_fips_list": ["12021", "12071", "12115", "12081", "12057", "12103"],
+        "county_fips_list": [
+            "12021",  # Collier
+            "12071",  # Lee
+            "12015",  # Charlotte
+            "12115",  # Sarasota
+            "12081",  # Manatee
+            "12057",  # Hillsborough
+            "12103",  # Pinellas
+        ],
     },
 }
 

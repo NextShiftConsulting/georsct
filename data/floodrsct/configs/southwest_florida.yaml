@@ -100,7 +100,8 @@ mvd:
   required_columns:
     - zcta_id
     - event
-    - max_surge_m         # from SLOSH or NOAA tides
-    - nfip_historical_frequency
-    - acsE_total_pop
+    - nfip_event_claim_count
+    - acs_total_pop
     - flood_pct_zone_a    # from geocertdb2026
+  optional_columns:  # sensor-sparse; not required for MVD pass
+    - max_surge_m         # NOAA tide station coverage sparse at ZCTA level

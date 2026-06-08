@@ -54,5 +54,6 @@ mvd:
     - zcta_id
     - event
     - rainfall_total_mm
-    - peak_stage_ft
-    - acsE_total_pop
+    - acs_total_pop
+  optional_columns:  # sensor-sparse; not required for MVD pass
+    - peak_stage_ft  # USGS gauge coverage very sparse in arid basin

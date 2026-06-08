@@ -63,8 +63,8 @@ PARQUET_KEYS: dict[str, str] = {
     "houston": "processed/houston/houston_event_features.parquet",
     "southwest_florida": "processed/southwest_florida/swfl_event_features.parquet",
     "nyc": "processed/nyc/nyc_event_features.parquet",
-    "new_orleans": "processed/new_orleans/new_orleans_event_features.parquet",
-    "riverside_coachella": "processed/riverside_coachella/riverside_coachella_event_features.parquet",
+    "new_orleans": "processed/new_orleans/no_event_features.parquet",
+    "riverside_coachella": "processed/riverside_coachella/rc_event_features.parquet",
 }
 
 CROSSWALK_KEY = "raw/geocertdb2026/zcta_county_crosswalk.parquet"
@@ -317,7 +317,7 @@ def check_target_availability(
         Check result dict.
     """
     target_candidates = [
-        "nfip_historical_frequency",
+        "nfip_event_claim_count",
         "hwm_count",
         "flood_311_count",
         "max_surge_m",
