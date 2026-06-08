@@ -1,6 +1,6 @@
 {
   "scenario": "riverside_coachella",
-  "timestamp": "2026-06-08T03:05:03.572769+00:00",
+  "timestamp": "2026-06-08T04:12:06.174123+00:00",
   "n_zctas": 86,
   "n_rows": 172,
   "n_events": 2,
@@ -26,11 +26,11 @@
       "status": "WARN",
       "by_county": {
         "06025": {
-          "peak_stage_ft": 0.6
+          "peak_stage_ft": 0.3333
         },
         "06065": {
           "rainfall_total_mm": 0.0141,
-          "peak_stage_ft": 0.0986,
+          "peak_stage_ft": 0.0423,
           "acs_total_pop": 0.0141
         }
       }

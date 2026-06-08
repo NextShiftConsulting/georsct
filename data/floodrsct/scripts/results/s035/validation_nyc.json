@@ -1,6 +1,6 @@
 {
   "scenario": "nyc",
-  "timestamp": "2026-06-08T03:05:02.860491+00:00",
+  "timestamp": "2026-06-08T04:12:05.492493+00:00",
   "n_zctas": 211,
   "n_rows": 844,
   "n_events": 4,
@@ -32,29 +32,28 @@
       "status": "WARN",
       "by_county": {
         "36005": {
-          "rainfall_total_mm": 0.25,
           "nfip_event_claim_count": 0.25
         },
         "36047": {
-          "rainfall_total_mm": 0.2697,
+          "rainfall_total_mm": 0.0263,
           "nfip_event_claim_count": 0.25,
           "acs_total_pop": 0.0263,
           "svi_overall": 0.0263
         },
         "36061": {
-          "rainfall_total_mm": 0.5,
+          "rainfall_total_mm": 0.3333,
           "nfip_event_claim_count": 0.25,
           "acs_total_pop": 0.3333,
           "svi_overall": 0.3333
         },
         "36081": {
-          "rainfall_total_mm": 0.3068,
+          "rainfall_total_mm": 0.0758,
           "nfip_event_claim_count": 0.25,
           "acs_total_pop": 0.0758,
           "svi_overall": 0.0758
         },
         "36085": {
-          "rainfall_total_mm": 0.3077,
+          "rainfall_total_mm": 0.0769,
           "nfip_event_claim_count": 0.25,
           "acs_total_pop": 0.0769,
           "svi_overall": 0.0769
