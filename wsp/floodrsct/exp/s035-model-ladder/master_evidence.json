@@ -1,0 +1,836 @@
+{
+  "title": "S035 Model Ladder - Master Evidence Summary",
+  "generated": "2026-06-08T23:10:09.370241+00:00",
+  "experiment": "s035-model-ladder",
+  "status": {
+    "r0": "COMPLETE",
+    "r1": "COMPLETE",
+    "r2": "COMPLETE",
+    "r3": "COMPLETE",
+    "r4_vlm": "DESIGN_ONLY",
+    "healthcheck": "COMPLETE"
+  },
+  "certificates": {
+    "r0": {
+      "timestamp": "2026-06-04T04:22:18.578400+00:00",
+      "n_cells": 11,
+      "cells": [
+        {
+          "scenario": "houston",
+          "target": "obs_has_311",
+          "R": NaN,
+          "S_sup": 0.0,
+          "N": NaN,
+          "alpha": NaN,
+          "kappa": 0.0,
+          "sigma": NaN,
+          "tau": NaN,
+          "task_type": "classification"
+        },
+        {
+          "scenario": "houston",
+          "target": "obs_nfip_event_claims",
+          "R": 0.570917,
+          "S_sup": 0.102583,
+          "N": 0.3265,
+          "alpha": 0.636178,
+          "kappa": 0.0,
+          "sigma": 0.3396,
+          "tau": 0.627025,
+          "task_type": "regression"
+        },
+        {
+          "scenario": "southwest_florida",
+          "target": "obs_has_hwm",
+          "R": NaN,
+          "S_sup": 0.0,
+          "N": NaN,
+          "alpha": NaN,
+          "kappa": 0.0,
+          "sigma": NaN,
+          "tau": NaN,
+          "task_type": "classification"
+        },
+        {
+          "scenario": "southwest_florida",
+          "target": "obs_nfip_event_claims",
+          "R": 0.197961,
+          "S_sup": 0.408322,
+          "N": 0.393717,
+          "alpha": 0.334576,
+          "kappa": 0.0,
+          "sigma": 0.340361,
+          "tau": 0.367738,
+          "task_type": "regression"
+        },
+        {
+          "scenario": "nyc",
+          "target": "obs_has_311",
+          "R": NaN,
+          "S_sup": 0.0,
+          "N": NaN,
+          "alpha": NaN,
+          "kappa": 0.0,
+          "sigma": NaN,
+          "tau": NaN,
+          "task_type": "classification"
+        },
+        {
+          "scenario": "nyc",
+          "target": "obs_has_hwm",
+          "R": 0.621678,
+          "S_sup": 0.069201,
+          "N": 0.309121,
+          "alpha": 0.667897,
+          "kappa": 0.0,
+          "sigma": 0.071029,
+          "tau": 0.919456,
+          "task_type": "classification"
+        },
+        {
+          "scenario": "nyc",
+          "target": "obs_nfip_event_claims",
+          "R": 0.0,
+          "S_sup": 1.0,
+          "N": 0.0,
+          "alpha": 0.0,
+          "kappa": 0.0,
+          "sigma": 0.614994,
+          "tau": 0.3637,
+          "task_type": "regression"
+        },
+        {
+          "scenario": "riverside_coachella",
+          "target": "obs_has_hwm",
+          "R": NaN,
+          "S_sup": 0.0,
+          "N": NaN,
+          "alpha": NaN,
+          "kappa": 0.0,
+          "sigma": NaN,
+          "tau": NaN,
+          "task_type": "classification"
+        },
+        {
+          "scenario": "riverside_coachella",
+          "target": "obs_nfip_event_claims",
+          "R": NaN,
+          "S_sup": 0.0,
+          "N": NaN,
+          "alpha": NaN,
+          "kappa": 0.0,
+          "sigma": NaN,
+          "tau": NaN,
+          "task_type": "regression"
+        },
+        {
+          "scenario": "new_orleans",
+          "target": "obs_has_hwm",
+          "R": 0.0,
+          "S_sup": 0.0,
+          "N": 1.0,
+          "alpha": 0.0,
+          "kappa": 0.0,
+          "sigma": 0.0,
+          "tau": 1.0,
+          "task_type": "classification"
+        },
+        {
+          "scenario": "new_orleans",
+          "target": "obs_nfip_event_claims",
+          "R": 0.0,
+          "S_sup": 0.0,
+          "N": 1.0,
+          "alpha": 0.0,
+          "kappa": 0.0,
+          "sigma": 0.0,
+          "tau": 1.0,
+          "task_type": "regression"
+        }
+      ]
+    },
+    "r1": {
+      "timestamp": "2026-06-04T04:23:08.416240+00:00",
+      "n_cells": 11,
+      "cells": [
+        {
+          "scenario": "houston",
+          "target": "obs_has_311",
+          "R": NaN,
+          "S_sup": 0.0,
+          "N": NaN,
+          "alpha": NaN,
+          "kappa": 0.0,
+          "sigma": NaN,
+          "tau": NaN,
+          "task_type": "classification"
+        },
+        {
+          "scenario": "houston",
+          "target": "obs_nfip_event_claims",
+          "R": 0.550708,
+          "S_sup": 0.052982,
+          "N": 0.396309,
+          "alpha": 0.581518,
+          "kappa": 0.0,
+          "sigma": 0.342074,
+          "tau": 0.616845,
+          "task_type": "regression"
+        },
+        {
+          "scenario": "southwest_florida",
+          "target": "obs_has_hwm",
+          "R": NaN,
+          "S_sup": 0.0,
+          "N": NaN,
+          "alpha": NaN,
+          "kappa": 0.0,
+          "sigma": NaN,
+          "tau": NaN,
+          "task_type": "classification"
+        },
+        {
+          "scenario": "southwest_florida",
+          "target": "obs_nfip_event_claims",
+          "R": 0.205021,
+          "S_sup": 0.394154,
+          "N": 0.400826,
+          "alpha": 0.338404,
+          "kappa": 0.0,
+          "sigma": 0.230039,
+          "tau": 0.471247,
+          "task_type": "regression"
+        },
+        {
+          "scenario": "nyc",
+          "target": "obs_has_311",
+          "R": NaN,
+          "S_sup": 0.0,
+          "N": NaN,
+          "alpha": NaN,
+          "kappa": 0.0,
+          "sigma": NaN,
+          "tau": NaN,
+          "task_type": "classification"
+        },
+        {
+          "scenario": "nyc",
+          "target": "obs_has_hwm",
+          "R": 0.625316,
+          "S_sup": 0.048126,
+          "N": 0.326559,
+          "alpha": 0.656931,
+          "kappa": 0.0,
+          "sigma": 0.099611,
+          "tau": 0.890809,
+          "task_type": "classification"
+        },
+        {
+          "scenario": "nyc",
+          "target": "obs_nfip_event_claims",
+          "R": 0.0,
+          "S_sup": 1.0,
+          "N": 0.0,
+          "alpha": 0.0,
+          "kappa": 0.0,
+          "sigma": 0.243099,
+          "tau": 0.246738,
+          "task_type": "regression"
+        },
+        {
+          "scenario": "riverside_coachella",
+          "target": "obs_has_hwm",
+          "R": NaN,
+          "S_sup": 0.0,
+          "N": NaN,
+          "alpha": NaN,
+          "kappa": 0.0,
+          "sigma": NaN,
+          "tau": NaN,
+          "task_type": "classification"
+        },
+        {
+          "scenario": "riverside_coachella",
+          "target": "obs_nfip_event_claims",
+          "R": NaN,
+          "S_sup": 0.0,
+          "N": NaN,
+          "alpha": NaN,
+          "kappa": 0.0,
+          "sigma": NaN,
+          "tau": NaN,
+          "task_type": "regression"
+        },
+        {
+          "scenario": "new_orleans",
+          "target": "obs_has_hwm",
+          "R": 0.0,
+          "S_sup": 0.0,
+          "N": 1.0,
+          "alpha": 0.0,
+          "kappa": 0.0,
+          "sigma": 0.0,
+          "tau": 1.0,
+          "task_type": "classification"
+        },
+        {
+          "scenario": "new_orleans",
+          "target": "obs_nfip_event_claims",
+          "R": 0.0,
+          "S_sup": 0.0,
+          "N": 1.0,
+          "alpha": 0.0,
+          "kappa": 0.0,
+          "sigma": 0.0,
+          "tau": 1.0,
+          "task_type": "regression"
+        }
+      ]
+    },
+    "r2": {
+      "timestamp": "2026-06-04T04:23:21.704588+00:00",
+      "n_cells": 11,
+      "cells": [
+        {
+          "scenario": "houston",
+          "target": "obs_has_311",
+          "R": NaN,
+          "S_sup": 0.0,
+          "N": NaN,
+          "alpha": NaN,
+          "kappa": 0.0,
+          "sigma": NaN,
+          "tau": NaN,
+          "task_type": "classification"
+        },
+        {
+          "scenario": "houston",
+          "target": "obs_nfip_event_claims",
+          "R": 0.525531,
+          "S_sup": 0.118412,
+          "N": 0.356057,
+          "alpha": 0.596119,
+          "kappa": 0.0,
+          "sigma": 0.36518,
+          "tau": 0.590013,
+          "task_type": "regression"
+        },
+        {
+          "scenario": "southwest_florida",
+          "target": "obs_has_hwm",
+          "R": NaN,
+          "S_sup": 0.0,
+          "N": NaN,
+          "alpha": NaN,
+          "kappa": 0.0,
+          "sigma": NaN,
+          "tau": NaN,
+          "task_type": "classification"
+        },
+        {
+          "scenario": "southwest_florida",
+          "target": "obs_nfip_event_claims",
+          "R": 0.504694,
+          "S_sup": 0.172233,
+          "N": 0.323074,
+          "alpha": 0.609705,
+          "kappa": 0.0,
+          "sigma": 0.245438,
+          "tau": 0.672807,
+          "task_type": "regression"
+        },
+        {
+          "scenario": "nyc",
+          "target": "obs_has_311",
+          "R": NaN,
+          "S_sup": 0.0,
+          "N": NaN,
+          "alpha": NaN,
+          "kappa": 0.0,
+          "sigma": NaN,
+          "tau": NaN,
+          "task_type": "classification"
+        },
+        {
+          "scenario": "nyc",
+          "target": "obs_has_hwm",
+          "R": 0.594023,
+          "S_sup": 0.06916,
+          "N": 0.336818,
+          "alpha": 0.638157,
+          "kappa": 0.0,
+          "sigma": 0.116116,
+          "tau": 0.872837,
+          "task_type": "classification"
+        },
+        {
+          "scenario": "nyc",
+          "target": "obs_nfip_event_claims",
+          "R": 0.0,
+          "S_sup": 0.0,
+          "N": 1.0,
+          "alpha": 0.0,
+          "kappa": 0.0,
+          "sigma": 0.0,
+          "tau": 1.0,
+          "task_type": "regression"
+        },
+        {
+          "scenario": "riverside_coachella",
+          "target": "obs_has_hwm",
+          "R": NaN,
+          "S_sup": 0.0,
+          "N": NaN,
+          "alpha": NaN,
+          "kappa": 0.0,
+          "sigma": NaN,
+          "tau": NaN,
+          "task_type": "classification"
+        },
+        {
+          "scenario": "riverside_coachella",
+          "target": "obs_nfip_event_claims",
+          "R": NaN,
+          "S_sup": 0.0,
+          "N": NaN,
+          "alpha": NaN,
+          "kappa": 0.0,
+          "sigma": NaN,
+          "tau": NaN,
+          "task_type": "regression"
+        },
+        {
+          "scenario": "new_orleans",
+          "target": "obs_has_hwm",
+          "R": 0.0,
+          "S_sup": 0.0,
+          "N": 1.0,
+          "alpha": 0.0,
+          "kappa": 0.0,
+          "sigma": 0.0,
+          "tau": 1.0,
+          "task_type": "classification"
+        },
+        {
+          "scenario": "new_orleans",
+          "target": "obs_nfip_event_claims",
+          "R": 0.0,
+          "S_sup": 0.0,
+          "N": 1.0,
+          "alpha": 0.0,
+          "kappa": 0.0,
+          "sigma": 0.0,
+          "tau": 1.0,
+          "task_type": "regression"
+        }
+      ]
+    }
+  },
+  "diagnostics": {
+    "r0": {
+      "timestamp": "2026-06-04T04:17:06.966330+00:00",
+      "cells": []
+    },
+    "r1": {
+      "timestamp": "2026-06-04T04:17:09.806780+00:00",
+      "cells": []
+    },
+    "r2": {
+      "timestamp": "2026-06-04T04:17:32.043177+00:00",
+      "cells": []
+    }
+  },
+  "money_table": {
+    "timestamp": "2026-06-04T04:29:47.796811+00:00",
+    "rows": [
+      {
+        "scenario": "houston",
+        "target": "obs_has_311",
+        "r0_metric": NaN,
+        "r1_metric": NaN,
+        "r2_metric": NaN,
+        "uplift_r0_r1_pct": NaN,
+        "uplift_r1_r2_pct": NaN
+      },
+      {
+        "scenario": "houston",
+        "target": "obs_nfip_event_claims",
+        "r0_metric": 0.570917361141921,
+        "r1_metric": 0.5507082014053879,
+        "r2_metric": 0.5255313005961134,
+        "uplift_r0_r1_pct": -3.5397696955846234,
+        "uplift_r1_r2_pct": -4.571731589437731
+      },
+      {
+        "scenario": "southwest_florida",
+        "target": "obs_has_hwm",
+        "r0_metric": NaN,
+        "r1_metric": NaN,
+        "r2_metric": NaN,
+        "uplift_r0_r1_pct": NaN,
+        "uplift_r1_r2_pct": NaN
+      },
+      {
+        "scenario": "southwest_florida",
+        "target": "obs_nfip_event_claims",
+        "r0_metric": 0.19796136385990032,
+        "r1_metric": 0.20502054332197636,
+        "r2_metric": 0.5046936432484214,
+        "uplift_r0_r1_pct": 3.5659379812476493,
+        "uplift_r1_r2_pct": 146.16735233981925
+      },
+      {
+        "scenario": "nyc",
+        "target": "obs_has_311",
+        "r0_metric": NaN,
+        "r1_metric": NaN,
+        "r2_metric": NaN,
+        "uplift_r0_r1_pct": NaN,
+        "uplift_r1_r2_pct": NaN
+      },
+      {
+        "scenario": "nyc",
+        "target": "obs_has_hwm",
+        "r0_metric": 0.810838843734215,
+        "r1_metric": 0.8126577665343335,
+        "r2_metric": 0.7970112963218073,
+        "uplift_r0_r1_pct": 0.22432605617926618,
+        "uplift_r1_r2_pct": -1.9253455583464418
+      },
+      {
+        "scenario": "nyc",
+        "target": "obs_nfip_event_claims",
+        "r0_metric": -0.35152222796378635,
+        "r1_metric": -0.07962934408891278,
+        "r2_metric": null,
+        "uplift_r0_r1_pct": 77.34728055458382,
+        "uplift_r1_r2_pct": null
+      },
+      {
+        "scenario": "riverside_coachella",
+        "target": "obs_has_hwm",
+        "r0_metric": NaN,
+        "r1_metric": NaN,
+        "r2_metric": NaN,
+        "uplift_r0_r1_pct": NaN,
+        "uplift_r1_r2_pct": NaN
+      },
+      {
+        "scenario": "riverside_coachella",
+        "target": "obs_nfip_event_claims",
+        "r0_metric": NaN,
+        "r1_metric": NaN,
+        "r2_metric": NaN,
+        "uplift_r0_r1_pct": NaN,
+        "uplift_r1_r2_pct": NaN
+      }
+    ]
+  },
+  "r3_admission": {
+    "timestamp": "2026-06-07T01:21:55.030675+00:00",
+    "preset": "GEOSPATIAL_CONUS27",
+    "thresholds": {
+      "kappa_base": 0.22,
+      "sigma_thr": 0.5,
+      "epsilon_L": 0.01,
+      "kappa_L_min": 0.15,
+      "N_thr": 0.5,
+      "alpha_min": 0.3
+    },
+    "summary": {
+      "n_blocks_evaluated": 66,
+      "n_invalid": 12,
+      "n_gate_evaluated": 54,
+      "decision_counts": {
+        "RE_ENCODE": 29,
+        "EXECUTE": 20,
+        "SKIP": 12,
+        "REJECT": 5
+      },
+      "tier_counts": {
+        "morph-candidate": 29,
+        "headline": 20,
+        "invalid": 12,
+        "rejected": 5
+      },
+      "invalid_breakdown": {
+        "by_failure_mode": {
+          "SOLVER_BOTH_NULL": 12
+        },
+        "by_remediation_action": {
+          "retrain-with-larger-sample": 12
+        },
+        "by_block": {
+          "hydrology": [
+            {
+              "target": "obs_has_hwm",
+              "failure_mode": "SOLVER_BOTH_NULL",
+              "remediation": "retrain-with-larger-sample",
+              "partial_signals": null
+            },
+            {
+              "target": "obs_has_hwm",
+              "failure_mode": "SOLVER_BOTH_NULL",
+              "remediation": "retrain-with-larger-sample",
+              "partial_signals": null
+            }
+          ],
+          "spatial_relation": [
+            {
+              "target": "obs_has_hwm",
+              "failure_mode": "SOLVER_BOTH_NULL",
+              "remediation": "retrain-with-larger-sample",
+              "partial_signals": null
+            },
+            {
+              "target": "obs_has_hwm",
+              "failure_mode": "SOLVER_BOTH_NULL",
+              "remediation": "retrain-with-larger-sample",
+              "partial_signals": null
+            }
+          ],
+          "temporal": [
+            {
+              "target": "obs_has_hwm",
+              "failure_mode": "SOLVER_BOTH_NULL",
+              "remediation": "retrain-with-larger-sample",
+              "partial_signals": null
+            },
+            {
+              "target": "obs_has_hwm",
+              "failure_mode": "SOLVER_BOTH_NULL",
+              "remediation": "retrain-with-larger-sample",
+              "partial_signals": null
+            }
+          ],
+          "infrastructure": [
+            {
+              "target": "obs_has_hwm",
+              "failure_mode": "SOLVER_BOTH_NULL",
+              "remediation": "retrain-with-larger-sample",
+              "partial_signals": null
+            },
+            {
+              "target": "obs_has_hwm",
+              "failure_mode": "SOLVER_BOTH_NULL",
+              "remediation": "retrain-with-larger-sample",
+              "partial_signals": null
+            }
+          ],
+          "socioeconomic": [
+            {
+              "target": "obs_has_hwm",
+              "failure_mode": "SOLVER_BOTH_NULL",
+              "remediation": "retrain-with-larger-sample",
+              "partial_signals": null
+            },
+            {
+              "target": "obs_has_hwm",
+              "failure_mode": "SOLVER_BOTH_NULL",
+              "remediation": "retrain-with-larger-sample",
+              "partial_signals": null
+            }
+          ],
+          "terrain": [
+            {
+              "target": "obs_has_hwm",
+              "failure_mode": "SOLVER_BOTH_NULL",
+              "remediation": "retrain-with-larger-sample",
+              "partial_signals": null
+            },
+            {
+              "target": "obs_has_hwm",
+              "failure_mode": "SOLVER_BOTH_NULL",
+              "remediation": "retrain-with-larger-sample",
+              "partial_signals": null
+            }
+          ]
+        }
+      }
+    }
+  },
+  "r3_gear": {
+    "timestamp": "2026-06-07T01:21:55.030709+00:00",
+    "n_entries": 54,
+    "entries_sample": [
+      {
+        "block": "hydrology",
+        "scenario": "houston",
+        "target": "obs_nfip_event_claims",
+        "tau": 1.0,
+        "gear": "SECOND",
+        "sigma_warning": true,
+        "gear_after_bump": "SECOND",
+        "lyapunov_V": 1.0,
+        "lyapunov_gear": "FOURTH",
+        "gear_agreement": false,
+        "admission_tier": "morph-candidate"
+      },
+      {
+        "block": "spatial_relation",
+        "scenario": "houston",
+        "target": "obs_nfip_event_claims",
+        "tau": 1.0,
+        "gear": "SECOND",
+        "sigma_warning": false,
+        "gear_after_bump": "SECOND",
+        "lyapunov_V": 0.037046,
+        "lyapunov_gear": "FIRST",
+        "gear_agreement": false,
+        "admission_tier": "headline"
+      },
+      {
+        "block": "temporal",
+        "scenario": "houston",
+        "target": "obs_nfip_event_claims",
+        "tau": 1.0,
+        "gear": "SECOND",
+        "sigma_warning": true,
+        "gear_after_bump": "SECOND",
+        "lyapunov_V": 1.0,
+        "lyapunov_gear": "FOURTH",
+        "gear_agreement": false,
+        "admission_tier": "morph-candidate"
+      },
+      {
+        "block": "infrastructure",
+        "scenario": "houston",
+        "target": "obs_nfip_event_claims",
+        "tau": 1.0,
+        "gear": "SECOND",
+        "sigma_warning": false,
+        "gear_after_bump": "SECOND",
+        "lyapunov_V": 0.075912,
+        "lyapunov_gear": "FIRST",
+        "gear_agreement": false,
+        "admission_tier": "morph-candidate"
+      },
+      {
+        "block": "socioeconomic",
+        "scenario": "houston",
+        "target": "obs_nfip_event_claims",
+        "tau": 1.0,
+        "gear": "SECOND",
+        "sigma_warning": false,
+        "gear_after_bump": "SECOND",
+        "lyapunov_V": 0.073772,
+        "lyapunov_gear": "FIRST",
+        "gear_agreement": false,
+        "admission_tier": "morph-candidate"
+      },
+      {
+        "block": "terrain",
+        "scenario": "houston",
+        "target": "obs_nfip_event_claims",
+        "tau": 1.0,
+        "gear": "SECOND",
+        "sigma_warning": false,
+        "gear_after_bump": "SECOND",
+        "lyapunov_V": 0.073772,
+        "lyapunov_gear": "FIRST",
+        "gear_agreement": false,
+        "admission_tier": "morph-candidate"
+      },
+      {
+        "block": "hydrology",
+        "scenario": "houston",
+        "target": "obs_has_311",
+        "tau": 1.0,
+        "gear": "SECOND",
+        "sigma_warning": true,
+        "gear_after_bump": "SECOND",
+        "lyapunov_V": 1.0,
+        "lyapunov_gear": "FOURTH",
+        "gear_agreement": false,
+        "admission_tier": "morph-candidate"
+      },
+      {
+        "block": "spatial_relation",
+        "scenario": "houston",
+        "target": "obs_has_311",
+        "tau": 1.0,
+        "gear": "SECOND",
+        "sigma_warning": false,
+        "gear_after_bump": "SECOND",
+        "lyapunov_V": 0.082869,
+        "lyapunov_gear": "FIRST",
+        "gear_agreement": false,
+        "admission_tier": "headline"
+      },
+      {
+        "block": "temporal",
+        "scenario": "houston",
+        "target": "obs_has_311",
+        "tau": 1.0,
+        "gear": "SECOND",
+        "sigma_warning": true,
+        "gear_after_bump": "SECOND",
+        "lyapunov_V": 1.0,
+        "lyapunov_gear": "FOURTH",
+        "gear_agreement": false,
+        "admission_tier": "morph-candidate"
+      },
+      {
+        "block": "infrastructure",
+        "scenario": "houston",
+        "target": "obs_has_311",
+        "tau": 1.0,
+        "gear": "SECOND",
+        "sigma_warning": false,
+        "gear_after_bump": "SECOND",
+        "lyapunov_V": 0.139657,
+        "lyapunov_gear": "FIRST",
+        "gear_agreement": false,
+        "admission_tier": "headline"
+      }
+    ]
+  },
+  "healthcheck_evidence": {
+    "h2": {
+      "description": "R1 > R0 under spatial-blocked CV (regression cells, fold-level paired test)",
+      "pooled": {
+        "n_paired_folds": 20,
+        "mean_delta": 0.06132671265985888,
+        "cohens_d": 0.27045983363893467,
+        "wilcoxon_stat": 125.0,
+        "wilcoxon_p_one_sided": 0.11366496497799367,
+        "verdict": "INCONCLUSIVE"
+      },
+      "verdict": "INCONCLUSIVE"
+    },
+    "h3": {
+      "description": "R2 > R1 under spatial-blocked CV (regression cells, fold-level paired test)",
+      "pooled": {
+        "n_paired_folds": 15,
+        "mean_delta": 0.12200824167516651,
+        "cohens_d": 0.8466189129336535,
+        "wilcoxon_stat": 98.0,
+        "wilcoxon_p_one_sided": 0.0021428476497407432,
+        "verdict": "PASS"
+      },
+      "verdict": "PASS"
+    },
+    "h4": {
+      "description": "Representation uplift is consistent across regression cells",
+      "cells_with_positive_uplift": 3,
+      "cells_total": 4,
+      "verdict": "PASS"
+    }
+  },
+  "spatial_diagnostics": {
+    "geary_results": {
+      "n_entries": 0
+    },
+    "lisa_results": {
+      "n_entries": 0
+    },
+    "gwr_nonstationarity": {
+      "n_entries": 0
+    }
+  },
+  "vlm": {
+    "status": "DESIGN_ONLY",
+    "results_exist": false,
+    "doe_path": "wsp/floodrsct/exp/s035-model-ladder/DOE_R4_vlm.md"
+  }
+}
