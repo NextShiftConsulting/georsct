@@ -3,7 +3,7 @@
 scenario: new_orleans
 state_fips: "22"
 # 5-parish Greater New Orleans metro (expanded from Orleans-only)
-county_fips:
+county_fips_list:
   - "22051"   # Jefferson Parish
   - "22071"   # Orleans Parish
   - "22075"   # Plaquemines Parish
@@ -42,9 +42,11 @@ events:
 
 # USGS NWIS gauge sites
 usgs_anchor_sites:
-  - "07374000"  # Mississippi River at New Orleans
-  - "07375500"  # Lake Pontchartrain at Lakefront
-  - "295503090072600"  # Industrial Canal (if available)
+  - "07374525"  # Mississippi River at Belle Chasse
+  - "073802332"  # Inner Harbor Navigation Canal nr Seabrook bridge
+  - "073802339"  # GIWW East Storm Surge Barrier at New Orleans
+  - "295827090052800"  # Bayou Saint John Southlake at New Orleans
+  - "02492000"  # Bogue Chitto River near Bush (St. Tammany)
 
 # NOAA Tides and Currents stations
 noaa_tide_stations:

@@ -8,6 +8,12 @@ borough_counties:
   queens: "36081"
   bronx: "36005"
   staten_island: "36085"
+county_fips_list:
+  - "36005"   # Bronx
+  - "36047"   # Kings (Brooklyn)
+  - "36061"   # New York (Manhattan)
+  - "36081"   # Queens
+  - "36085"   # Richmond (Staten Island)
 zcta_state_filter: "NY"
 
 events:
