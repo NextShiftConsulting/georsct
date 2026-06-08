@@ -69,6 +69,9 @@ def fetch_site_list(county_fips: str) -> list[str]:
     for attempt in range(3):
         try:
             resp = requests.get(url, params=params, timeout=300)
+            if resp.status_code == 404:
+                log.warning("No USGS stream gauges in county %s (404)", county_fips)
+                return []
             resp.raise_for_status()
             break
         except (requests.exceptions.ReadTimeout, requests.exceptions.SSLError, requests.exceptions.ConnectionError) as e:
