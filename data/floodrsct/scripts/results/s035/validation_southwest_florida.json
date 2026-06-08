@@ -1,0 +1,101 @@
+{
+  "scenario": "southwest_florida",
+  "timestamp": "2026-06-08T02:43:42.671347+00:00",
+  "n_zctas": 215,
+  "n_rows": 645,
+  "n_events": 3,
+  "checks": {
+    "fips_match": {
+      "status": "PASS",
+      "expected": [
+        "12015",
+        "12021",
+        "12057",
+        "12071",
+        "12081",
+        "12103",
+        "12115"
+      ],
+      "actual": [
+        "12015",
+        "12021",
+        "12057",
+        "12071",
+        "12081",
+        "12103",
+        "12115"
+      ],
+      "extra": [],
+      "missing": []
+    },
+    "event_coverage": {
+      "status": "PASS",
+      "details": "All 215 ZCTAs present in all 3 events"
+    },
+    "feature_nulls": {
+      "status": "PASS",
+      "by_county": {
+        "12021": {
+          "acs_total_pop": 0.0455,
+          "flood_pct_zone_a": 0.0455
+        },
+        "12057": {
+          "acs_total_pop": 0.0364,
+          "flood_pct_zone_a": 0.0364
+        },
+        "12081": {
+          "acs_total_pop": 0.0526,
+          "flood_pct_zone_a": 0.0526
+        }
+      }
+    },
+    "target_availability": {
+      "status": "PASS",
+      "details": {
+        "nfip_event_claim_count": {
+          "12015": 0.0,
+          "12021": 0.0,
+          "12057": 0.0,
+          "12071": 0.0,
+          "12081": 0.0,
+          "12103": 0.0,
+          "12115": 0.0
+        },
+        "obs_nfip_event_claims": {
+          "12015": 0.0,
+          "12021": 0.0,
+          "12057": 0.0,
+          "12071": 0.0,
+          "12081": 0.0,
+          "12103": 0.0,
+          "12115": 0.0
+        },
+        "hwm_count": {
+          "12015": 0.0,
+          "12021": 0.0,
+          "12057": 0.0,
+          "12071": 0.0,
+          "12081": 0.0,
+          "12103": 0.0,
+          "12115": 0.0
+        }
+      }
+    },
+    "adjacency": {
+      "status": "PASS",
+      "n_edges": 533,
+      "n_isolated": 0
+    },
+    "mvd_thresholds": {
+      "status": "PASS",
+      "min_required": 50,
+      "actual": 215
+    },
+    "duplicates": {
+      "status": "PASS",
+      "n_duplicates": 0
+    }
+  },
+  "overall": "PASS",
+  "blockers": []
+}

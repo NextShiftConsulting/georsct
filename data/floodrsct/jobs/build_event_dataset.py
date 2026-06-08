@@ -399,19 +399,24 @@ def aggregate_nwis(s3, scenario: str, event: str,
     )
 
     # Load site metadata from NWIS crosswalk if available
-    # Fallback: use anchor site lat/lon from config or assign to zcta centroid
     site_lat_lon = _load_site_coords(s3, scenario)
     if site_lat_lon is not None:
         peaks = peaks.merge(site_lat_lon, on="site_no", how="left")
-        peaks = _assign_nearest_zcta(peaks, zcta_ids, s3)
+        # Determine max assignment radius from regime config (default 30 km)
+        max_radius = float(cfg.get("regime", {}).get(
+            "spatial_autocorrelation_range_km", 30))
+        assigned = _assign_nearest_zcta(peaks, zcta_ids, s3,
+                                        max_radius_km=max_radius)
     else:
-        # Cannot spatial-assign without coords — flag as missing
         log.warning("Site coordinates unavailable; NWIS gauge-to-ZCTA assignment skipped")
         return _empty_nwis(zcta_ids)
 
-    # Aggregate to ZCTA (some ZCTAs may have >1 gauge; take max)
+    # assigned is already ZCTA-level (one row per ZCTA within radius)
+    if "zcta_id" not in assigned.columns or assigned.empty:
+        return _empty_nwis(zcta_ids)
+
     zcta_peaks = (
-        peaks.groupby("zcta_id")
+        assigned.groupby("zcta_id")
         .agg(peak_stage_ft=("peak_stage_ft", "max"),
              peak_flow_cfs=("peak_flow_cfs", "max"),
              obs_gauge_count=("site_no", "count"),
@@ -432,8 +437,14 @@ def _load_site_coords(s3, scenario: str) -> Optional[pd.DataFrame]:
 
 
 def _assign_nearest_zcta(df: pd.DataFrame, zcta_ids: list[str],
-                          s3) -> pd.DataFrame:
-    """Add zcta_id and dist_km to each site row using haversine to ZCTA centroids."""
+                          s3, max_radius_km: float = 30.0) -> pd.DataFrame:
+    """Assign each ZCTA to the nearest gauge within max_radius_km.
+
+    Previous logic mapped gauge→ZCTA (one gauge, one ZCTA). That left most
+    ZCTAs unassigned when gauge density is low. This version inverts the
+    assignment: for each ZCTA centroid, find the nearest gauge within radius
+    and propagate its peak values. Multiple ZCTAs can share the same gauge.
+    """
     centroids_key = "raw/geocertdb2026/zcta_features_labels.parquet"
     geo = s3_read(s3, centroids_key)
     if geo is None or "latitude" not in geo.columns:
@@ -442,23 +453,47 @@ def _assign_nearest_zcta(df: pd.DataFrame, zcta_ids: list[str],
         return df
 
     geo = geo[geo["zcta_id"].isin(zcta_ids)][["zcta_id", "latitude", "longitude"]].dropna()
-    assignments = []
-    for _, site in df.iterrows():
-        if pd.isna(site.get("latitude")) or pd.isna(site.get("longitude")):
-            assignments.append((None, np.nan))
-            continue
-        dlat = np.radians(geo["latitude"].values - site["latitude"])
-        dlon = np.radians(geo["longitude"].values - site["longitude"])
+
+    # Filter gauges with valid coordinates
+    valid_sites = df.dropna(subset=["latitude", "longitude"]).copy()
+    if valid_sites.empty:
+        df["zcta_id"] = None
+        df["dist_km"] = np.nan
+        return df
+
+    site_lats = valid_sites["latitude"].values
+    site_lons = valid_sites["longitude"].values
+
+    # For each ZCTA, find nearest gauge
+    results = []
+    for _, zcta_row in geo.iterrows():
+        dlat = np.radians(site_lats - zcta_row["latitude"])
+        dlon = np.radians(site_lons - zcta_row["longitude"])
         a = (np.sin(dlat / 2) ** 2 +
-             np.cos(np.radians(site["latitude"])) *
-             np.cos(np.radians(geo["latitude"].values)) *
+             np.cos(np.radians(zcta_row["latitude"])) *
+             np.cos(np.radians(site_lats)) *
              np.sin(dlon / 2) ** 2)
         dist = 6371.0 * 2 * np.arcsin(np.sqrt(a))
         idx = dist.argmin()
-        assignments.append((geo.iloc[idx]["zcta_id"], dist[idx]))
-    df["zcta_id"] = [a[0] for a in assignments]
-    df["dist_km"] = [a[1] for a in assignments]
-    return df
+        min_dist = dist[idx]
+        if min_dist <= max_radius_km:
+            row = valid_sites.iloc[idx].copy()
+            results.append({
+                "zcta_id": zcta_row["zcta_id"],
+                "dist_km": min_dist,
+                "site_no": row["site_no"],
+                "peak_stage_ft": row.get("peak_stage_ft", np.nan),
+                "peak_flow_cfs": row.get("peak_flow_cfs", np.nan),
+            })
+
+    if not results:
+        df["zcta_id"] = None
+        df["dist_km"] = np.nan
+        return df
+
+    log.info("NWIS ZCTA assignment: %d/%d ZCTAs within %.0f km of a gauge",
+             len(results), len(geo), max_radius_km)
+    return pd.DataFrame(results)
 
 
 def _empty_nwis(zcta_ids: list[str]) -> pd.DataFrame:

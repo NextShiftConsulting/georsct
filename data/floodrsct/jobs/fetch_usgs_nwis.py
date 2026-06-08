@@ -181,16 +181,18 @@ def main() -> None:
 
     cfg = load_config(args.scenario)
 
-    # Determine site list
-    county_fips = cfg.get("county_fips")
+    # Determine site list — support both county_fips (str/list) and county_fips_list
+    county_fips = cfg.get("county_fips_list") or cfg.get("county_fips") or []
+    if isinstance(county_fips, str):
+        county_fips = [county_fips]
     anchor_sites = cfg.get("usgs_anchor_sites", [])
 
-    if county_fips:
-        sites = fetch_site_list(county_fips)
-        # Merge anchor sites in case county query misses any
-        sites = list(set(sites) | set(anchor_sites))
-    else:
-        sites = anchor_sites
+    sites = set(anchor_sites)
+    for fips in county_fips:
+        # NWIS site service takes 5-char county FIPS (state+county)
+        county_sites = fetch_site_list(fips)
+        sites.update(county_sites)
+    sites = list(sites)
 
     if not sites:
         log.error("No USGS sites identified for scenario %s", args.scenario)

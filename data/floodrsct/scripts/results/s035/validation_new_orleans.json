@@ -1,0 +1,91 @@
+{
+  "scenario": "new_orleans",
+  "timestamp": "2026-06-08T02:43:46.266694+00:00",
+  "n_zctas": 66,
+  "n_rows": 264,
+  "n_events": 4,
+  "checks": {
+    "fips_match": {
+      "status": "PASS",
+      "expected": [
+        "22051",
+        "22071",
+        "22075",
+        "22087",
+        "22103"
+      ],
+      "actual": [
+        "22051",
+        "22071",
+        "22075",
+        "22087",
+        "22103"
+      ],
+      "extra": [],
+      "missing": []
+    },
+    "event_coverage": {
+      "status": "PASS",
+      "details": "All 66 ZCTAs present in all 4 events"
+    },
+    "feature_nulls": {
+      "status": "PASS",
+      "by_county": {
+        "22071": {
+          "acs_total_pop": 0.15,
+          "svi_overall": 0.15
+        },
+        "22103": {
+          "acs_total_pop": 0.0625,
+          "svi_overall": 0.0625
+        }
+      }
+    },
+    "target_availability": {
+      "status": "PASS",
+      "details": {
+        "nfip_event_claim_count": {
+          "22051": 0.0,
+          "22071": 0.0,
+          "22075": 0.0,
+          "22087": 0.0,
+          "22103": 0.0
+        },
+        "obs_nfip_event_claims": {
+          "22051": 0.0,
+          "22071": 0.0,
+          "22075": 0.0,
+          "22087": 0.0,
+          "22103": 0.0
+        },
+        "hwm_count": {
+          "22051": 0.0,
+          "22071": 0.0,
+          "22075": 0.0,
+          "22087": 0.0,
+          "22103": 0.0
+        }
+      }
+    },
+    "adjacency": {
+      "status": "WARN",
+      "n_edges": 136,
+      "n_isolated": 2,
+      "isolated_zctas": [
+        "70358",
+        "70463"
+      ]
+    },
+    "mvd_thresholds": {
+      "status": "PASS",
+      "min_required": 30,
+      "actual": 66
+    },
+    "duplicates": {
+      "status": "PASS",
+      "n_duplicates": 0
+    }
+  },
+  "overall": "WARN",
+  "blockers": []
+}

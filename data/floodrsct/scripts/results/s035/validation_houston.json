@@ -1,0 +1,124 @@
+{
+  "scenario": "houston",
+  "timestamp": "2026-06-08T02:43:39.008494+00:00",
+  "n_zctas": 216,
+  "n_rows": 648,
+  "n_events": 3,
+  "checks": {
+    "fips_match": {
+      "status": "PASS",
+      "expected": [
+        "48039",
+        "48071",
+        "48157",
+        "48167",
+        "48201",
+        "48339"
+      ],
+      "actual": [
+        "48039",
+        "48071",
+        "48157",
+        "48167",
+        "48201",
+        "48339"
+      ],
+      "extra": [],
+      "missing": []
+    },
+    "event_coverage": {
+      "status": "PASS",
+      "details": "All 216 ZCTAs present in all 3 events"
+    },
+    "feature_nulls": {
+      "status": "FAIL",
+      "by_county": {
+        "48039": {
+          "rainfall_total_mm": 0.0625,
+          "peak_stage_ft": 0.9375,
+          "acs_total_pop": 0.0625,
+          "svi_overall": 0.0625
+        },
+        "48071": {
+          "rainfall_total_mm": 0.1429,
+          "peak_stage_ft": 0.9524,
+          "acs_total_pop": 0.1429,
+          "svi_overall": 0.1429
+        },
+        "48157": {
+          "peak_stage_ft": 0.9524
+        },
+        "48167": {
+          "rainfall_total_mm": 0.0556,
+          "peak_stage_ft": 0.9444,
+          "acs_total_pop": 0.0556,
+          "svi_overall": 0.0556
+        },
+        "48201": {
+          "rainfall_total_mm": 0.0076,
+          "peak_stage_ft": 0.6818,
+          "acs_total_pop": 0.0076,
+          "svi_overall": 0.0076
+        },
+        "48339": {
+          "peak_stage_ft": 1.0
+        }
+      }
+    },
+    "target_availability": {
+      "status": "PASS",
+      "details": {
+        "nfip_event_claim_count": {
+          "48039": 0.0,
+          "48071": 0.0,
+          "48157": 0.0,
+          "48167": 0.0,
+          "48201": 0.0,
+          "48339": 0.0
+        },
+        "obs_nfip_event_claims": {
+          "48039": 0.0,
+          "48071": 0.0,
+          "48157": 0.0,
+          "48167": 0.0,
+          "48201": 0.0,
+          "48339": 0.0
+        },
+        "hwm_count": {
+          "48039": 0.0,
+          "48071": 0.0,
+          "48157": 0.0,
+          "48167": 0.0,
+          "48201": 0.0,
+          "48339": 0.0
+        },
+        "flood_311_count": {
+          "48039": 0.0,
+          "48071": 0.0,
+          "48157": 0.0,
+          "48167": 0.0,
+          "48201": 0.0,
+          "48339": 0.0
+        }
+      }
+    },
+    "adjacency": {
+      "status": "PASS",
+      "n_edges": 589,
+      "n_isolated": 0
+    },
+    "mvd_thresholds": {
+      "status": "PASS",
+      "min_required": 100,
+      "actual": 216
+    },
+    "duplicates": {
+      "status": "PASS",
+      "n_duplicates": 0
+    }
+  },
+  "overall": "FAIL",
+  "blockers": [
+    "feature_nulls"
+  ]
+}

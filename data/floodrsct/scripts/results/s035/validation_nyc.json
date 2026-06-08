@@ -1,0 +1,117 @@
+{
+  "scenario": "nyc",
+  "timestamp": "2026-06-08T02:43:58.037489+00:00",
+  "n_zctas": 211,
+  "n_rows": 844,
+  "n_events": 4,
+  "checks": {
+    "fips_match": {
+      "status": "PASS",
+      "expected": [
+        "36005",
+        "36047",
+        "36061",
+        "36081",
+        "36085"
+      ],
+      "actual": [
+        "36005",
+        "36047",
+        "36061",
+        "36081",
+        "36085"
+      ],
+      "extra": [],
+      "missing": []
+    },
+    "event_coverage": {
+      "status": "PASS",
+      "details": "All 211 ZCTAs present in all 4 events"
+    },
+    "feature_nulls": {
+      "status": "WARN",
+      "by_county": {
+        "36005": {
+          "rainfall_total_mm": 0.25,
+          "nfip_event_claim_count": 0.25
+        },
+        "36047": {
+          "rainfall_total_mm": 0.2697,
+          "nfip_event_claim_count": 0.25,
+          "acs_total_pop": 0.0263,
+          "svi_overall": 0.0263
+        },
+        "36061": {
+          "rainfall_total_mm": 0.5,
+          "nfip_event_claim_count": 0.25,
+          "acs_total_pop": 0.3333,
+          "svi_overall": 0.3333
+        },
+        "36081": {
+          "rainfall_total_mm": 0.3068,
+          "nfip_event_claim_count": 0.25,
+          "acs_total_pop": 0.0758,
+          "svi_overall": 0.0758
+        },
+        "36085": {
+          "rainfall_total_mm": 0.3077,
+          "nfip_event_claim_count": 0.25,
+          "acs_total_pop": 0.0769,
+          "svi_overall": 0.0769
+        }
+      }
+    },
+    "target_availability": {
+      "status": "PASS",
+      "details": {
+        "nfip_event_claim_count": {
+          "36005": 0.25,
+          "36047": 0.25,
+          "36061": 0.25,
+          "36081": 0.25,
+          "36085": 0.25
+        },
+        "obs_nfip_event_claims": {
+          "36005": 0.25,
+          "36047": 0.25,
+          "36061": 0.25,
+          "36081": 0.25,
+          "36085": 0.25
+        },
+        "hwm_count": {
+          "36005": 0.0,
+          "36047": 0.0,
+          "36061": 0.0,
+          "36081": 0.0,
+          "36085": 0.0
+        },
+        "flood_311_count": {
+          "36005": 0.0,
+          "36047": 0.0,
+          "36061": 0.0,
+          "36081": 0.0,
+          "36085": 0.0
+        }
+      }
+    },
+    "adjacency": {
+      "status": "WARN",
+      "n_edges": 475,
+      "n_isolated": 1,
+      "isolated_zctas": [
+        "10044"
+      ]
+    },
+    "mvd_thresholds": {
+      "status": "PASS",
+      "min_required": 100,
+      "actual": 211
+    },
+    "duplicates": {
+      "status": "PASS",
+      "n_duplicates": 0
+    }
+  },
+  "overall": "WARN",
+  "blockers": []
+}

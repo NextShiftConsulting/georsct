@@ -1,0 +1,74 @@
+{
+  "scenario": "riverside_coachella",
+  "timestamp": "2026-06-08T02:44:01.547561+00:00",
+  "n_zctas": 86,
+  "n_rows": 172,
+  "n_events": 2,
+  "checks": {
+    "fips_match": {
+      "status": "PASS",
+      "expected": [
+        "06025",
+        "06065"
+      ],
+      "actual": [
+        "06025",
+        "06065"
+      ],
+      "extra": [],
+      "missing": []
+    },
+    "event_coverage": {
+      "status": "PASS",
+      "details": "All 86 ZCTAs present in all 2 events"
+    },
+    "feature_nulls": {
+      "status": "FAIL",
+      "by_county": {
+        "06025": {
+          "peak_stage_ft": 1.0
+        },
+        "06065": {
+          "rainfall_total_mm": 0.0141,
+          "peak_stage_ft": 1.0,
+          "acs_total_pop": 0.0141
+        }
+      }
+    },
+    "target_availability": {
+      "status": "WARN",
+      "details": {
+        "nfip_event_claim_count": {
+          "06025": 0.5,
+          "06065": 0.5
+        },
+        "obs_nfip_event_claims": {
+          "06025": 0.5,
+          "06065": 0.5
+        },
+        "hwm_count": {
+          "06025": 0.0,
+          "06065": 0.0
+        }
+      }
+    },
+    "adjacency": {
+      "status": "PASS",
+      "n_edges": 199,
+      "n_isolated": 0
+    },
+    "mvd_thresholds": {
+      "status": "PASS",
+      "min_required": 30,
+      "actual": 86
+    },
+    "duplicates": {
+      "status": "PASS",
+      "n_duplicates": 0
+    }
+  },
+  "overall": "FAIL",
+  "blockers": [
+    "feature_nulls"
+  ]
+}
