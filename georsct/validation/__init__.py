@@ -5,7 +5,7 @@ weighting, and alignment certificates following the framework of
 Brenning & Suesse (2026).
 """
 
-from rsct.validation.task_descriptors import (
+from georsct.validation.task_descriptors import (
     SENTINEL_BIN,
     TaskDescriptorConfig,
     add_nearest_training_distance,
@@ -15,7 +15,7 @@ from rsct.validation.task_descriptors import (
     fit_quantile_edges,
     haversine_km,
 )
-from rsct.validation.deployment_alignment import (
+from georsct.validation.deployment_alignment import (
     AlignmentGates,
     alignment_gaps,
     alignment_summary,
@@ -27,13 +27,13 @@ from rsct.validation.deployment_alignment import (
     normalize_weights,
     rake_weights,
 )
-from rsct.validation.deployment_domains import (
+from georsct.validation.deployment_domains import (
     EligibilityRule,
     EmptyDeploymentDomain,
     MissingHazardLayer,
     RegimeDomain,
 )
-from rsct.validation.deployment_target import (
+from georsct.validation.deployment_target import (
     build_deployment_target_descriptors,
     nearest_distance_to_reference,
 )

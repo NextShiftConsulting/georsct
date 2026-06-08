@@ -44,7 +44,7 @@ from _coverage_common import (
 
 # Import TWCV library from georsct
 try:
-    from rsct.validation import (
+    from georsct.validation import (
         AlignmentGates,
         RegimeDomain,
         TaskDescriptorConfig,
