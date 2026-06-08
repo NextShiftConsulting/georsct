@@ -25,7 +25,7 @@ from floodcaster.hazard import (  # noqa: F401
     TemporalBasis,
     crest_margin,
     depth_above_ground,
-    discharge_percentile,
+    discharge_exceedance,
     encounter_probability,
     freeboard,
     nws_severity,
@@ -71,8 +71,15 @@ def composite_score(
             f"features ({len(features)}) and weights ({len(weights)}) "
             f"must have the same length"
         )
+    if not np.all(np.isfinite(features)):
+        raise ValueError("features must be finite (no NaN or Inf)")
+    if np.any(features < 0) or np.any(features > 1):
+        raise ValueError(
+            f"features must be in [0, 1], got range "
+            f"[{float(np.min(features))}, {float(np.max(features))}]"
+        )
     weight_sum = float(np.sum(weights))
-    if abs(weight_sum - 1.0) > 1e-6:
+    if abs(weight_sum - 1.0) > 1e-4:
         raise ValueError(
             f"weights must sum to 1.0, got {weight_sum:.8f}"
         )
@@ -86,20 +93,39 @@ def normalize_minmax(
 ) -> np.ndarray:
     """Min-max normalize to [0, 1].
 
+    NaN values in the input are preserved as NaN in the output (they
+    must be handled before passing to composite_score). All-NaN input
+    returns all-NaN.
+
     Args:
         values: 1D array of raw values.
         vmin: Floor (default: array min). Values below are clipped to 0.
         vmax: Ceiling (default: array max). Values above are clipped to 1.
 
     Returns:
-        Normalized array in [0, 1]. Returns zeros if vmin == vmax.
+        Normalized array in [0, 1] with NaN preserved.
+        Returns zeros if vmin == vmax (and no NaN present).
+
+    Raises:
+        ValueError: If all values are NaN and no explicit bounds given.
     """
+    finite_mask = np.isfinite(values)
+    if not np.any(finite_mask):
+        if vmin is not None and vmax is not None:
+            return np.full_like(values, np.nan, dtype=np.float64)
+        raise ValueError("all values are NaN and no explicit vmin/vmax given")
     lo = vmin if vmin is not None else float(np.nanmin(values))
     hi = vmax if vmax is not None else float(np.nanmax(values))
+    if not (np.isfinite(lo) and np.isfinite(hi)):
+        raise ValueError(f"bounds must be finite, got vmin={lo}, vmax={hi}")
     if hi == lo:
-        return np.zeros_like(values, dtype=np.float64)
+        result = np.zeros_like(values, dtype=np.float64)
+        result[~finite_mask] = np.nan
+        return result
     normed = (values - lo) / (hi - lo)
-    return np.clip(normed, 0.0, 1.0)
+    normed = np.clip(normed, 0.0, 1.0)
+    normed[~finite_mask] = np.nan
+    return normed
 
 
 def score_decomposition(
@@ -124,6 +150,12 @@ def score_decomposition(
     Returns:
         List of {"feature", "value", "weight", "contribution"} dicts.
     """
+    n = len(feature_names)
+    if len(features) != n or len(weights) != n:
+        raise ValueError(
+            f"length mismatch: feature_names={n}, "
+            f"features={len(features)}, weights={len(weights)}"
+        )
     contributions = []
     for name, val, w in zip(feature_names, features, weights):
         contributions.append({
