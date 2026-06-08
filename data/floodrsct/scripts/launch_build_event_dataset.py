@@ -82,7 +82,7 @@ def main() -> None:
         job_args=["--scenario", args.scenario],
         instance_type=instance_type,
         volume_size_gb=100 if needs_img_fallback else 50,
-        pip_packages="geopandas pyogrio rasterio cfgrib xarray eccodes scikit-learn xgboost",
+        pip_packages="geopandas pyogrio rasterio cfgrib xarray eccodes scikit-learn xgboost netCDF4",
         pre_install_cmd=pre_install,
         dry_run=args.dry_run,
     )
