@@ -69,17 +69,17 @@ These are GitHub-only because they serve the paper's reproducibility claims, not
 
 ## Upload Procedure
 
-The `hf_files/` folder mirrors the HF repo layout. To deploy:
+The `wsp/georsct-hf/` folder mirrors the HF repo layout. To deploy:
 
 ```bash
 # Preview what will be uploaded
-python hf_files/upload_to_hf.py --dry-run
+python wsp/georsct-hf/upload_to_hf.py --dry-run
 
 # Upload all non-data files to HuggingFace
-python hf_files/upload_to_hf.py
+python wsp/georsct-hf/upload_to_hf.py
 ```
 
-After editing a canonical source (e.g., `code/load_georsct.py`), copy it into `hf_files/` before uploading.
-See `hf_files/DEPLOY.md` for the full canonical-source mapping.
+After editing a canonical source (e.g., `code/load_georsct.py`), copy it into `wsp/georsct-hf/` before uploading.
+See `wsp/georsct-hf/DEPLOY.md` for the full canonical-source mapping.
 
 Note: on Windows, the upload script uses the Python API (not `huggingface-cli`) to avoid cp1252 Unicode errors.

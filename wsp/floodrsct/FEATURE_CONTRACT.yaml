@@ -1531,7 +1531,7 @@ features:
   # GEOCERTDB2026 STATIC FEATURES (backbone of R0)
   # Source: raw/geocertdb2026/zcta_features_labels.parquet
   # Loaded by: load_geocert_static() in build_event_dataset.py
-  # Schema: hf_files/georsct_schema.json (authoritative column list)
+  # Schema: wsp/georsct-hf/georsct_schema.json (authoritative column list)
   #
   # These are ZCTA-level tabular features that do not vary by event.
   # temporal_class = slow_drift for census/survey data (ACS 2022, SVI 2022)

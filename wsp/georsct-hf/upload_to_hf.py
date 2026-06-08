@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Upload all hf_files/ to HuggingFace dataset repo.
+"""Upload all wsp/georsct-hf/ to HuggingFace dataset repo.
 
 Usage:
-    python hf_files/upload_to_hf.py              # upload all files
-    python hf_files/upload_to_hf.py --dry-run    # show what would be uploaded
+    python wsp/georsct-hf/upload_to_hf.py              # upload all files
+    python wsp/georsct-hf/upload_to_hf.py --dry-run    # show what would be uploaded
 """
 
 import argparse
@@ -18,7 +18,7 @@ SKIP = {"DEPLOY.md", "upload_to_hf.py", ".gitkeep"}
 
 
 def collect_files():
-    """Walk hf_files/ and build (local_path, hf_path) pairs."""
+    """Walk wsp/georsct-hf/ and build (local_path, hf_path) pairs."""
     pairs = []
     for root, _dirs, files in os.walk(HF_DIR):
         for name in sorted(files):
@@ -31,7 +31,7 @@ def collect_files():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Upload hf_files/ to HuggingFace")
+    parser = argparse.ArgumentParser(description="Upload wsp/georsct-hf/ to HuggingFace")
     parser.add_argument("--dry-run", action="store_true", help="Show plan without uploading")
     args = parser.parse_args()
 
@@ -55,7 +55,7 @@ def main():
             path_in_repo=hf_path,
             repo_id=REPO_ID,
             repo_type="dataset",
-            commit_message=f"sync: {hf_path} from GitHub hf_files/",
+            commit_message=f"sync: {hf_path} from GitHub wsp/georsct-hf/",
         )
         print("done")
 

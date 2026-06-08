@@ -1,4 +1,4 @@
-# hf_files — HuggingFace Deployment Folder
+# wsp/georsct-hf — HuggingFace Deployment Folder
 
 This folder mirrors the non-data file layout of `huggingface.co/datasets/rudymartin/georsct`.
 
@@ -14,7 +14,7 @@ Everything that goes on HuggingFace except large binary data files (parquet, geo
 The folder structure matches the HF repo layout exactly.
 
 ```
-hf_files/
+wsp/georsct-hf/
 ├── README.md                          → HF root
 ├── load_georsct.py                    → HF root
 ├── quickstart.py                      → HF root
