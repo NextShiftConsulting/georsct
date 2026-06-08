@@ -561,7 +561,16 @@ def run_scenario(scenario: str, upload: bool = False) -> pd.DataFrame:
     s3 = _get_s3_client()
     config = load_config(scenario)
 
-    county_fips = config["county_fips_list"]
+    # Support county_fips_list, county_fips, and borough_counties (NYC)
+    if "county_fips_list" in config:
+        county_fips = config["county_fips_list"]
+    elif "county_fips" in config:
+        raw = config["county_fips"]
+        county_fips = [raw] if isinstance(raw, str) else raw
+    elif "borough_counties" in config:
+        county_fips = sorted(config["borough_counties"].values())
+    else:
+        raise KeyError(f"No county FIPS field found in config for {scenario}")
     events = config["events"]
     log.info("Counties: %s", county_fips)
     log.info("Events: %s", list(events.keys()))

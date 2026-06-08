@@ -184,8 +184,18 @@ def main() -> None:
 
     cfg = load_config(args.scenario)
 
-    # Determine site list — support both county_fips (str/list) and county_fips_list
-    county_fips = cfg.get("county_fips_list") or cfg.get("county_fips") or []
+    # Determine site list — support county_fips_list, county_fips, and borough_counties (NYC)
+    if "county_fips_list" in cfg:
+        county_fips = cfg["county_fips_list"]
+    elif "county_fips" in cfg:
+        county_fips = cfg["county_fips"]
+    elif "borough_counties" in cfg:
+        county_fips = sorted(cfg["borough_counties"].values())
+    else:
+        raise KeyError(
+            f"No county FIPS field found in config for {args.scenario} "
+            "(expected county_fips_list, county_fips, or borough_counties)"
+        )
     if isinstance(county_fips, str):
         county_fips = [county_fips]
     anchor_sites = cfg.get("usgs_anchor_sites", [])
