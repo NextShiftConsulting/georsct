@@ -49,6 +49,105 @@ PRIMARY_METRIC = {
 
 
 # ---------------------------------------------------------------------------
+# Inline coherence (works regardless of rsct wheel version)
+# ---------------------------------------------------------------------------
+
+def _compute_coherence_inline(
+    fold_metrics: list[float],
+    alpha: float,
+    task_type: str,
+    min_prevalence: float = 0.01,
+) -> dict:
+    """Compute coherence fields inline for certificate augmentation.
+
+    coherence = valid_fold_rate * (
+        0.6 * directional_agreement + 0.4 * magnitude_stability
+    )
+
+    Returns dict with coherence, coherence_status, coherence_detail.
+    Degenerate targets (alpha < min_prevalence) get coherence=None.
+    """
+    n_expected = len(fold_metrics)
+
+    if alpha < min_prevalence:
+        return {
+            "coherence": None,
+            "coherence_status": "NOT_COMPUTED_TARGET_DEGENERATE",
+            "coherence_detail": {
+                "n_folds_expected": n_expected,
+                "n_folds_valid": len(fold_metrics),
+                "fold_directional_agreement": None,
+                "fold_magnitude_stability": None,
+                "failure_reason": f"alpha={alpha:.4f} < {min_prevalence}",
+            },
+        }
+
+    if len(fold_metrics) < 2:
+        return {
+            "coherence": None,
+            "coherence_status": "NOT_COMPUTED_INSUFFICIENT_FOLDS",
+            "coherence_detail": {
+                "n_folds_expected": n_expected,
+                "n_folds_valid": len(fold_metrics),
+                "fold_directional_agreement": None,
+                "fold_magnitude_stability": None,
+                "failure_reason": f"need >= 2 folds, got {len(fold_metrics)}",
+            },
+        }
+
+    arr = np.asarray(fold_metrics, dtype=float)
+    valid = arr[np.isfinite(arr)]
+    n_valid = len(valid)
+    if n_valid < 2:
+        return {
+            "coherence": None,
+            "coherence_status": "NOT_COMPUTED_INSUFFICIENT_FOLDS",
+            "coherence_detail": {
+                "n_folds_expected": n_expected,
+                "n_folds_valid": n_valid,
+                "fold_directional_agreement": None,
+                "fold_magnitude_stability": None,
+                "failure_reason": f"need >= 2 finite folds, got {n_valid}",
+            },
+        }
+
+    valid_fold_rate = n_valid / max(n_expected, 1)
+
+    # Directional agreement: share of folds agreeing with median direction
+    med = float(np.median(valid))
+    if med > 0:
+        n_agree = int(np.sum(valid > 0))
+    elif med < 0:
+        n_agree = int(np.sum(valid <= 0))
+    else:
+        n_agree = n_valid
+    dir_agree = n_agree / n_valid
+
+    # Magnitude stability: 1 - IQR/range (robust to outlier folds)
+    q25 = float(np.percentile(valid, 25))
+    q75 = float(np.percentile(valid, 75))
+    iqr = q75 - q25
+    span = float(np.max(valid) - np.min(valid))
+    mag_stab = float(np.clip(1.0 - iqr / span, 0.0, 1.0)) if span > 1e-12 else 1.0
+
+    coherence = float(np.clip(
+        valid_fold_rate * (0.6 * dir_agree + 0.4 * mag_stab), 0.0, 1.0
+    ))
+
+    return {
+        "coherence": round(coherence, 6),
+        "coherence_status": "COMPUTED",
+        "coherence_detail": {
+            "n_folds_expected": n_expected,
+            "n_folds_valid": n_valid,
+            "fold_directional_agreement": round(dir_agree, 6),
+            "fold_magnitude_stability": round(mag_stab, 6),
+            "failure_reason": None,
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
 # Metric extraction from results JSON
 # ---------------------------------------------------------------------------
 
@@ -198,12 +297,23 @@ def run_certificates(s3, level: str, upload: bool = False) -> dict:
             cert_dict["random_metric"] = random_metric
             cert_dict["n_folds"] = len(spatial_folds)
 
+            # Coherence: inline computation so it works even with
+            # stale rsct wheel.  Canonical impl is in
+            # rsct.experiment_cert.compute_coherence.
+            if "coherence" not in cert_dict or cert_dict.get("coherence") is None:
+                coh = _compute_coherence_inline(
+                    spatial_folds, cert.alpha, task_type,
+                )
+                cert_dict.update(coh)
+
             all_certs.append(cert_dict)
             log.info(
-                "  %s / %s: R=%.3f S=%.3f N=%.3f alpha=%.3f omega=%.3f kappa=%.3f tau=%.3f",
+                "  %s / %s: R=%.3f S=%.3f N=%.3f alpha=%.3f omega=%.3f "
+                "kappa=%.3f tau=%.3f coh=%s",
                 scenario, target,
                 cert.R, cert.S_sup, cert.N,
                 cert.alpha, cert.omega, cert.kappa, cert.tau,
+                cert_dict.get("coherence"),
             )
 
     # Summary statistics + cell-level bootstrap CIs
