@@ -18,6 +18,11 @@ geo = [
 healthcheck = [
     "yrsn-controlplane",
 ]
+audit = [
+    "pyyaml>=6.0",
+    "boto3>=1.26",
+    "swarm-auth",
+]
 
 [tool.setuptools.packages.find]
 include = ["rsct*", "georsct*"]
