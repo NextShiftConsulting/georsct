@@ -208,7 +208,7 @@ def _project_to_gatekeeper_input(cert: dict) -> CPGatekeeperInput:
     same CPGatekeeperInput type and are evaluated identically through gates.
     """
     alpha = _safe_float(cert.get("alpha"), 0.0)
-    kappa = _safe_float(cert.get("kappa"), 0.0)
+    kappa = _safe_float(cert.get("kappa_compat", cert.get("kappa")), 0.0)
     sigma = _safe_float(cert.get("sigma"), 1.0)
 
     # Clamp to [0, 1] for CPGatekeeperInput validation

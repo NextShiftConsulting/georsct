@@ -38,6 +38,15 @@ from _coverage_common import BUCKET, SCENARIOS, get_s3_client, level_prefix
 from _s3_result import upload_json_result
 from _validate_contract import check_causal_boundary
 
+# Canonical RSCT simplex + coherence (shared with R0-R2 certifier)
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from rsct.experiment_cert import (
+    compute_coherence,
+    compute_sigma,
+    compute_tau,
+    derive_simplex,
+)
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
@@ -657,43 +666,47 @@ def compute_block_certificate(block_result: dict) -> dict:
         "block_only_valid": audit.get("block_only_valid", False),
     }
 
-    # --- Certificate R/S/N derivation ---
-    # R comes from independent signal (block_only spatial_blocked performance)
-    # Ablation delta informs marginal contribution but doesn't override R
+    # --- Certificate R/S/N via canonical derive_simplex ---
     certificate_status = "VALID"
 
     if indep_metric is None:
-        # No independent signal at all -- certificate is invalid
         certificate_status = "INVALID"
         R, S_sup, N = float("nan"), float("nan"), float("nan")
     else:
-        # Block-only spatial_blocked vs block-only random to get R/S/N
         indep_rnd_trace = _pick_solver_metric(tests, "block_only", "random")
         indep_rnd_metric = indep_rnd_trace["metric"]
+        task = block_result.get("target", "")
+        task_type = "classification" if "has_" in task else "regression"
+        R, S_sup, N = derive_simplex(indep_metric, indep_rnd_metric, task_type)
 
-        if indep_rnd_metric is not None:
-            denom = max(abs(indep_rnd_metric), abs(indep_metric), 0.001)
-            R = max(0.0, min(1.0, indep_metric / denom)) if indep_metric > 0 else 0.0
-            S_sup = max(0.0, min(1.0, (indep_rnd_metric - indep_metric) / denom)) if indep_rnd_metric > indep_metric else 0.0
-            N = max(0.0, 1.0 - R - S_sup)
-        else:
-            # Only spatial_blocked available, no random contrast
-            R = max(0.0, min(1.0, indep_metric)) if indep_metric > 0 else 0.0
-            S_sup = 0.0
-            N = max(0.0, 1.0 - R)
-
-    # Sigma: fold-level instability (from block_only folds, not add_block)
+    # Fold metrics for sigma/tau/coherence (block_only spatial_blocked)
     bo_sb_folds = tests.get("block_only_histgbdt_spatial_blocked", {}).get("folds", [])
     if not bo_sb_folds:
         bo_sb_folds = tests.get("block_only_ridge_spatial_blocked", {}).get("folds", [])
     fold_vals = [f["metric_value"] for f in bo_sb_folds if f.get("metric_value") is not None]
-    sigma = float(np.std(fold_vals)) if len(fold_vals) > 1 else float("nan")
 
-    # Alpha
+    # Canonical sigma (sample std, ddof=1) and tau
+    sigma = compute_sigma(fold_vals)
+    tau = compute_tau(fold_vals)
+
+    # Alpha (canonical: R / (R + N))
     alpha = R / (R + N) if (R + N) > 0 else float("nan")
 
-    # Kappa: use independent signal metric as proxy
-    kappa = max(0.0, indep_metric) if indep_metric is not None else float("nan")
+    # Omega (canonical: 1 - S_sup)
+    omega = 1.0 - S_sup
+
+    # Coherence (canonical cross-fold agreement)
+    task_type = "classification" if "has_" in block_result.get("target", "") else "regression"
+    coh = compute_coherence(
+        fold_vals,
+        n_folds_expected=len(fold_vals),
+        task_type=task_type,
+        alpha=alpha,
+    )
+
+    # Kappa: geometric compatibility from Phase 4 diagnostics.
+    # Block certificates don't have pre-model geometry, so null (ADR-020 D8.5).
+    kappa_compat = None
 
     # Delta leakage (from existing deltas)
     delta_leakage = deltas.get("delta_leakage_histgbdt", float("nan"))
@@ -717,8 +730,20 @@ def compute_block_certificate(block_result: dict) -> dict:
         "S_sup": S_sup,
         "N": N,
         "alpha": alpha,
-        "kappa": kappa,
+        "omega": omega,
+        "kappa_compat": kappa_compat,
+        "kappa_source": "unavailable",
+        "tau": tau,
         "sigma": sigma,
+        "coherence": coh.coherence,
+        "coherence_status": coh.status,
+        "coherence_detail": {
+            "n_folds_expected": coh.n_folds_expected,
+            "n_folds_valid": coh.n_folds_valid,
+            "fold_directional_agreement": coh.fold_directional_agreement,
+            "fold_magnitude_stability": coh.fold_magnitude_stability,
+            "failure_reason": coh.failure_reason,
+        },
         "evidence": {
             "independent_signal": independent_signal,
             "marginal_signal": marginal_signal,
