@@ -1,0 +1,113 @@
+experiment:
+  id: r5_certificate_guided_spatial_harness_evolution
+  version: "0.1"
+  status: pilot
+  description: >
+    Frozen-backbone geospatial VLM harness evolution with RSCT certificate
+    trajectories. Tests whether Lin et al. harness-updating/harness-benefit
+    decomposition holds for spatial VLM flood decision tasks.
+
+frozen:
+  vlm_backbone: true
+  map_renderer: true
+  labels: true
+  scoring_code: true
+  splits: true
+
+editable:
+  evidence_template: true
+  feature_policy: true
+  rubric: true
+  scenario_memory: true
+  map_renderer: false  # v1 ablation only
+
+models:
+  agents:
+    - gemini_flash
+  evolvers:
+    - claude
+
+scenarios:
+  train:
+    - houston
+  eval:
+    - nyc
+
+splits:
+  method: leave_scenario_out
+  validation_frac: 0.2
+  seed: 42
+
+evolution:
+  n_steps: 3
+  batch_size: 50
+  min_accept_delta: 0.0
+
+optimization_target:
+  name: zone_macro_f1
+  source: fema_floodplain_reference
+  direction: maximize
+
+diagnostics_only:
+  - morans_i_residual
+  - gearys_c_residual
+  - lisa_cluster_rate
+  - inter_vlm_kappa
+  - rsct_kappa_compat
+  - rsct_kappa_difficulty
+  - adherence_score
+  - activation_rate
+
+outputs:
+  harness_versions:
+    path: r5/{experiment_id}/harness/harness_v{step}.json
+  harness_patches:
+    path: r5/{experiment_id}/patches/patch_t{step}.json
+  failure_reports:
+    path: r5/{experiment_id}/failures/failure_report_t{step}.json
+  batch_scores:
+    path: r5/{experiment_id}/scores/batch_t{step}.json
+  certificate_trajectory:
+    path: r5/{experiment_id}/certificate_trajectory.json
+  final_report:
+    path: r5/{experiment_id}/report.json
+
+hypotheses:
+  H1:
+    name: harness_updating_flatness
+    claim: >
+      When the task-solving VLM is fixed, different evolver models
+      produce similar final improvements.
+    metric: variance of delta_update across evolvers
+    status: open
+
+  H2:
+    name: harness_benefit_nonmonotonicity
+    claim: >
+      Harness-benefit is not monotonic in VLM base capability.
+    metric: delta_benefit per agent
+    status: open
+
+  H3:
+    name: certificate_trajectory_monotonicity
+    claim: >
+      Accepted harness edits produce non-decreasing kappa/adherence
+      trajectories more often than rejected edits.
+    metric: kappa_compat_delta and adherence_delta per accepted patch
+    status: open
+
+  H4:
+    name: coherence_gaming
+    claim: >
+      Some harness edits improve spatial smoothness without improving
+      reference-label alignment.
+    metric: morans_i_delta vs zone_macro_f1_delta
+    status: open
+
+  H5:
+    name: transfer_brittleness
+    claim: >
+      Harnesses evolved within one scenario family transfer imperfectly
+      across different flood regimes.
+    metric: train-scenario delta vs held-out scenario delta
+    status: open
