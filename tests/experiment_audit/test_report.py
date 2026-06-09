@@ -17,7 +17,7 @@ def _sample_result() -> AuditResult:
     return AuditResult(
         checks=[
             CheckResult(
-                gate="completeness",
+                audit_stage="completeness",
                 name="output_exists",
                 severity=Severity.PASS,
                 message="All outputs present",
@@ -25,7 +25,7 @@ def _sample_result() -> AuditResult:
                 cell=CellKey("houston", "depth"),
             ),
             CheckResult(
-                gate="completeness",
+                audit_stage="completeness",
                 name="output_exists",
                 severity=Severity.FAIL_MISSING_OUTPUT,
                 message="Missing predictions.json",
@@ -33,7 +33,7 @@ def _sample_result() -> AuditResult:
                 cell=CellKey("nola", "ranking"),
             ),
             CheckResult(
-                gate="scope",
+                audit_stage="scope",
                 name="scope_extra",
                 severity=Severity.WARN_SCOPE_EXTRA,
                 message="Extra artifact not in contract",
@@ -41,7 +41,7 @@ def _sample_result() -> AuditResult:
                 cell=CellKey("houston", "depth"),
             ),
             CheckResult(
-                gate="contract",
+                audit_stage="contract",
                 name="contract_gap",
                 severity=Severity.WARN_CONTRACT_GAP,
                 message="Field 'kappa' missing from contract",

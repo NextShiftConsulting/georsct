@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from .models import ArtifactRecord, CheckResult, Severity
 
 
-GATE = "timestamp_ordering"
+AUDIT_STAGE = "timestamp_ordering"
 
 
 @dataclass(frozen=True)
@@ -78,7 +78,7 @@ def check_ordering(
     if not before.exists or not after.exists:
         missing = before.s3_key if not before.exists else after.s3_key
         return CheckResult(
-            gate=GATE,
+            audit_stage=AUDIT_STAGE,
             name=name,
             severity=Severity.WARN_TIMESTAMP_UNVERIFIABLE,
             message=f"Artifact missing: {missing}; cannot verify ordering ({rule.description})",
@@ -90,13 +90,13 @@ def check_ordering(
         dt_after = _parse_iso(after.internal_timestamp)
         if dt_before <= dt_after:
             return CheckResult(
-                gate=GATE,
+                audit_stage=AUDIT_STAGE,
                 name=name,
                 severity=Severity.PASS,
                 message=f"Internal timestamps confirm ordering ({rule.description})",
             )
         return CheckResult(
-            gate=GATE,
+            audit_stage=AUDIT_STAGE,
             name=name,
             severity=Severity.FAIL_ORDERING_VIOLATION,
             message=(
@@ -112,7 +112,7 @@ def check_ordering(
         dt_after = _parse_iso(after.last_modified)
         if dt_before <= dt_after:
             return CheckResult(
-                gate=GATE,
+                audit_stage=AUDIT_STAGE,
                 name=name,
                 severity=Severity.WARN_TIMESTAMP_FALLBACK,
                 message=(
@@ -121,7 +121,7 @@ def check_ordering(
                 ),
             )
         return CheckResult(
-            gate=GATE,
+            audit_stage=AUDIT_STAGE,
             name=name,
             severity=Severity.WARN_TIMESTAMP_FALLBACK,
             message=(
@@ -134,7 +134,7 @@ def check_ordering(
 
     # Tier 3: one or both missing timestamps entirely
     return CheckResult(
-        gate=GATE,
+        audit_stage=AUDIT_STAGE,
         name=name,
         severity=Severity.WARN_TIMESTAMP_UNVERIFIABLE,
         message=f"Insufficient timestamp data to verify ordering ({rule.description})",

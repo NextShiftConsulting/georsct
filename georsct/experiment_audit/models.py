@@ -68,7 +68,7 @@ class ArtifactRecord:
 class CheckResult:
     """A single audit check outcome."""
 
-    gate: str
+    audit_stage: str
     name: str
     severity: Severity
     message: str
@@ -78,7 +78,7 @@ class CheckResult:
     def to_dict(self) -> dict:
         """Return a JSON-serializable dictionary."""
         d: dict = {
-            "gate": self.gate,
+            "audit_stage": self.audit_stage,
             "name": self.name,
             "severity": self.severity.value,
             "message": self.message,

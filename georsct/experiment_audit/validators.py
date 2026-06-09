@@ -25,7 +25,7 @@ def gate_1_contract_parse(contract: ParsedContract) -> list[CheckResult]:
     if not issues:
         return [
             CheckResult(
-                gate="contract_parse",
+                audit_stage="contract_parse",
                 name="template_resolution",
                 severity=Severity.PASS,
                 message="All template variables resolved",
@@ -33,7 +33,7 @@ def gate_1_contract_parse(contract: ParsedContract) -> list[CheckResult]:
         ]
     return [
         CheckResult(
-            gate="contract_parse",
+            audit_stage="contract_parse",
             name="unresolved_template",
             severity=Severity.FAIL_UNRESOLVED_TEMPLATE,
             message=issue,
@@ -65,7 +65,7 @@ def gate_2_declared_outputs(
         if not phase.has_declared_outputs:
             results.append(
                 CheckResult(
-                    gate="declared_outputs",
+                    audit_stage="declared_outputs",
                     name=f"phase_{phase.phase_id}_no_outputs",
                     severity=Severity.WARN_CONTRACT_GAP,
                     message=(
@@ -83,7 +83,7 @@ def gate_2_declared_outputs(
             if record is None or not record.exists:
                 results.append(
                     CheckResult(
-                        gate="declared_outputs",
+                        audit_stage="declared_outputs",
                         name=f"output_{key}",
                         severity=Severity.FAIL_MISSING_OUTPUT,
                         message=f"Declared output missing: {key}",
@@ -93,7 +93,7 @@ def gate_2_declared_outputs(
             else:
                 results.append(
                     CheckResult(
-                        gate="declared_outputs",
+                        audit_stage="declared_outputs",
                         name=f"output_{key}",
                         severity=Severity.PASS,
                         message=f"Output exists: {key}",
@@ -179,7 +179,7 @@ def gate_3_convention_supplement(
                     if key in s3_set:
                         results.append(
                             CheckResult(
-                                gate="convention_supplement",
+                                audit_stage="convention_supplement",
                                 name=f"convention_{key}",
                                 severity=Severity.WARN_CONTRACT_GAP,
                                 message=(
@@ -192,7 +192,7 @@ def gate_3_convention_supplement(
                     else:
                         results.append(
                             CheckResult(
-                                gate="convention_supplement",
+                                audit_stage="convention_supplement",
                                 name=f"convention_{key}",
                                 severity=Severity.FAIL_MISSING_OUTPUT,
                                 message=f"Convention output missing: {key}",
@@ -205,7 +205,7 @@ def gate_3_convention_supplement(
                 if key in s3_set:
                     results.append(
                         CheckResult(
-                            gate="convention_supplement",
+                            audit_stage="convention_supplement",
                             name=f"convention_{key}",
                             severity=Severity.WARN_CONTRACT_GAP,
                             message=(
@@ -218,7 +218,7 @@ def gate_3_convention_supplement(
                 else:
                     results.append(
                         CheckResult(
-                            gate="convention_supplement",
+                            audit_stage="convention_supplement",
                             name=f"convention_{key}",
                             severity=Severity.FAIL_MISSING_OUTPUT,
                             message=f"Convention output missing: {key}",
@@ -231,7 +231,7 @@ def gate_3_convention_supplement(
         if key.startswith(results_prefix) and key not in expected_keys:
             results.append(
                 CheckResult(
-                    gate="convention_supplement",
+                    audit_stage="convention_supplement",
                     name=f"undeclared_{key}",
                     severity=Severity.WARN_UNDECLARED_ARTIFACT,
                     message=f"Undeclared artifact on S3: {key}",
@@ -265,7 +265,7 @@ def gate_4_cell_matrix(
         if cell in actual_cells:
             results.append(
                 CheckResult(
-                    gate="cell_matrix",
+                    audit_stage="cell_matrix",
                     name=f"cell_{cell}",
                     severity=Severity.PASS,
                     message=f"Cell present: {cell}",
@@ -275,7 +275,7 @@ def gate_4_cell_matrix(
         else:
             results.append(
                 CheckResult(
-                    gate="cell_matrix",
+                    audit_stage="cell_matrix",
                     name=f"cell_{cell}",
                     severity=Severity.FAIL_MISSING_OUTPUT,
                     message=f"Contracted cell missing from actuals: {cell}",
@@ -287,7 +287,7 @@ def gate_4_cell_matrix(
         if cell not in contracted:
             results.append(
                 CheckResult(
-                    gate="cell_matrix",
+                    audit_stage="cell_matrix",
                     name=f"cell_{cell}",
                     severity=Severity.WARN_SCOPE_EXTRA,
                     message=f"Cell in actuals but not in contract: {cell}",
@@ -328,7 +328,7 @@ def gate_5_aggregate_content(
         if record.content is None:
             results.append(
                 CheckResult(
-                    gate="aggregate_content",
+                    audit_stage="aggregate_content",
                     name="money_table_content",
                     severity=Severity.FAIL_CONTENT_INCOMPLETE,
                     message=f"Cannot read content of {money_key}",
@@ -343,7 +343,7 @@ def gate_5_aggregate_content(
             if cell not in found_cells:
                 results.append(
                     CheckResult(
-                        gate="aggregate_content",
+                        audit_stage="aggregate_content",
                         name=f"money_table_missing_{cell}",
                         severity=Severity.FAIL_CONTENT_INCOMPLETE,
                         message=f"Contracted cell {cell} missing from money table",
@@ -355,7 +355,7 @@ def gate_5_aggregate_content(
             if cm.status == MetricStatus.NULL:
                 results.append(
                     CheckResult(
-                        gate="aggregate_content",
+                        audit_stage="aggregate_content",
                         name=f"money_table_null_{cm.cell}",
                         severity=Severity.FAIL_CONTENT_DEGENERATE,
                         message=f"Null metric for cell {cm.cell} in money table",
@@ -370,7 +370,7 @@ def gate_5_aggregate_content(
         if record.content is None:
             results.append(
                 CheckResult(
-                    gate="aggregate_content",
+                    audit_stage="aggregate_content",
                     name="geometry_kappa_content",
                     severity=Severity.WARN_CONTRACT_GAP,
                     message=f"Cannot read content of {kappa_key}",
@@ -383,7 +383,7 @@ def gate_5_aggregate_content(
             if cm.status == MetricStatus.NULL:
                 results.append(
                     CheckResult(
-                        gate="aggregate_content",
+                        audit_stage="aggregate_content",
                         name=f"geometry_kappa_null_{cm.cell}",
                         severity=Severity.WARN_CONTRACT_GAP,
                         message=f"Null kappa_geom for cell {cm.cell}",

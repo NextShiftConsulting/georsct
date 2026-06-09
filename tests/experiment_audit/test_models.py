@@ -104,7 +104,7 @@ class TestCheckResult:
 
     def _make_check(self) -> CheckResult:
         return CheckResult(
-            gate="G1",
+            audit_stage="G1",
             name="output_exists",
             severity=Severity.FAIL_MISSING_OUTPUT,
             message="predictions.json not found",
@@ -114,7 +114,7 @@ class TestCheckResult:
 
     def test_to_dict_keys(self) -> None:
         d = self._make_check().to_dict()
-        assert set(d.keys()) == {"gate", "name", "severity", "message", "phase_id", "cell"}
+        assert set(d.keys()) == {"audit_stage", "name", "severity", "message", "phase_id", "cell"}
 
     def test_to_dict_severity_is_string(self) -> None:
         d = self._make_check().to_dict()
@@ -132,7 +132,7 @@ class TestCheckResult:
 
     def test_to_dict_none_cell(self) -> None:
         cr = CheckResult(
-            gate="G0", name="scope", severity=Severity.PASS, message="ok"
+            audit_stage="G0", name="scope", severity=Severity.PASS, message="ok"
         )
         assert cr.to_dict()["cell"] is None
         assert cr.to_dict()["phase_id"] is None
@@ -145,7 +145,7 @@ class TestAuditResult:
 
     @staticmethod
     def _check(sev: Severity) -> CheckResult:
-        return CheckResult(gate="G", name="n", severity=sev, message="m")
+        return CheckResult(audit_stage="G", name="n", severity=sev, message="m")
 
     def test_summary_counts_mixed(self) -> None:
         ar = AuditResult(checks=[
