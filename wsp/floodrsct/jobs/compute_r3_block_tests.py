@@ -599,8 +599,29 @@ def _pick_solver_metric(
     }
 
 
-def compute_block_certificate(block_result: dict) -> dict:
-    """Compute an RSCT-style certificate from block test results.
+def compute_block_certificate(
+    block_result: dict,
+    kappa_geom: float | None = None,
+) -> dict:
+    """Compute an RSCT certificate from block test results.
+
+    Core RSCT signals (R, S_sup, N, alpha, sigma, tau, coherence) use the
+    canonical functions from rsct.experiment_cert -- same code path as R0-R2.
+
+    kappa_compat is inherited from the scenario-level geometry_kappa
+    (ADR-043). Rationale: kappa measures spatial encoding compatibility
+    (connectivity, support, scale stability, admin alignment). These are
+    properties of the scenario geometry, not the feature block. Adding or
+    removing features changes what *content* flows through the geometry,
+    not the geometry itself.
+
+    Block-specific evidence (ablation, solver agreement, feature audit) is
+    preserved as R3-only structure.
+
+    Args:
+        block_result: Output of run_block_tests().
+        kappa_geom: Scenario-level geometric compatibility from
+            geometry_kappa.json. None if unavailable (ADR-020 D8.5).
 
     Evidence structure:
       - independent_signal: from block_only (R0 + B), measures B's standalone value.
@@ -608,7 +629,6 @@ def compute_block_certificate(block_result: dict) -> dict:
         measures B's marginal contribution within R2.
       - feature_audit: structural validity of each contrast.
 
-    Certificate R/S/N is derived from independent + marginal signals.
     Solver fallback: histgbdt primary, ridge secondary, with lineage.
     certificate_status = INVALID when all required contrasts are unavailable.
     """
@@ -704,9 +724,10 @@ def compute_block_certificate(block_result: dict) -> dict:
         alpha=alpha,
     )
 
-    # Kappa: geometric compatibility from Phase 4 diagnostics.
-    # Block certificates don't have pre-model geometry, so null (ADR-020 D8.5).
-    kappa_compat = None
+    # Kappa: inherited from scenario-level geometry_kappa (ADR-043).
+    # Geometry is a scenario property, not a block property.
+    kappa_compat = round(kappa_geom, 6) if kappa_geom is not None else None
+    kappa_source = "geometry_scenario_inherited" if kappa_geom is not None else "unavailable"
 
     # Delta leakage (from existing deltas)
     delta_leakage = deltas.get("delta_leakage_histgbdt", float("nan"))
@@ -732,7 +753,7 @@ def compute_block_certificate(block_result: dict) -> dict:
         "alpha": alpha,
         "omega": omega,
         "kappa_compat": kappa_compat,
-        "kappa_source": "unavailable",
+        "kappa_source": kappa_source,
         "tau": tau,
         "sigma": sigma,
         "coherence": coh.coherence,
@@ -787,6 +808,19 @@ def main():
     if not registry:
         log.error("Feature registry not found. Run build_r3_feature_registry.py first.")
         return 1
+
+    # Load scenario-level geometry kappa (ADR-043: blocks inherit scenario geometry)
+    geom_kappa_data = _load_json(s3, f"{RESULTS_PREFIX}/geometry_kappa.json")
+    geom_kappa_lookup: dict[str, float] = {}
+    if geom_kappa_data:
+        for cell in geom_kappa_data.get("cells", []):
+            if cell.get("scenario") == scenario:
+                geom_kappa_lookup[cell["target"]] = cell["kappa_geom"]
+        log.info("Loaded geometry_kappa for %s: %d targets (kappa=%s)",
+                 scenario, len(geom_kappa_lookup),
+                 {t: f"{k:.3f}" for t, k in geom_kappa_lookup.items()})
+    else:
+        log.warning("geometry_kappa.json not found -- kappa_compat will be null (ADR-020 D8.5)")
 
     # Load assembled parquet
     from _coverage_common import OUTPUT_KEYS
@@ -856,7 +890,10 @@ def main():
             )
             all_block_results.append(result)
 
-            cert = compute_block_certificate(result)
+            cert = compute_block_certificate(
+                result,
+                kappa_geom=geom_kappa_lookup.get(target_col),
+            )
             all_block_certs.append(cert)
 
     # Assemble output
