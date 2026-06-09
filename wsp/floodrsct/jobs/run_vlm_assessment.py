@@ -78,7 +78,7 @@ VLM_ADAPTERS = {
 # Gemini free tier is 15 RPM = 4s interval, but with paid key we can push.
 # Nova/GPT-4o are fast (<5s) so moderate concurrency suffices.
 VLM_CONCURRENCY = {
-    "gpt4o":  {"workers": 4, "min_interval": 1.5},  # reduced: 10/0.5 hit TPM ceiling
+    "gpt4o":  {"workers": 10, "min_interval": 0.5},  # retry handles 429s
     "gemini": {"workers":  8, "min_interval": 2.0},
     "jina":   {"workers": 15, "min_interval": 0.0},  # slow API, pure concurrency
     "nova":   {"workers": 10, "min_interval": 0.0},   # Bedrock, fast
