@@ -78,7 +78,7 @@ VLM_ADAPTERS = {
 # Gemini free tier is 15 RPM = 4s interval, but with paid key we can push.
 # Nova/GPT-4o are fast (<5s) so moderate concurrency suffices.
 VLM_CONCURRENCY = {
-    "gpt4o":  {"workers": 10, "min_interval": 0.5},
+    "gpt4o":  {"workers": 4, "min_interval": 1.5},  # reduced: 10/0.5 hit TPM ceiling
     "gemini": {"workers":  8, "min_interval": 2.0},
     "jina":   {"workers": 15, "min_interval": 0.0},  # slow API, pure concurrency
     "nova":   {"workers": 10, "min_interval": 0.0},   # Bedrock, fast
@@ -172,47 +172,62 @@ def _assess_one_zcta(
     evidence = _load_text_evidence(s3, scenario, zcta_id)
     full_prompt = PROMPT + "\n\nText Evidence:\n" + evidence
 
-    start = time.monotonic()
-    try:
-        # DOE spec: temperature=0.0, greedy decoding
-        resp = adapter.complete_with_reasoning(
-            full_prompt,
-            image_path=str(image_path),
-            temperature=0.0,
-            max_tokens=2048,
-        )
-        latency_ms = int((time.monotonic() - start) * 1000)
-        parsed = _parse_vlm_response(resp["content"])
+    max_retries = 5
+    base_delay = 2.0  # seconds
 
-        return {
-            "zcta_id": zcta_id,
-            "vlm": vlm_id,
-            "fold": fold,
-            "risk_score": parsed["risk_score"] if parsed else None,
-            "confidence": parsed["confidence"] if parsed else None,
-            "parse_success": parsed is not None,
-            "fixup_needed": False,  # TODO: detect regex fixup
-            "raw_response": resp["content"],
-            "latency_ms": latency_ms,
-            "prompt_tokens": resp["usage"].get("prompt_tokens", 0),
-            "completion_tokens": resp["usage"].get("completion_tokens", 0),
-        }
-    except Exception as exc:
-        latency_ms = int((time.monotonic() - start) * 1000)
-        log.error("VLM error for %s/%s: %s", vlm_id, zcta_id, exc)
-        return {
-            "zcta_id": zcta_id,
-            "vlm": vlm_id,
-            "fold": fold,
-            "risk_score": None,
-            "confidence": None,
-            "parse_success": False,
-            "fixup_needed": False,
-            "raw_response": str(exc),
-            "latency_ms": latency_ms,
-            "prompt_tokens": 0,
-            "completion_tokens": 0,
-        }
+    start = time.monotonic()
+    for attempt in range(max_retries + 1):
+        try:
+            # DOE spec: temperature=0.0, greedy decoding
+            resp = adapter.complete_with_reasoning(
+                full_prompt,
+                image_path=str(image_path),
+                temperature=0.0,
+                max_tokens=2048,
+            )
+            latency_ms = int((time.monotonic() - start) * 1000)
+            parsed = _parse_vlm_response(resp["content"])
+
+            return {
+                "zcta_id": zcta_id,
+                "vlm": vlm_id,
+                "fold": fold,
+                "risk_score": parsed["risk_score"] if parsed else None,
+                "confidence": parsed["confidence"] if parsed else None,
+                "parse_success": parsed is not None,
+                "fixup_needed": False,
+                "raw_response": resp["content"],
+                "latency_ms": latency_ms,
+                "prompt_tokens": resp["usage"].get("prompt_tokens", 0),
+                "completion_tokens": resp["usage"].get("completion_tokens", 0),
+            }
+        except Exception as exc:
+            exc_str = str(exc)
+            is_rate_limit = "429" in exc_str or "rate_limit" in exc_str.lower()
+            if is_rate_limit and attempt < max_retries:
+                delay = base_delay * (2 ** attempt)
+                log.warning(
+                    "Rate limit for %s/%s (attempt %d/%d), retrying in %.1fs",
+                    vlm_id, zcta_id, attempt + 1, max_retries, delay,
+                )
+                time.sleep(delay)
+                continue
+
+            latency_ms = int((time.monotonic() - start) * 1000)
+            log.error("VLM error for %s/%s: %s", vlm_id, zcta_id, exc)
+            return {
+                "zcta_id": zcta_id,
+                "vlm": vlm_id,
+                "fold": fold,
+                "risk_score": None,
+                "confidence": None,
+                "parse_success": False,
+                "fixup_needed": False,
+                "raw_response": exc_str,
+                "latency_ms": latency_ms,
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+            }
 
 
 # ---------------------------------------------------------------------------
