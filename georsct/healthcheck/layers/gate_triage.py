@@ -26,7 +26,8 @@ def evaluate_gates(
         GateResult with decision, gate_reached, evidence, and sub_signal.
     """
     alpha = cert.get("alpha", 0.0)
-    kappa = cert.get("kappa", cert.get("kappa_compat", 0.0))
+    # ADR-020 D8.5: prefer kappa_compat; bare "kappa" for legacy compat only
+    kappa = cert.get("kappa_compat", cert.get("kappa"))
     sigma = cert.get("sigma", 0.0)
     coherence = cert.get("coherence")
     kappa_L = cert.get("kappa_L")
@@ -112,6 +113,21 @@ def evaluate_gates(
         }
 
     # --- Gate 3: Admissibility (Oobleck) ---
+    # ADR-020 D8.5: kappa=None → fail closed with explicit warning
+    if kappa is None:
+        evidence["gate_3"] = {
+            "kappa": None,
+            "kappa_source": cert.get("kappa_source", "unavailable"),
+            "pass": False,
+            "failure_path": "kappa_unavailable_d8_5",
+        }
+        return GateResult(
+            decision="BLOCK",
+            gate_reached="GATE_3_ADMISSIBILITY",
+            gate_evidence=evidence,
+            sub_signal="KAPPA_UNAVAILABLE",
+        )
+
     gate3_sigma_pass = sigma <= preset.sigma_thr
     kappa_req = preset.kappa_req(sigma)
     kappa_margin = kappa - kappa_req
@@ -134,9 +150,10 @@ def evaluate_gates(
         "sigma": round(sigma, 6),
         "sigma_thr": preset.sigma_thr,
         "sigma_pass": gate3_sigma_pass,
-        "kappa": round(kappa, 6),
+        "kappa_compat": round(kappa, 6),
         "kappa_req": round(kappa_req, 6),
         "kappa_margin": round(kappa_margin, 6),
+        "kappa_source": cert.get("kappa_source", "unknown"),
         "epsilon_L": preset.epsilon_L,
         "landauer_zone": landauer_zone,
         "pass": gate3_pass,

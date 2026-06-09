@@ -309,10 +309,12 @@ def run_certificates(s3, level: str, upload: bool = False) -> dict:
             all_certs.append(cert_dict)
             log.info(
                 "  %s / %s: R=%.3f S=%.3f N=%.3f alpha=%.3f omega=%.3f "
-                "kappa=%.3f tau=%.3f coh=%s",
+                "kappa_compat=%s tau=%.3f coh=%s",
                 scenario, target,
                 cert.R, cert.S_sup, cert.N,
-                cert.alpha, cert.omega, cert.kappa, cert.tau,
+                cert.alpha, cert.omega,
+                f"{cert.kappa_compat:.3f}" if cert.kappa_compat is not None else "null",
+                cert.tau,
                 cert_dict.get("coherence"),
             )
 

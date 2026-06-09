@@ -58,7 +58,9 @@ class ExperimentCertificate:
         N: Noise (simplex remainder).
         alpha: Signal purity R / (R + N).
         omega: Reliability 1 - S_sup.
-        kappa: Geometric compatibility (from Phase 4 diagnostics).
+        kappa_compat: Geometric compatibility (from Phase 4 diagnostics),
+            or None if unavailable (ADR-020 D8.5: null, never 0.0).
+        kappa_source: Provenance tag for kappa_compat (ADR-020 D8.4).
         tau: Temporal stability 1 / (1 + CV).
         sigma: Cross-fold volatility std(fold_metrics).
         coherence: Cross-fold agreement (None if not computable).
@@ -73,9 +75,10 @@ class ExperimentCertificate:
     N: float
     alpha: float
     omega: float
-    kappa: float
-    tau: float
-    sigma: float
+    kappa_compat: float | None
+    kappa_source: str = "geometry_pre_model"
+    tau: float = 0.0
+    sigma: float = 0.0
     coherence: float | None = None
     coherence_status: str = "NOT_COMPUTED"
     coherence_detail: dict = field(default_factory=dict)
@@ -325,7 +328,11 @@ def certify_experiment_cell(
     else:
         omega = 1.0 - S_sup
 
-    kappa = kappa_geom if kappa_geom is not None else 0.0
+    # ADR-020 D8.5: missing kappa = None + warning, never 0.0
+    kappa_compat = kappa_geom  # None if unavailable
+    kappa_source = "geometry_pre_model" if kappa_geom is not None else "unavailable"
+    if kappa_compat is None:
+        log.warning("kappa_compat unavailable (kappa_geom=None); D8.5: emitting null")
     tau = compute_tau(fold_metrics)
     sigma = compute_sigma(fold_metrics)
 
@@ -341,7 +348,7 @@ def certify_experiment_cell(
     if _Diagnoser is not None:
         try:
             diagnoser = _Diagnoser()
-            result = diagnoser.diagnose(alpha=alpha, kappa=kappa, sigma=sigma)
+            result = diagnoser.diagnose(alpha=alpha, kappa=kappa_compat or 0.0, sigma=sigma)
             diagnosis_label = (
                 str(result.label) if hasattr(result, 'label') else str(result)
             )
@@ -354,7 +361,8 @@ def certify_experiment_cell(
         N=round(N, 6),
         alpha=round(alpha, 6),
         omega=round(omega, 6),
-        kappa=round(kappa, 6),
+        kappa_compat=round(kappa_compat, 6) if kappa_compat is not None else None,
+        kappa_source=kappa_source,
         tau=round(tau, 6),
         sigma=round(sigma, 6),
         coherence=coh.coherence,
