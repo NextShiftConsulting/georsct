@@ -23,6 +23,10 @@ audit = [
     "boto3>=1.26",
     "swarm-auth",
 ]
+viz = [
+    "matplotlib>=3.7",
+    "yrsn-analysis",
+]
 
 [tool.setuptools.packages.find]
 include = ["rsct*", "georsct*"]

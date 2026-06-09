@@ -39,19 +39,15 @@ import pandas as pd
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 
+from georsct.visualization.palette import (
+    PAPER_RCPARAMS,
+    STATUS_COLORS,
+    VERDICT_COLORS,
+)
+
 # ---------------------------------------------------------------------------
-# Palette (Okabe-Ito, colorblind-safe)
+# Ladder-specific constants
 # ---------------------------------------------------------------------------
-STATUS_COLORS = {
-    "PASS": "#009E73",
-    "WARN": "#E69F00",
-    "FAIL": "#D55E00",
-}
-VERDICT_COLORS = {
-    "align": "#009E73",   # gap dropped -> credible
-    "artifact": "#E69F00",  # moved without aligning
-    "noop": "#9A9A9A",    # no estimate change
-}
 GAP_BAR = "#BBBBBB"
 STEP_LABELS = {
     "0_unweighted": "unwtd",
@@ -231,14 +227,7 @@ def render_ladder_panel(
         ncols = min(n, 6)
     nrows = (n + ncols - 1) // ncols
 
-    plt.rcParams.update({
-        "font.family": "serif",
-        "font.size": 8,
-        "axes.linewidth": 0.6,
-        "xtick.major.width": 0.6,
-        "ytick.major.width": 0.6,
-        "savefig.bbox": "tight",
-    })
+    plt.rcParams.update(PAPER_RCPARAMS)
 
     cell_w = min(7.2 / ncols, 1.45)
     fig_w = cell_w * ncols + 0.4
