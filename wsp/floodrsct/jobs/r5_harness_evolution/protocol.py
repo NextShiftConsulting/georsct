@@ -24,7 +24,12 @@ from .harness_schema import (
     TrajectoryStep,
 )
 from .harness_store import HarnessStore
-from .scoring import JudgmentMetrics, aggregate_judgments, zone_macro_f1
+from .scoring import (
+    JudgmentMetrics,
+    aggregate_judgments,
+    simplex_from_judgments,
+    zone_macro_f1,
+)
 from .validators import validate_patch
 
 log = logging.getLogger(__name__)
@@ -215,6 +220,7 @@ def run_evolution(
     baseline_refs = load_references(config.train_ids)
     baseline_score = zone_macro_f1(baseline_outputs, baseline_refs)
     baseline_metrics = aggregate_judgments(baseline_judgments)
+    current_simplex = simplex_from_judgments(baseline_metrics)
 
     trajectory.append_step(TrajectoryStep(
         step=0,
@@ -226,7 +232,7 @@ def run_evolution(
         grounding_rate=baseline_metrics.grounding_rate,
         schema_validity_rate=baseline_metrics.schema_validity_rate,
         unprovided_claim_rate=baseline_metrics.unprovided_claim_rate,
-        rsct=build_rsct_block(simplex=None),
+        rsct=build_rsct_block(simplex=current_simplex),
         patch_decision="baseline",
         n_zctas=len(config.train_ids),
     ))
@@ -275,7 +281,7 @@ def run_evolution(
                 grounding_rate=current_metrics.grounding_rate,
                 schema_validity_rate=current_metrics.schema_validity_rate,
                 unprovided_claim_rate=current_metrics.unprovided_claim_rate,
-                rsct=build_rsct_block(simplex=None),
+                rsct=build_rsct_block(simplex=current_simplex),
                 patch_decision="rejected_validation",
                 n_zctas=len(config.train_ids),
             ))
@@ -291,7 +297,7 @@ def run_evolution(
                 harness_id=H.harness_id,
                 split="train",
                 primary_score=current_score,
-                rsct=build_rsct_block(simplex=None),
+                rsct=build_rsct_block(simplex=current_simplex),
                 patch_decision="rejected_application_error",
                 n_zctas=len(config.train_ids),
             ))
@@ -307,6 +313,7 @@ def run_evolution(
         val_metrics = aggregate_judgments(val_judgments)
 
         # 6. Accept or reject
+        val_simplex = simplex_from_judgments(val_metrics)
         decision = default_acceptance_rule(
             baseline_score=current_score,
             candidate_score=val_score,
@@ -324,6 +331,7 @@ def run_evolution(
             store.save_harness(H.harness_id, H.to_dict())
             current_score = val_score
             current_metrics = val_metrics
+            current_simplex = val_simplex
 
             # Re-run on train to update baseline for next step
             baseline_outputs = run_vlm_batch(
@@ -346,7 +354,7 @@ def run_evolution(
             grounding_rate=val_metrics.grounding_rate,
             schema_validity_rate=val_metrics.schema_validity_rate,
             unprovided_claim_rate=val_metrics.unprovided_claim_rate,
-            rsct=build_rsct_block(simplex=None),
+            rsct=build_rsct_block(simplex=val_simplex),
             patch_decision="accepted" if decision.accepted else "rejected",
             n_zctas=len(config.validation_ids),
         ))
@@ -359,6 +367,7 @@ def run_evolution(
     test_score = zone_macro_f1(test_outputs, test_refs)
     test_metrics = aggregate_judgments(test_judgments)
 
+    test_simplex = simplex_from_judgments(test_metrics)
     trajectory.append_step(TrajectoryStep(
         step=config.n_steps + 1,
         harness_id=H.harness_id,
@@ -369,7 +378,7 @@ def run_evolution(
         grounding_rate=test_metrics.grounding_rate,
         schema_validity_rate=test_metrics.schema_validity_rate,
         unprovided_claim_rate=test_metrics.unprovided_claim_rate,
-        rsct=build_rsct_block(simplex=None),
+        rsct=build_rsct_block(simplex=test_simplex),
         patch_decision="final_test",
         n_zctas=len(config.test_ids),
     ))

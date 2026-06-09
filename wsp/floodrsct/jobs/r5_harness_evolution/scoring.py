@@ -77,6 +77,34 @@ def zone_macro_f1(
 
 
 # ---------------------------------------------------------------------------
+# RSN simplex from output-level judgments
+# ---------------------------------------------------------------------------
+
+def simplex_from_judgments(metrics: JudgmentMetrics) -> dict | None:
+    """Derive RSN simplex from output-level judgment metrics.
+
+    Mapping:
+        R     = grounding_rate       (cited real evidence, no fabrication)
+        N     = unprovided_claim_rate (invented unsupported facts)
+        S_sup = 1 - R - N            (compliant but not fully grounded)
+
+    The simplex R + S_sup + N = 1 holds by construction: grounding_rate
+    requires no_unprovided_claims=True, so an output contributing to N
+    cannot contribute to R.
+
+    Returns None if no outputs were judged.
+    """
+    if metrics.n_outputs == 0:
+        return None
+
+    R = metrics.grounding_rate
+    N = metrics.unprovided_claim_rate
+    S_sup = max(0.0, 1.0 - R - N)
+
+    return {"R": R, "S_sup": S_sup, "N": N}
+
+
+# ---------------------------------------------------------------------------
 # Activation / adherence / grounding metrics
 # ---------------------------------------------------------------------------
 
