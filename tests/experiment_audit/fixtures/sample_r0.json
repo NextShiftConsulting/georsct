@@ -1,0 +1,12 @@
+{
+  "experiment": "s035-model-ladder",
+  "phase": "r0_baseline",
+  "scenario": "houston",
+  "timestamp": "2026-06-05T09:45:00Z",
+  "runs": [
+    {"scenario": "houston", "target": "obs_nfip_event_claims", "task": "regression", "solver": "histgbdt", "split": "spatial_blocked", "fold": "fold_0", "metrics": {"r2": 0.42, "rmse": 1.23}},
+    {"scenario": "houston", "target": "obs_nfip_event_claims", "task": "regression", "solver": "ridge", "split": "spatial_blocked", "fold": "fold_0", "metrics": {"r2": 0.35, "rmse": 1.45}},
+    {"scenario": "houston", "target": "obs_has_311", "task": "binary", "solver": "histgbdt", "split": "spatial_blocked", "fold": "fold_0", "metrics": {"roc_auc": 0.78}},
+    {"scenario": "houston", "target": "obs_has_hwm", "task": "binary", "solver": "histgbdt", "split": "spatial_blocked", "fold": "fold_0", "metrics": {"roc_auc": null}}
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "timestamp": "2026-06-04T07:50:00Z",
+  "cells": [
+    {"scenario": "houston", "target": "obs_nfip_event_claims", "kappa_geom": 0.65},
+    {"scenario": "houston", "target": "obs_has_311", "kappa_geom": 0.58},
+    {"scenario": "nyc", "target": "obs_nfip_event_claims", "kappa_geom": null}
+  ]
+}

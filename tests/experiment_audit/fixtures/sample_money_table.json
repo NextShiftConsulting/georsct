@@ -1,0 +1,8 @@
+{
+  "timestamp": "2026-06-06T12:00:00Z",
+  "cells": [
+    {"scenario": "houston", "target": "obs_nfip_event_claims", "r0_metric": 0.42, "r1_metric": 0.51, "r2_metric": 0.55},
+    {"scenario": "houston", "target": "obs_has_311", "r0_metric": 0.78, "r1_metric": 0.80, "r2_metric": 0.82},
+    {"scenario": "nyc", "target": "obs_nfip_event_claims", "r0_metric": null, "r1_metric": null, "r2_metric": null}
+  ]
+}
