@@ -1,0 +1,59 @@
+experiment: test-audit
+bucket: test-bucket
+version: "1.0"
+
+modelable_scenarios: &modelable
+  - houston
+  - nyc
+
+targets:
+  - column: obs_nfip_event_claims
+    task: regression
+    metric: r2
+    scenarios: [houston, nyc]
+  - column: obs_has_311
+    task: binary_classification
+    metric: roc_auc
+    scenarios: [houston]
+
+phases:
+  - phase_id: geometry_kappa
+    script: compute_geometry_kappa.py
+    per_scenario: false
+    packages: [numpy]
+    s3_artifacts:
+      - key: assembled_parquet
+        per_scenario: true
+        scenarios: *modelable
+    outputs:
+      - key: "results/test/geometry_kappa.json"
+
+  - phase_id: r0_baseline
+    script: train_r0_baseline.py
+    per_scenario: true
+    packages: [numpy, pandas]
+    s3_artifacts:
+      - key: assembled_parquet
+    outputs:
+      - key: "results/test/r0_{scenario}.json"
+        per_scenario: true
+      - key: "results/test/r0_{scenario}_predictions.parquet"
+        per_scenario: true
+
+  - phase_id: diagnostics_r0
+    script: compute_diagnostics.py
+    per_scenario: false
+    packages: [numpy]
+    s3_artifacts:
+      - key: "results/test/r0_{scenario}.json"
+        per_scenario: true
+        scenarios: *modelable
+
+  - phase_id: r4_vlm_comparison
+    script: compute_vlm_comparison.py
+    per_scenario: false
+    packages: [numpy]
+    s3_artifacts:
+      - key: "results/test/r4_{vlm}_{scenario}.parquet"
+        per_scenario: true
+        scenarios: *modelable
