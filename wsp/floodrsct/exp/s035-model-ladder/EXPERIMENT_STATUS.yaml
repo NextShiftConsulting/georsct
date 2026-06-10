@@ -45,9 +45,18 @@ phases:
     - results/s035/r1_hydrology_riverside_coachella.json
     - results/s035/r1_hydrology_new_orleans.json
   r1_ablation:
-    status: STALE
+    status: COMPLETED
     verified: '2026-06-10'
     verification_method: s3_ls
+    job_ids:
+    - s035-r1-nowlag-southwest-florida-20260610-193214
+    - s035-r1-wlagonly-southwest-florida-20260610-193222
+    - s035-r1-nowlag-nyc-20260610-193231
+    - s035-r1-wlagonly-nyc-20260610-193240
+    - s035-r1-nowlag-riverside-coachella-20260610-193249
+    - s035-r1-wlagonly-riverside-coachella-20260610-193258
+    - s035-r1-nowlag-new-orleans-20260610-193307
+    - s035-r1-wlagonly-new-orleans-20260610-193316
     artifact_keys:
     - results/s035/r1_no_wlag_houston.json
     - results/s035/r1_no_wlag_southwest_florida.json
@@ -59,9 +68,7 @@ phases:
     - results/s035/r1_wlag_only_nyc.json
     - results/s035/r1_wlag_only_riverside_coachella.json
     - results/s035/r1_wlag_only_new_orleans.json
-    notes: >
-      Houston COMPLETED (2 variants). Other 4 metros need no-wlag + wlag-only runs.
-      STALE because per-scenario requirement (CONTRACT) not met for all 5 metros.
+    notes: All 5 scenarios x 2 ablation variants completed. Houston from 2026-06-03, other 4 from 2026-06-10.
   r2_temporal:
     status: COMPLETED
     verified: '2026-06-07'
