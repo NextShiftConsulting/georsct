@@ -569,6 +569,274 @@ features:
       Percentage of valid 30m pixels within ~1 km of ZCTA centroid that have ever
       been classified as water (occurrence > 0). Spatial extent of historical flooding.
 
+  # --- Deltares Global Flood Maps (Planetary Computer STAC) ----------------
+
+  - feature_name: deltares_depth_ft_rp10
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: derived
+    source_dataset: deltares_global_flood_maps
+    raw_s3_path: (fetched live from Planetary Computer STAC API)
+    processed_s3_path: processed/shared/zcta_deltares_depth.parquet
+    build_function: build_deltares_depth_features
+    output_column: deltares_depth_ft_rp10
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.009
+    notes: >
+      Deltares Global Flood Maps 10-year return period depth in feet.
+      Mean depth within ~1 km of ZCTA centroid. Fetched via
+      floodcaster.batch.deltares_centroid_depth from Planetary Computer STAC.
+
+  - feature_name: deltares_max_depth_ft_rp10
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: derived
+    source_dataset: deltares_global_flood_maps
+    raw_s3_path: (fetched live from Planetary Computer STAC API)
+    processed_s3_path: processed/shared/zcta_deltares_depth.parquet
+    build_function: build_deltares_depth_features
+    output_column: deltares_max_depth_ft_rp10
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.009
+    notes: >
+      Maximum Deltares flood depth pixel within ~1 km of ZCTA centroid
+      for 10-year return period.
+
+  - feature_name: deltares_inundation_pct_rp10
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: derived
+    source_dataset: deltares_global_flood_maps
+    raw_s3_path: (fetched live from Planetary Computer STAC API)
+    processed_s3_path: processed/shared/zcta_deltares_depth.parquet
+    build_function: build_deltares_depth_features
+    output_column: deltares_inundation_pct_rp10
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.009
+    notes: >
+      Percentage of valid pixels within ~1 km of ZCTA centroid with
+      flood depth > 0 for 10-year return period.
+
+  - feature_name: deltares_depth_ft_rp50
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: derived
+    source_dataset: deltares_global_flood_maps
+    raw_s3_path: (fetched live from Planetary Computer STAC API)
+    processed_s3_path: processed/shared/zcta_deltares_depth.parquet
+    build_function: build_deltares_depth_features
+    output_column: deltares_depth_ft_rp50
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.009
+    notes: >
+      Deltares Global Flood Maps 50-year return period depth in feet.
+      Mean depth within ~1 km of ZCTA centroid.
+
+  - feature_name: deltares_max_depth_ft_rp50
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: derived
+    source_dataset: deltares_global_flood_maps
+    raw_s3_path: (fetched live from Planetary Computer STAC API)
+    processed_s3_path: processed/shared/zcta_deltares_depth.parquet
+    build_function: build_deltares_depth_features
+    output_column: deltares_max_depth_ft_rp50
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.009
+    notes: >
+      Maximum Deltares flood depth pixel within ~1 km of ZCTA centroid
+      for 50-year return period.
+
+  - feature_name: deltares_inundation_pct_rp50
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: derived
+    source_dataset: deltares_global_flood_maps
+    raw_s3_path: (fetched live from Planetary Computer STAC API)
+    processed_s3_path: processed/shared/zcta_deltares_depth.parquet
+    build_function: build_deltares_depth_features
+    output_column: deltares_inundation_pct_rp50
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.009
+    notes: >
+      Percentage of valid pixels within ~1 km of ZCTA centroid with
+      flood depth > 0 for 50-year return period.
+
+  - feature_name: deltares_depth_ft_rp100
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: derived
+    source_dataset: deltares_global_flood_maps
+    raw_s3_path: (fetched live from Planetary Computer STAC API)
+    processed_s3_path: processed/shared/zcta_deltares_depth.parquet
+    build_function: build_deltares_depth_features
+    output_column: deltares_depth_ft_rp100
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.009
+    notes: >
+      Deltares Global Flood Maps 100-year return period depth in feet.
+      Mean depth within ~1 km of ZCTA centroid.
+
+  - feature_name: deltares_max_depth_ft_rp100
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: derived
+    source_dataset: deltares_global_flood_maps
+    raw_s3_path: (fetched live from Planetary Computer STAC API)
+    processed_s3_path: processed/shared/zcta_deltares_depth.parquet
+    build_function: build_deltares_depth_features
+    output_column: deltares_max_depth_ft_rp100
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.009
+    notes: >
+      Maximum Deltares flood depth pixel within ~1 km of ZCTA centroid
+      for 100-year return period.
+
+  - feature_name: deltares_inundation_pct_rp100
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: derived
+    source_dataset: deltares_global_flood_maps
+    raw_s3_path: (fetched live from Planetary Computer STAC API)
+    processed_s3_path: processed/shared/zcta_deltares_depth.parquet
+    build_function: build_deltares_depth_features
+    output_column: deltares_inundation_pct_rp100
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.009
+    notes: >
+      Percentage of valid pixels within ~1 km of ZCTA centroid with
+      flood depth > 0 for 100-year return period.
+
+  # --- DEM-Derived Hydrology (Planetary Computer Copernicus DEM) -----------
+
+  - feature_name: hand_mean_m
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: derived
+    source_dataset: copernicus_dem_glo30
+    raw_s3_path: (fetched live from Planetary Computer STAC API)
+    processed_s3_path: processed/shared/zcta_hydrology.parquet
+    build_function: build_hydrology_features
+    output_column: hand_mean_m
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.009
+    notes: >
+      Height Above Nearest Drainage (HAND) in meters. Mean within ~1 km
+      of ZCTA centroid. Lower HAND = closer to drainage = higher flood risk.
+      Computed from Copernicus DEM via floodcaster.hydrology.compute_hand.
+
+  - feature_name: twi_mean
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: derived
+    source_dataset: copernicus_dem_glo30
+    raw_s3_path: (fetched live from Planetary Computer STAC API)
+    processed_s3_path: processed/shared/zcta_hydrology.parquet
+    build_function: build_hydrology_features
+    output_column: twi_mean
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.009
+    notes: >
+      Topographic Wetness Index. Mean within ~1 km of ZCTA centroid.
+      Higher TWI = flatter terrain with more upstream area = wetter.
+
+  - feature_name: gfi_mean
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: derived
+    source_dataset: copernicus_dem_glo30
+    raw_s3_path: (fetched live from Planetary Computer STAC API)
+    processed_s3_path: processed/shared/zcta_hydrology.parquet
+    build_function: build_hydrology_features
+    output_column: gfi_mean
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.009
+    notes: >
+      Geomorphic Flood Index (log ratio of flow accumulation to HAND).
+      Mean within ~1 km of ZCTA centroid. Higher GFI = more flood-prone.
+
+  - feature_name: spi_mean
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: derived
+    source_dataset: copernicus_dem_glo30
+    raw_s3_path: (fetched live from Planetary Computer STAC API)
+    processed_s3_path: processed/shared/zcta_hydrology.parquet
+    build_function: build_hydrology_features
+    output_column: spi_mean
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.009
+    notes: >
+      Stream Power Index (flow accumulation * slope). Mean within ~1 km
+      of ZCTA centroid. Higher SPI = more erosive power.
+
+  # --- Sentinel-1 SAR Inundation (Planetary Computer STAC) ----------------
+
+  - feature_name: sar_water_pct
+    temporal_class: event_window
+    scenarios: all
+    source_type: derived
+    source_dataset: sentinel1_rtc
+    raw_s3_path: (fetched live from Planetary Computer STAC API)
+    processed_s3_path: processed/{scenario}/zcta_sar_{event_id}.parquet
+    build_function: build_sentinel1_event_features
+    output_column: sar_water_pct
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.009
+    notes: >
+      Percentage of 10m pixels classified as water within ~1 km of ZCTA
+      centroid from Sentinel-1 SAR VV backscatter (threshold: -15 dB).
+      Fetched for S1 overpasses within event peak_window.
+      NaN if no S1 overpass available in window.
+
+  - feature_name: sar_water_pct_anomaly
+    temporal_class: event_window
+    scenarios: all
+    source_type: derived
+    source_dataset: sentinel1_rtc
+    raw_s3_path: (fetched live from Planetary Computer STAC API)
+    processed_s3_path: processed/{scenario}/zcta_sar_{event_id}.parquet
+    build_function: build_sentinel1_event_features
+    output_column: sar_water_pct_anomaly
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.009
+    notes: >
+      SAR water anomaly = sar_water_pct - jrc_pct_ever_wet. Positive
+      values indicate more water than historical baseline. Highest-novelty
+      signal for active flood detection beyond climatological norms.
+
+  - feature_name: sar_acquisition_lag_days
+    temporal_class: event_window
+    scenarios: all
+    source_type: derived
+    source_dataset: sentinel1_rtc
+    raw_s3_path: (fetched live from Planetary Computer STAC API)
+    processed_s3_path: processed/{scenario}/zcta_sar_{event_id}.parquet
+    build_function: build_sentinel1_event_features
+    output_column: sar_acquisition_lag_days
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.009
+    notes: >
+      Days between event start and nearest Sentinel-1 acquisition.
+      Quality indicator: lower lag = more timely observation.
+      NaN if no S1 overpass available in event window.
+
   # ─── DEM Elevation ────────────────────────────────────────────────────────
 
   - feature_name: elevation_m_msl
