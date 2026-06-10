@@ -334,7 +334,7 @@ def _compute_reweighted_metrics(
             "delta_pct": float("nan"),
         }
 
-    # Merge predictions onto task_df
+    # Filter predictions to target/solver/split before merge
     merge_on = [c for c in ["zcta_id", "event"] if c in predictions_df.columns and c in task_df.columns]
     if not merge_on:
         return {
@@ -345,14 +345,23 @@ def _compute_reweighted_metrics(
             "delta_pct": float("nan"),
         }
 
-    # Find y_true and y_pred columns
-    y_true_col = None
-    y_pred_col = None
-    for col in predictions_df.columns:
-        if "true" in col.lower() or col == "y_true" or col == target:
-            y_true_col = col
-        if "pred" in col.lower() or col == "y_pred":
-            y_pred_col = col
+    pred_filtered = predictions_df.copy()
+    if "target" in pred_filtered.columns:
+        pred_filtered = pred_filtered[pred_filtered["target"] == target]
+    if "solver" in pred_filtered.columns:
+        pred_filtered = pred_filtered[pred_filtered["solver"] == "histgbdt"]
+    if "split" in pred_filtered.columns:
+        pred_filtered = pred_filtered[pred_filtered["split"] == "spatial_blocked"]
+
+    # Average across folds to get one prediction per (zcta_id, event)
+    y_true_col = "y_true" if "y_true" in pred_filtered.columns else None
+    y_pred_col = "y_pred" if "y_pred" in pred_filtered.columns else None
+    if y_true_col is None or y_pred_col is None:
+        for col in pred_filtered.columns:
+            if "true" in col.lower() or col == target:
+                y_true_col = col
+            if "pred" in col.lower():
+                y_pred_col = col
 
     if y_true_col is None or y_pred_col is None:
         log.warning("Cannot find y_true/y_pred columns in predictions")
@@ -364,8 +373,13 @@ def _compute_reweighted_metrics(
             "delta_pct": float("nan"),
         }
 
+    pred_agg = (
+        pred_filtered.groupby(merge_on, as_index=False)
+        .agg({y_true_col: "first", y_pred_col: "mean"})
+    )
+
     merged = task_df.merge(
-        predictions_df[merge_on + [y_true_col, y_pred_col]].drop_duplicates(),
+        pred_agg[merge_on + [y_true_col, y_pred_col]],
         on=merge_on,
         how="inner",
     )
