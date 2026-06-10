@@ -279,6 +279,7 @@ def run_certificates(s3, level: str, upload: bool = False) -> dict:
             # remain as diagnostic fields -- they are NOT kappa inputs.
             geom_cell = geometry_index.get((scenario, target), {})
             kappa_geom = geom_cell.get("kappa_geom")
+            kappa_prior = geom_cell.get("kappa_prior", kappa_geom)  # Q-007 alias
 
             # Delegate to rsct service layer
             cert = certify_experiment_cell(
@@ -296,6 +297,7 @@ def run_certificates(s3, level: str, upload: bool = False) -> dict:
             cert_dict["spatial_metric"] = spatial_metric
             cert_dict["random_metric"] = random_metric
             cert_dict["n_folds"] = len(spatial_folds)
+            cert_dict["kappa_prior"] = kappa_prior  # Q-007 alias for kappa_geom
 
             # Coherence: inline computation so it works even with
             # stale rsct wheel.  Canonical impl is in

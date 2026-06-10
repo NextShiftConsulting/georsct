@@ -23,6 +23,11 @@ class GeometryKappa:
     admin_alignment: float          # 1 - fraction multi-county units
     kappa_geom: float               # mean of available terms
 
+    @property
+    def kappa_prior(self) -> float:
+        """Alias for kappa_geom (Q-007: pre-evidence estimate, not geometry)."""
+        return self.kappa_geom
+
 
 def build_weights_queen(gdf: "gpd.GeoDataFrame") -> "libpysal.weights.W":
     """Queen contiguity weights from a GeoDataFrame.

@@ -97,6 +97,8 @@ def compute_next_steps(status_phases: dict[str, str],
             contract_map[pid] = phase
 
     # Flatten status to simple name -> status (strip nested prefixes)
+    # Also normalize: dots to underscores, so "certificates.r0" matches
+    # "certificates_r0" from the contract.
     flat_status = {}
     for path, status in status_phases.items():
         # Use the last component as a simple key
@@ -104,6 +106,24 @@ def compute_next_steps(status_phases: dict[str, str],
         flat_status[simple] = status
         # Also keep full path
         flat_status[path] = status
+        # Normalize dots to underscores for cross-file matching
+        normalized = path.replace(".", "_")
+        flat_status[normalized] = status
+
+    # Known aliases: STATUS names that differ from CONTRACT phase_ids
+    _ALIASES = {
+        "r1_spatial": "r1_hydrology",
+        "r2_temporal": "r2_temporal",
+        "diagnostics": "diagnostics_r0",  # single "diagnostics" = all done
+    }
+    for alias, canonical in _ALIASES.items():
+        if alias in flat_status and canonical not in flat_status:
+            flat_status[canonical] = flat_status[alias]
+
+    # If "diagnostics" is COMPLETED, propagate to all levels
+    if flat_status.get("diagnostics") == "COMPLETED":
+        for level in ("diagnostics_r0", "diagnostics_r1", "diagnostics_r2"):
+            flat_status.setdefault(level, "COMPLETED")
 
     unblocked = []
     for pid, phase in contract_map.items():

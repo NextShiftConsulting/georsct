@@ -330,6 +330,7 @@ def compute_geometry_kappa(s3) -> dict:
                 "scenario": scenario,
                 "target": target,
                 "kappa_geom": round(kappa_geom, 6),
+                "kappa_prior": round(kappa_geom, 6),  # Q-007 alias
                 **terms,
                 "n_zctas": len(scenario_zctas),
                 "n_target_nonull": int(df[target].notna().sum()),

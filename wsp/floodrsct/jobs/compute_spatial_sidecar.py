@@ -454,6 +454,7 @@ def compute_triangulation_table(
     uplift_filt = [c for c in uplift_cells if c.get("target", primary) == primary]
 
     kappa_map = {c["scenario"]: c.get("kappa_geom", np.nan) for c in kappa_filt}
+    kappa_prior_map = {c["scenario"]: c.get("kappa_prior", c.get("kappa_geom", np.nan)) for c in kappa_filt}
     gwr_map = {c["scenario"]: c.get("gwr_nonstationarity", np.nan) for c in gwr_filt}
     uplift_map = {c["scenario"]: c.get("uplift_r0_r1", np.nan) for c in uplift_filt}
 
@@ -463,6 +464,7 @@ def compute_triangulation_table(
         kg, gn, up = kappa_map[s], gwr_map[s], uplift_map[s]
         if not any(np.isnan([kg, gn, up])):
             rows.append({"scenario": s, "kappa_geom": kg,
+                         "kappa_prior": kappa_prior_map.get(s, kg),  # Q-007 alias
                          "gwr_nonstationarity": gn, "uplift_r0_r1": up})
 
     if len(rows) < 3:
@@ -496,10 +498,14 @@ def compute_triangulation_table(
         "spearman": {
             "kappa_geom_vs_uplift": dict(zip(
                 ["rho", "ci_lo", "ci_hi"], _spearman_boot(kg_a, up_a))),
+            "kappa_prior_vs_uplift": dict(zip(
+                ["rho", "ci_lo", "ci_hi"], _spearman_boot(kg_a, up_a))),  # Q-007 alias (same values)
             "gwr_vs_uplift": dict(zip(
                 ["rho", "ci_lo", "ci_hi"], _spearman_boot(gn_a, up_a))),
             "kappa_geom_vs_gwr": dict(zip(
                 ["rho", "ci_lo", "ci_hi"], _spearman_boot(kg_a, gn_a))),
+            "kappa_prior_vs_gwr": dict(zip(
+                ["rho", "ci_lo", "ci_hi"], _spearman_boot(kg_a, gn_a))),  # Q-007 alias (same values)
         },
         "note": "Observed triangulation. NOT a hypothesis test. NOT in Holm-Bonferroni family.",
     }

@@ -333,26 +333,27 @@ phases:
       - results/s035/r3_dgm_admission_trace.json
 
   r3_certified_training:
-    status: DESIGNED
+    status: STALE
     verified: "2026-06-10"
     verification_method: s3_ls
     artifact_keys:
-      - results/s035/r3_certified_houston.json
-      - results/s035/r3_certified_southwest_florida.json
-      - results/s035/r3_certified_nyc.json
-      - results/s035/r3_certified_riverside_coachella.json
-      - results/s035/r3_certified_new_orleans.json
+      - results/s035/r3_houston.json
+      - results/s035/r3_southwest_florida.json
+      - results/s035/r3_nyc.json
+      - results/s035/r3_riverside_coachella.json
+      - results/s035/r3_new_orleans.json
     notes: >
-      Status corrected from COMPLETED->DESIGNED. Artifacts never existed on S3.
-      R3 block admission (r3_block_admission_table.json) completed and produced
-      admission tiers, but the certified retraining step has not been launched.
-      Depends on r3_block_admission.
+      Key pattern was r3_{scenario}.json, not r3_certified_{scenario}.json.
+      Artifacts exist from June 6 but are pre-kappa-fix (cert.get("kappa")=0).
+      Block admission re-ran 2026-06-10 with correct kappa_compat. Must re-run
+      certified training against the new admission table.
 
   r3_money_table:
-    status: COMPLETED
+    status: STALE
     verified: "2026-06-10"
     verification_method: s3_ls
     artifact_keys: [results/s035/r3_money_table.json]
+    notes: "Pre-kappa-fix (June 6). Depends on r3_certified_training which is STALE."
 
 # ===== PAPER CLAIM VERIFICATION =====
 # Each paper section with empirical claims and their artifact backing.
