@@ -1,0 +1,79 @@
+# ===========================================================================
+# FloodRSCT Experiment Registry
+# ===========================================================================
+#
+# PURPOSE: Single index of all experiment series.  Agents read this file
+# to discover experiments without searching the filesystem.
+#
+# CONVENTION: One entry per experiment series.  Fields:
+#   series_id     - Unique identifier (e.g., s035)
+#   title         - Human-readable name
+#   target        - Submission venue and deadline
+#   directory     - Absolute path to experiment root
+#   status_file   - Path to EXPERIMENT_STATUS.yaml
+#   contract_file - Path to EXPERIMENT_CONTRACT.yaml
+#   phase_status  - High-level completion summary
+#   hypotheses    - Count and primary hypothesis
+#   scenarios     - List of geographic scenarios
+#   s3_bucket     - S3 bucket for artifacts
+#   s3_prefix     - S3 key prefix for results
+# ===========================================================================
+
+experiments:
+
+  - series_id: s035
+    title: "S035-Model-Ladder: Diagnosis-Driven Representation Ablation"
+    target: "SIGSPATIAL 2026"
+    directory: "C:/Users/marti/github/rsct-geocert/wsp/floodrsct/exp/s035-model-ladder"
+    status_file: "exp/s035-model-ladder/EXPERIMENT_STATUS.yaml"
+    contract_file: "exp/s035-model-ladder/EXPERIMENT_CONTRACT.yaml"
+    launchers: "scripts/"
+    jobs: "jobs/"
+
+    phase_status:
+      total_phases: 30
+      completed: 25
+      designed: 3
+      blocked: 2
+      last_audit: "2026-06-10"
+
+    hypotheses:
+      count: 9
+      primary: "H2 -- R1 improves over R0 (fold-level Wilcoxon + kappa predicts uplift)"
+      gate: "H1 -- R0 baseline establishes measurable skill"
+
+    scenarios:
+      - houston
+      - southwest_florida
+      - nyc
+      - riverside_coachella
+      - new_orleans
+
+    s3_bucket: swarm-floodrsct-data
+    s3_prefix: results/s035/
+
+    blockers:
+      - phase: variance_stack
+        reason: "DESIGNED but never run; paper section 7.1 cites fabricated numbers"
+        severity: RED
+      - phase: r1_5_fast
+        reason: "NSI 2.0 not on S3"
+        severity: YELLOW
+
+    paper:
+      venue: SIGSPATIAL
+      version: V6
+      overleaf_dir: "C:/Users/marti/github/adaptive-context-research/V6-SIGSPATIAL/281-overleaf"
+      claim_status:
+        green: 5
+        yellow: 1
+        red: 1
+
+# ===========================================================================
+# Adding a new experiment:
+# 1. Copy the template above
+# 2. Fill in series_id, title, directory
+# 3. Create the experiment directory with standard layout (see SKILL.md)
+# 4. Scaffold EXPERIMENT_CONTRACT.yaml and EXPERIMENT_STATUS.yaml
+# 5. Use swarm-experiment skill for initial scaffolding
+# ===========================================================================
