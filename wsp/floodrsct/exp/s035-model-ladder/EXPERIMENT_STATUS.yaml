@@ -333,7 +333,7 @@ phases:
       - results/s035/r3_dgm_admission_trace.json
 
   r3_certified_training:
-    status: COMPLETED
+    status: DESIGNED
     verified: "2026-06-10"
     verification_method: s3_ls
     artifact_keys:
@@ -342,6 +342,11 @@ phases:
       - results/s035/r3_certified_nyc.json
       - results/s035/r3_certified_riverside_coachella.json
       - results/s035/r3_certified_new_orleans.json
+    notes: >
+      Status corrected from COMPLETED->DESIGNED. Artifacts never existed on S3.
+      R3 block admission (r3_block_admission_table.json) completed and produced
+      admission tiers, but the certified retraining step has not been launched.
+      Depends on r3_block_admission.
 
   r3_money_table:
     status: COMPLETED
