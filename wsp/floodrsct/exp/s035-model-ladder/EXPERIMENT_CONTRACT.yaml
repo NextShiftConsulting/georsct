@@ -314,6 +314,49 @@ phases:
         description: "R1 hydrology supplement"
         optional: false
 
+  # ── Phase 2 (ablation): R1 W-matrix Ablation ──────────────────────────
+  - phase_id: r1_ablation
+    script: train_r1_hydrology.py
+    description: "Phase 2 (ablation): R1 W-matrix ablation battery (no-wlag, wlag-only, no-target-lag)"
+    per_scenario: true
+    depends_on: [r1_hydrology]
+
+    packages:
+      - scikit-learn
+      - numpy
+      - pandas
+      - pyarrow
+      - scipy
+
+    features:
+      source: assembled_parquet
+      required:
+        - zcta_id
+        - event
+
+    s3_artifacts:
+      - key: assembled_parquet
+        description: "Assembled event features parquet"
+      - key: "folds/{scenario}_folds.parquet"
+        description: "Fold assignments from R0"
+      - key: "processed/{scenario}/{scenario}_r1_supplement.parquet"
+        description: "R1 hydrology supplement"
+      - key: "raw/geocertdb2026/zcta_adjacency.parquet"
+        description: "Required for per-fold wlag recomputation (leakage prevention)"
+        optional: true
+
+    outputs:
+      - key: "results/s035/r1_no_wlag_{scenario}.json"
+        description: "R1 without W-matrix features"
+        per_scenario: true
+      - key: "results/s035/r1_wlag_only_{scenario}.json"
+        description: "R1 with W-matrix only (no hydrology)"
+        per_scenario: true
+      - key: "results/s035/r1_no_target_lag_{scenario}.json"
+        description: "R1 without target spatial lag"
+        per_scenario: true
+        optional: true
+
   # ── Phase 4b: Diagnostics R1 ──────────────────────────────────────────
   - phase_id: diagnostics_r1
     script: compute_diagnostics.py
@@ -505,6 +548,45 @@ phases:
       - key: "results/s035/r2_{scenario}.json"
         per_scenario: true
         scenarios: *modelable
+
+  # ── Phase 6b: Verdicts (Six-Geometry Sufficiency) ─────────────────────
+  - phase_id: verdicts
+    script: compute_verdicts.py
+    description: "Phase 6b: Six-geometry sufficiency verdicts (prediction, ranking, clustering, transfer, relational, allocation)"
+    per_scenario: false
+    depends_on: [uplift_table, r1_ablation, certificates_r0, certificates_r1, certificates_r2, diagnostics_r0, diagnostics_r1, diagnostics_r2]
+
+    packages:
+      - numpy
+      - pandas
+      - pyarrow
+      - scipy
+
+    features: null
+
+    s3_artifacts:
+      - key: "results/s035/money_table.json"
+        description: "Phase 5 uplift table (prediction verdict)"
+      - key: "results/s035/sidecar/lisa_results.json"
+        description: "LISA spatial analysis (clustering verdict)"
+      - key: "results/s035/diagnostics_r0.json"
+      - key: "results/s035/diagnostics_r1.json"
+      - key: "results/s035/diagnostics_r2.json"
+      - key: "results/s035/fast_validation.json"
+        description: "FAST Spearman correlations (ranking verdict)"
+        optional: true
+      - key: "results/s035/r1_no_wlag_{scenario}.json"
+        description: "R1 ablation: no W-matrix (relational verdict)"
+        per_scenario: true
+        scenarios: *modelable
+      - key: "results/s035/r1_wlag_only_{scenario}.json"
+        description: "R1 ablation: W-matrix only (relational verdict)"
+        per_scenario: true
+        scenarios: *modelable
+
+    outputs:
+      - key: "results/s035/verdicts.json"
+        description: "All six geometry verdicts"
 
   # ── Phase R4.1-R4.2: VLM Input Preparation ─────────────────────────────
   - phase_id: r4_render_maps

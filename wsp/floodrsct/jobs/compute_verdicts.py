@@ -15,7 +15,7 @@ Geometries:
   2. Ranking     -- Kendall tau-b(R0, R1) + fidelity-delta vs FAST
   3. Clustering  -- Moran's I significance after spatial ladder level
   4. Transfer    -- LEO retention ratio from diagnostics
-  5. Relational  -- W-matrix ablation (DEFERRED, reported as pending)
+  5. Relational  -- W-matrix ablation (full vs no-wlag vs wlag-only)
   6. Allocation  -- R2 temporal coverage by event vintage
 
 Outputs:
@@ -534,27 +534,194 @@ def compute_transfer_verdict() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Verdict 5: Relational (W-matrix ablation) -- DEFERRED
+# Verdict 5: Relational (W-matrix ablation)
 # ---------------------------------------------------------------------------
+
+# Pre-committed threshold: W-matrix RMSE degradation (Cohen's d) for
+# the ablation to be considered load-bearing.
+WMATRIX_EFFECT_THRESHOLD = 0.20  # |d| >= 0.20 = small-but-real effect
+
+
+def _extract_fold_metrics(
+    result_json: dict,
+    target: str = PRIMARY_TARGET,
+    solver: str = PRIMARY_SOLVER,
+    split: str = "leave_event_out",
+    metric: str = "rmse",
+) -> list[float]:
+    """Extract per-fold metric values from an R1 result JSON.
+
+    Returns list of floats (one per fold) for the specified
+    target/solver/split/metric combination.
+    """
+    vals = []
+    for run in result_json.get("runs", []):
+        if (run.get("target") == target
+                and run.get("solver") == solver
+                and run.get("split") == split):
+            v = run.get("metrics", {}).get(metric)
+            if v is not None and not math.isnan(v):
+                vals.append(float(v))
+    return vals
+
 
 def compute_relational_verdict() -> dict:
     """Relational verdict: W-matrix ablation battery.
 
-    DEFERRED: ablation variants (no-wlag, no-target-lag, wlag-only) are
-    specified in the DOE but not yet implemented. Reported as PENDING.
+    Loads R1-full, R1-no-wlag, and R1-wlag-only results per scenario.
+    Compares RMSE distributions (per-fold) via paired Wilcoxon + Cohen's d.
+    W-matrix is LOAD_BEARING if removing it degrades RMSE significantly.
+
+    Verdict vocabulary:
+      SUPPORTED        -- majority of scenarios show load-bearing W-matrix
+      PROVISIONAL      -- some scenarios show effect, not majority
+      NOT_LOAD_BEARING -- no scenario shows meaningful W-matrix contribution
+      PENDING          -- ablation results not yet available
+      INSUFFICIENT     -- not enough data to compute
     """
-    log.info("=== RELATIONAL VERDICT (DEFERRED) ===")
+    log.info("=== RELATIONAL VERDICT ===")
+
+    scenario_verdicts = []
+    missing_scenarios = []
+
+    for scenario in SCENARIOS:
+        full = load_json(f"r1_hydrology_{scenario}.json")
+        no_wlag = load_json(f"r1_no_wlag_{scenario}.json")
+        wlag_only = load_json(f"r1_wlag_only_{scenario}.json")
+
+        if full is None:
+            missing_scenarios.append((scenario, "r1_hydrology (full)"))
+            continue
+        if no_wlag is None and wlag_only is None:
+            missing_scenarios.append((scenario, "r1_no_wlag + r1_wlag_only"))
+            continue
+
+        full_rmse = _extract_fold_metrics(full)
+        no_wlag_rmse = _extract_fold_metrics(no_wlag) if no_wlag else []
+        wlag_only_rmse = _extract_fold_metrics(wlag_only) if wlag_only else []
+
+        sv = {
+            "scenario": scenario,
+            "full_mean_rmse": float(np.mean(full_rmse)) if full_rmse else None,
+            "full_n_folds": len(full_rmse),
+        }
+
+        # Primary comparison: full vs no-wlag (removing W-matrix)
+        if full_rmse and no_wlag_rmse and len(full_rmse) == len(no_wlag_rmse):
+            full_arr = np.array(full_rmse)
+            no_wlag_arr = np.array(no_wlag_rmse)
+            delta = no_wlag_arr - full_arr  # positive = W-matrix helped
+
+            pooled_std = np.sqrt(
+                (np.var(full_arr, ddof=1) + np.var(no_wlag_arr, ddof=1)) / 2
+            )
+            cohens_d = float(np.mean(delta) / pooled_std) if pooled_std > 0 else 0.0
+
+            # Paired Wilcoxon on RMSE (two-sided)
+            try:
+                stat, p_val = stats.wilcoxon(no_wlag_rmse, full_rmse,
+                                             alternative="two-sided")
+                p_val = float(p_val)
+            except ValueError:
+                # All differences zero or n < 6
+                p_val = 1.0
+
+            sv["no_wlag_mean_rmse"] = float(np.mean(no_wlag_arr))
+            sv["no_wlag_n_folds"] = len(no_wlag_rmse)
+            sv["rmse_delta_mean"] = float(np.mean(delta))
+            sv["cohens_d"] = cohens_d
+            sv["wilcoxon_p"] = p_val
+
+            if abs(cohens_d) >= WMATRIX_EFFECT_THRESHOLD and p_val < 0.10:
+                sv["verdict"] = "SUPPORTED"
+                sv["rationale"] = (
+                    f"Removing W-matrix degrades RMSE by d={cohens_d:.3f} "
+                    f"(p={p_val:.4f}); W-matrix is load-bearing"
+                )
+            elif abs(cohens_d) >= WMATRIX_EFFECT_THRESHOLD:
+                sv["verdict"] = "PROVISIONAL"
+                sv["rationale"] = (
+                    f"Effect size d={cohens_d:.3f} meets threshold but "
+                    f"p={p_val:.4f} > 0.10; suggestive but not significant"
+                )
+            else:
+                sv["verdict"] = "NOT_LOAD_BEARING"
+                sv["rationale"] = (
+                    f"d={cohens_d:.3f} < {WMATRIX_EFFECT_THRESHOLD}; "
+                    "W-matrix does not meaningfully affect RMSE"
+                )
+        elif full_rmse and no_wlag_rmse:
+            sv["verdict"] = "INSUFFICIENT"
+            sv["rationale"] = (
+                f"Fold count mismatch: full={len(full_rmse)}, "
+                f"no_wlag={len(no_wlag_rmse)}"
+            )
+        else:
+            sv["verdict"] = "PENDING"
+            sv["rationale"] = "no-wlag ablation not yet available"
+
+        # Secondary: wlag-only contribution (informational, not gating)
+        if full_rmse and wlag_only_rmse:
+            sv["wlag_only_mean_rmse"] = float(np.mean(wlag_only_rmse))
+            sv["wlag_only_n_folds"] = len(wlag_only_rmse)
+
+        scenario_verdicts.append(sv)
+
+    # Handle all-missing case
+    if not scenario_verdicts:
+        return {
+            "geometry": "relational",
+            "verdict": "PENDING",
+            "rationale": ("No ablation results available for any scenario. "
+                          "Required: r1_no_wlag_{scenario}.json"),
+            "missing": missing_scenarios,
+        }
+
+    # Aggregate across scenarios
+    resolved = [v for v in scenario_verdicts if v["verdict"] not in
+                ("PENDING", "INSUFFICIENT")]
+    n_supported = sum(1 for v in resolved if v["verdict"] == "SUPPORTED")
+    n_not_lb = sum(1 for v in resolved if v["verdict"] == "NOT_LOAD_BEARING")
+    n_resolved = len(resolved)
+    n_total = len(scenario_verdicts)
+    n_pending = sum(1 for v in scenario_verdicts
+                    if v["verdict"] in ("PENDING", "INSUFFICIENT"))
+
+    if n_resolved == 0:
+        verdict = "PENDING"
+        rationale = (f"0/{n_total} scenarios have ablation results; "
+                     "verdict deferred until ablation runs complete")
+    elif n_supported > n_resolved / 2:
+        verdict = "SUPPORTED"
+        rationale = (f"{n_supported}/{n_resolved} scenarios show load-bearing "
+                     f"W-matrix (|d| >= {WMATRIX_EFFECT_THRESHOLD})")
+    elif n_supported > 0:
+        verdict = "PROVISIONAL"
+        rationale = (f"{n_supported}/{n_resolved} scenarios show effect; "
+                     "W-matrix contribution is partial across metros")
+    elif n_not_lb == n_resolved:
+        verdict = "NOT_LOAD_BEARING"
+        rationale = (f"0/{n_resolved} scenarios show meaningful W-matrix "
+                     "contribution; relational geometry not supported")
+    else:
+        verdict = "PROVISIONAL"
+        rationale = f"Mixed results across {n_resolved} resolved scenarios"
+
+    if n_pending > 0:
+        rationale += f" ({n_pending}/{n_total} scenarios still pending)"
+
     return {
         "geometry": "relational",
-        "verdict": "PENDING",
-        "rationale": ("W-matrix ablation variants specified in DOE but not yet "
-                      "executed. Verdict requires no-target-lag training runs."),
-        "required_runs": [
-            "R1-full (exists)",
-            "R1-no-wlag (not run)",
-            "R1-no-target-lag (not run)",
-            "R1-wlag-only (not run)",
-        ],
+        "verdict": verdict,
+        "rationale": rationale,
+        "threshold_d": WMATRIX_EFFECT_THRESHOLD,
+        "n_scenarios": n_total,
+        "n_resolved": n_resolved,
+        "n_supported": n_supported,
+        "n_not_load_bearing": n_not_lb,
+        "n_pending": n_pending,
+        "per_scenario": scenario_verdicts,
+        "missing_scenarios": missing_scenarios,
     }
 
 

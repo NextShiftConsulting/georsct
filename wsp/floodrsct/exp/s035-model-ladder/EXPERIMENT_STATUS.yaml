@@ -45,13 +45,23 @@ phases:
     - results/s035/r1_hydrology_riverside_coachella.json
     - results/s035/r1_hydrology_new_orleans.json
   r1_ablation:
-    status: COMPLETED
+    status: STALE
     verified: '2026-06-10'
     verification_method: s3_ls
     artifact_keys:
     - results/s035/r1_no_wlag_houston.json
+    - results/s035/r1_no_wlag_southwest_florida.json
+    - results/s035/r1_no_wlag_nyc.json
+    - results/s035/r1_no_wlag_riverside_coachella.json
+    - results/s035/r1_no_wlag_new_orleans.json
     - results/s035/r1_wlag_only_houston.json
-    notes: Houston only. Other 4 metros not ablated.
+    - results/s035/r1_wlag_only_southwest_florida.json
+    - results/s035/r1_wlag_only_nyc.json
+    - results/s035/r1_wlag_only_riverside_coachella.json
+    - results/s035/r1_wlag_only_new_orleans.json
+    notes: >
+      Houston COMPLETED (2 variants). Other 4 metros need no-wlag + wlag-only runs.
+      STALE because per-scenario requirement (CONTRACT) not met for all 5 metros.
   r2_temporal:
     status: COMPLETED
     verified: '2026-06-07'
@@ -113,15 +123,14 @@ phases:
     artifact_keys:
     - results/s035/dgm_routing.json
   verdicts:
-    status: COMPLETED
+    status: STALE
     verified: '2026-06-10'
     verification_method: s3_ls
     artifact_keys:
     - results/s035/verdicts.json
-    notes: 'Relational geometry = PENDING (ablation covers Houston only, not all 5
-      metros). This is correct, not stale. Verdicts predate ablation design.
-
-      '
+    notes: >
+      5/6 verdicts computed. Relational verdict = PENDING (ablation incomplete).
+      STALE: must re-run after r1_ablation completes all 5 metros.
   fast_zcta:
     status: COMPLETED
     verified: '2026-06-10'
