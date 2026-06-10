@@ -109,7 +109,7 @@ SIDECAR_PREFIX = "results/s035/sidecar/deployment_alignment"
 # Task descriptor config adapted for floodrsct column names
 CFG = TaskDescriptorConfig(
     id_cols=("zcta_id", "event"),
-    fold_col="fold_id",
+    fold_col="fold_spatial_blocked",
     lat_col="latitude",
     lon_col="longitude",
     n_bins=N_BINS,
