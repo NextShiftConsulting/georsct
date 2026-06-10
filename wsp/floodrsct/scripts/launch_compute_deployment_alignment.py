@@ -5,9 +5,9 @@ Deployment-aligned validation (TWCV): reweights CV losses to match
 deployment task distribution. Runs AFTER all training levels complete.
 
 Usage:
-    python launch_compute_deployment_alignment.py --scenario houston
-    python launch_compute_deployment_alignment.py --all-scenarios
     python launch_compute_deployment_alignment.py --all-scenarios --dry-run
+    python launch_compute_deployment_alignment.py --all-scenarios
+    python launch_compute_deployment_alignment.py --scenario houston
 """
 
 import argparse
@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from _launcher_common import launch_processing_job
+from _launcher_base import launch_processing_job, make_job_name
 
 MODELABLE = [
     "houston",
@@ -26,9 +26,6 @@ MODELABLE = [
 ]
 
 JOB_SCRIPT = "compute_deployment_alignment.py"
-EXTRA_FILES = [
-    "_coverage_common.py",
-]
 
 
 def main():
@@ -38,7 +35,6 @@ def main():
     parser.add_argument("--scenario", choices=MODELABLE)
     parser.add_argument("--all-scenarios", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--upload", action="store_true", default=True)
     args = parser.parse_args()
 
     if not args.scenario and not args.all_scenarios:
@@ -51,20 +47,18 @@ def main():
     else:
         script_args.extend(["--scenario", args.scenario])
     script_args.append("--all-levels")
-    if args.upload:
-        script_args.append("--upload")
+    script_args.append("--upload")
 
-    job_name_suffix = "all" if args.all_scenarios else args.scenario
+    suffix = "all" if args.all_scenarios else args.scenario
+    job_name = make_job_name(f"deploy-align-{suffix}")
 
     launch_processing_job(
-        job_name=f"s035-deploy-align-{job_name_suffix}",
-        script=JOB_SCRIPT,
-        extra_files=EXTRA_FILES,
-        script_args=script_args,
+        job_name=job_name,
+        job_script=JOB_SCRIPT,
+        job_args=script_args,
         instance_type="ml.m5.large",
         volume_size_gb=20,
-        pip_packages="georsct scikit-learn scipy pandas numpy pyarrow swarm-auth",
-        pre_install_cmd=None,
+        pip_packages="scikit-learn scipy",
         dry_run=args.dry_run,
     )
 

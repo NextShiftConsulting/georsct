@@ -411,7 +411,7 @@ def run_certificates(s3, level: str, upload: bool = False) -> dict:
         print(
             f"  {c['scenario']:25s} {c['target']:30s} "
             f"R={c['R']:.3f} S={c['S_sup']:.3f} N={c['N']:.3f} "
-            f"a={c['alpha']:.2f} w={c['omega']:.2f} k={c['kappa']:.2f} "
+            f"a={c['alpha']:.2f} w={c['omega']:.2f} k={c['kappa_compat']:.2f} "
             f"t={c['tau']:.2f} [{c.get('diagnosis_label', 'N/A')}]"
         )
 
