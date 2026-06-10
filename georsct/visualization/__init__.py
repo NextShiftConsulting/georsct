@@ -16,12 +16,20 @@ Modules:
     render_ladder    -- variance-stack ladder (re-exported from analysis)
 """
 
-from georsct.analysis.render_ladder import render_ladder_panel
-from georsct.visualization.model_ladder import render_model_ladder
-from georsct.visualization.moran_evolution import (
-    render_moran_evolution,
-    turbulence_results_to_frames,
-)
+
+def __getattr__(name):
+    """Lazy imports to avoid circular dependency with analysis.render_ladder."""
+    if name == "render_ladder_panel":
+        from georsct.analysis.render_ladder import render_ladder_panel
+        return render_ladder_panel
+    if name == "render_model_ladder":
+        from georsct.visualization.model_ladder import render_model_ladder
+        return render_model_ladder
+    if name in ("render_moran_evolution", "turbulence_results_to_frames"):
+        from georsct.visualization import moran_evolution
+        return getattr(moran_evolution, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     "render_ladder_panel",
