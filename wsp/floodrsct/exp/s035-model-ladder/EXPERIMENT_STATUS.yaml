@@ -337,9 +337,15 @@ phases:
       - results/s035/r3_dgm_admission_trace.json
 
   r3_certified_training:
-    status: STALE
+    status: COMPLETED
     verified: "2026-06-10"
     verification_method: s3_ls
+    job_ids:
+      - s035-r3-certified-houston-20260610-164621
+      - s035-r3-certified-southwest-florida-20260610-164631
+      - s035-r3-certified-nyc-20260610-164641
+      - s035-r3-certified-riverside-coachella-20260610-164651
+      - s035-r3-certified-new-orleans-20260610-165153
     artifact_keys:
       - results/s035/r3_houston.json
       - results/s035/r3_southwest_florida.json
@@ -347,10 +353,8 @@ phases:
       - results/s035/r3_riverside_coachella.json
       - results/s035/r3_new_orleans.json
     notes: >
-      Key pattern was r3_{scenario}.json, not r3_certified_{scenario}.json.
-      Artifacts exist from June 6 but are pre-kappa-fix (cert.get("kappa")=0).
-      Block admission re-ran 2026-06-10 with correct kappa_compat. Must re-run
-      certified training against the new admission table.
+      Re-run 2026-06-10 against kappa-fixed admission table (01a89e6).
+      All 5 scenarios completed. Git: bee7d811b854.
 
   r3_money_table:
     status: STALE
