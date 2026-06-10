@@ -88,10 +88,7 @@ SIDECAR_PREFIX = "results/s035/sidecar/variance_stack"
 # ---------------------------------------------------------------------------
 
 def load_features(s3, scenario: str) -> pd.DataFrame:
-    key = f"processed/{scenario}/{scenario}_event_features.parquet"
-    log.info("Loading s3://%s/%s", BUCKET, key)
-    resp = s3.get_object(Bucket=BUCKET, Key=key)
-    return pd.read_parquet(io.BytesIO(resp["Body"].read()))
+    return load_processed_parquet(s3, scenario)
 
 
 def load_folds(s3, scenario: str) -> pd.DataFrame:
@@ -296,7 +293,7 @@ def main():
             log.warning("Cannot load data for %s: %s", scenario, e)
             continue
 
-        log.info("Loaded %d rows x %d columns", len(features), len(features.shape))
+        log.info("Loaded %d rows x %d columns", len(features), len(features.columns))
 
         merged = features.merge(
             folds[["zcta_id", "event", "fold_spatial_blocked"]],
