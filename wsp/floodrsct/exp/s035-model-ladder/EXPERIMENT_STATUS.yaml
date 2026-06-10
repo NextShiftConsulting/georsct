@@ -357,11 +357,16 @@ phases:
       All 5 scenarios completed. Git: bee7d811b854.
 
   r3_money_table:
-    status: STALE
+    status: COMPLETED
     verified: "2026-06-10"
     verification_method: s3_ls
-    artifact_keys: [results/s035/r3_money_table.json]
-    notes: "Pre-kappa-fix (June 6). Depends on r3_certified_training which is STALE."
+    job_id: s035-r3-money-table-20260610-165740
+    artifact_keys:
+      - results/s035/r3_money_table.json
+      - results/s035/r3_hypothesis_evidence.json
+    notes: >
+      Re-run against kappa-fixed r3_certified_training (bfe61be).
+      H5=NO_DEGRADATION (p=0.594, d=-0.249). H7=4/11. H6/H8=INSUFFICIENT_DATA.
 
 # ===== PAPER CLAIM VERIFICATION =====
 # Each paper section with empirical claims and their artifact backing.
