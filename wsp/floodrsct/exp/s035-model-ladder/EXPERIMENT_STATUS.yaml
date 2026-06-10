@@ -11,6 +11,9 @@
 # 3. artifact_key is the S3 key that PROVES the experiment ran.
 # 4. job_id is the SageMaker job name (for CloudWatch log tracing).
 #
+# IMPORTANT: Phase keys MUST match phase_id values in EXPERIMENT_CONTRACT.yaml
+# so that verify_experiment_status.py --next-steps can resolve dependencies.
+#
 # STATUS VALUES:
 #   DESIGNED    - DOE written, code exists, never launched
 #   LAUNCHED    - SageMaker job submitted, not yet complete
@@ -29,133 +32,140 @@ experiment: s035-model-ladder
 last_audit: "2026-06-10"
 s3_bucket: swarm-floodrsct-data
 
-# ===== PHASE 0: Data Fetch & Staging =====
 phases:
+
+  # ===== PHASE 0: Data Fetch & Staging =====
   data_fetch:
     status: COMPLETED
     verified: "2026-06-07"
     verification_method: s3_ls
     notes: "All 5 scenarios staged. ~160 jobs total."
 
-  # ===== PHASE 1: Event Building =====
+  # ===== PHASE 0.5: Event Building =====
   event_building:
     status: COMPLETED
     verified: "2026-06-07"
     verification_method: s3_ls
     notes: "All 5 scenarios + NYC event expansion (Sandy+NYC2023)."
 
-  # ===== PHASE 2: Model Training =====
-  model_training:
-    r0_baseline:
-      status: COMPLETED
-      verified: "2026-06-07"
-      verification_method: s3_ls
-      artifact_keys:
-        - results/s035/r0_houston.json
-        - results/s035/r0_southwest_florida.json
-        - results/s035/r0_nyc.json
-        - results/s035/r0_riverside_coachella.json
-        - results/s035/r0_new_orleans.json
-
-    r1_spatial:
-      status: COMPLETED
-      verified: "2026-06-07"
-      verification_method: s3_ls
-      artifact_keys:
-        - results/s035/r1_hydrology_houston.json
-        - results/s035/r1_hydrology_southwest_florida.json
-        - results/s035/r1_hydrology_nyc.json
-        - results/s035/r1_hydrology_riverside_coachella.json
-        - results/s035/r1_hydrology_new_orleans.json
-
-    r2_temporal:
-      status: COMPLETED
-      verified: "2026-06-07"
-      verification_method: s3_ls
-      artifact_keys:
-        - results/s035/r2_houston.json
-        - results/s035/r2_southwest_florida.json
-        - results/s035/r2_nyc.json
-        - results/s035/r2_riverside_coachella.json
-        - results/s035/r2_new_orleans.json
-
-    r1_ablation:
-      status: COMPLETED
-      verified: "2026-06-10"
-      verification_method: s3_ls
-      artifact_keys:
-        - results/s035/r1_no_wlag_houston.json
-        - results/s035/r1_wlag_only_houston.json
-      notes: "Houston only. Other 4 metros not ablated."
-
-  # ===== PHASE 3: Certificates & Diagnostics =====
-  certificates:
-    r0:
-      status: COMPLETED
-      verified: "2026-06-10"
-      verification_method: s3_ls
-      artifact_keys: [results/s035/certificates_r0.json]
-      notes: "Job crashed at summary print (KeyError kappa) but data uploaded before crash. Fixed in 6db60a8."
-    r1:
-      status: COMPLETED
-      verified: "2026-06-10"
-      verification_method: s3_ls
-      artifact_keys: [results/s035/certificates_r1.json]
-    r2:
-      status: COMPLETED
-      verified: "2026-06-10"
-      verification_method: s3_ls
-      artifact_keys: [results/s035/certificates_r2.json]
-
+  # ===== PHASE 0.5: Geometry Kappa (pre-training) =====
   geometry_kappa:
     status: COMPLETED
     verified: "2026-06-07"
     verification_method: s3_ls
     artifact_keys: [results/s035/geometry_kappa.json]
 
-  diagnostics:
+  # ===== PHASE 0.75: Gearbox Warmup =====
+  gearbox_warmup:
+    status: COMPLETED
+    verified: "2026-06-07"
+    verification_method: s3_ls
+    artifact_keys: [results/s035/gearbox_warmup.json]
+
+  # ===== PHASE 1: R0 Baseline Training =====
+  r0_baseline:
     status: COMPLETED
     verified: "2026-06-07"
     verification_method: s3_ls
     artifact_keys:
-      - results/s035/diagnostics_r0.json
-      - results/s035/diagnostics_r1.json
-      - results/s035/diagnostics_r2.json
+      - results/s035/r0_houston.json
+      - results/s035/r0_southwest_florida.json
+      - results/s035/r0_nyc.json
+      - results/s035/r0_riverside_coachella.json
+      - results/s035/r0_new_orleans.json
 
-  # ===== PHASE 4: Spatial Diagnostics (LISA, GWR) =====
-  spatial_diagnostics:
-    lisa:
-      status: COMPLETED
-      verified: "2026-06-10"
-      verification_method: s3_ls
-      artifact_keys: [results/s035/sidecar/lisa_results.json]
-      notes: "Canonical source for Moran's I and LISA fractions."
-    gwr:
-      status: COMPLETED
-      verified: "2026-06-10"
-      verification_method: s3_ls
-      artifact_keys: [results/s035/sidecar/gwr_nonstationarity.json]
-    figures:
-      fig5_lisa_triptych:
-        status: COMPLETED
-        verified: "2026-06-07"
-        verification_method: s3_ls
-        artifact_keys: [results/s035/sidecar/figures/fig5_lisa_triptych_houston.pdf]
-      fig6_gwr_local_r2:
-        status: COMPLETED
-        verified: "2026-06-07"
-        verification_method: s3_ls
-        artifact_keys: [results/s035/sidecar/figures/fig6_gwr_local_r2_houston.pdf]
-
-  # ===== PHASE 5: R3 Certificate-Gated Admission =====
-  r3_admission:
+  # ===== PHASE 2: R1 Hydrology Training =====
+  r1_hydrology:
     status: COMPLETED
     verified: "2026-06-07"
     verification_method: s3_ls
     artifact_keys:
-      - results/s035/money_table.json
+      - results/s035/r1_hydrology_houston.json
+      - results/s035/r1_hydrology_southwest_florida.json
+      - results/s035/r1_hydrology_nyc.json
+      - results/s035/r1_hydrology_riverside_coachella.json
+      - results/s035/r1_hydrology_new_orleans.json
 
-  # ===== PHASE 6: Verdicts =====
+  # ===== PHASE 2 (ablation): R1 W-matrix Ablation =====
+  r1_ablation:
+    status: COMPLETED
+    verified: "2026-06-10"
+    verification_method: s3_ls
+    artifact_keys:
+      - results/s035/r1_no_wlag_houston.json
+      - results/s035/r1_wlag_only_houston.json
+    notes: "Houston only. Other 4 metros not ablated."
+
+  # ===== PHASE 3: R2 Temporal Training =====
+  r2_temporal:
+    status: COMPLETED
+    verified: "2026-06-07"
+    verification_method: s3_ls
+    artifact_keys:
+      - results/s035/r2_houston.json
+      - results/s035/r2_southwest_florida.json
+      - results/s035/r2_nyc.json
+      - results/s035/r2_riverside_coachella.json
+      - results/s035/r2_new_orleans.json
+
+  # ===== PHASE 4a: Diagnostics R0 =====
+  diagnostics_r0:
+    status: COMPLETED
+    verified: "2026-06-07"
+    verification_method: s3_ls
+    artifact_keys: [results/s035/diagnostics_r0.json]
+
+  # ===== PHASE 4b: Diagnostics R1 =====
+  diagnostics_r1:
+    status: COMPLETED
+    verified: "2026-06-07"
+    verification_method: s3_ls
+    artifact_keys: [results/s035/diagnostics_r1.json]
+
+  # ===== PHASE 4c: Diagnostics R2 =====
+  diagnostics_r2:
+    status: COMPLETED
+    verified: "2026-06-07"
+    verification_method: s3_ls
+    artifact_keys: [results/s035/diagnostics_r2.json]
+
+  # ===== PHASE 4.5a: Certificates R0 =====
+  certificates_r0:
+    status: COMPLETED
+    verified: "2026-06-10"
+    verification_method: s3_ls
+    artifact_keys: [results/s035/certificates_r0.json]
+    notes: "Job crashed at summary print (KeyError kappa) but data uploaded before crash. Fixed in 6db60a8."
+
+  # ===== PHASE 4.5b: Certificates R1 =====
+  certificates_r1:
+    status: COMPLETED
+    verified: "2026-06-10"
+    verification_method: s3_ls
+    artifact_keys: [results/s035/certificates_r1.json]
+
+  # ===== PHASE 4.5c: Certificates R2 =====
+  certificates_r2:
+    status: COMPLETED
+    verified: "2026-06-10"
+    verification_method: s3_ls
+    artifact_keys: [results/s035/certificates_r2.json]
+
+  # ===== PHASE 5: Uplift Table (Money Table + Hypothesis Tests) =====
+  uplift_table:
+    status: COMPLETED
+    verified: "2026-06-07"
+    verification_method: s3_ls
+    artifact_keys: [results/s035/money_table.json]
+
+  # ===== PHASE 6: DGM Routing =====
+  dgm_routing:
+    status: COMPLETED
+    verified: "2026-06-07"
+    verification_method: s3_ls
+    artifact_keys: [results/s035/dgm_routing.json]
+
+  # ===== PHASE 6b: Verdicts =====
   verdicts:
     status: COMPLETED
     verified: "2026-06-10"
@@ -165,7 +175,12 @@ phases:
       Relational geometry = PENDING (ablation covers Houston only, not all 5 metros).
       This is correct, not stale. Verdicts predate ablation design.
 
-  # ===== PHASE 7: FAST External Validation =====
+  # ===== PHASE 7a: FAST ZCTA Aggregates =====
+  fast_zcta:
+    status: BLOCKED
+    notes: "NSI 2.0 not on S3. Cannot produce FAST engineering features."
+
+  # ===== PHASE 7b: FAST External Validation =====
   fast_validation:
     status: COMPLETED
     verified: "2026-06-10"
@@ -173,7 +188,35 @@ phases:
     artifact_keys: [results/s035/fast_validation.json]
     notes: "Houston Spearman rho: -0.189 to -0.329 across events."
 
-  # ===== PHASE 8: Transfer Event Distance =====
+  # ===== Spatial Diagnostics: LISA =====
+  spatial_sidecar_lisa:
+    status: COMPLETED
+    verified: "2026-06-10"
+    verification_method: s3_ls
+    artifact_keys: [results/s035/sidecar/lisa_results.json]
+    notes: "Canonical source for Moran's I and LISA fractions."
+
+  # ===== Spatial Diagnostics: GWR =====
+  spatial_sidecar_gwr:
+    status: COMPLETED
+    verified: "2026-06-10"
+    verification_method: s3_ls
+    artifact_keys: [results/s035/sidecar/gwr_nonstationarity.json]
+
+  # ===== Spatial Diagnostics: Figures =====
+  fig5_lisa_triptych:
+    status: COMPLETED
+    verified: "2026-06-07"
+    verification_method: s3_ls
+    artifact_keys: [results/s035/sidecar/figures/fig5_lisa_triptych_houston.pdf]
+
+  fig6_gwr_local_r2:
+    status: COMPLETED
+    verified: "2026-06-07"
+    verification_method: s3_ls
+    artifact_keys: [results/s035/sidecar/figures/fig6_gwr_local_r2_houston.pdf]
+
+  # ===== Transfer: Event Distance Matrix =====
   event_distance_matrix:
     status: COMPLETED
     verified: "2026-06-10"
@@ -181,14 +224,32 @@ phases:
     artifact_keys: [results/s035/sidecar/event_distance_matrix.json]
     notes: "Uploaded from local to S3 on 2026-06-10. Source of transfer r/Jaccard/Wasserstein."
 
-  # ===== PHASE 9: VLM / R4 Quality Assessment =====
-  vlm_quality:
+  # ===== R4: VLM Pipeline =====
+  r4_render_maps:
     status: COMPLETED
     verified: "2026-06-07"
     verification_method: s3_ls
-    notes: "5 providers x 5 scenarios. Used for R4.3 VLM assessment."
+    notes: "5 scenarios rendered."
 
-  # ===== PHASE 4e: Deployment Alignment (TWCV) =====
+  r4_build_evidence:
+    status: COMPLETED
+    verified: "2026-06-07"
+    verification_method: s3_ls
+    notes: "5 scenarios evidence built."
+
+  r4_vlm_assessment:
+    status: COMPLETED
+    verified: "2026-06-07"
+    verification_method: s3_ls
+    notes: "5 providers x 5 scenarios."
+
+  r4_vlm_comparison:
+    status: COMPLETED
+    verified: "2026-06-07"
+    verification_method: s3_ls
+    notes: "VLM money table + H7-H9 evidence."
+
+  # ===== Deployment Alignment (TWCV) =====
   deployment_alignment:
     status: COMPLETED
     verified: "2026-06-10"
@@ -207,43 +268,94 @@ phases:
       Uplift direction agrees for all 5 scenarios (3 improved, 2 degraded).
       This is the SIMPLE raking-only version, NOT the full 5-step variance stack.
 
-  # ===== PHASE 4e.2: Variance Stack Decomposition =====
+  # ===== Variance Stack Decomposition =====
   variance_stack:
     status: COMPLETED
     verified: "2026-06-10"
     verification_method: s3_ls
-    job_id: s035-variance-stack-20260610-152036
+    job_id: s035-variance-stack-20260610-153849
     artifact_keys:
       - results/s035/sidecar/variance_stack/variance_stack_results.json
     code: jobs/run_variance_stack.py
     library: georsct.analysis.variance_stack
     doe: DOE_deployment_alignment.md
     notes: >
-      5 cells: Houston (NFIP claims, 311 reports), NYC (NFIP claims, 311 reports, HWM).
-      Riverside_coachella + new_orleans: NoSuchKey (event_features.parquet missing).
-      SWFL: no targets passed prevalence filter. Houston obs_has_hwm missing.
-      Key finding: ladder NOT flat. Raking reduces Houston gap 0.174->0.103 (-41%)
-      but increases RMSE 156.8->161.0 (bias-variance tradeoff).
-      NYC: FAIL_COVERAGE at step 1 (19.8% uncovered deployment mass).
-      Shrinkage recovers ~10 ESS points consistently.
-      Paper sec 7.1 numbers were fabricated; must rewrite with these real values.
+      v3 run (dc64ffc). 6 cells: Houston (NFIP, 311), NYC (NFIP, 311, HWM), NOLA (NFIP).
+      SWFL NFIP/HWM: binning error (training fold too small after NaN filter). SWFL 311: 0 targets.
+      Riverside NFIP: binning error. Riverside 311: 0 targets. Riverside HWM: prevalence 0.006.
+      Houston HWM: prevalence 0.0 (no HWM data).
+      Key findings: ladder NOT flat. Houston gap 0.174->0.103 (-41%), RMSE +2.7% (bias-variance).
+      NYC FAIL_COVERAGE (19.8% uncovered). NOLA FAIL_COVERAGE gap 0.531->0.521 (-2%).
+      Paper sec 7.1 rewritten with real numbers (93e9c2d in adaptive-context-research).
 
-  # ===== PHASE 4e.3: Variance Stack Figure =====
+  # ===== Variance Stack Figure =====
   variance_stack_figure:
     status: DESIGNED
     verified: "2026-06-10"
     artifact_keys: []
     notes: "Depends on variance_stack. Paper Figure 4 (fig_variance_stack.pdf)."
-    blocker: "Depends on variance_stack completion."
+
+  # ===== R3: Certificate-Gated Admission Pipeline =====
+  r3_feature_registry:
+    status: COMPLETED
+    verified: "2026-06-10"
+    verification_method: s3_ls
+    artifact_keys: [results/s035/r3_feature_registry.json]
+
+  r3_block_tests:
+    status: COMPLETED
+    verified: "2026-06-10"
+    verification_method: s3_ls
+    artifact_keys:
+      - results/s035/r3_block_tests_houston.json
+      - results/s035/r3_block_tests_southwest_florida.json
+      - results/s035/r3_block_tests_nyc.json
+      - results/s035/r3_block_tests_riverside_coachella.json
+      - results/s035/r3_block_tests_new_orleans.json
+
+  r3_order_robustness:
+    status: COMPLETED
+    verified: "2026-06-10"
+    verification_method: s3_ls
+    artifact_keys:
+      - results/s035/r3_order_robustness_houston.json
+      - results/s035/r3_order_robustness_southwest_florida.json
+      - results/s035/r3_order_robustness_nyc.json
+      - results/s035/r3_order_robustness_riverside_coachella.json
+      - results/s035/r3_order_robustness_new_orleans.json
+
+  r3_block_admission:
+    status: COMPLETED
+    verified: "2026-06-10"
+    verification_method: s3_ls
+    artifact_keys:
+      - results/s035/r3_block_admission_table.json
+      - results/s035/r3_dgm_admission_trace.json
+
+  r3_certified_training:
+    status: COMPLETED
+    verified: "2026-06-10"
+    verification_method: s3_ls
+    artifact_keys:
+      - results/s035/r3_certified_houston.json
+      - results/s035/r3_certified_southwest_florida.json
+      - results/s035/r3_certified_nyc.json
+      - results/s035/r3_certified_riverside_coachella.json
+      - results/s035/r3_certified_new_orleans.json
+
+  r3_money_table:
+    status: COMPLETED
+    verified: "2026-06-10"
+    verification_method: s3_ls
+    artifact_keys: [results/s035/r3_money_table.json]
 
 # ===== PAPER CLAIM VERIFICATION =====
 # Each paper section with empirical claims and their artifact backing.
 paper_claims:
   sec_7_1_variance_stack:
-    status: YELLOW
-    reason: "Variance stack now COMPLETED (s035-variance-stack-20260610-152036). Real numbers on S3. Paper text still contains fabricated values -- must rewrite sec 7.1 with artifact data."
-    artifact_needed: "Rewrite 07_results.tex lines 67-92 with real numbers from variance_stack_results.json"
-    fix: "Replace fabricated numbers with: Houston gap 0.174->0.103, NYC FAIL_COVERAGE, ESS tradeoffs"
+    status: GREEN
+    reason: "Rewritten in 93e9c2d with real numbers from s035-variance-stack-20260610-153849. 6 cells, all numbers traced to variance_stack_results.json."
+    artifact_needed: "Figure fig_variance_stack.pdf still needs generation."
 
   sec_7_2_alpha_threshold:
     status: GREEN
