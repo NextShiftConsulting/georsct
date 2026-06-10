@@ -1118,6 +1118,7 @@ def build_houston(s3, cfg: dict) -> pd.DataFrame:
     # Feature contract derived fields (computed once, shared across events)
     impervious = build_impervious_features(s3, harris_zctas)
     cropland   = build_cropland_features(s3, harris_zctas)
+    jrc_water  = build_jrc_water_features(s3, harris_zctas)
     catchments = build_catchment_features(s3, harris_zctas, vpu="12")
     levees     = build_levee_features(s3, harris_zctas, "houston")
     elevation  = build_elevation_features(s3, harris_zctas, "houston")
@@ -1142,8 +1143,8 @@ def build_houston(s3, cfg: dict) -> pd.DataFrame:
         base = pd.DataFrame({"zcta_id": harris_zctas, "event": event_name,
                               "scenario": "houston"})
         base = _safe_merge_parts(base, [nwis, mrms, hwm, tides, s311, nfip, storm,
-                                        impervious, cropland, catchments, levees,
-                                        elevation, drainage_op])
+                                        impervious, cropland, jrc_water, catchments,
+                                        levees, elevation, drainage_op])
         if not static.empty:
             base = _safe_merge_parts(base, [static])
         w_feats = compute_w_matrix_features(s3, harris_zctas, static, base)
@@ -1170,6 +1171,7 @@ def build_new_orleans(s3, cfg: dict) -> pd.DataFrame:
     # Feature contract derived fields
     impervious   = build_impervious_features(s3, no_zctas)
     cropland     = build_cropland_features(s3, no_zctas)
+    jrc_water    = build_jrc_water_features(s3, no_zctas)
     levee_feats  = build_levee_features(s3, no_zctas, "new_orleans")
     elevation    = build_elevation_features(s3, no_zctas, "new_orleans")
     coastal_dist = build_coastal_distance_features(s3, no_zctas)
@@ -1212,8 +1214,9 @@ def build_new_orleans(s3, cfg: dict) -> pd.DataFrame:
         base = pd.DataFrame({"zcta_id": no_zctas, "event": event_name,
                               "scenario": "new_orleans"})
         base = _safe_merge_parts(base, [nwis, mrms, tides, hwm, nfip, storm,
-                                        slosh, impervious, cropland, levee_feats,
-                                        elevation, coastal_dist, pump_op])
+                                        slosh, impervious, cropland, jrc_water,
+                                        levee_feats, elevation, coastal_dist,
+                                        pump_op])
         if not static.empty:
             base = _safe_merge_parts(base, [static])
         # Attach pump evidence for Ida 2021 (hand-coded override for pump_station_status)
@@ -1250,6 +1253,7 @@ def build_nyc(s3, cfg: dict) -> pd.DataFrame:
     # Feature contract derived fields
     impervious   = build_impervious_features(s3, nyc_zctas)
     cropland     = build_cropland_features(s3, nyc_zctas)
+    jrc_water    = build_jrc_water_features(s3, nyc_zctas)
     elevation    = build_elevation_features(s3, nyc_zctas, "nyc")
     sewer_feats  = build_sewershed_features(s3, nyc_zctas)
     subway_feats = build_subway_features(s3, nyc_zctas)
@@ -1283,8 +1287,8 @@ def build_nyc(s3, cfg: dict) -> pd.DataFrame:
         base = pd.DataFrame({"zcta_id": nyc_zctas, "event": event_name,
                               "scenario": "nyc"})
         base = _safe_merge_parts(base, [nwis, mrms, tides, hwm, s311, nfip, storm,
-                                        impervious, cropland, elevation,
-                                        sewer_feats, subway_feats])
+                                        impervious, cropland, jrc_water,
+                                        elevation, sewer_feats, subway_feats])
         if not static.empty:
             base = _safe_merge_parts(base, [static])
         # Subway flooding evidence (hand-coded Ida 2021 overlay)
@@ -1314,6 +1318,7 @@ def build_riverside_coachella(s3, cfg: dict) -> pd.DataFrame:
     # Feature contract derived fields
     impervious  = build_impervious_features(s3, rc_zctas)
     cropland    = build_cropland_features(s3, rc_zctas)
+    jrc_water   = build_jrc_water_features(s3, rc_zctas)
     burn_scars  = build_burn_scar_features(s3, rc_zctas)
     catchments  = build_catchment_features(s3, rc_zctas, vpu="18")
     elevation   = build_elevation_features(s3, rc_zctas, "riverside_coachella")
@@ -1345,8 +1350,9 @@ def build_riverside_coachella(s3, cfg: dict) -> pd.DataFrame:
         base = pd.DataFrame({"zcta_id": rc_zctas, "event": event_name,
                               "scenario": "riverside_coachella"})
         base = _safe_merge_parts(base, [nwis, mrms, hwm, nfip, storm,
-                                        impervious, cropland, burn_scars,
-                                        catchments, elevation, road_op])
+                                        impervious, cropland, jrc_water,
+                                        burn_scars, catchments, elevation,
+                                        road_op])
         if not static.empty:
             base = _safe_merge_parts(base, [static])
         w_feats = compute_w_matrix_features(s3, rc_zctas, static, base)
@@ -1371,6 +1377,7 @@ def build_southwest_florida(s3, cfg: dict) -> pd.DataFrame:
     # Feature contract derived fields
     impervious      = build_impervious_features(s3, swfl_zctas)
     cropland        = build_cropland_features(s3, swfl_zctas)
+    jrc_water       = build_jrc_water_features(s3, swfl_zctas)
     elevation       = build_elevation_features(s3, swfl_zctas, "southwest_florida")
     coastal_dist    = build_coastal_distance_features(s3, swfl_zctas)
     levee_feats     = build_levee_features(s3, swfl_zctas, "southwest_florida")
@@ -1406,8 +1413,9 @@ def build_southwest_florida(s3, cfg: dict) -> pd.DataFrame:
         base = pd.DataFrame({"zcta_id": swfl_zctas, "event": event_name,
                               "scenario": "southwest_florida"})
         base = _safe_merge_parts(base, [nwis, mrms, tides, hwm, nfip, storm,
-                                        slosh, impervious, cropland, elevation,
-                                        coastal_dist, levee_feats, evac_op])
+                                        slosh, impervious, cropland, jrc_water,
+                                        elevation, coastal_dist, levee_feats,
+                                        evac_op])
         if not static.empty:
             base = _safe_merge_parts(base, [static])
         w_feats = compute_w_matrix_features(s3, swfl_zctas, static, base)
@@ -1472,6 +1480,8 @@ def _operational_unknown(df: pd.DataFrame, col: str, note: str = _OPERATIONAL_NO
     df[f"_fs_{col}_reason"] = note
     return df
 
+
+_JRC_WATER_CACHE_KEY = "processed/shared/zcta_jrc_water_occurrence_pct.parquet"
 
 _IMPERVIOUS_CACHE_KEY = "processed/shared/zcta_impervious_pct.parquet"
 
@@ -1886,6 +1896,105 @@ def build_cropland_features(s3, zcta_ids: list[str]) -> pd.DataFrame:
     out["_fs_cropland_pct"] = np.where(out["cropland_pct"].notna(), "present", _FS_MISSING)
     log.info("build_cropland_features: %d ZCTAs, %.1f%% with data",
              len(out), (out["cropland_pct"].notna().mean() * 100))
+    return out
+
+
+def build_jrc_water_features(s3, zcta_ids: list[str]) -> pd.DataFrame:
+    """Derive JRC water occurrence stats per ZCTA from Planetary Computer.
+
+    Uses floodcaster.stac.jrc_centroid_occurrence to fetch JRC Global Surface
+    Water (1984-2020) from Microsoft Planetary Computer STAC API. Extracts
+    mean/max occurrence and pct_ever_wet within ~1 km of each ZCTA centroid.
+
+    Cache-first: checks for pre-computed parquet at
+    s3://{BUCKET}/{_JRC_WATER_CACHE_KEY} before STAC extraction.
+
+    Returns DataFrame with columns:
+        zcta_id, jrc_occurrence_mean, jrc_occurrence_max, jrc_pct_ever_wet,
+        _fs_jrc_occurrence_mean.
+    """
+    empty = pd.DataFrame({
+        "zcta_id": zcta_ids,
+        "jrc_occurrence_mean": np.nan,
+        "jrc_occurrence_max": np.nan,
+        "jrc_pct_ever_wet": np.nan,
+        "_fs_jrc_occurrence_mean": _FS_MISSING,
+    })
+
+    # --- Cache lookup ---
+    try:
+        cached = s3_read(s3, _JRC_WATER_CACHE_KEY)
+        if cached is not None and "zcta_id" in cached.columns:
+            cached["zcta_id"] = cached["zcta_id"].astype(str)
+            out = pd.DataFrame({"zcta_id": zcta_ids}).merge(
+                cached[["zcta_id", "jrc_occurrence_mean", "jrc_occurrence_max", "jrc_pct_ever_wet"]],
+                on="zcta_id", how="left",
+            )
+            hit_rate = out["jrc_occurrence_mean"].notna().mean()
+            if hit_rate > 0.5:
+                out["_fs_jrc_occurrence_mean"] = np.where(
+                    out["jrc_occurrence_mean"].notna(), "present", _FS_MISSING,
+                )
+                log.info("build_jrc_water_features: cache hit (%.0f%% coverage)", hit_rate * 100)
+                return out
+    except Exception as e:
+        log.info("build_jrc_water_features: no cache (%s), extracting from STAC", e)
+
+    # --- Load ZCTA centroids ---
+    static_key = "raw/geocertdb2026/zcta_features_labels.parquet"
+    static = s3_read(s3, static_key)
+    if static is None:
+        log.warning("build_jrc_water_features: geocertdb2026 not available; returning NaN")
+        return empty
+
+    zcta_col = next((c for c in static.columns if "zcta" in c.lower()), None)
+    lat_col = next((c for c in static.columns if "lat" in c.lower()), None)
+    lon_col = next((c for c in static.columns if "lon" in c.lower() or "lng" in c.lower()), None)
+    if not all([zcta_col, lat_col, lon_col]):
+        log.warning("build_jrc_water_features: missing zcta/lat/lon columns; returning NaN")
+        return empty
+
+    static = static[[zcta_col, lat_col, lon_col]].rename(
+        columns={zcta_col: "zcta_id", lat_col: "lat", lon_col: "lon"},
+    )
+    centroids = static[static["zcta_id"].isin(zcta_ids)].dropna(subset=["lat", "lon"])
+
+    if centroids.empty:
+        log.warning("build_jrc_water_features: no centroids matched; returning NaN")
+        return empty
+
+    # --- Extract from Planetary Computer via floodcaster ---
+    try:
+        from floodcaster.stac import jrc_centroid_occurrence
+        extracted = jrc_centroid_occurrence(centroids, id_col="zcta_id")
+    except Exception as e:
+        log.warning("build_jrc_water_features: STAC extraction failed: %s", e)
+        return empty
+
+    # --- Cache write ---
+    try:
+        existing = s3_read(s3, _JRC_WATER_CACHE_KEY)
+        if existing is not None and "zcta_id" in existing.columns:
+            existing["zcta_id"] = existing["zcta_id"].astype(str)
+            combined = pd.concat([existing, extracted], ignore_index=True)
+            combined = combined.drop_duplicates(subset=["zcta_id"], keep="last")
+        else:
+            combined = extracted
+        buf = BytesIO()
+        combined.to_parquet(buf, index=False)
+        buf.seek(0)
+        s3.put_object(Bucket=BUCKET, Key=_JRC_WATER_CACHE_KEY, Body=buf.getvalue())
+        log.info("build_jrc_water_features: cached %d ZCTAs to %s",
+                 len(combined), _JRC_WATER_CACHE_KEY)
+    except Exception as e:
+        log.warning("build_jrc_water_features: cache write failed: %s", e)
+
+    out = pd.DataFrame({"zcta_id": zcta_ids}).merge(extracted, on="zcta_id", how="left")
+    out["_fs_jrc_occurrence_mean"] = np.where(
+        out["jrc_occurrence_mean"].notna(), "present", _FS_MISSING,
+    )
+    log.info("build_jrc_water_features: %d ZCTAs, %.1f%% with data",
+             len(out), (out["jrc_occurrence_mean"].notna().mean() * 100))
     return out
 
 

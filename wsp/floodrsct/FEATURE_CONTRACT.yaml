@@ -517,6 +517,58 @@ features:
       Fetch: fetch_nlcd_land_cover.py. Derive: build_cropland_features() in build_event_dataset.py.
       Cache: processed/shared/zcta_cropland_pct.parquet (compute once, share across scenarios).
 
+  # ─── JRC Global Surface Water (Planetary Computer STAC) ─────────────────
+
+  - feature_name: jrc_occurrence_mean
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: derived
+    source_dataset: jrc_global_surface_water
+    raw_s3_path: (fetched live from Planetary Computer STAC API)
+    processed_s3_path: processed/shared/zcta_jrc_water_occurrence_pct.parquet
+    build_function: build_jrc_water_features
+    output_column: jrc_occurrence_mean
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.008
+    notes: >
+      JRC Global Surface Water 2021 occurrence layer (0-100 percent).
+      Mean water occurrence within ~1 km of ZCTA centroid over 1984-2020 Landsat record.
+      Fetched via floodcaster.stac.jrc_centroid_occurrence from Planetary Computer STAC.
+      Cache: processed/shared/zcta_jrc_water_occurrence_pct.parquet (compute once, share across scenarios).
+
+  - feature_name: jrc_occurrence_max
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: derived
+    source_dataset: jrc_global_surface_water
+    raw_s3_path: (fetched live from Planetary Computer STAC API)
+    processed_s3_path: processed/shared/zcta_jrc_water_occurrence_pct.parquet
+    build_function: build_jrc_water_features
+    output_column: jrc_occurrence_max
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.008
+    notes: >
+      Maximum JRC water occurrence pixel within ~1 km of ZCTA centroid.
+      Hotspot signal — captures the wettest pixel near the centroid.
+
+  - feature_name: jrc_pct_ever_wet
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: derived
+    source_dataset: jrc_global_surface_water
+    raw_s3_path: (fetched live from Planetary Computer STAC API)
+    processed_s3_path: processed/shared/zcta_jrc_water_occurrence_pct.parquet
+    build_function: build_jrc_water_features
+    output_column: jrc_pct_ever_wet
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.008
+    notes: >
+      Percentage of valid 30m pixels within ~1 km of ZCTA centroid that have ever
+      been classified as water (occurrence > 0). Spatial extent of historical flooding.
+
   # ─── DEM Elevation ────────────────────────────────────────────────────────
 
   - feature_name: elevation_m_msl
