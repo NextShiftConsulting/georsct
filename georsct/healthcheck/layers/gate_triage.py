@@ -116,7 +116,7 @@ def evaluate_gates(
     # ADR-020 D8.5: kappa=None → fail closed with explicit warning
     if kappa is None:
         evidence["gate_3"] = {
-            "kappa": None,
+            "kappa_compat": None,
             "kappa_source": cert.get("kappa_source", "unavailable"),
             "pass": False,
             "failure_path": "kappa_unavailable_d8_5",

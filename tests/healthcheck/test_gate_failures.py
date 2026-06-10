@@ -153,7 +153,7 @@ class TestGate3Admissibility:
         assert high > low + 0.1, f"Expected sigmoid variation, got {low:.3f} -> {high:.3f}"
 
     def test_re_encode_kappa_below_oobleck(self):
-        cert = make_cert(sigma=0.20, kappa=0.20, alpha=0.50, N=0.30)
+        cert = make_cert(sigma=0.20, kappa_compat=0.20, alpha=0.50, N=0.30)
         result = evaluate_gates(cert, P)
         assert result.decision == "RE_ENCODE"
         assert result.gate_reached == "GATE_3_ADMISSIBILITY"
@@ -170,7 +170,7 @@ class TestGate3Admissibility:
         kappa_req = P.kappa_req(sigma)
         cert = make_cert(
             sigma=sigma,
-            kappa=kappa_req - P.epsilon_L * 0.5,
+            kappa_compat=kappa_req - P.epsilon_L * 0.5,
             alpha=0.50,
             N=0.30,
         )
@@ -183,7 +183,7 @@ class TestGate3Admissibility:
         kappa_req = P.kappa_req(sigma)
         cert = make_cert(
             sigma=sigma,
-            kappa=kappa_req + P.epsilon_L * 0.5,
+            kappa_compat=kappa_req + P.epsilon_L * 0.5,
             alpha=0.50,
             N=0.30,
         )
@@ -193,7 +193,7 @@ class TestGate3Admissibility:
 
 class TestGate4Grounding:
     def test_repair_low_grounding(self):
-        cert = make_cert(kappa_L=0.10, alpha=0.50, N=0.30, sigma=0.10, kappa=0.80)
+        cert = make_cert(kappa_L=0.10, alpha=0.50, N=0.30, sigma=0.10, kappa_compat=0.80)
         result = evaluate_gates(cert, P)
         assert result.decision == "REPAIR"
         assert result.gate_reached == "GATE_4_GROUNDING"
@@ -202,7 +202,7 @@ class TestGate4Grounding:
 
 class TestAllPass:
     def test_execute(self):
-        cert = make_cert(alpha=0.70, kappa=0.80, sigma=0.10, N=0.20)
+        cert = make_cert(alpha=0.70, kappa_compat=0.80, sigma=0.10, N=0.20)
         result = evaluate_gates(cert, P)
         assert result.decision == "EXECUTE"
         assert result.gate_reached == "ALL_PASSED"
@@ -246,7 +246,7 @@ class TestPresetParity:
     def test_previous_66_reject_case_no_longer_mass_rejects(self):
         """With N_thr=0.50+OR, a typical geo cert should not mass-reject."""
         # Typical geo cert: N=0.525, alpha=0.475 (from actual s035 data)
-        cert = make_cert(N=0.525, alpha=0.475, kappa=0.22, sigma=0.12)
+        cert = make_cert(N=0.525, alpha=0.475, kappa_compat=0.22, sigma=0.12)
         result = evaluate_gates(cert, P)
         # Old behavior: N=0.525 < 0.70 passed, then alpha=0.475 >= 0.30 passed
         # New behavior: N=0.525 > 0.50 fails noise, but alpha=0.475 >= 0.30 passes (OR)

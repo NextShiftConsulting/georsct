@@ -234,10 +234,10 @@ def compute_diag_residual_spatial(
 
     result = compute_kappa_spatial(filtered_residuals, filtered_adj)
     log.info("Moran's I = %.4f, kappa_spatial = %.4f (target=%s, n=%d)",
-             result.morans_i, result.kappa, target, result.n_samples)
+             result.morans_i, result.kappa_compat, target, result.n_samples)
 
     # Invert: our DOE convention is high = good (no spatial clustering)
-    return 1.0 - result.kappa
+    return 1.0 - result.kappa_compat
 
 
 def _determine_task_type(runs: list[dict], target: str) -> str | None:

@@ -78,7 +78,7 @@ def analyze_trajectory(
     curr_alpha = curr_cert.get("alpha", 0.0)
     prev_sigma = prev_cert.get("sigma", 0.0)
     curr_sigma = curr_cert.get("sigma", 0.0)
-    curr_kappa = curr_cert.get("kappa_compat", curr_cert.get("kappa", 0.0))
+    curr_kappa = curr_cert.get("kappa_compat", 0.0)
 
     alpha_t = _trend(prev_alpha, curr_alpha, preset.trend_delta)
     sigma_t = _sigma_trend(prev_sigma, curr_sigma, preset.trend_delta)

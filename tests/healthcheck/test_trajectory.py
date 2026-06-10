@@ -104,16 +104,16 @@ class TestSigmaTrend:
 class TestConvergence:
     def test_healthy_converged(self):
         certs = {
-            "r0": make_cert(alpha=0.60, kappa=0.70, sigma=0.10, spatial_metric=0.65),
-            "r1": make_cert(alpha=0.62, kappa=0.72, sigma=0.10, spatial_metric=0.655),
+            "r0": make_cert(alpha=0.60, kappa_compat=0.70, sigma=0.10, spatial_metric=0.65),
+            "r1": make_cert(alpha=0.62, kappa_compat=0.72, sigma=0.10, spatial_metric=0.655),
         }
         result = analyze_trajectory(certs, None, {"r0": "X", "r1": "X"}, P)
         assert result.convergence_state == "healthy_converged"
 
     def test_prematurely_stalled(self):
         certs = {
-            "r0": make_cert(alpha=0.30, kappa=0.35, sigma=0.10, spatial_metric=0.40),
-            "r1": make_cert(alpha=0.31, kappa=0.36, sigma=0.10, spatial_metric=0.402),
+            "r0": make_cert(alpha=0.30, kappa_compat=0.35, sigma=0.10, spatial_metric=0.40),
+            "r1": make_cert(alpha=0.31, kappa_compat=0.36, sigma=0.10, spatial_metric=0.402),
         }
         result = analyze_trajectory(certs, None, {"r0": "X", "r1": "X"}, P)
         assert result.convergence_state == "prematurely_stalled"

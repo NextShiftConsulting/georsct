@@ -144,7 +144,7 @@ def certify_group(
 
         # Theory kappa
         evidence = evaluator.evidence(emb_name)
-        theory_kappa = float(evidence["kappa"])
+        theory_kappa = float(evidence.get("kappa_compat", evidence.get("kappa")))
         theory_sigma = float(evidence["sigma"])
         kappa_per_sample_theory = evidence["batch_result"].kappa_per_sample
 
@@ -184,7 +184,7 @@ def certify_group(
         R_med = float(agg["R_median"])
         S_med = float(agg["S_median"])
         N_med = float(agg["N_median"])
-        proxy_kappa = float(agg["kappa"])
+        proxy_kappa = float(agg.get("kappa_compat", agg.get("kappa")))
         alpha_agg = float(agg["alpha"])
         sigma_n = float(compute_sigma_request(N_med))
 
