@@ -1485,6 +1485,9 @@ _JRC_WATER_CACHE_KEY = "processed/shared/zcta_jrc_water_occurrence_pct.parquet"
 
 _IMPERVIOUS_CACHE_KEY = "processed/shared/zcta_impervious_pct.parquet"
 
+_DELTARES_DEPTH_CACHE_KEY = "processed/shared/zcta_deltares_depth.parquet"
+_HYDROLOGY_CACHE_KEY = "processed/shared/zcta_hydrology.parquet"
+
 
 def build_impervious_features(s3, zcta_ids: list[str]) -> pd.DataFrame:
     """Derive impervious_pct per ZCTA from NLCD 2021 GeoTIFFs.
@@ -1995,6 +1998,346 @@ def build_jrc_water_features(s3, zcta_ids: list[str]) -> pd.DataFrame:
     )
     log.info("build_jrc_water_features: %d ZCTAs, %.1f%% with data",
              len(out), (out["jrc_occurrence_mean"].notna().mean() * 100))
+    return out
+
+
+def build_deltares_depth_features(s3, zcta_ids: list[str]) -> pd.DataFrame:
+    """Derive Deltares modeled flood depth per ZCTA from Planetary Computer.
+
+    Uses floodcaster.batch.deltares_centroid_depth to fetch Deltares Global Flood
+    Maps for return periods 10, 50, 100 from Microsoft Planetary Computer STAC API.
+    Extracts mean depth, max depth, and inundation percentage within ~1 km of each
+    ZCTA centroid.
+
+    Cache-first: checks for pre-computed parquet at
+    s3://{BUCKET}/{_DELTARES_DEPTH_CACHE_KEY} before STAC extraction.
+
+    Returns DataFrame with columns:
+        zcta_id, deltares_depth_ft_rp10, deltares_max_depth_ft_rp10,
+        deltares_inundation_pct_rp10, ...(same for rp50, rp100),
+        _fs_deltares_depth_ft_rp100.
+    """
+    rps = [10, 50, 100]
+    data_cols = []
+    for rp in rps:
+        data_cols.extend([
+            f"deltares_depth_ft_rp{rp}",
+            f"deltares_max_depth_ft_rp{rp}",
+            f"deltares_inundation_pct_rp{rp}",
+        ])
+
+    empty = pd.DataFrame({"zcta_id": zcta_ids})
+    for col in data_cols:
+        empty[col] = np.nan
+    empty["_fs_deltares_depth_ft_rp100"] = _FS_MISSING
+
+    # --- Cache lookup ---
+    try:
+        cached = s3_read(s3, _DELTARES_DEPTH_CACHE_KEY)
+        if cached is not None and "zcta_id" in cached.columns:
+            cached["zcta_id"] = cached["zcta_id"].astype(str)
+            out = pd.DataFrame({"zcta_id": zcta_ids}).merge(
+                cached[[c for c in cached.columns if c in ["zcta_id"] + data_cols]],
+                on="zcta_id", how="left",
+            )
+            hit_rate = out["deltares_depth_ft_rp100"].notna().mean()
+            if hit_rate > 0.5:
+                out["_fs_deltares_depth_ft_rp100"] = np.where(
+                    out["deltares_depth_ft_rp100"].notna(), "present", _FS_MISSING,
+                )
+                log.info("build_deltares_depth_features: cache hit (%.0f%% coverage)", hit_rate * 100)
+                return out
+    except Exception as e:
+        log.info("build_deltares_depth_features: no cache (%s), extracting from STAC", e)
+
+    # --- Load ZCTA centroids ---
+    static_key = "raw/geocertdb2026/zcta_features_labels.parquet"
+    static = s3_read(s3, static_key)
+    if static is None:
+        log.warning("build_deltares_depth_features: geocertdb2026 not available; returning NaN")
+        return empty
+
+    zcta_col = next((c for c in static.columns if "zcta" in c.lower()), None)
+    lat_col = next((c for c in static.columns if "lat" in c.lower()), None)
+    lon_col = next((c for c in static.columns if "lon" in c.lower() or "lng" in c.lower()), None)
+    if not all([zcta_col, lat_col, lon_col]):
+        log.warning("build_deltares_depth_features: missing zcta/lat/lon columns; returning NaN")
+        return empty
+
+    static = static[[zcta_col, lat_col, lon_col]].rename(
+        columns={zcta_col: "zcta_id", lat_col: "lat", lon_col: "lon"},
+    )
+    centroids = static[static["zcta_id"].isin(zcta_ids)].dropna(subset=["lat", "lon"])
+
+    if centroids.empty:
+        log.warning("build_deltares_depth_features: no centroids matched; returning NaN")
+        return empty
+
+    # --- Extract from Planetary Computer via floodcaster ---
+    try:
+        from floodcaster.batch import deltares_centroid_depth
+        extracted = deltares_centroid_depth(
+            centroids, id_col="zcta_id", return_periods=rps,
+        )
+    except Exception as e:
+        log.warning("build_deltares_depth_features: STAC extraction failed: %s", e)
+        return empty
+
+    # --- Cache write ---
+    try:
+        existing = s3_read(s3, _DELTARES_DEPTH_CACHE_KEY)
+        if existing is not None and "zcta_id" in existing.columns:
+            existing["zcta_id"] = existing["zcta_id"].astype(str)
+            combined = pd.concat([existing, extracted], ignore_index=True)
+            combined = combined.drop_duplicates(subset=["zcta_id"], keep="last")
+        else:
+            combined = extracted
+        buf = BytesIO()
+        combined.to_parquet(buf, index=False)
+        buf.seek(0)
+        s3.put_object(Bucket=BUCKET, Key=_DELTARES_DEPTH_CACHE_KEY, Body=buf.getvalue())
+        log.info("build_deltares_depth_features: cached %d ZCTAs to %s",
+                 len(combined), _DELTARES_DEPTH_CACHE_KEY)
+    except Exception as e:
+        log.warning("build_deltares_depth_features: cache write failed: %s", e)
+
+    out = pd.DataFrame({"zcta_id": zcta_ids}).merge(extracted, on="zcta_id", how="left")
+    out["_fs_deltares_depth_ft_rp100"] = np.where(
+        out["deltares_depth_ft_rp100"].notna(), "present", _FS_MISSING,
+    )
+    log.info("build_deltares_depth_features: %d ZCTAs, %.1f%% with data",
+             len(out), (out["deltares_depth_ft_rp100"].notna().mean() * 100))
+    return out
+
+
+def build_hydrology_features(s3, zcta_ids: list[str]) -> pd.DataFrame:
+    """Derive DEM-based hydrology stats per ZCTA from Planetary Computer.
+
+    Uses floodcaster.batch.hydrology_centroid_stats to fetch Copernicus DEM
+    and compute HAND, TWI, GFI, and SPI within ~1 km of each ZCTA centroid.
+
+    Cache-first: checks for pre-computed parquet at
+    s3://{BUCKET}/{_HYDROLOGY_CACHE_KEY} before extraction.
+
+    Returns DataFrame with columns:
+        zcta_id, hand_mean_m, twi_mean, gfi_mean, spi_mean,
+        _fs_hand_mean_m.
+    """
+    data_cols = ["hand_mean_m", "twi_mean", "gfi_mean", "spi_mean"]
+
+    empty = pd.DataFrame({"zcta_id": zcta_ids})
+    for col in data_cols:
+        empty[col] = np.nan
+    empty["_fs_hand_mean_m"] = _FS_MISSING
+
+    # --- Cache lookup ---
+    try:
+        cached = s3_read(s3, _HYDROLOGY_CACHE_KEY)
+        if cached is not None and "zcta_id" in cached.columns:
+            cached["zcta_id"] = cached["zcta_id"].astype(str)
+            out = pd.DataFrame({"zcta_id": zcta_ids}).merge(
+                cached[[c for c in cached.columns if c in ["zcta_id"] + data_cols]],
+                on="zcta_id", how="left",
+            )
+            hit_rate = out["hand_mean_m"].notna().mean()
+            if hit_rate > 0.5:
+                out["_fs_hand_mean_m"] = np.where(
+                    out["hand_mean_m"].notna(), "present", _FS_MISSING,
+                )
+                log.info("build_hydrology_features: cache hit (%.0f%% coverage)", hit_rate * 100)
+                return out
+    except Exception as e:
+        log.info("build_hydrology_features: no cache (%s), extracting from STAC", e)
+
+    # --- Load ZCTA centroids ---
+    static_key = "raw/geocertdb2026/zcta_features_labels.parquet"
+    static = s3_read(s3, static_key)
+    if static is None:
+        log.warning("build_hydrology_features: geocertdb2026 not available; returning NaN")
+        return empty
+
+    zcta_col = next((c for c in static.columns if "zcta" in c.lower()), None)
+    lat_col = next((c for c in static.columns if "lat" in c.lower()), None)
+    lon_col = next((c for c in static.columns if "lon" in c.lower() or "lng" in c.lower()), None)
+    if not all([zcta_col, lat_col, lon_col]):
+        log.warning("build_hydrology_features: missing zcta/lat/lon columns; returning NaN")
+        return empty
+
+    static = static[[zcta_col, lat_col, lon_col]].rename(
+        columns={zcta_col: "zcta_id", lat_col: "lat", lon_col: "lon"},
+    )
+    centroids = static[static["zcta_id"].isin(zcta_ids)].dropna(subset=["lat", "lon"])
+
+    if centroids.empty:
+        log.warning("build_hydrology_features: no centroids matched; returning NaN")
+        return empty
+
+    # --- Extract from Planetary Computer via floodcaster ---
+    try:
+        from floodcaster.batch import hydrology_centroid_stats
+        extracted = hydrology_centroid_stats(centroids, id_col="zcta_id")
+    except Exception as e:
+        log.warning("build_hydrology_features: extraction failed: %s", e)
+        return empty
+
+    # --- Cache write ---
+    try:
+        existing = s3_read(s3, _HYDROLOGY_CACHE_KEY)
+        if existing is not None and "zcta_id" in existing.columns:
+            existing["zcta_id"] = existing["zcta_id"].astype(str)
+            combined = pd.concat([existing, extracted], ignore_index=True)
+            combined = combined.drop_duplicates(subset=["zcta_id"], keep="last")
+        else:
+            combined = extracted
+        buf = BytesIO()
+        combined.to_parquet(buf, index=False)
+        buf.seek(0)
+        s3.put_object(Bucket=BUCKET, Key=_HYDROLOGY_CACHE_KEY, Body=buf.getvalue())
+        log.info("build_hydrology_features: cached %d ZCTAs to %s",
+                 len(combined), _HYDROLOGY_CACHE_KEY)
+    except Exception as e:
+        log.warning("build_hydrology_features: cache write failed: %s", e)
+
+    out = pd.DataFrame({"zcta_id": zcta_ids}).merge(extracted, on="zcta_id", how="left")
+    out["_fs_hand_mean_m"] = np.where(
+        out["hand_mean_m"].notna(), "present", _FS_MISSING,
+    )
+    log.info("build_hydrology_features: %d ZCTAs, %.1f%% with data",
+             len(out), (out["hand_mean_m"].notna().mean() * 100))
+    return out
+
+
+def build_sentinel1_event_features(
+    s3, zcta_ids: list[str], event_cfg: dict, jrc_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """Derive Sentinel-1 SAR inundation per ZCTA for a specific event.
+
+    Uses floodcaster.batch.sentinel1_centroid_inundation to search for S1
+    overpasses within the event's peak_window and compute water fraction.
+    Derives sar_water_pct_anomaly by subtracting JRC baseline.
+
+    Args:
+        s3: boto3 S3 client.
+        zcta_ids: List of ZCTA IDs.
+        event_cfg: Dict with keys: "peak_window" (tuple of 2 date strings),
+                   "s3_event_key" or event name for cache key,
+                   "scenario" for cache path.
+        jrc_df: DataFrame with zcta_id + jrc_pct_ever_wet from build_jrc_water_features.
+
+    Returns DataFrame with columns:
+        zcta_id, sar_water_pct, sar_water_pct_anomaly,
+        sar_acquisition_lag_days, _fs_sar_water_pct.
+    """
+    data_cols = ["sar_water_pct", "sar_water_pct_anomaly", "sar_acquisition_lag_days"]
+
+    empty = pd.DataFrame({"zcta_id": zcta_ids})
+    for col in data_cols:
+        empty[col] = np.nan
+    empty["_fs_sar_water_pct"] = _FS_MISSING
+
+    event_key = event_cfg.get("s3_event_key", event_cfg.get("event_name", "unknown"))
+    scenario = event_cfg.get("scenario", "shared")
+    cache_key = f"processed/{scenario}/zcta_sar_{event_key}.parquet"
+
+    peak = event_cfg.get("peak_window")
+    if not peak or len(peak) < 2:
+        log.warning("build_sentinel1_event_features: no peak_window in event_cfg")
+        return empty
+
+    # --- Cache lookup ---
+    try:
+        cached = s3_read(s3, cache_key)
+        if cached is not None and "zcta_id" in cached.columns:
+            cached["zcta_id"] = cached["zcta_id"].astype(str)
+            out = pd.DataFrame({"zcta_id": zcta_ids}).merge(
+                cached[[c for c in cached.columns if c in ["zcta_id"] + data_cols]],
+                on="zcta_id", how="left",
+            )
+            hit_rate = out["sar_water_pct"].notna().mean()
+            if hit_rate > 0.5:
+                out["_fs_sar_water_pct"] = np.where(
+                    out["sar_water_pct"].notna(), "present", _FS_MISSING,
+                )
+                log.info("build_sentinel1_event_features[%s]: cache hit (%.0f%%)", event_key, hit_rate * 100)
+                return out
+    except Exception as e:
+        log.info("build_sentinel1_event_features[%s]: no cache (%s)", event_key, e)
+
+    # --- Load ZCTA centroids ---
+    static_key = "raw/geocertdb2026/zcta_features_labels.parquet"
+    static = s3_read(s3, static_key)
+    if static is None:
+        log.warning("build_sentinel1_event_features: geocertdb2026 not available; returning NaN")
+        return empty
+
+    zcta_col = next((c for c in static.columns if "zcta" in c.lower()), None)
+    lat_col = next((c for c in static.columns if "lat" in c.lower()), None)
+    lon_col = next((c for c in static.columns if "lon" in c.lower() or "lng" in c.lower()), None)
+    if not all([zcta_col, lat_col, lon_col]):
+        log.warning("build_sentinel1_event_features: missing zcta/lat/lon columns; returning NaN")
+        return empty
+
+    static = static[[zcta_col, lat_col, lon_col]].rename(
+        columns={zcta_col: "zcta_id", lat_col: "lat", lon_col: "lon"},
+    )
+    centroids = static[static["zcta_id"].isin(zcta_ids)].dropna(subset=["lat", "lon"])
+
+    if centroids.empty:
+        log.warning("build_sentinel1_event_features: no centroids matched; returning NaN")
+        return empty
+
+    # --- Extract from Planetary Computer via floodcaster ---
+    try:
+        from floodcaster.batch import sentinel1_centroid_inundation
+        extracted = sentinel1_centroid_inundation(
+            centroids, id_col="zcta_id",
+            event_start=peak[0], event_end=peak[1],
+        )
+    except Exception as e:
+        log.warning("build_sentinel1_event_features[%s]: extraction failed: %s", event_key, e)
+        return empty
+
+    # --- Derive anomaly: sar_water_pct - jrc_pct_ever_wet ---
+    if "jrc_pct_ever_wet" in jrc_df.columns:
+        extracted = extracted.merge(
+            jrc_df[["zcta_id", "jrc_pct_ever_wet"]], on="zcta_id", how="left",
+        )
+        extracted["sar_water_pct_anomaly"] = (
+            extracted["sar_water_pct"] - extracted["jrc_pct_ever_wet"]
+        )
+        extracted = extracted.drop(columns=["jrc_pct_ever_wet"])
+    else:
+        extracted["sar_water_pct_anomaly"] = np.nan
+
+    # Drop sar_acquisition_dt before cache (not a feature column)
+    if "sar_acquisition_dt" in extracted.columns:
+        extracted = extracted.drop(columns=["sar_acquisition_dt"])
+
+    # --- Cache write ---
+    try:
+        existing = s3_read(s3, cache_key)
+        if existing is not None and "zcta_id" in existing.columns:
+            existing["zcta_id"] = existing["zcta_id"].astype(str)
+            combined = pd.concat([existing, extracted], ignore_index=True)
+            combined = combined.drop_duplicates(subset=["zcta_id"], keep="last")
+        else:
+            combined = extracted
+        buf = BytesIO()
+        combined.to_parquet(buf, index=False)
+        buf.seek(0)
+        s3.put_object(Bucket=BUCKET, Key=cache_key, Body=buf.getvalue())
+        log.info("build_sentinel1_event_features[%s]: cached %d ZCTAs", event_key, len(combined))
+    except Exception as e:
+        log.warning("build_sentinel1_event_features[%s]: cache write failed: %s", event_key, e)
+
+    out = pd.DataFrame({"zcta_id": zcta_ids}).merge(
+        extracted[["zcta_id"] + data_cols], on="zcta_id", how="left",
+    )
+    out["_fs_sar_water_pct"] = np.where(
+        out["sar_water_pct"].notna(), "present", _FS_MISSING,
+    )
+    log.info("build_sentinel1_event_features[%s]: %d ZCTAs, %.1f%% with data",
+             event_key, len(out), (out["sar_water_pct"].notna().mean() * 100))
     return out
 
 
