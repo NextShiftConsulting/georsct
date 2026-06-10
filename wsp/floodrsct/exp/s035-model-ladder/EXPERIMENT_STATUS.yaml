@@ -1,0 +1,266 @@
+# ===========================================================================
+# S035 Experiment Status Registry
+# ===========================================================================
+#
+# PURPOSE: Machine-readable source of truth for experiment completion status.
+# Updated after each SageMaker job completes or fails.
+#
+# RULES:
+# 1. Status is VERIFIED by checking S3 artifacts, not by reading DOE docs.
+# 2. Every status change must include the verification date and method.
+# 3. artifact_key is the S3 key that PROVES the experiment ran.
+# 4. job_id is the SageMaker job name (for CloudWatch log tracing).
+#
+# STATUS VALUES:
+#   DESIGNED    - DOE written, code exists, never launched
+#   LAUNCHED    - SageMaker job submitted, not yet complete
+#   COMPLETED   - S3 artifacts verified present
+#   FAILED      - Job failed, no usable artifacts
+#   STALE       - Artifacts exist but are outdated (upstream data changed)
+#   BLOCKED     - Cannot run due to missing dependency
+#
+# VERIFICATION METHOD:
+#   s3_ls       - aws s3 ls confirmed artifact exists
+#   job_status  - aws sagemaker describe-processing-job confirmed
+#   log_check   - CloudWatch logs confirmed output
+# ===========================================================================
+
+experiment: s035-model-ladder
+last_audit: "2026-06-10"
+s3_bucket: swarm-floodrsct-data
+
+# ===== PHASE 0: Data Fetch & Staging =====
+phases:
+  data_fetch:
+    status: COMPLETED
+    verified: "2026-06-07"
+    verification_method: s3_ls
+    notes: "All 5 scenarios staged. ~160 jobs total."
+
+  # ===== PHASE 1: Event Building =====
+  event_building:
+    status: COMPLETED
+    verified: "2026-06-07"
+    verification_method: s3_ls
+    notes: "All 5 scenarios + NYC event expansion (Sandy+NYC2023)."
+
+  # ===== PHASE 2: Model Training =====
+  model_training:
+    r0_baseline:
+      status: COMPLETED
+      verified: "2026-06-07"
+      verification_method: s3_ls
+      artifact_keys:
+        - results/s035/r0_houston.json
+        - results/s035/r0_southwest_florida.json
+        - results/s035/r0_nyc.json
+        - results/s035/r0_riverside_coachella.json
+        - results/s035/r0_new_orleans.json
+
+    r1_spatial:
+      status: COMPLETED
+      verified: "2026-06-07"
+      verification_method: s3_ls
+      artifact_keys:
+        - results/s035/r1_hydrology_houston.json
+        - results/s035/r1_hydrology_southwest_florida.json
+        - results/s035/r1_hydrology_nyc.json
+        - results/s035/r1_hydrology_riverside_coachella.json
+        - results/s035/r1_hydrology_new_orleans.json
+
+    r2_temporal:
+      status: COMPLETED
+      verified: "2026-06-07"
+      verification_method: s3_ls
+      artifact_keys:
+        - results/s035/r2_houston.json
+        - results/s035/r2_southwest_florida.json
+        - results/s035/r2_nyc.json
+        - results/s035/r2_riverside_coachella.json
+        - results/s035/r2_new_orleans.json
+
+    r1_ablation:
+      status: COMPLETED
+      verified: "2026-06-10"
+      verification_method: s3_ls
+      artifact_keys:
+        - results/s035/r1_no_wlag_houston.json
+        - results/s035/r1_wlag_only_houston.json
+      notes: "Houston only. Other 4 metros not ablated."
+
+  # ===== PHASE 3: Certificates & Diagnostics =====
+  certificates:
+    r0:
+      status: COMPLETED
+      verified: "2026-06-10"
+      verification_method: s3_ls
+      artifact_keys: [results/s035/certificates_r0.json]
+      notes: "Job crashed at summary print (KeyError kappa) but data uploaded before crash. Fixed in 6db60a8."
+    r1:
+      status: COMPLETED
+      verified: "2026-06-10"
+      verification_method: s3_ls
+      artifact_keys: [results/s035/certificates_r1.json]
+    r2:
+      status: COMPLETED
+      verified: "2026-06-10"
+      verification_method: s3_ls
+      artifact_keys: [results/s035/certificates_r2.json]
+
+  geometry_kappa:
+    status: COMPLETED
+    verified: "2026-06-07"
+    verification_method: s3_ls
+    artifact_keys: [results/s035/geometry_kappa.json]
+
+  diagnostics:
+    status: COMPLETED
+    verified: "2026-06-07"
+    verification_method: s3_ls
+    artifact_keys:
+      - results/s035/diagnostics_r0.json
+      - results/s035/diagnostics_r1.json
+      - results/s035/diagnostics_r2.json
+
+  # ===== PHASE 4: Spatial Diagnostics (LISA, GWR) =====
+  spatial_diagnostics:
+    lisa:
+      status: COMPLETED
+      verified: "2026-06-10"
+      verification_method: s3_ls
+      artifact_keys: [results/s035/sidecar/lisa_results.json]
+      notes: "Canonical source for Moran's I and LISA fractions."
+    gwr:
+      status: COMPLETED
+      verified: "2026-06-10"
+      verification_method: s3_ls
+      artifact_keys: [results/s035/sidecar/gwr_nonstationarity.json]
+    figures:
+      fig5_lisa_triptych:
+        status: COMPLETED
+        verified: "2026-06-07"
+        verification_method: s3_ls
+        artifact_keys: [results/s035/sidecar/figures/fig5_lisa_triptych_houston.pdf]
+      fig6_gwr_local_r2:
+        status: COMPLETED
+        verified: "2026-06-07"
+        verification_method: s3_ls
+        artifact_keys: [results/s035/sidecar/figures/fig6_gwr_local_r2_houston.pdf]
+
+  # ===== PHASE 5: R3 Certificate-Gated Admission =====
+  r3_admission:
+    status: COMPLETED
+    verified: "2026-06-07"
+    verification_method: s3_ls
+    artifact_keys:
+      - results/s035/money_table.json
+
+  # ===== PHASE 6: Verdicts =====
+  verdicts:
+    status: COMPLETED
+    verified: "2026-06-10"
+    verification_method: s3_ls
+    artifact_keys: [results/s035/verdicts.json]
+    notes: >
+      Relational geometry = PENDING (ablation covers Houston only, not all 5 metros).
+      This is correct, not stale. Verdicts predate ablation design.
+
+  # ===== PHASE 7: FAST External Validation =====
+  fast_validation:
+    status: COMPLETED
+    verified: "2026-06-10"
+    verification_method: s3_ls
+    artifact_keys: [results/s035/fast_validation.json]
+    notes: "Houston Spearman rho: -0.189 to -0.329 across events."
+
+  # ===== PHASE 8: Transfer Event Distance =====
+  event_distance_matrix:
+    status: COMPLETED
+    verified: "2026-06-10"
+    verification_method: s3_ls
+    artifact_keys: [results/s035/sidecar/event_distance_matrix.json]
+    notes: "Uploaded from local to S3 on 2026-06-10. Source of transfer r/Jaccard/Wasserstein."
+
+  # ===== PHASE 9: VLM / R4 Quality Assessment =====
+  vlm_quality:
+    status: COMPLETED
+    verified: "2026-06-07"
+    verification_method: s3_ls
+    notes: "5 providers x 5 scenarios. Used for R4.3 VLM assessment."
+
+  # ===== PHASE 4e: Deployment Alignment (TWCV) =====
+  deployment_alignment:
+    status: COMPLETED
+    verified: "2026-06-10"
+    verification_method: s3_ls
+    job_id: s035-deploy-align-all-20260610-140715
+    artifact_keys:
+      - results/s035/sidecar/deployment_alignment/houston_alignment.json
+      - results/s035/sidecar/deployment_alignment/southwest_florida_alignment.json
+      - results/s035/sidecar/deployment_alignment/nyc_alignment.json
+      - results/s035/sidecar/deployment_alignment/riverside_coachella_alignment.json
+      - results/s035/sidecar/deployment_alignment/new_orleans_alignment.json
+      - results/s035/sidecar/deployment_alignment/uplift_comparison.json
+    notes: >
+      4 iterations to get working (fold_col, prediction merge, partial coverage).
+      Finding: weights=1.0 (ESS=100%, JS=0.0) -- validation already matches deployment.
+      Uplift direction agrees for all 5 scenarios (3 improved, 2 degraded).
+      This is the SIMPLE raking-only version, NOT the full 5-step variance stack.
+
+  # ===== PHASE 4e.2: Variance Stack Decomposition =====
+  variance_stack:
+    status: DESIGNED
+    verified: "2026-06-10"
+    verification_method: s3_ls
+    artifact_keys: []
+    code: scripts/run_variance_stack_figure.py
+    library: georsct.analysis.variance_stack
+    doe: DOE_deployment_alignment.md
+    notes: >
+      5-step ladder (unweighted -> coverage gate -> product -> raking -> raking+shrinkage).
+      Code exists. Library exists. NEVER RUN. No launcher exists.
+      Paper section 7.1 cites fabricated numbers from this experiment.
+      Given TWCV finding (weights=1.0), ladder may show flat lines.
+      MUST RUN to either confirm flat-line finding or discover step-level variation.
+    blocker: "Needs SageMaker launcher. Script reads /tmp local paths, not S3."
+
+  # ===== PHASE 4e.3: Variance Stack Figure =====
+  variance_stack_figure:
+    status: DESIGNED
+    verified: "2026-06-10"
+    artifact_keys: []
+    notes: "Depends on variance_stack. Paper Figure 4 (fig_variance_stack.pdf)."
+    blocker: "Depends on variance_stack completion."
+
+# ===== PAPER CLAIM VERIFICATION =====
+# Each paper section with empirical claims and their artifact backing.
+paper_claims:
+  sec_7_1_variance_stack:
+    status: RED
+    reason: "All numbers fabricated. TWCV raking shows zero shift. Full 5-step ladder never run."
+    artifact_needed: variance_stack results
+    fix: "Run variance_stack, rewrite section with real numbers"
+
+  sec_7_2_alpha_threshold:
+    status: GREEN
+    reason: "Verified against certificates_r0.json + money_table.json. Fixed 6/6->5/5 in cb6bfce."
+
+  sec_7_4_clustering:
+    status: GREEN
+    reason: "Moran's I / LISA aligned to lisa_results.json. p-values added."
+
+  sec_7b_spatial_diagnostics:
+    status: GREEN
+    reason: "Table + figure caption aligned to lisa_results.json in cb6bfce."
+
+  sec_transfer_correlations:
+    status: GREEN
+    reason: "Backed by event_distance_matrix.json (now on S3)."
+
+  sec_fast_spearman:
+    status: GREEN
+    reason: "Backed by fast_validation.json on S3."
+
+  sec_relational_verdict:
+    status: YELLOW
+    reason: "PENDING is correct (Houston-only ablation). Not stale, but limited scope."
