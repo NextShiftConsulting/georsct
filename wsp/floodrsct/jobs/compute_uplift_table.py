@@ -223,7 +223,7 @@ def build_money_table(
                 if not cert:
                     continue
                 for sig in ("R", "S_sup", "N", "alpha", "omega",
-                            "kappa", "tau", "sigma"):
+                            "kappa_compat", "tau", "sigma"):
                     cert_signals[f"cert_{sig}_{level}"] = cert.get(sig)
 
                 # Diagnosis label
@@ -248,7 +248,7 @@ def build_money_table(
                     spatial_metric=r0_cert.get("spatial_metric"),
                     random_metric=r0_cert.get("random_metric"),
                     task_type=r0_cert.get("task_type", "regression"),
-                    kappa_geom=r0_cert.get("kappa"),
+                    kappa_geom=r0_cert.get("kappa_geom"),
                 )
                 if live_cert.diagnosis_label:
                     cert_signals["degradation_label_r0"] = live_cert.diagnosis_label

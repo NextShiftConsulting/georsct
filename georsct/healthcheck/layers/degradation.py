@@ -102,7 +102,7 @@ def classify_degradation(
             return parsed
 
     alpha = cert.get("alpha", 0.0)
-    kappa = cert.get("kappa", cert.get("kappa_compat", 0.0))
+    kappa = cert.get("kappa_compat", cert.get("kappa", 0.0))
     sigma = cert.get("sigma", 0.0)
     R = cert.get("R", 0.0)
     N = cert.get("N", 0.0)

@@ -450,7 +450,7 @@ def main():
                 "R": cert.get("R"),
                 "S_sup": cert.get("S_sup"),
                 "N": cert.get("N"),
-                "kappa": cert.get("kappa"),
+                "kappa_compat": cert.get("kappa_compat"),
                 "sigma": cert.get("sigma"),
                 "alpha": cert.get("alpha"),
                 "spatial_metric": cert.get("spatial_metric"),

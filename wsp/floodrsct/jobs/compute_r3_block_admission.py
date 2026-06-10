@@ -372,7 +372,7 @@ def evaluate_gates(cert: dict) -> dict:
         "coordinator_action": plan.action,
         "morph_hint": plan.morph_hint,
         "source_mode": "proxy",
-        "kappa": gk_input.kappa_compat,
+        "kappa_compat": gk_input.kappa_compat,
         "sigma": gk_input.sigma,
         "alpha": gk_input.alpha,
         "tau": round(tau, 6),

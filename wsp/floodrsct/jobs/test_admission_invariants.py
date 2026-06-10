@@ -36,7 +36,7 @@ def _make_valid_cert(**overrides):
         "S_sup": 0.10,
         "N": 0.30,
         "alpha": 0.60,
-        "kappa": 0.40,
+        "kappa_compat": 0.40,
         "sigma": 0.10,
         "evidence": {
             "independent_signal": {
@@ -76,7 +76,7 @@ def _make_invalid_cert(**overrides):
         "S_sup": float("nan"),
         "N": float("nan"),
         "alpha": float("nan"),
-        "kappa": float("nan"),
+        "kappa_compat": float("nan"),
         "sigma": float("nan"),
         "evidence": {
             "independent_signal": {

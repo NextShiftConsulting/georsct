@@ -188,19 +188,19 @@ def apply_routing_kappa(certs: dict[str, Optional[dict]]) -> tuple[Optional[str]
     recommended_arm is None for REPAIR/REJECT (no single arm recommended).
     """
     c0 = certs.get("r0")
-    if c0 and _v(c0, "kappa", 0) >= KAPPA_GOOD:
+    if c0 and _v(c0, "kappa_compat", 0) >= KAPPA_GOOD:
         return "r0", InternalDecision.EXECUTE.value
 
     if c0 and _v(c0, "S_sup", 0) > S_SUP_HIGH:
         c1 = certs.get("r1")
-        if c1 and _v(c1, "kappa", 0) >= KAPPA_GOOD:
+        if c1 and _v(c1, "kappa_compat", 0) >= KAPPA_GOOD:
             return "r1", InternalDecision.RE_ENCODE.value
 
     c1 = certs.get("r1")
     diag_transfer = _v(c1, "diag_transfer", 1.0)
     if diag_transfer < DIAG_TRANSFER_LOW:
         c2 = certs.get("r2")
-        if c2 and _v(c2, "kappa", 0) >= KAPPA_GOOD:
+        if c2 and _v(c2, "kappa_compat", 0) >= KAPPA_GOOD:
             return "r2", InternalDecision.RE_ENCODE.value
 
     # Fallback: check R2 cert for terminal decisions
@@ -208,7 +208,7 @@ def apply_routing_kappa(certs: dict[str, Optional[dict]]) -> tuple[Optional[str]
     if c2:
         if _v(c2, "sigma", 0) > SIGMA_HIGH:
             return None, InternalDecision.REPAIR.value
-        if _v(c2, "kappa", 0) < KAPPA_BAD:
+        if _v(c2, "kappa_compat", 0) < KAPPA_BAD:
             return None, InternalDecision.REJECT.value
         # R2 kappa is between BAD and GOOD -- recommend R2 as best available
         return "r2", InternalDecision.WARN.value
@@ -275,7 +275,7 @@ def apply_routing_gear(
         if c1 and _v(c1, "R", 0) > _v(c1, "S_sup", 1.0) and _v(c1, "N", 1.0) < 0.5:
             return "r1", InternalDecision.RE_ENCODE.value
         # No arm shows R-dominant with contained N -- pruning candidate
-        if c2 and _v(c2, "kappa", 0) < KAPPA_BAD:
+        if c2 and _v(c2, "kappa_compat", 0) < KAPPA_BAD:
             return None, InternalDecision.REJECT.value
         return _route_by_certificate_comparison(certs)
 
@@ -405,9 +405,9 @@ def _evaluate_strategy(
         row = {
             "scenario": scenario,
             "target": target,
-            "cert_r0": {k: certs["r0"].get(k) for k in ("kappa", "S_sup", "sigma", "R", "N")} if certs["r0"] else None,
-            "cert_r1": {k: certs["r1"].get(k) for k in ("kappa", "S_sup", "sigma", "R", "N")} if certs["r1"] else None,
-            "cert_r2": {k: certs["r2"].get(k) for k in ("kappa", "S_sup", "sigma", "R", "N")} if certs["r2"] else None,
+            "cert_r0": {k: certs["r0"].get(k) for k in ("kappa_compat", "S_sup", "sigma", "R", "N")} if certs["r0"] else None,
+            "cert_r1": {k: certs["r1"].get(k) for k in ("kappa_compat", "S_sup", "sigma", "R", "N")} if certs["r1"] else None,
+            "cert_r2": {k: certs["r2"].get(k) for k in ("kappa_compat", "S_sup", "sigma", "R", "N")} if certs["r2"] else None,
             "internal_decision": morph_decision,
             "public_decision": public.value,
             "recommended_arm": recommended_arm,
