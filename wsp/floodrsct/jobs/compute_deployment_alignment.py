@@ -378,16 +378,22 @@ def _compute_reweighted_metrics(
         .agg({y_true_col: "first", y_pred_col: "mean"})
     )
 
-    merged = task_df.merge(
+    # Attach weights to task_df so merge carries them through
+    task_weighted = task_df.copy()
+    task_weighted["_w_twcv"] = w_twcv
+    task_weighted["_w_lite"] = w_lite
+    task_weighted["_w_iwcv"] = w_iwcv
+
+    merged = task_weighted.merge(
         pred_agg[merge_on + [y_true_col, y_pred_col]],
         on=merge_on,
         how="inner",
     )
 
-    if merged.empty or len(merged) != len(w_twcv):
+    if merged.empty:
         log.warning(
-            "Prediction merge mismatch: %d task rows, %d merged, %d weights",
-            len(task_df), len(merged), len(w_twcv),
+            "Prediction merge empty: %d task rows, 0 matched",
+            len(task_df),
         )
         return {
             "metric_unweighted": float("nan"),
@@ -397,18 +403,26 @@ def _compute_reweighted_metrics(
             "delta_pct": float("nan"),
         }
 
+    if len(merged) < len(task_df):
+        log.info(
+            "Prediction partial coverage: %d/%d task rows matched (%.0f%%)",
+            len(merged), len(task_df), 100.0 * len(merged) / len(task_df),
+        )
+
     residuals = merged[y_true_col].to_numpy(float) - merged[y_pred_col].to_numpy(float)
     sq_errors = residuals ** 2
 
     # Unweighted RMSE
     rmse_unw = float(np.sqrt(np.mean(sq_errors)))
 
-    # TWCV-weighted RMSE
-    w = w_twcv / w_twcv.sum() if w_twcv.sum() > 0 else np.ones(len(sq_errors)) / len(sq_errors)
+    # TWCV-weighted RMSE (renormalize weights to matched subset)
+    w = merged["_w_twcv"].to_numpy(float)
+    w = w / w.sum() if w.sum() > 0 else np.ones(len(sq_errors)) / len(sq_errors)
     rmse_twcv = float(np.sqrt(np.sum(w * sq_errors)))
 
     # IWCV-weighted RMSE
-    wi = w_iwcv / w_iwcv.sum() if w_iwcv.sum() > 0 else np.ones(len(sq_errors)) / len(sq_errors)
+    wi = merged["_w_iwcv"].to_numpy(float)
+    wi = wi / wi.sum() if wi.sum() > 0 else np.ones(len(sq_errors)) / len(sq_errors)
     rmse_iwcv = float(np.sqrt(np.sum(wi * sq_errors)))
 
     delta = rmse_twcv - rmse_unw
@@ -418,7 +432,9 @@ def _compute_reweighted_metrics(
         "metric_unweighted": rmse_unw,
         "metric_twcv": rmse_twcv,
         "metric_twcv_lite": float(np.sqrt(np.sum(
-            (w_lite / w_lite.sum() if w_lite.sum() > 0 else np.ones(len(sq_errors)) / len(sq_errors))
+            (merged["_w_lite"].to_numpy(float) / merged["_w_lite"].sum()
+             if merged["_w_lite"].sum() > 0
+             else np.ones(len(sq_errors)) / len(sq_errors))
             * sq_errors
         ))),
         "metric_iwcv": rmse_iwcv,
