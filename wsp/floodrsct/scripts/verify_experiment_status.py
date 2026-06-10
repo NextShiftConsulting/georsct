@@ -81,13 +81,111 @@ def get_phase_statuses(phases: dict, prefix: str = "") -> dict[str, str]:
     return result
 
 
+def get_phase_details(phases: dict, prefix: str = "") -> dict[str, dict]:
+    """Flatten nested phases dict into {phase_key: full_detail_dict}."""
+    result = {}
+    for name, value in phases.items():
+        path = f"{prefix}.{name}" if prefix else name
+        if isinstance(value, dict):
+            if value.get("status"):
+                result[name] = value
+                result[path] = value
+            for k, v in value.items():
+                if isinstance(v, dict) and k not in (
+                    "artifact_keys", "notes", "paper_claims"
+                ):
+                    result.update(get_phase_details({k: v}, path))
+    return result
+
+
+def propagate_staleness(flat_status: dict[str, str],
+                        flat_details: dict[str, dict],
+                        contract_map: dict[str, dict]) -> dict[str, list[str]]:
+    """Walk the dependency graph and propagate STALE downstream.
+
+    If a phase is STALE or was re-run (verified date newer than downstream),
+    all downstream phases that depend on it become STALE too.
+
+    Returns: {phase_id: [list of upstream causes]} for newly-stale phases.
+    """
+    # Build reverse map: phase_id -> list of phases that depend on it
+    downstream_of: dict[str, list[str]] = {}
+    for pid, phase in contract_map.items():
+        for dep in phase.get("depends_on", []):
+            downstream_of.setdefault(dep, []).append(pid)
+
+    # Collect root stale phases (explicitly marked STALE or FAILED)
+    stale_roots = set()
+    for pid in contract_map:
+        status = flat_status.get(pid, "UNKNOWN")
+        if status in ("STALE", "FAILED"):
+            stale_roots.add(pid)
+
+    # Also detect timestamp-based staleness: if upstream verified > downstream
+    # verified, downstream is implicitly stale
+    for pid, phase in contract_map.items():
+        if flat_status.get(pid) != "COMPLETED":
+            continue
+        downstream_detail = flat_details.get(pid, {})
+        downstream_verified = downstream_detail.get("verified", "")
+
+        for dep in phase.get("depends_on", []):
+            if flat_status.get(dep) != "COMPLETED":
+                continue
+            upstream_detail = flat_details.get(dep, {})
+            upstream_verified = upstream_detail.get("verified", "")
+
+            # If upstream was verified MORE RECENTLY than downstream,
+            # downstream may be stale (upstream was re-run after downstream)
+            if upstream_verified and downstream_verified:
+                if str(upstream_verified) > str(downstream_verified):
+                    stale_roots.add(pid)
+
+    # BFS: propagate staleness downstream through dependency edges
+    stale_causes: dict[str, list[str]] = {}
+    queue = list(stale_roots)
+    visited = set()
+
+    while queue:
+        current = queue.pop(0)
+        if current in visited:
+            continue
+        visited.add(current)
+
+        for child in downstream_of.get(current, []):
+            child_status = flat_status.get(child, "UNKNOWN")
+            # Only propagate to phases that think they're COMPLETED
+            if child_status == "COMPLETED":
+                if child not in stale_causes:
+                    stale_causes[child] = []
+                stale_causes[child].append(current)
+                flat_status[child] = "STALE"
+                queue.append(child)
+            elif child_status == "STALE":
+                # Already stale, but track the cause chain
+                if child not in stale_causes:
+                    stale_causes[child] = []
+                if current not in stale_causes[child]:
+                    stale_causes[child].append(current)
+                queue.append(child)
+
+    return stale_causes
+
+
 def compute_next_steps(status_phases: dict[str, str],
-                       contract_phases: list[dict]) -> list[dict]:
+                       contract_phases: list[dict],
+                       phase_details: dict[str, dict] | None = None,
+                       ) -> tuple[list[dict], dict[str, list[str]]]:
     """Determine which phases are unblocked but not yet completed.
 
     A phase is unblocked when:
-    - All depends_on phases have status COMPLETED
+    - All depends_on phases have status COMPLETED (not STALE)
     - The phase itself is NOT COMPLETED
+
+    Also propagates staleness: if an upstream phase is STALE or was re-run
+    more recently than a downstream phase, the downstream is implicitly STALE.
+
+    Returns: (steps, stale_causes)
     """
     # Build a map from phase_id -> contract entry
     contract_map = {}
@@ -125,9 +223,15 @@ def compute_next_steps(status_phases: dict[str, str],
         for level in ("diagnostics_r0", "diagnostics_r1", "diagnostics_r2"):
             flat_status.setdefault(level, "COMPLETED")
 
+    # Propagate staleness through the dependency graph
+    flat_details = phase_details or {}
+    stale_causes = propagate_staleness(
+        flat_status, flat_details, contract_map
+    )
+
     unblocked = []
     for pid, phase in contract_map.items():
-        # Skip if already completed
+        # Skip if completed AND not stale
         current = flat_status.get(pid, "UNKNOWN")
         if current == "COMPLETED":
             continue
@@ -139,7 +243,11 @@ def compute_next_steps(status_phases: dict[str, str],
             dep_status = flat_status.get(dep, "UNKNOWN")
             if dep_status != "COMPLETED":
                 all_deps_met = False
-                missing_deps.append(f"{dep} ({dep_status})")
+                reason = dep_status
+                if dep in stale_causes:
+                    chain = " <- ".join(stale_causes[dep])
+                    reason = f"STALE via {chain}"
+                missing_deps.append(f"{dep} ({reason})")
 
         prereqs = phase.get("prerequisites", [])
 
@@ -153,17 +261,28 @@ def compute_next_steps(status_phases: dict[str, str],
             "prerequisites": prereqs,
             "script": phase.get("script", ""),
             "actionable": all_deps_met and len(missing_deps) == 0,
+            "stale_cause": stale_causes.get(pid, []),
         })
 
     # Sort: actionable first, then by phase_id
     unblocked.sort(key=lambda x: (not x["actionable"], x["phase_id"]))
-    return unblocked
+    return unblocked, stale_causes
 
 
-def print_next_steps(steps: list[dict]) -> None:
+def print_next_steps(steps: list[dict],
+                     stale_causes: dict[str, list[str]]) -> None:
     """Human-readable next-steps output."""
     actionable = [s for s in steps if s["actionable"]]
     blocked = [s for s in steps if not s["actionable"]]
+
+    # Show staleness cascade first if any auto-detected
+    if stale_causes:
+        print(f"\n{'='*70}")
+        print("STALENESS CASCADE (auto-detected from dependency graph)")
+        print(f"{'='*70}")
+        for phase, causes in sorted(stale_causes.items()):
+            chain = " <- ".join(causes)
+            print(f"  [!] {phase} is STALE because: {chain}")
 
     print(f"\n{'='*70}")
     print("UNBLOCKED PHASES (ready to launch)")
@@ -174,10 +293,16 @@ def print_next_steps(steps: list[dict]) -> None:
     else:
         for step in actionable:
             scenario_tag = " [per-scenario]" if step["per_scenario"] else ""
-            print(f"\n  >> {step['phase_id']}{scenario_tag}")
+            stale_tag = ""
+            if step["stale_cause"]:
+                stale_tag = f" [STALE: re-run needed]"
+            print(f"\n  >> {step['phase_id']}{scenario_tag}{stale_tag}")
             print(f"     {step['description']}")
             print(f"     status: {step['current_status']}")
             print(f"     script: {step['script']}")
+            if step["stale_cause"]:
+                chain = " <- ".join(step["stale_cause"])
+                print(f"     stale because: {chain}")
             if step["prerequisites"]:
                 for p in step["prerequisites"]:
                     print(f"     prereq: {p}")
@@ -217,6 +342,7 @@ def main():
     # --next-steps mode: compute unblocked phases from dependency graph
     if args.next_steps:
         phase_statuses = get_phase_statuses(phases)
+        phase_details = get_phase_details(phases)
         contract_phases = []
         if CONTRACT_FILE.exists():
             with open(CONTRACT_FILE) as f:
@@ -225,7 +351,9 @@ def main():
             if not isinstance(contract_phases, list):
                 contract_phases = []
 
-        steps = compute_next_steps(phase_statuses, contract_phases)
+        steps, stale_causes = compute_next_steps(
+            phase_statuses, contract_phases, phase_details
+        )
 
         if args.json:
             output = {
@@ -234,12 +362,15 @@ def main():
                 "total_incomplete": len(steps),
                 "actionable": [s for s in steps if s["actionable"]],
                 "blocked": [s for s in steps if not s["actionable"]],
+                "stale_cascade": {
+                    k: v for k, v in stale_causes.items()
+                } if stale_causes else {},
             }
             print(json.dumps(output, indent=2, default=str))
         else:
             print(f"Experiment: {registry['experiment']}")
             print(f"Last audit: {registry.get('last_audit', 'never')}")
-            print_next_steps(steps)
+            print_next_steps(steps, stale_causes)
         return
 
     s3 = get_s3_client()

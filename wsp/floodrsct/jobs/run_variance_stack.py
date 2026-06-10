@@ -182,6 +182,7 @@ def process_cell(
         train_mask = ~val_mask
 
         train_df = merged[train_mask & merged[target_col].notna()].copy()
+        train_df = train_df.dropna(subset=feature_cols)
         val_df = merged[val_mask & merged[target_col].notna()].copy()
         val_df = val_df.dropna(subset=descriptors)
 

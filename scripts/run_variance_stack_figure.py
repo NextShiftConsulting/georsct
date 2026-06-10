@@ -134,15 +134,18 @@ def _fit_predict_fold(
     y_train = train_df[target_col].to_numpy(dtype=float)
     X_val = val_df[feature_cols].to_numpy(dtype=float)
 
+    n_bins = min(255, len(X_train))
     if task == "classification":
         model = HistGradientBoostingClassifier(
-            max_iter=200, max_depth=6, learning_rate=0.1, random_state=42,
+            max_iter=200, max_depth=6, learning_rate=0.1,
+            max_bins=n_bins, random_state=42,
         )
         model.fit(X_train, y_train)
         y_pred = model.predict_proba(X_val)[:, 1]
     else:
         model = HistGradientBoostingRegressor(
-            max_iter=200, max_depth=6, learning_rate=0.1, random_state=42,
+            max_iter=200, max_depth=6, learning_rate=0.1,
+            max_bins=n_bins, random_state=42,
         )
         model.fit(X_train, y_train)
         y_pred = model.predict(X_val)
@@ -198,6 +201,7 @@ def process_cell(
         train_mask = ~val_mask
 
         train_df = merged[train_mask & merged[target_col].notna()].copy()
+        train_df = train_df.dropna(subset=feature_cols)
         val_df = merged[val_mask & merged[target_col].notna()].copy()
         val_df = val_df.dropna(subset=descriptors)
 

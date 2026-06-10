@@ -292,8 +292,12 @@ phases:
   variance_stack_figure:
     status: DESIGNED
     verified: "2026-06-10"
-    artifact_keys: []
-    notes: "Depends on variance_stack. Paper Figure 4 (fig_variance_stack.pdf)."
+    artifact_keys:
+      - results/s035/sidecar/variance_stack/fig_variance_stack.pdf
+      - results/s035/sidecar/variance_stack/fig_variance_stack.png
+    code: jobs/run_variance_stack_figure.py
+    launcher: scripts/launch_variance_stack_figure.py
+    notes: "Depends on variance_stack. Paper Figure 4 (fig_variance_stack.pdf). Ready to launch."
 
   # ===== R3: Certificate-Gated Admission Pipeline =====
   r3_feature_registry:
