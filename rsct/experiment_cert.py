@@ -58,9 +58,11 @@ class ExperimentCertificate:
         N: Noise (simplex remainder).
         alpha: Signal purity R / (R + N).
         omega: Reliability 1 - S_sup.
-        kappa_compat: Geometric compatibility (from Phase 4 diagnostics),
-            or None if unavailable (ADR-020 D8.5: null, never 0.0).
+        kappa_compat: Simplex compatibility R*(1-N) (ADR-020 D8.3).
+            Always computed from simplex; never None.
         kappa_source: Provenance tag for kappa_compat (ADR-020 D8.4).
+        kappa_geom: Pre-training geometric compatibility from Phase 0.5
+            (ADR-020 D8.6: diagnostic only, never flows to enforcement).
         tau: Temporal stability 1 / (1 + CV).
         sigma: Cross-fold volatility std(fold_metrics).
         coherence: Cross-fold agreement (None if not computable).
@@ -75,8 +77,9 @@ class ExperimentCertificate:
     N: float
     alpha: float
     omega: float
-    kappa_compat: float | None
-    kappa_source: str = "geometry_pre_model"
+    kappa_compat: float
+    kappa_source: str = "rsn_simplex"
+    kappa_geom: float | None = None
     tau: float = 0.0
     sigma: float = 0.0
     coherence: float | None = None
@@ -328,11 +331,10 @@ def certify_experiment_cell(
     else:
         omega = 1.0 - S_sup
 
-    # ADR-020 D8.5: missing kappa = None + warning, never 0.0
-    kappa_compat = kappa_geom  # None if unavailable
-    kappa_source = "geometry_pre_model" if kappa_geom is not None else "unavailable"
-    if kappa_compat is None:
-        log.warning("kappa_compat unavailable (kappa_geom=None); D8.5: emitting null")
+    # ADR-020 D8.3: kappa_compat = R*(1-N), always computed from simplex
+    kappa_compat = R * (1.0 - N)
+    kappa_source = "rsn_simplex"
+    # kappa_geom is diagnostic-only (ADR-020 D8.6); passed through, never enforcement
     tau = compute_tau(fold_metrics)
     sigma = compute_sigma(fold_metrics)
 
@@ -348,7 +350,7 @@ def certify_experiment_cell(
     if _Diagnoser is not None:
         try:
             diagnoser = _Diagnoser()
-            result = diagnoser.diagnose(alpha=alpha, kappa=kappa_compat or 0.0, sigma=sigma)
+            result = diagnoser.diagnose(alpha=alpha, kappa=kappa_compat, sigma=sigma)
             diagnosis_label = (
                 str(result.label) if hasattr(result, 'label') else str(result)
             )
@@ -361,8 +363,9 @@ def certify_experiment_cell(
         N=round(N, 6),
         alpha=round(alpha, 6),
         omega=round(omega, 6),
-        kappa_compat=round(kappa_compat, 6) if kappa_compat is not None else None,
+        kappa_compat=round(kappa_compat, 6),
         kappa_source=kappa_source,
+        kappa_geom=round(kappa_geom, 6) if kappa_geom is not None else None,
         tau=round(tau, 6),
         sigma=round(sigma, 6),
         coherence=coh.coherence,

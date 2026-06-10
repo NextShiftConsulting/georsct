@@ -326,7 +326,7 @@ def run_certificates(s3, level: str, upload: bool = False) -> dict:
         rng = np.random.default_rng(boot_seed)
         n_cells = len(all_certs)
 
-        for signal in ("R", "S_sup", "N", "alpha", "omega", "kappa", "tau", "sigma"):
+        for signal in ("R", "S_sup", "N", "alpha", "omega", "kappa_compat", "tau", "sigma"):
             vals = np.array([c.get(signal, float("nan")) for c in all_certs], dtype=float)
             valid = vals[~np.isnan(vals)]
             if len(valid) < 2:

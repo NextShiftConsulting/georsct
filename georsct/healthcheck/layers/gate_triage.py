@@ -26,8 +26,8 @@ def evaluate_gates(
         GateResult with decision, gate_reached, evidence, and sub_signal.
     """
     alpha = cert.get("alpha", 0.0)
-    # ADR-020 D8.5: prefer kappa_compat; bare "kappa" for legacy compat only
-    kappa = cert.get("kappa_compat", cert.get("kappa"))
+    # ADR-020 D8.5: kappa_compat only; bare "kappa" is forbidden
+    kappa = cert.get("kappa_compat")
     sigma = cert.get("sigma", 0.0)
     coherence = cert.get("coherence")
     kappa_L = cert.get("kappa_L")
