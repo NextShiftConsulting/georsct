@@ -28,7 +28,7 @@ CODE_BUCKET = "swarm-floodrsct-data"
 # yrsn-experiments and uploaded to this prefix.  Mounted as a separate
 # SageMaker ProcessingInput -- matches the s018/s019 pattern.
 WHEELS_BUCKET = "swarm-yrsn-datasets"
-WHEELS_PREFIX = "rsct_code/wheels/20260506-162534"
+WHEELS_PREFIX = "rsct_code/wheels/20260610-070717"
 
 # SageMaker-managed PyTorch CPU image (no GPU needed for data pulls)
 PYTORCH_CPU = (
