@@ -130,14 +130,17 @@ phases:
     artifact_keys:
     - results/s035/dgm_routing.json
   verdicts:
-    status: STALE
+    status: COMPLETED
     verified: '2026-06-10'
     verification_method: s3_ls
+    job_id: s035-verdicts-20260610-195817
     artifact_keys:
     - results/s035/verdicts.json
     notes: >
-      5/6 verdicts computed. Relational verdict = PENDING (ablation incomplete).
-      STALE: must re-run after r1_ablation completes all 5 metros.
+      6/6 verdicts computed. Relational = NOT_LOAD_BEARING (0/4 scenarios show
+      W-matrix effect, d < 0.20). Prediction = SUPPORTED (p=0.024, d=0.44).
+      Ranking = PROVISIONAL. Clustering = INSUFFICIENT. Transfer = PROVISIONAL.
+      Allocation = PARTIAL (12/15 events covered).
   fast_zcta:
     status: COMPLETED
     verified: '2026-06-10'
@@ -360,9 +363,21 @@ paper_claims:
     artifact_keys:
     - results/s035/fast_validation.json
   sec_relational_verdict:
-    status: YELLOW
-    reason: PENDING is correct (Houston-only ablation). Not stale, but limited scope.
+    status: GREEN
+    reason: >
+      NOT_LOAD_BEARING across 4/5 scenarios (d < 0.20). W-matrix does not
+      meaningfully contribute to RMSE. Full ablation battery completed.
     artifact_keys:
     - results/s035/verdicts.json
+    - results/s035/r1_no_wlag_houston.json
+    - results/s035/r1_no_wlag_southwest_florida.json
+    - results/s035/r1_no_wlag_nyc.json
+    - results/s035/r1_no_wlag_riverside_coachella.json
+    - results/s035/r1_no_wlag_new_orleans.json
+    - results/s035/r1_wlag_only_houston.json
+    - results/s035/r1_wlag_only_southwest_florida.json
+    - results/s035/r1_wlag_only_nyc.json
+    - results/s035/r1_wlag_only_riverside_coachella.json
+    - results/s035/r1_wlag_only_new_orleans.json
     - results/s035/r1_no_wlag_houston.json
     - results/s035/r1_wlag_only_houston.json
