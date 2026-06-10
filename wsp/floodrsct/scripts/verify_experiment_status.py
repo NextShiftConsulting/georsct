@@ -428,18 +428,89 @@ def main():
     else:
         print("  ACTION NEEDED -- update EXPERIMENT_STATUS.yaml")
 
-    # Also check paper claims
+    # Check paper claims -- verify artifact_keys exist on S3
     claims = registry.get("paper_claims", {})
     if claims:
-        print(f"\nPaper Claim Status:")
+        print(f"\nPaper Claim Verification:")
+        claim_issues = []
         for section, info in claims.items():
             status = info.get("status", "UNKNOWN")
+            claim_artifacts = info.get("artifact_keys", [])
+            pending = info.get("pending_artifacts", [])
+
+            # Verify backing artifacts exist
+            artifacts_ok = True
+            missing_artifacts = []
+            for key in claim_artifacts:
+                if not check_key_exists(s3, bucket, key):
+                    artifacts_ok = False
+                    missing_artifacts.append(key)
+
+            # Determine effective status
+            if not artifacts_ok:
+                effective = "RED"
+                claim_issues.append((section, missing_artifacts))
+            elif status == "GREEN" and pending:
+                effective = "GREEN"  # claim is backed, figure pending
+            else:
+                effective = status
+
             icon = {"GREEN": "[+]", "YELLOW": "[~]", "RED": "[!]"}.get(
-                status, "[?]"
+                effective, "[?]"
             )
-            print(f"  {icon} {section}: {status}")
-            if status in ("RED", "YELLOW"):
+            print(f"  {icon} {section}: {effective}")
+            if missing_artifacts:
+                for ma in missing_artifacts:
+                    print(f"      MISSING artifact: {ma}")
+            if pending:
+                for pa in pending:
+                    print(f"      pending: {pa}")
+            if effective in ("RED", "YELLOW") and not missing_artifacts:
                 print(f"      {info.get('reason', '')}")
+
+        if claim_issues and args.fix:
+            print(f"\n  AUTO-FIX: Updating paper claims with missing artifacts to RED")
+            for section, _ in claim_issues:
+                registry["paper_claims"][section]["status"] = "RED"
+
+    # --fix mode: write back updated statuses
+    if args.fix:
+        fixes = []
+        for check in checks:
+            exists = check_key_exists(s3, bucket, check["artifact_key"])
+            status = check["status"]
+
+            if status == "COMPLETED" and not exists:
+                fixes.append((check["phase"], "COMPLETED->DESIGNED",
+                              "artifact missing from S3"))
+            elif status == "DESIGNED" and exists:
+                fixes.append((check["phase"], "DESIGNED->COMPLETED",
+                              "artifact found on S3"))
+
+        if fixes or claim_issues:
+            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            registry["last_audit"] = today
+
+            # Apply phase status fixes
+            for phase_path, change, reason in fixes:
+                parts = phase_path.split(".")
+                target = registry["phases"]
+                for part in parts:
+                    if part in target:
+                        target = target[part]
+                if isinstance(target, dict) and "status" in target:
+                    new_status = change.split("->")[1]
+                    target["status"] = new_status
+                    target["verified"] = today
+                    target["verification_method"] = "s3_ls"
+                    print(f"  FIXED: {phase_path}: {change}")
+
+            with open(STATUS_FILE, "w") as f:
+                yaml.dump(registry, f, default_flow_style=False,
+                          sort_keys=False, allow_unicode=True)
+            print(f"\n  Wrote updated status to {STATUS_FILE}")
+        else:
+            print(f"\n  No fixes needed.")
 
 
 if __name__ == "__main__":

@@ -123,8 +123,16 @@ phases:
 
       '
   fast_zcta:
-    status: BLOCKED
-    notes: NSI 2.0 not on S3. Cannot produce FAST engineering features.
+    status: COMPLETED
+    verified: '2026-06-10'
+    verification_method: s3_ls
+    artifact_keys:
+    - processed/houston/houston_fast_zcta_100yr.parquet
+    - processed/nyc/nyc_fast_zcta_10yr.parquet
+    - processed/southwest_florida/southwest_florida_fast_zcta_cat3.parquet
+    notes: 'NSI 2.0 IS on S3 (3/3 applicable scenarios: houston, nyc, southwest_florida).
+      Riverside/New Orleans excluded by design (no depth data). All return periods +
+      meta JSONs present. Previously marked BLOCKED in error.'
   fast_validation:
     status: COMPLETED
     verified: '2026-06-10'

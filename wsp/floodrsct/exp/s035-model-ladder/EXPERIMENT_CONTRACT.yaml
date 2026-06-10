@@ -882,6 +882,68 @@ phases:
         per_scenario: true
         scenarios: [houston, nyc]
 
+  # ── Phase 4e: Deployment Alignment (TWCV) ──────────────────────────────
+  - phase_id: deployment_alignment
+    script: compute_deployment_alignment.py
+    description: "Phase 4e: Train-vs-deployment weight calibration (raking, shrinkage)"
+    per_scenario: false
+    depends_on: [r0_baseline, r1_hydrology, r2_temporal]
+
+    packages:
+      - numpy
+      - pandas
+      - pyarrow
+      - scipy
+      - scikit-learn
+
+    features: null
+
+    outputs:
+      - key: "results/s035/sidecar/deployment_alignment/{scenario}_alignment.json"
+        per_scenario: true
+      - key: "results/s035/sidecar/deployment_alignment/uplift_comparison.json"
+
+  # ── Phase 4e.2: Variance Stack Decomposition ──────────────────────────
+  - phase_id: variance_stack
+    script: run_variance_stack.py
+    description: "Phase 4e.2: 5-step variance stack decomposition (raking, shrinkage, blocking, bootstrap, ensemble)"
+    per_scenario: false
+    depends_on: [deployment_alignment]
+
+    packages:
+      - numpy
+      - pandas
+      - pyarrow
+      - scipy
+      - scikit-learn
+
+    features: null
+
+    outputs:
+      - key: "results/s035/sidecar/variance_stack/variance_stack_results.json"
+
+  # ── Phase 4e.3: Variance Stack Figure ──────────────────────────────────
+  - phase_id: variance_stack_figure
+    script: render_variance_stack_figure.py
+    description: "Phase 4e.3: Render variance stack ladder figure (Paper Figure 4)"
+    per_scenario: false
+    depends_on: [variance_stack]
+
+    packages:
+      - numpy
+      - pandas
+      - matplotlib
+
+    features: null
+
+    s3_artifacts:
+      - key: "results/s035/sidecar/variance_stack/variance_stack_results.json"
+        description: "Variance stack results to visualize"
+
+    outputs:
+      - key: "results/s035/sidecar/figures/fig_variance_stack.pdf"
+      - key: "results/s035/sidecar/figures/fig_variance_stack.svg"
+
 # ── Verification Gates ────────────────────────────────────────────────
 # Machine-readable gate definitions.  Full prose and commands in VERIFY.md.
 # Each gate lists checks with pass_criteria.  Automated verification
