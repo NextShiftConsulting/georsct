@@ -209,20 +209,24 @@ phases:
 
   # ===== PHASE 4e.2: Variance Stack Decomposition =====
   variance_stack:
-    status: DESIGNED
+    status: COMPLETED
     verified: "2026-06-10"
     verification_method: s3_ls
-    artifact_keys: []
-    code: scripts/run_variance_stack_figure.py
+    job_id: s035-variance-stack-20260610-152036
+    artifact_keys:
+      - results/s035/sidecar/variance_stack/variance_stack_results.json
+    code: jobs/run_variance_stack.py
     library: georsct.analysis.variance_stack
     doe: DOE_deployment_alignment.md
     notes: >
-      5-step ladder (unweighted -> coverage gate -> product -> raking -> raking+shrinkage).
-      Code exists. Library exists. NEVER RUN. No launcher exists.
-      Paper section 7.1 cites fabricated numbers from this experiment.
-      Given TWCV finding (weights=1.0), ladder may show flat lines.
-      MUST RUN to either confirm flat-line finding or discover step-level variation.
-    blocker: "Needs SageMaker launcher. Script reads /tmp local paths, not S3."
+      5 cells: Houston (NFIP claims, 311 reports), NYC (NFIP claims, 311 reports, HWM).
+      Riverside_coachella + new_orleans: NoSuchKey (event_features.parquet missing).
+      SWFL: no targets passed prevalence filter. Houston obs_has_hwm missing.
+      Key finding: ladder NOT flat. Raking reduces Houston gap 0.174->0.103 (-41%)
+      but increases RMSE 156.8->161.0 (bias-variance tradeoff).
+      NYC: FAIL_COVERAGE at step 1 (19.8% uncovered deployment mass).
+      Shrinkage recovers ~10 ESS points consistently.
+      Paper sec 7.1 numbers were fabricated; must rewrite with these real values.
 
   # ===== PHASE 4e.3: Variance Stack Figure =====
   variance_stack_figure:
@@ -236,10 +240,10 @@ phases:
 # Each paper section with empirical claims and their artifact backing.
 paper_claims:
   sec_7_1_variance_stack:
-    status: RED
-    reason: "All numbers fabricated. TWCV raking shows zero shift. Full 5-step ladder never run."
-    artifact_needed: variance_stack results
-    fix: "Run variance_stack, rewrite section with real numbers"
+    status: YELLOW
+    reason: "Variance stack now COMPLETED (s035-variance-stack-20260610-152036). Real numbers on S3. Paper text still contains fabricated values -- must rewrite sec 7.1 with artifact data."
+    artifact_needed: "Rewrite 07_results.tex lines 67-92 with real numbers from variance_stack_results.json"
+    fix: "Replace fabricated numbers with: Houston gap 0.174->0.103, NYC FAIL_COVERAGE, ESS tradeoffs"
 
   sec_7_2_alpha_threshold:
     status: GREEN
