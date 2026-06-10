@@ -78,8 +78,26 @@ TARGETS = [
     {"column": "obs_has_hwm", "label": "HWM presence", "task": "classification"},
 ]
 
-MIN_PREVALENCE = 0.03
+# Gate thresholds -- document once, reference everywhere.
+# Prevalence floor for classification targets: cells with prevalence
+# below this (or above 1-this) are abstained because the minority class
+# is too sparse for fold-level estimation.  This is the same threshold
+# used in the primary training pipeline; if you change it here, change
+# it there too (or better, move it to EXPERIMENT_CONTRACT.yaml).
+CLASSIFICATION_PREVALENCE_FLOOR = 0.03
+
+# Minimum rows in a single fold (train or val) for the model to run.
+# This is a RUNNABILITY gate, not an interpretability gate.  A cell can
+# clear this and still produce a near-stump if min_samples_leaf is large
+# relative to n.  See MIN_INTERPRETABLE_TRAIN_N below.
 MIN_FOLD_SIZE = 10
+
+# Interpretability floor: if the training fold has fewer rows than this,
+# HGB with min_samples_leaf=20 can make at most ~1 split -- effectively
+# a stump.  The cell runs but the result is noise around a global mean.
+# Cells that clear MIN_FOLD_SIZE but fail this get status=WARN_STUMP.
+MIN_INTERPRETABLE_TRAIN_N = 50
+
 SIDECAR_PREFIX = "results/s035/sidecar/variance_stack"
 
 
@@ -137,6 +155,27 @@ def fit_predict_fold(
 # Per-cell processing
 # ---------------------------------------------------------------------------
 
+def _abstain(scenario: str, target: dict, reason_code: str, detail: str) -> dict:
+    """Return an abstain record that serializes into the output JSON.
+
+    Abstain records carry None metrics but ARE written to the results,
+    so downstream consumers can see which cells were attempted and why
+    they were excluded.
+    """
+    return {
+        "scenario": scenario,
+        "target": target["column"],
+        "target_label": target["label"],
+        "task": target["task"],
+        "status": "ABSTAIN",
+        "reason_code": reason_code,
+        "reason_detail": detail,
+        "n_folds": 0,
+        "n_folds_available": 0,
+        "ladder": None,
+    }
+
+
 def process_cell(
     merged: pd.DataFrame,
     scenario: str,
@@ -144,37 +183,46 @@ def process_cell(
     descriptors: list[str],
     feature_cols: list[str],
 ) -> dict | None:
-    """Run full 5-step ladder for one scenario-target cell."""
+    """Run full 5-step ladder for one scenario-target cell.
+
+    Returns a result dict (with ladder or with status=ABSTAIN).
+    Returns None only for truly unexpected errors caught by the caller.
+    """
     target_col = target["column"]
     task = target["task"]
     label = f"{scenario} / {target['label']}"
 
     if target_col not in merged.columns:
-        log.info("  %s: target column missing, skipping", label)
-        return None
+        log.info("  %s: target column missing, abstaining", label)
+        return _abstain(scenario, target, "TARGET_MISSING",
+                        f"{target_col} not in columns")
 
     valid = merged[target_col].notna()
     if valid.sum() < 20:
-        log.info("  %s: too few non-null target values (%d), skipping", label, valid.sum())
-        return None
+        log.info("  %s: too few non-null target values (%d), abstaining", label, valid.sum())
+        return _abstain(scenario, target, "INSUFFICIENT_TARGET_N",
+                        f"n_valid={valid.sum()} < 20")
 
     if task == "classification":
         prev = merged.loc[valid, target_col].mean()
-        if prev < MIN_PREVALENCE or prev > (1 - MIN_PREVALENCE):
-            log.info("  %s: prevalence=%.3f below threshold, skipping", label, prev)
-            return None
+        if prev < CLASSIFICATION_PREVALENCE_FLOOR or prev > (1 - CLASSIFICATION_PREVALENCE_FLOOR):
+            log.info("  %s: prevalence=%.3f below threshold, abstaining", label, prev)
+            return _abstain(scenario, target, "PREVALENCE_TOO_LOW",
+                            f"prevalence={prev:.3f} < {CLASSIFICATION_PREVALENCE_FLOOR}")
 
     # Deployment domain = all descriptor-complete rows
     target_df = merged[descriptors].copy().dropna(subset=descriptors)
     if len(target_df) < 20:
-        log.info("  %s: too few descriptor-complete rows (%d), skipping", label, len(target_df))
-        return None
+        log.info("  %s: too few descriptor-complete rows (%d), abstaining", label, len(target_df))
+        return _abstain(scenario, target, "INSUFFICIENT_DESCRIPTORS",
+                        f"n_descriptor_complete={len(target_df)} < 20")
 
     edges = fit_quantile_edges(target_df, descriptors, n_bins=5)
     target_binned = apply_bins(target_df, edges)
     bin_cols = [f"{c}_bin" for c in descriptors if f"{c}_bin" in target_binned.columns]
 
     all_ladders = []
+    stump_folds = []
     folds = sorted(merged["fold_spatial_blocked"].unique())
 
     for fold_id in folds:
@@ -188,6 +236,11 @@ def process_cell(
 
         if len(val_df) < MIN_FOLD_SIZE or len(train_df) < MIN_FOLD_SIZE:
             continue
+
+        # Interpretability check: flag if training set is too small for
+        # HGB to produce more than a near-stump (min_samples_leaf=20).
+        if len(train_df) < MIN_INTERPRETABLE_TRAIN_N:
+            stump_folds.append(fold_id)
 
         y_pred = fit_predict_fold(train_df, val_df, feature_cols, target_col, task)
         y_true = val_df[target_col].to_numpy(dtype=float)
@@ -218,8 +271,9 @@ def process_cell(
             )
 
     if not all_ladders:
-        log.info("  %s: no valid folds, skipping", label)
-        return None
+        log.info("  %s: no valid folds, abstaining", label)
+        return _abstain(scenario, target, "NO_VALID_FOLDS",
+                        f"0/{len(folds)} folds met MIN_FOLD_SIZE={MIN_FOLD_SIZE}")
 
     # Average across folds
     combined = pd.concat(all_ladders, ignore_index=True)
@@ -262,13 +316,30 @@ def process_cell(
             row["stack_status"],
         )
 
+    # Interpretability flag: if majority of folds had train_n below the
+    # interpretability floor, the cell ran but results are noise.
+    status = "RAN"
+    if stump_folds:
+        if len(stump_folds) > len(all_ladders) / 2:
+            status = "WARN_STUMP"
+            log.warning("  %s: %d/%d folds below interpretability floor "
+                        "(train_n < %d); results are near-stump noise",
+                        label, len(stump_folds), len(all_ladders),
+                        MIN_INTERPRETABLE_TRAIN_N)
+        else:
+            log.info("  %s: %d/%d folds below interpretability floor",
+                     label, len(stump_folds), len(all_ladders))
+
     return {
         "scenario": scenario,
         "target": target_col,
         "target_label": target["label"],
         "task": task,
+        "status": status,
         "n_folds": len(all_ladders),
         "n_folds_available": len(folds),
+        "n_stump_folds": len(stump_folds),
+        "min_interpretable_train_n": MIN_INTERPRETABLE_TRAIN_N,
         "ladder": avg.to_dict(orient="records"),
     }
 
@@ -323,8 +394,8 @@ def main():
                 result = process_cell(merged, scenario, target, descriptors, feature_cols)
             except Exception as e:
                 log.warning("  %s / %s FAILED: %s", scenario, target["label"], e)
-                result = None
-            if result:
+                result = _abstain(scenario, target, "EXCEPTION", str(e))
+            if result is not None:
                 all_results.append(result)
 
     # Build output

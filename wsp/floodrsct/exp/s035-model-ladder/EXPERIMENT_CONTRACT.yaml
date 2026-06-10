@@ -1001,6 +1001,12 @@ phases:
 
     features: null
 
+    # Pre-registered gate thresholds for cell admission
+    gate_thresholds:
+      classification_prevalence_floor: 0.03
+      min_fold_size: 10                   # runnability gate (can sklearn fit at all?)
+      min_interpretable_train_n: 50       # interpretability gate (is HGB more than a stump?)
+
     outputs:
       - key: "results/s035/sidecar/variance_stack/variance_stack_results.json"
 
