@@ -25,8 +25,9 @@ Deployment Resource Review (9 dimensions):
                 Budget ~2 GB per scenario on disk.
   7. Pip:       lidar whitebox geopandas rasterio planetary-computer
                 pystac-client shapely
-  8. Pre-inst:  None. whitebox-tools binary auto-downloads on first
-                lidar.ExtractSinks() call (~50 MB, cached in /tmp).
+  8. Pre-inst:  libgdal-dev + gdal-bin + matching GDAL Python bindings.
+                lidar uses osgeo (GDAL) for raster I/O. whitebox-tools
+                binary auto-downloads on first ExtractSinks() call.
   9. Timeout:   7200s (2h). DEM fetch ~2-5 min, delineation ~5-15 min
                 per scenario. Cache-first means re-runs are fast.
 """
@@ -52,6 +53,11 @@ def _launch_one(scenario: str, dry_run: bool) -> str:
         pip_packages=(
             "lidar whitebox geopandas rasterio "
             "planetary-computer pystac-client shapely"
+        ),
+        pre_install_cmd=(
+            "apt-get update -qq && "
+            "apt-get install -y -qq libgdal-dev gdal-bin && "
+            "pip install -q GDAL==$(gdal-config --version)"
         ),
         dry_run=dry_run,
     )

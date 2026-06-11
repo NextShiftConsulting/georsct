@@ -186,14 +186,18 @@ def extract_buildings_for_bbox(bbox: tuple[float, float, float, float],
     try:
         from open_buildings.download_buildings import download
         geojson_str = json.dumps({
-            "type": "Polygon",
-            "coordinates": [[
-                [float(bbox[0]), float(bbox[1])],
-                [float(bbox[2]), float(bbox[1])],
-                [float(bbox[2]), float(bbox[3])],
-                [float(bbox[0]), float(bbox[3])],
-                [float(bbox[0]), float(bbox[1])],
-            ]],
+            "type": "Feature",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[
+                    [float(bbox[0]), float(bbox[1])],
+                    [float(bbox[2]), float(bbox[1])],
+                    [float(bbox[2]), float(bbox[3])],
+                    [float(bbox[0]), float(bbox[3])],
+                    [float(bbox[0]), float(bbox[1])],
+                ]],
+            },
+            "properties": {},
         })
         # open-buildings 0.10.0: geojson_input is a file handle (json.load),
         # all params are positional from the Click CLI wrapper.
