@@ -229,14 +229,17 @@ graph when drawn on true geography.
 | Gate insensitive | ~= B | ~= B | Gate measures something other than topology. Investigate. |
 | Forward degraded | high | low (but forward also low) | Permutation killed forward accuracy. Not the quadrant we need. Arm C may be more informative. |
 
-**Go/no-go for Gate 3B ENFORCED status:**
+**Go/no-go for Gate 3B ENFORCED status (evaluated after Phase 1):**
 1. kappa_reconstruct(A) - kappa_reconstruct(B) > 0.2 (effect size)
 2. `adversarial_geography_permutation.earns_gate == True` (orthogonality)
 3. forward_score(B) >= 0.8 * forward_score(A) (permutation didn't trivially kill prediction)
 
-If condition 3 fails, the test is inconclusive -- the permutation damaged the
-signal too much to test the taxi-flyover quadrant. Use Arm C (block permutation)
-as fallback, which preserves more local signal.
+If all three pass: Gate 3B promoted to ENFORCED. Phase 2 (Arms C+D) runs
+as sensitivity analysis.
+
+If condition 3 fails: the permutation damaged the signal too much to test
+the taxi-flyover quadrant. Proceed to Phase 2 -- Arm C (block permutation)
+preserves more local signal and may reach the right quadrant.
 
 ---
 
@@ -297,15 +300,46 @@ def permute_zcta_centroids(
 
 ## Compute Budget
 
-| Phase | Arms | Scenarios | Folds | Approx Time |
-|-------|------|-----------|-------|-------------|
-| Feature extraction (B, C) | 2 | 5 | 1 | ~30 min (STAC calls) |
-| Training | 4 arms x 5 scenarios x 3 targets x 5 folds | 300 | | ~2 hrs (ml.m5.4xlarge) |
-| Gate 3B evaluation | 4 arms x 5 scenarios | 20 | | ~10 min |
-| Adversarial permutation | 10 trials x 5 scenarios | 50 | | ~4 hrs |
-| **Total** | | | | ~7 hrs |
+### Phased execution: A+B first, C+D only if needed
 
-**Instance:** ml.m5.4xlarge (16 vCPU, 64 GB) -- same as R0/R1 runs.
+The critical comparison is A (real) vs B (permuted). Arms C (block-permuted)
+and D (covariate-only) are sensitivity checks that only run if A vs B passes
+the forward-score ratio threshold (condition 3 in go/no-go).
+
+### Phase 1: A+B (mandatory)
+
+| Phase | Work | Wall-Clock |
+|-------|------|------------|
+| Feature extraction (B) | 1 arm x 5 scenarios, STAC COG reads | ~5 min |
+| Training (A+B) | 2 arms x 5 scenarios x 3 targets x 5 folds = 150 runs @ 3 min | ~45 min (5 parallel instances) |
+| Gate 3B evaluation (A+B) | 2 arms x 5 scenarios = 10 evals @ ~5 sec | ~1 min |
+| Adversarial permutation | 10 trials x 5 scenarios @ 3 min/trial | ~2.5 hrs (1 instance serial) |
+| **Phase 1 total** | | **~3.5 hrs** |
+
+### Phase 2: C+D (conditional on Phase 1 passing)
+
+| Phase | Work | Wall-Clock |
+|-------|------|------------|
+| Feature extraction (C) | 1 arm x 5 scenarios | ~5 min |
+| Training (C+D) | 2 arms x 150 runs | ~45 min |
+| Gate 3B evaluation (C+D) | 10 evals | ~1 min |
+| **Phase 2 total** | | **~1 hr** |
+
+### Instance and resource assumptions
+
+Based on s035 COMPUTE_MANIFEST.md -- all s035 jobs ran on ml.m5.xlarge or
+ml.m5.large in 2-4 min each. HistGBDT on 60-70 features x 200-400 ZCTAs
+is tiny. No GPU needed.
+
+| Resource | Value | Rationale |
+|----------|-------|-----------|
+| **Instance** | ml.m5.xlarge (4 vCPU, 16 GB) | Same as all s035 training jobs. ml.m5.4xlarge is 4x cost for no benefit at ZCTA scale. |
+| **Volume** | 10 GB | Features are small parquets. No raster I/O on SageMaker -- STAC COG windows are fetched into memory by floodcaster.batch. |
+| **Image** | Standard SageMaker sklearn | Same as s035 R0/R1/R2. pip install floodcaster from git at job start. |
+| **Threads** | n_jobs=-1 on HistGBDT | Standard convention. Gabriel graph + crossing detection is single-threaded but finishes in seconds at ZCTA scale (~300 regions, O(n^2) edges). |
+| **Memory** | <2 GB working set | Feature matrices are ~400 rows x 70 cols. kappa_reconstruct distance matrices are 400x400 float64 = 1.2 MB. No memory pressure. |
+| **Cache** | Arm A features already on S3 | build_event_dataset cached Deltares/hydrology/SAR features during pipeline run. Only Arms B and C require new STAC extraction. |
+| **Parallelism** | 5 instances for training (1 per scenario) | Each scenario is independent. Adversarial permutation runs serial (10 trials, each retrains) on 1 instance per scenario. |
 
 ---
 
