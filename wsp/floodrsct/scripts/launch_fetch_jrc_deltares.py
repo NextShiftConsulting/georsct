@@ -58,9 +58,9 @@ def main() -> None:
 
     job_name = make_job_name(f"fetch-{suffix}")
 
-    # Install floodcaster + sphere from local wheels via --find-links
-    # in the SAME pip resolution pass as PyPI deps. The default bootstrap
-    # glob (pip install *.whl 2>/dev/null || true) swallows errors.
+    # PyPI deps only. floodcaster + sphere are installed from mounted
+    # wheels by the job script itself (self-install block at top of
+    # fetch_jrc_deltares.py) to avoid the bootstrap glob error swallowing.
     launch_processing_job(
         job_name=job_name,
         job_script="fetch_jrc_deltares.py",
@@ -69,9 +69,7 @@ def main() -> None:
         volume_size_gb=20,
         pip_packages=(
             "geopandas rasterio planetary-computer pystac-client "
-            "duckdb shapely pyogrio "
-            "--find-links /opt/ml/processing/input/wheels/ "
-            "sphere-core sphere-data sphere-flood floodcaster"
+            "duckdb shapely pyogrio"
         ),
         dry_run=args.dry_run,
     )

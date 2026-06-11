@@ -30,10 +30,28 @@ Usage:
 
 import argparse
 import logging
+import subprocess
 import sys
 import time
 from io import BytesIO
 from pathlib import Path
+
+# ---------------------------------------------------------------------------
+# Self-install floodcaster from mounted wheels (runs before any import)
+# ---------------------------------------------------------------------------
+_WHEELS = "/opt/ml/processing/input/wheels"
+try:
+    import floodcaster  # noqa: F401
+except ImportError:
+    print(f"floodcaster not found -- installing from {_WHEELS}", flush=True)
+    subprocess.check_call([
+        sys.executable, "-m", "pip", "install", "--quiet",
+        "--find-links", _WHEELS,
+        "sphere-core", "sphere-data", "sphere-flood", "floodcaster",
+    ])
+    import floodcaster  # noqa: F401
+    print(f"floodcaster {floodcaster.__version__} installed", flush=True)
+# ---------------------------------------------------------------------------
 
 import boto3
 import numpy as np
