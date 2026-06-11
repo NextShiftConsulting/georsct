@@ -327,11 +327,20 @@ phases:
       '
   # ── Floodcaster Diagnostic Stories (DOE locked 2026-06-11) ──────────
   construct_divergence:
-    status: DESIGNED
+    status: COMPLETED
+    verified: '2026-06-11'
+    verification_method: s3_ls
     doe_id: DOE-C1
+    job_id: s035-construct-divergence-20260611-133624
+    artifact_keys:
+    - results/s035/story/construct_divergence_houston.json
+    - results/s035/story/construct_divergence_southwest_florida.json
+    - results/s035/story/construct_divergence_nyc.json
+    - results/s035/story/construct_divergence_summary.json
     notes: >
-      FAST vs NFIP spatial construct comparison. Data exists on S3.
-      Run first per execution priority.
+      Houston anti-correlated (rho=-0.25, PASS), SW Florida positively
+      correlated (rho=+0.50, DEMOTION), NYC insufficient data. Overall
+      verdict MIXED -- constructs diverge heterogeneously by geography.
     contract: floodcaster_story_doe.yaml
   topology_necessity:
     status: DESIGNED
