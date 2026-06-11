@@ -1,0 +1,266 @@
+# FEATURE_REGISTRY.yaml -- Feature Lifecycle Registry
+#
+# Declarative registry of all geospatial features in the flood RSCT pipeline.
+# State is DERIVED by verify_feature_status.py from S3 artifacts and code
+# presence -- never manually tracked here.
+#
+# Lifecycle stages (derived, not stored):
+#   proposed    -> idea identified, no contract entry
+#   contracted  -> FEATURE_CONTRACT.yaml entry exists
+#   implemented -> job script + launcher exist (extracted type only)
+#   extracted   -> S3 cache parquet exists with data
+#   validated   -> coverage > min_coverage_pct across all scenarios
+#   integrated  -> consumer function wired into all scenario assemblers
+#
+# Feature types:
+#   extracted  -- has dedicated SageMaker extraction job + shared S3 cache
+#   derived    -- computed inline in build_event_dataset.py from raw S3 data
+
+features:
+
+  # -----------------------------------------------------------------------
+  # Extracted features (dedicated SageMaker jobs)
+  # -----------------------------------------------------------------------
+
+  - feature_id: buildings
+    title: Overture Maps Building Footprints
+    type: extracted
+    temporal_class: slow_drift
+    source: overture_maps
+    cache_key: processed/shared/zcta_buildings.parquet
+    metadata_key_template: results/s035/buildings_extraction_{scenario}.json
+    output_columns:
+      - building_count
+      - total_footprint_area_m2
+    build_function: build_building_features
+    job_script: run_fetch_buildings.py
+    launcher_script: launch_fetch_buildings.py
+    scenarios: all
+    min_coverage_pct: 80
+    pip_packages: open-buildings geopandas duckdb shapely pyarrow
+
+  - feature_id: depressions
+    title: Copernicus DEM Depression Delineation
+    type: extracted
+    temporal_class: invariant
+    source: copernicus_dem_glo30
+    cache_key: processed/shared/zcta_depressions.parquet
+    metadata_key_template: results/s035/depressions_extraction_{scenario}.json
+    output_columns:
+      - depression_count
+      - depression_volume_m3
+      - max_depression_depth_m
+      - depression_area_m2
+    build_function: build_depression_features
+    job_script: run_fetch_depressions.py
+    launcher_script: launch_fetch_depressions.py
+    scenarios: all
+    min_coverage_pct: 80
+    pip_packages: lidar whitebox geopandas rasterio planetary-computer pystac-client shapely
+
+  - feature_id: impervious
+    title: NLCD 2021 Impervious Surface
+    type: extracted
+    temporal_class: slow_drift
+    source: nlcd_2021
+    cache_key: processed/shared/zcta_impervious_pct.parquet
+    metadata_key_template: null
+    output_columns:
+      - impervious_pct
+    build_function: build_impervious_features
+    job_script: null  # inline extraction with cache write-back
+    launcher_script: null
+    scenarios: all
+    min_coverage_pct: 80
+
+  - feature_id: cropland
+    title: NLCD Cropland Percentage
+    type: extracted
+    temporal_class: slow_drift
+    source: nlcd_2021
+    cache_key: processed/shared/zcta_cropland_pct.parquet
+    metadata_key_template: null
+    output_columns:
+      - cropland_pct
+    build_function: build_cropland_features
+    job_script: null
+    launcher_script: null
+    scenarios: all
+    min_coverage_pct: 80
+
+  - feature_id: jrc_water
+    title: JRC Global Surface Water Occurrence
+    type: extracted
+    temporal_class: slow_drift
+    source: jrc_global_surface_water
+    cache_key: processed/shared/zcta_jrc_water_occurrence_pct.parquet
+    metadata_key_template: null
+    output_columns:
+      - jrc_occurrence_mean
+      - jrc_occurrence_max
+      - jrc_pct_ever_wet
+    build_function: build_jrc_water_features
+    job_script: null
+    launcher_script: null
+    scenarios: all
+    min_coverage_pct: 80
+
+  - feature_id: deltares_depth
+    title: Deltares Global Flood Maps
+    type: extracted
+    temporal_class: invariant
+    source: deltares_planetary_computer
+    cache_key: processed/shared/zcta_deltares_depth.parquet
+    metadata_key_template: null
+    output_columns:
+      - deltares_depth_ft_rp10
+      - deltares_max_depth_ft_rp10
+      - deltares_inundation_pct_rp10
+      - deltares_depth_ft_rp50
+      - deltares_max_depth_ft_rp50
+      - deltares_inundation_pct_rp50
+      - deltares_depth_ft_rp100
+      - deltares_max_depth_ft_rp100
+      - deltares_inundation_pct_rp100
+    build_function: build_deltares_depth_features
+    job_script: null
+    launcher_script: null
+    scenarios: all
+    min_coverage_pct: 70
+
+  - feature_id: hydrology
+    title: DEM-Based Hydrology Stats (HAND, TWI, GFI, SPI)
+    type: extracted
+    temporal_class: invariant
+    source: copernicus_dem_glo30
+    cache_key: processed/shared/zcta_hydrology.parquet
+    metadata_key_template: null
+    output_columns:
+      - hand_mean_m
+      - twi_mean
+      - gfi_mean
+      - spi_mean
+    build_function: build_hydrology_features
+    job_script: null
+    launcher_script: null
+    scenarios: all
+    min_coverage_pct: 70
+
+  # -----------------------------------------------------------------------
+  # Derived features (inline in build_event_dataset.py)
+  # -----------------------------------------------------------------------
+
+  - feature_id: sentinel1_sar
+    title: Sentinel-1 SAR Event Water Detection
+    type: derived
+    temporal_class: event_dynamic
+    source: sentinel1_grd
+    cache_key: null  # per-event cache at processed/{scenario}/zcta_sar_{event_key}.parquet
+    output_columns:
+      - sar_water_pct
+      - sar_water_pct_anomaly
+      - sar_acquisition_lag_days
+    build_function: build_sentinel1_event_features
+    scenarios: all
+    min_coverage_pct: 50
+
+  - feature_id: elevation
+    title: ZCTA Centroid Elevation
+    type: derived
+    temporal_class: invariant
+    source: geocertdb2026
+    cache_key: null
+    output_columns:
+      - elevation_m_msl
+    build_function: build_elevation_features
+    scenarios: [southwest_florida, new_orleans, houston, nyc, riverside_coachella]
+    min_coverage_pct: 90
+
+  - feature_id: burn_scar
+    title: Post-Fire Burn Scar Overlap
+    type: derived
+    temporal_class: event_dynamic
+    source: nifc_mtbs
+    cache_key: null
+    output_columns:
+      - burn_scar_overlap
+    build_function: build_burn_scar_features
+    scenarios: [riverside_coachella]
+    min_coverage_pct: 50
+
+  - feature_id: catchment
+    title: NHDPlus V2 Upstream Catchment Area
+    type: derived
+    temporal_class: invariant
+    source: nhdplus_v2
+    cache_key: null
+    output_columns:
+      - upstream_catchment_km2
+    build_function: build_catchment_features
+    scenarios: [houston, riverside_coachella]
+    min_coverage_pct: 50
+
+  - feature_id: slosh
+    title: NHC SLOSH MOM Storm Surge
+    type: derived
+    temporal_class: event_dynamic
+    source: nhc_slosh_mom
+    cache_key: null
+    output_columns:
+      - slosh_max_surge_m
+      - slosh_category
+    build_function: build_slosh_features
+    scenarios: [southwest_florida, new_orleans]
+    min_coverage_pct: 50
+
+  - feature_id: coastal_distance
+    title: Coastal Distance from ZCTA Centroid
+    type: derived
+    temporal_class: invariant
+    source: computed
+    cache_key: null
+    output_columns:
+      - coastal_distance_m
+    build_function: build_coastal_distance_features
+    scenarios: [southwest_florida, new_orleans]
+    min_coverage_pct: 90
+
+  - feature_id: sewershed
+    title: NYC DEP Sewershed Boundaries
+    type: derived
+    temporal_class: invariant
+    source: nyc_dep
+    cache_key: null
+    output_columns:
+      - sewer_shed_id
+      - sewershed_name
+    build_function: build_sewershed_features
+    scenarios: [nyc]
+    min_coverage_pct: 50
+
+  - feature_id: subway
+    title: NYC MTA Subway Station Proximity
+    type: derived
+    temporal_class: invariant
+    source: nyc_mta
+    cache_key: null
+    output_columns:
+      - subway_station_count
+      - nearest_subway_distance_m
+    build_function: build_subway_features
+    scenarios: [nyc]
+    min_coverage_pct: 50
+
+  - feature_id: levee
+    title: USACE NLD Levee Condition and Proximity
+    type: derived
+    temporal_class: slow_drift
+    source: usace_nld
+    cache_key: null
+    output_columns:
+      - levee_condition_rating
+      - levee_nearest_km
+      - canal_proximity_m
+    build_function: build_levee_features
+    scenarios: [houston, new_orleans, southwest_florida]
+    min_coverage_pct: 30
