@@ -37,20 +37,49 @@ from io import BytesIO
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
-# Self-install floodcaster from mounted wheels (runs before any import)
+# Self-install floodcaster + deps from mounted wheels (runs before any import)
 # ---------------------------------------------------------------------------
 _WHEELS = "/opt/ml/processing/input/wheels"
-try:
-    import floodcaster  # noqa: F401
-except ImportError:
-    print(f"floodcaster not found -- installing from {_WHEELS}", flush=True)
+
+
+def _ensure_floodcaster():
+    """Install floodcaster + its STAC deps, fail loudly on any error."""
+    # Test the FULL import chain, not just the top-level package.
+    # floodcaster.stac needs planetary_computer, pystac_client, rasterio
+    # at module level -- if any are missing, Python reports it as
+    # "No module named 'floodcaster.stac'" which hides the real cause.
+    try:
+        from floodcaster.stac import jrc_centroid_occurrence  # noqa: F401
+        from floodcaster.batch import deltares_centroid_depth  # noqa: F401
+        return  # everything importable
+    except Exception as e:
+        print(f"floodcaster import failed: {e}", flush=True)
+
+    # Diagnose which dep is missing
+    for pkg in ["rasterio", "planetary_computer", "pystac_client",
+                "geopandas", "duckdb", "shapely"]:
+        try:
+            __import__(pkg)
+            print(f"  {pkg}: OK", flush=True)
+        except ImportError:
+            print(f"  {pkg}: MISSING", flush=True)
+
+    # Install everything from wheels + PyPI
+    print(f"Installing floodcaster + deps from {_WHEELS}...", flush=True)
     subprocess.check_call([
-        sys.executable, "-m", "pip", "install", "--quiet",
+        sys.executable, "-m", "pip", "install",
         "--find-links", _WHEELS,
         "sphere-core", "sphere-data", "sphere-flood", "floodcaster",
+        "planetary-computer", "pystac-client",
     ])
-    import floodcaster  # noqa: F401
-    print(f"floodcaster {floodcaster.__version__} installed", flush=True)
+
+    # Verify the full import chain
+    from floodcaster.stac import jrc_centroid_occurrence  # noqa: F401
+    from floodcaster.batch import deltares_centroid_depth  # noqa: F401
+    print("floodcaster installed and importable", flush=True)
+
+
+_ensure_floodcaster()
 # ---------------------------------------------------------------------------
 
 import boto3
