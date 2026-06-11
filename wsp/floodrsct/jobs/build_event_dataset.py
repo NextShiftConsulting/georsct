@@ -1124,6 +1124,8 @@ def build_houston(s3, cfg: dict) -> pd.DataFrame:
     elevation  = build_elevation_features(s3, harris_zctas, "houston")
     deltares   = build_deltares_depth_features(s3, harris_zctas)
     hydrology  = build_hydrology_features(s3, harris_zctas)
+    buildings  = build_building_features(s3, harris_zctas)
+    depressions = build_depression_features(s3, harris_zctas)
     # drainage_capacity_status: operational — not available from public archive
     drainage_op = _operational_unknown(
         pd.DataFrame({"zcta_id": harris_zctas}),
@@ -1151,7 +1153,8 @@ def build_houston(s3, cfg: dict) -> pd.DataFrame:
                               "scenario": "houston"})
         base = _safe_merge_parts(base, [nwis, mrms, hwm, tides, s311, nfip, storm,
                                         sar_ev, impervious, cropland, jrc_water, catchments,
-                                        levees, elevation, drainage_op, deltares, hydrology])
+                                        levees, elevation, drainage_op, deltares, hydrology,
+                                        buildings, depressions])
         if not static.empty:
             base = _safe_merge_parts(base, [static])
         w_feats = compute_w_matrix_features(s3, harris_zctas, static, base)
@@ -1184,6 +1187,8 @@ def build_new_orleans(s3, cfg: dict) -> pd.DataFrame:
     coastal_dist = build_coastal_distance_features(s3, no_zctas)
     deltares     = build_deltares_depth_features(s3, no_zctas)
     hydrology    = build_hydrology_features(s3, no_zctas)
+    buildings    = build_building_features(s3, no_zctas)
+    depressions  = build_depression_features(s3, no_zctas)
     # pump_station_status: operational (Ida 2021 partially hand-coded)
     pump_evidence = _load_local_evidence("/opt/ml/processing/input/evidence/no_pump_stations_ida2021.csv")
     # pump_station_status for non-Ida events: operational_unknown
@@ -1230,7 +1235,8 @@ def build_new_orleans(s3, cfg: dict) -> pd.DataFrame:
         base = _safe_merge_parts(base, [nwis, mrms, tides, hwm, nfip, storm,
                                         slosh, sar_ev, impervious, cropland, jrc_water,
                                         levee_feats, elevation, coastal_dist,
-                                        pump_op, deltares, hydrology])
+                                        pump_op, deltares, hydrology,
+                                        buildings, depressions])
         if not static.empty:
             base = _safe_merge_parts(base, [static])
         # Attach pump evidence for Ida 2021 (hand-coded override for pump_station_status)
@@ -1273,6 +1279,8 @@ def build_nyc(s3, cfg: dict) -> pd.DataFrame:
     subway_feats = build_subway_features(s3, nyc_zctas)
     deltares     = build_deltares_depth_features(s3, nyc_zctas)
     hydrology    = build_hydrology_features(s3, nyc_zctas)
+    buildings    = build_building_features(s3, nyc_zctas)
+    depressions  = build_depression_features(s3, nyc_zctas)
     subway_evidence = _load_local_evidence("/opt/ml/processing/input/evidence/nyc_subway_flooding_ida2021.csv")
 
     event_map = {
@@ -1310,7 +1318,8 @@ def build_nyc(s3, cfg: dict) -> pd.DataFrame:
         base = _safe_merge_parts(base, [nwis, mrms, tides, hwm, s311, nfip, storm,
                                         sar_ev, impervious, cropland, jrc_water,
                                         elevation, sewer_feats, subway_feats,
-                                        deltares, hydrology])
+                                        deltares, hydrology,
+                                        buildings, depressions])
         if not static.empty:
             base = _safe_merge_parts(base, [static])
         # Subway flooding evidence (hand-coded Ida 2021 overlay)
@@ -1346,6 +1355,8 @@ def build_riverside_coachella(s3, cfg: dict) -> pd.DataFrame:
     elevation   = build_elevation_features(s3, rc_zctas, "riverside_coachella")
     deltares    = build_deltares_depth_features(s3, rc_zctas)
     hydrology   = build_hydrology_features(s3, rc_zctas)
+    buildings   = build_building_features(s3, rc_zctas)
+    depressions = build_depression_features(s3, rc_zctas)
     # road_access_status: operational — not available from public archive
     road_op = _operational_unknown(
         pd.DataFrame({"zcta_id": rc_zctas}),
@@ -1381,7 +1392,8 @@ def build_riverside_coachella(s3, cfg: dict) -> pd.DataFrame:
         base = _safe_merge_parts(base, [nwis, mrms, hwm, nfip, storm,
                                         sar_ev, impervious, cropland, jrc_water,
                                         burn_scars, catchments, elevation,
-                                        road_op, deltares, hydrology])
+                                        road_op, deltares, hydrology,
+                                        buildings, depressions])
         if not static.empty:
             base = _safe_merge_parts(base, [static])
         w_feats = compute_w_matrix_features(s3, rc_zctas, static, base)
@@ -1412,6 +1424,8 @@ def build_southwest_florida(s3, cfg: dict) -> pd.DataFrame:
     levee_feats     = build_levee_features(s3, swfl_zctas, "southwest_florida")
     deltares        = build_deltares_depth_features(s3, swfl_zctas)
     hydrology       = build_hydrology_features(s3, swfl_zctas)
+    buildings       = build_building_features(s3, swfl_zctas)
+    depressions     = build_depression_features(s3, swfl_zctas)
     # evacuation_route_status: operational — not available from public archive
     evac_op = _operational_unknown(
         pd.DataFrame({"zcta_id": swfl_zctas}),
@@ -1451,7 +1465,8 @@ def build_southwest_florida(s3, cfg: dict) -> pd.DataFrame:
         base = _safe_merge_parts(base, [nwis, mrms, tides, hwm, nfip, storm,
                                         slosh, sar_ev, impervious, cropland, jrc_water,
                                         elevation, coastal_dist, levee_feats,
-                                        evac_op, deltares, hydrology])
+                                        evac_op, deltares, hydrology,
+                                        buildings, depressions])
         if not static.empty:
             base = _safe_merge_parts(base, [static])
         w_feats = compute_w_matrix_features(s3, swfl_zctas, static, base)
@@ -1523,6 +1538,8 @@ _IMPERVIOUS_CACHE_KEY = "processed/shared/zcta_impervious_pct.parquet"
 
 _DELTARES_DEPTH_CACHE_KEY = "processed/shared/zcta_deltares_depth.parquet"
 _HYDROLOGY_CACHE_KEY = "processed/shared/zcta_hydrology.parquet"
+_BUILDINGS_CACHE_KEY = "processed/shared/zcta_buildings.parquet"
+_DEPRESSIONS_CACHE_KEY = "processed/shared/zcta_depressions.parquet"
 
 
 def build_impervious_features(s3, zcta_ids: list[str]) -> pd.DataFrame:
@@ -3166,6 +3183,78 @@ def build_coastal_distance_features(s3, zcta_ids: list[str]) -> pd.DataFrame:
     log.info("build_coastal_distance_features: %d ZCTAs, median=%.1f km",
              len(out), out["coastal_distance_m"].median() / 1000)
     return out
+
+
+def build_building_features(s3, zcta_ids: list[str]) -> pd.DataFrame:
+    """Load Overture building footprint stats per ZCTA from shared cache.
+
+    Cache populated by run_fetch_buildings.py SageMaker job.
+    Returns DataFrame: zcta_id, building_count, total_footprint_area_m2,
+                       _fs_building_count.
+    """
+    data_cols = ["building_count", "total_footprint_area_m2"]
+    empty = pd.DataFrame({"zcta_id": zcta_ids})
+    for col in data_cols:
+        empty[col] = np.nan
+    empty["_fs_building_count"] = _FS_MISSING
+
+    try:
+        cached = s3_read(s3, _BUILDINGS_CACHE_KEY)
+        if cached is not None and "zcta_id" in cached.columns:
+            cached["zcta_id"] = cached["zcta_id"].astype(str)
+            keep = [c for c in cached.columns if c in ["zcta_id"] + data_cols]
+            out = pd.DataFrame({"zcta_id": zcta_ids}).merge(
+                cached[keep], on="zcta_id", how="left",
+            )
+            out["_fs_building_count"] = np.where(
+                out["building_count"].notna(), "present", _FS_MISSING,
+            )
+            hit = out["building_count"].notna().sum()
+            log.info("build_building_features: %d/%d ZCTAs from cache (%.0f%%)",
+                     hit, len(zcta_ids), hit / len(zcta_ids) * 100)
+            return out
+    except Exception as e:
+        log.warning("build_building_features: cache read failed: %s", e)
+
+    log.warning("build_building_features: no cache at %s; returning NaN", _BUILDINGS_CACHE_KEY)
+    return empty
+
+
+def build_depression_features(s3, zcta_ids: list[str]) -> pd.DataFrame:
+    """Load DEM depression stats per ZCTA from shared cache.
+
+    Cache populated by run_fetch_depressions.py SageMaker job.
+    Returns DataFrame: zcta_id, depression_count, depression_volume_m3,
+                       max_depression_depth_m, depression_area_m2,
+                       _fs_depression_count.
+    """
+    data_cols = ["depression_count", "depression_volume_m3",
+                 "max_depression_depth_m", "depression_area_m2"]
+    empty = pd.DataFrame({"zcta_id": zcta_ids})
+    for col in data_cols:
+        empty[col] = np.nan
+    empty["_fs_depression_count"] = _FS_MISSING
+
+    try:
+        cached = s3_read(s3, _DEPRESSIONS_CACHE_KEY)
+        if cached is not None and "zcta_id" in cached.columns:
+            cached["zcta_id"] = cached["zcta_id"].astype(str)
+            keep = [c for c in cached.columns if c in ["zcta_id"] + data_cols]
+            out = pd.DataFrame({"zcta_id": zcta_ids}).merge(
+                cached[keep], on="zcta_id", how="left",
+            )
+            out["_fs_depression_count"] = np.where(
+                out["depression_count"].notna(), "present", _FS_MISSING,
+            )
+            hit = out["depression_count"].notna().sum()
+            log.info("build_depression_features: %d/%d ZCTAs from cache (%.0f%%)",
+                     hit, len(zcta_ids), hit / len(zcta_ids) * 100)
+            return out
+    except Exception as e:
+        log.warning("build_depression_features: cache read failed: %s", e)
+
+    log.warning("build_depression_features: no cache at %s; returning NaN", _DEPRESSIONS_CACHE_KEY)
+    return empty
 
 
 # ---------------------------------------------------------------------------

@@ -783,6 +783,116 @@ features:
       Stream Power Index (flow accumulation * slope). Mean within ~1 km
       of ZCTA centroid. Higher SPI = more erosive power.
 
+  # --- Overture Building Footprints (open-buildings / DuckDB) -------------
+
+  - feature_name: building_count
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: public_fetch
+    source_dataset: overture_maps_buildings
+    raw_s3_path: (fetched live from Overture Maps S3 via DuckDB)
+    processed_s3_path: processed/shared/zcta_buildings.parquet
+    build_function: build_building_features
+    output_column: building_count
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.010
+    notes: >
+      Count of Overture Maps Foundation building footprint polygons
+      spatially joined to ZCTA boundary (EPSG:5070). Proxy for
+      built environment density and flood exposure concentration.
+      Extracted via open-buildings DuckDB adapter per scenario bbox.
+      Cache: processed/shared/zcta_buildings.parquet (compute once, share across scenarios).
+
+  - feature_name: total_footprint_area_m2
+    temporal_class: slow_drift
+    scenarios: all
+    source_type: derived
+    source_dataset: overture_maps_buildings
+    raw_s3_path: (fetched live from Overture Maps S3 via DuckDB)
+    processed_s3_path: processed/shared/zcta_buildings.parquet
+    build_function: build_building_features
+    output_column: total_footprint_area_m2
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.010
+    notes: >
+      Sum of building footprint polygon areas (m2, EPSG:5070 equal-area)
+      within ZCTA boundary. Proxy for impervious built surface and
+      total structural exposure. Complements NLCD impervious % with
+      explicit structure geometry.
+
+  # --- DEM Depression Delineation (Copernicus DEM + lidar/whitebox) -------
+
+  - feature_name: depression_count
+    temporal_class: invariant
+    scenarios: all
+    source_type: derived
+    source_dataset: copernicus_dem_glo30
+    raw_s3_path: (fetched live from Planetary Computer STAC API)
+    processed_s3_path: processed/shared/zcta_depressions.parquet
+    build_function: build_depression_features
+    output_column: depression_count
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.010
+    notes: >
+      Count of topographic depressions (sinks) intersecting the ZCTA,
+      delineated from Copernicus GLO-30 DEM via lidar/whitebox level-set
+      algorithm. Min sink size 100 px (~90000 m2), min depth 0.5 m.
+      Cache: processed/shared/zcta_depressions.parquet.
+
+  - feature_name: depression_volume_m3
+    temporal_class: invariant
+    scenarios: all
+    source_type: derived
+    source_dataset: copernicus_dem_glo30
+    raw_s3_path: (fetched live from Planetary Computer STAC API)
+    processed_s3_path: processed/shared/zcta_depressions.parquet
+    build_function: build_depression_features
+    output_column: depression_volume_m3
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.010
+    notes: >
+      Total depression volume (m3) within the ZCTA. Proxy for
+      natural flood storage capacity — higher volume means more
+      terrain-based attenuation before overland flow begins.
+
+  - feature_name: max_depression_depth_m
+    temporal_class: invariant
+    scenarios: all
+    source_type: derived
+    source_dataset: copernicus_dem_glo30
+    raw_s3_path: (fetched live from Planetary Computer STAC API)
+    processed_s3_path: processed/shared/zcta_depressions.parquet
+    build_function: build_depression_features
+    output_column: max_depression_depth_m
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.010
+    notes: >
+      Maximum depression depth (m) among all depressions in the ZCTA.
+      Captures deepest terrain pocket — relevant for ponding risk
+      and localized flood severity independent of drainage network.
+
+  - feature_name: depression_area_m2
+    temporal_class: invariant
+    scenarios: all
+    source_type: derived
+    source_dataset: copernicus_dem_glo30
+    raw_s3_path: (fetched live from Planetary Computer STAC API)
+    processed_s3_path: processed/shared/zcta_depressions.parquet
+    build_function: build_depression_features
+    output_column: depression_area_m2
+    missing_behavior: "NaN — field_status = missing_source_data"
+    field_status_behavior: missing_source_data
+    version_target: v24.010
+    notes: >
+      Total depressed surface area (m2) within the ZCTA. Ratio of
+      depression_area_m2 to ZCTA total area gives fraction of
+      terrain prone to ponding.
+
   # --- Sentinel-1 SAR Inundation (Planetary Computer STAC) ----------------
 
   - feature_name: sar_water_pct

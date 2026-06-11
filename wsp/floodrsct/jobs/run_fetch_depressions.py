@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """run_fetch_depressions.py -- Depression delineation from Copernicus DEM.
 
-Runs level-set depression delineation on Copernicus 30m DEM tiles for each
+Runs level-set depression delineation on Copernicus 30m DEM tiles for one
 scenario's ZCTA universe. Uses the `lidar` package (graph-based sink extraction
 via whitebox-tools) to identify surface depressions that act as flood storage.
 
@@ -12,18 +12,19 @@ Outputs per-ZCTA statistics:
   - depression_area_m2: total depressed area
 
 These are scenario-independent (topographic, not event-based), so results
-live in processed/shared/ and are built once for all scenarios.
+live in processed/shared/ and are built once. Cache-first: ZCTAs already in
+the shared parquet are not re-processed.
 
 Source:
   Copernicus GLO-30 DEM via Planetary Computer STAC
 
 Output:
   s3://swarm-floodrsct-data/processed/shared/zcta_depressions.parquet
+  s3://swarm-floodrsct-data/results/s035/depressions_extraction_{scenario}.json
 
 Usage:
-    python run_fetch_depressions.py --upload
     python run_fetch_depressions.py --scenario houston --upload
-    python run_fetch_depressions.py --dry-run
+    python run_fetch_depressions.py --scenario houston --dry-run
 """
 
 from __future__ import annotations
@@ -57,8 +58,11 @@ from _coverage_common import BUCKET, SCENARIOS, get_s3_client
 from _s3_result import upload_json_result
 
 # Output keys
-DEPRESSIONS_PARQUET_KEY = "processed/shared/zcta_depressions.parquet"
-DEPRESSIONS_EVIDENCE_KEY = "results/s035/depressions_extraction.json"
+DEPRESSIONS_CACHE_KEY = "processed/shared/zcta_depressions.parquet"
+OUTPUT_COLUMNS = [
+    "zcta_id", "depression_count", "depression_volume_m3",
+    "max_depression_depth_m", "depression_area_m2",
+]
 
 # ZCTA boundaries (GeoParquet with polygon geometry)
 ZCTA_BOUNDARIES_KEYS = [
@@ -67,7 +71,7 @@ ZCTA_BOUNDARIES_KEYS = [
     "raw/geocertdb2026/zcta5_boundaries.parquet",
 ]
 
-# Scenario event_features keys (for ZCTA ID extraction)
+# Scenario event_features keys
 SCENARIO_EVENT_KEYS = {
     "houston": "processed/houston/houston_event_features.parquet",
     "new_orleans": "processed/new_orleans/no_event_features.parquet",
@@ -107,27 +111,21 @@ def s3_write_parquet(s3, df: pd.DataFrame, key: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Load ZCTA universe
+# Load ZCTA universe + boundaries
 # ---------------------------------------------------------------------------
 
-def load_scenario_zctas(s3, scenarios: list[str]) -> dict[str, list[str]]:
-    """Load unique ZCTA IDs per scenario from event_features parquets."""
-    result = {}
-    for scenario in scenarios:
-        key = SCENARIO_EVENT_KEYS.get(scenario)
-        if not key:
-            continue
-        df = s3_read_parquet(s3, key)
-        if df is None:
-            log.warning("Missing event_features for %s, skipping", scenario)
-            continue
-        zcta_col = next((c for c in df.columns if "zcta" in c.lower()), None)
-        if zcta_col is None:
-            continue
-        ids = sorted(df[zcta_col].astype(str).unique().tolist())
-        result[scenario] = ids
-        log.info("  %s: %d unique ZCTAs", scenario, len(ids))
-    return result
+def load_scenario_zcta_ids(s3, scenario: str) -> list[str]:
+    """Load unique ZCTA IDs for one scenario from event_features."""
+    key = SCENARIO_EVENT_KEYS[scenario]
+    df = s3_read_parquet(s3, key)
+    if df is None:
+        raise RuntimeError(f"event_features not found: s3://{BUCKET}/{key}")
+    zcta_col = next((c for c in df.columns if "zcta" in c.lower()), None)
+    if zcta_col is None:
+        raise RuntimeError(f"No zcta column in {key}")
+    ids = sorted(df[zcta_col].astype(str).unique().tolist())
+    log.info("%s: %d unique ZCTAs", scenario, len(ids))
+    return ids
 
 
 def load_zcta_boundaries(s3, zcta_ids: list[str]):
@@ -164,27 +162,46 @@ def load_zcta_boundaries(s3, zcta_ids: list[str]):
 
 
 # ---------------------------------------------------------------------------
-# DEM fetching from Planetary Computer STAC
+# Cache-first pattern
+# ---------------------------------------------------------------------------
+
+def load_cache(s3) -> pd.DataFrame | None:
+    """Load existing depressions cache from S3."""
+    return s3_read_parquet(s3, DEPRESSIONS_CACHE_KEY)
+
+
+def merge_and_write_cache(s3, existing: pd.DataFrame | None,
+                          new_rows: pd.DataFrame) -> pd.DataFrame:
+    """Append new rows to cache, dedupe on zcta_id, write back."""
+    if existing is not None and not existing.empty:
+        combined = pd.concat([existing, new_rows], ignore_index=True)
+    else:
+        combined = new_rows.copy()
+    combined = combined.drop_duplicates(subset=["zcta_id"], keep="last")
+    for col in OUTPUT_COLUMNS:
+        if col not in combined.columns:
+            combined[col] = np.nan
+    combined = combined[OUTPUT_COLUMNS]
+    s3_write_parquet(s3, combined, DEPRESSIONS_CACHE_KEY)
+    return combined
+
+
+# ---------------------------------------------------------------------------
+# DEM fetching — one tile at a time, merge to disk
 # ---------------------------------------------------------------------------
 
 def fetch_dem_for_bbox(bbox: tuple[float, float, float, float],
                        dst_path: str) -> str | None:
-    """Fetch Copernicus GLO-30 DEM for a bounding box from Planetary Computer.
+    """Fetch Copernicus GLO-30 DEM, writing merged result to disk.
 
-    Args:
-        bbox: (min_lon, min_lat, max_lon, max_lat) in EPSG:4326
-        dst_path: Local path for output GeoTIFF
-
-    Returns:
-        Path to merged DEM GeoTIFF, or None on failure.
+    Streams tiles one at a time through rasterio.merge to avoid
+    loading all tiles into memory simultaneously.
     """
     try:
         import planetary_computer
         import pystac_client
         import rasterio
         from rasterio.merge import merge
-        from rasterio.mask import mask as rio_mask
-        from shapely.geometry import box
 
         catalog = pystac_client.Client.open(
             "https://planetarycomputer.microsoft.com/api/stac/v1",
@@ -201,18 +218,19 @@ def fetch_dem_for_bbox(bbox: tuple[float, float, float, float],
         if not items:
             return None
 
-        # Read and merge tiles
+        # Open all as rasterio datasets (lazy — data read on demand by merge)
         datasets = []
         for item in items:
             href = item.assets["data"].href
-            ds = rasterio.open(href)
-            datasets.append(ds)
+            datasets.append(rasterio.open(href))
 
+        # Merge writes the result; peak memory = one output array
         merged, merged_transform = merge(datasets)
+
         for ds in datasets:
             ds.close()
 
-        # Write merged DEM
+        # Write to disk immediately, free the array
         profile = datasets[0].profile.copy()
         profile.update(
             height=merged.shape[1],
@@ -223,8 +241,11 @@ def fetch_dem_for_bbox(bbox: tuple[float, float, float, float],
         with rasterio.open(dst_path, "w", **profile) as dst:
             dst.write(merged)
 
-        log.info("Wrote merged DEM: %s (%d x %d pixels)",
-                 dst_path, merged.shape[2], merged.shape[1])
+        pixel_count = merged.shape[1] * merged.shape[2]
+        mem_mb = pixel_count * 4 / 1024 / 1024  # float32
+        log.info("Wrote merged DEM: %s (%d x %d px, ~%.0f MB)",
+                 dst_path, merged.shape[2], merged.shape[1], mem_mb)
+        del merged  # free immediately
         return dst_path
 
     except Exception as e:
@@ -237,14 +258,10 @@ def fetch_dem_for_bbox(bbox: tuple[float, float, float, float],
 # ---------------------------------------------------------------------------
 
 def delineate_depressions(dem_path: str, work_dir: str) -> pd.DataFrame | None:
-    """Run lidar depression delineation on a DEM tile.
-
-    Returns DataFrame with depression statistics, or None on failure.
-    """
+    """Run lidar depression delineation on a DEM tile."""
     try:
         import lidar
 
-        sink_path = Path(work_dir) / "sinks.tif"
         dep_path = Path(work_dir) / "depressions"
         dep_path.mkdir(exist_ok=True)
 
@@ -255,7 +272,6 @@ def delineate_depressions(dem_path: str, work_dir: str) -> pd.DataFrame | None:
             out_dir=str(dep_path),
         )
 
-        # Find the output sink raster
         sink_files = list(dep_path.glob("*sink*.tif")) + list(dep_path.glob("*Sink*.tif"))
         if not sink_files:
             log.warning("No sink files produced")
@@ -271,7 +287,6 @@ def delineate_depressions(dem_path: str, work_dir: str) -> pd.DataFrame | None:
             out_dir=str(dep_path),
         )
 
-        # Read depression CSV output
         csv_files = list(dep_path.glob("*depression*.csv")) + list(dep_path.glob("*Depression*.csv"))
         if not csv_files:
             log.warning("No depression CSV produced")
@@ -288,21 +303,13 @@ def delineate_depressions(dem_path: str, work_dir: str) -> pd.DataFrame | None:
 
 def assign_depressions_to_zctas(deps: pd.DataFrame, dem_path: str,
                                  zcta_gdf) -> pd.DataFrame:
-    """Assign depression centroids to ZCTAs and aggregate statistics.
-
-    The depression CSV from lidar contains id, level, volume, avg_depth,
-    max_depth, area columns. We need to geolocate each depression back
-    to a ZCTA using the DEM's spatial reference.
-    """
+    """Assign depression centroids to ZCTAs and aggregate statistics."""
     import geopandas as gpd
     import rasterio
     from shapely.geometry import Point
 
     if deps.empty:
-        return pd.DataFrame(columns=[
-            "zcta_id", "depression_count", "depression_volume_m3",
-            "max_depression_depth_m", "depression_area_m2",
-        ])
+        return pd.DataFrame(columns=OUTPUT_COLUMNS)
 
     # Standardize column names (lidar output varies)
     col_map = {}
@@ -322,8 +329,7 @@ def assign_depressions_to_zctas(deps: pd.DataFrame, dem_path: str,
             col_map[c] = "col"
     deps = deps.rename(columns=col_map)
 
-    # If depression CSV has row/col, convert to geographic coordinates
-    # using the DEM's affine transform
+    # Convert pixel coords to geographic
     if "row" in deps.columns and "col" in deps.columns:
         with rasterio.open(dem_path) as src:
             transform = src.transform
@@ -340,23 +346,13 @@ def assign_depressions_to_zctas(deps: pd.DataFrame, dem_path: str,
             crs=crs,
         )
     else:
-        # No spatial info — cannot assign to ZCTAs; aggregate globally
         log.warning("Depression CSV has no spatial columns; cannot assign to ZCTAs")
-        return pd.DataFrame(columns=[
-            "zcta_id", "depression_count", "depression_volume_m3",
-            "max_depression_depth_m", "depression_area_m2",
-        ])
+        return pd.DataFrame(columns=OUTPUT_COLUMNS)
 
-    # Project to match ZCTA CRS (EPSG:5070)
     dep_points = dep_points.to_crs("EPSG:5070")
 
-    # Spatial join with ZCTA boundaries
     joined = gpd.sjoin(dep_points, zcta_gdf, how="inner", predicate="within")
 
-    # Aggregate per ZCTA
-    # Volume from lidar is in DEM-native units (pixel_area * depth);
-    # for COP-30 at ~30m resolution, pixel area ~ 900 m2.
-    # Multiply volume by pixel_area if not already in m3.
     agg = joined.groupby("zcta_id").agg(
         depression_count=("volume", "count"),
         depression_volume_m3=("volume", "sum"),
@@ -369,137 +365,141 @@ def assign_depressions_to_zctas(deps: pd.DataFrame, dem_path: str,
 
 
 # ---------------------------------------------------------------------------
+# Coverage logging
+# ---------------------------------------------------------------------------
+
+def log_coverage(df: pd.DataFrame, zcta_ids: list[str]) -> dict:
+    """Log per-column coverage and return coverage dict."""
+    coverage = {}
+    for col in OUTPUT_COLUMNS:
+        if col == "zcta_id":
+            continue
+        if col in df.columns:
+            pct = df[col].notna().mean() * 100
+        else:
+            pct = 0.0
+        coverage[col] = round(pct, 1)
+        log.info("  %s: %.1f%% non-null", col, pct)
+
+    hit_rate = len(df[df["zcta_id"].isin(zcta_ids)]) / len(zcta_ids) * 100
+    coverage["zcta_hit_rate"] = round(hit_rate, 1)
+    log.info("  ZCTA hit rate: %.1f%% (%d / %d)",
+             hit_rate, len(df[df["zcta_id"].isin(zcta_ids)]), len(zcta_ids))
+    return coverage
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
-def run(scenarios: list[str], upload: bool, dry_run: bool) -> None:
+def run(scenario: str, upload: bool, dry_run: bool) -> None:
     s3 = get_s3_client()
+    t0 = time.time()
 
-    # Load ZCTA universe
-    scenario_zctas = load_scenario_zctas(s3, scenarios)
-    all_zcta_ids = sorted(set(z for ids in scenario_zctas.values() for z in ids))
-    log.info("Total unique ZCTAs across %d scenarios: %d",
-             len(scenario_zctas), len(all_zcta_ids))
+    # 1. Load target ZCTAs
+    zcta_ids = load_scenario_zcta_ids(s3, scenario)
 
-    if dry_run:
-        log.info("[DRY RUN] Would delineate depressions for %d ZCTAs across %d scenarios",
-                 len(all_zcta_ids), len(scenario_zctas))
-        for scenario, ids in scenario_zctas.items():
-            log.info("  %s: %d ZCTAs", scenario, len(ids))
+    # 2. Cache-first: check which ZCTAs are already done
+    cache = load_cache(s3)
+    if cache is not None:
+        cached_ids = set(cache["zcta_id"].astype(str).tolist())
+        needed_ids = [z for z in zcta_ids if z not in cached_ids]
+        log.info("Cache has %d ZCTAs; %d of %d needed are already cached",
+                 len(cached_ids), len(zcta_ids) - len(needed_ids), len(zcta_ids))
+    else:
+        needed_ids = zcta_ids
+        log.info("No existing cache; all %d ZCTAs needed", len(needed_ids))
+
+    if not needed_ids:
+        log.info("All ZCTAs already in cache. Nothing to do.")
+        log_coverage(cache, zcta_ids)
         return
 
-    # Load ZCTA boundaries (polygons in EPSG:5070)
-    zcta_gdf = load_zcta_boundaries(s3, all_zcta_ids)
+    if dry_run:
+        log.info("[DRY RUN] Would delineate depressions for %d ZCTAs (%d cached, %d new)",
+                 len(zcta_ids), len(zcta_ids) - len(needed_ids), len(needed_ids))
+        return
 
-    # For bounding box computation, get 4326 envelope
+    # 3. Load ZCTA boundaries for needed ZCTAs
+    zcta_gdf = load_zcta_boundaries(s3, needed_ids)
+
+    # 4. Compute bounding box
     import geopandas as gpd
     zcta_4326 = zcta_gdf.to_crs("EPSG:4326")
+    bounds = zcta_4326.total_bounds
+    bbox = (bounds[0] - 0.01, bounds[1] - 0.01,
+            bounds[2] + 0.01, bounds[3] + 0.01)
+    log.info("BBox for %s: %.4f, %.4f, %.4f, %.4f", scenario, *bbox)
 
-    parts = []
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # 5. Fetch + merge DEM
+        dem_path = str(Path(tmpdir) / f"dem_{scenario}.tif")
+        dem_result = fetch_dem_for_bbox(bbox, dem_path)
+
+        if dem_result is None:
+            raise RuntimeError(f"DEM fetch failed for {scenario}")
+
+        # 6. Delineate depressions
+        deps = delineate_depressions(dem_path, tmpdir)
+
+        if deps is None or deps.empty:
+            log.warning("No depressions found for %s", scenario)
+            new_rows = pd.DataFrame(columns=OUTPUT_COLUMNS)
+        else:
+            # 7. Assign to ZCTAs
+            new_rows = assign_depressions_to_zctas(deps, dem_path, zcta_gdf)
+
+    elapsed = time.time() - t0
+
+    # 8. Merge into cache, dedupe, write back
+    if upload and not new_rows.empty:
+        combined = merge_and_write_cache(s3, cache, new_rows)
+    elif cache is not None and not cache.empty:
+        combined = pd.concat([cache, new_rows], ignore_index=True) if not new_rows.empty else cache
+        combined = combined.drop_duplicates(subset=["zcta_id"], keep="last")
+    else:
+        combined = new_rows
+
+    # 9. Coverage logging
+    log.info("=== Coverage for %s ===", scenario)
+    coverage = log_coverage(combined, zcta_ids) if not combined.empty else {}
+
+    # 10. Metadata JSON
     evidence = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
+        "scenario": scenario,
         "parameters": {
             "min_sink_size_px": MIN_SINK_SIZE,
             "min_depression_depth_m": MIN_DEPRESSION_DEPTH,
             "depression_interval_m": DEPRESSION_INTERVAL,
         },
-        "scenarios": {},
+        "n_zctas_requested": len(zcta_ids),
+        "n_zctas_cached": len(zcta_ids) - len(needed_ids),
+        "n_zctas_fetched": len(new_rows),
+        "n_depressions": len(deps) if deps is not None else 0,
+        "n_zctas_in_cache_total": len(combined) if not combined.empty else 0,
+        "total_volume_m3": float(new_rows["depression_volume_m3"].sum()) if len(new_rows) > 0 else 0.0,
+        "max_depth_m": float(new_rows["max_depression_depth_m"].max()) if len(new_rows) > 0 else 0.0,
+        "elapsed_sec": round(elapsed, 1),
+        "coverage": coverage,
     }
 
-    for scenario, zcta_ids in scenario_zctas.items():
-        t0 = time.time()
-        log.info("=== %s: %d ZCTAs ===", scenario, len(zcta_ids))
-
-        # Compute bounding box
-        scenario_geom = zcta_4326[zcta_4326["zcta_id"].isin(zcta_ids)]
-        if scenario_geom.empty:
-            log.warning("No ZCTA boundaries for %s, skipping", scenario)
-            continue
-
-        bounds = scenario_geom.total_bounds
-        bbox = (bounds[0] - 0.01, bounds[1] - 0.01,
-                bounds[2] + 0.01, bounds[3] + 0.01)
-        log.info("BBox: %.4f, %.4f, %.4f, %.4f", *bbox)
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            # Fetch DEM
-            dem_path = str(Path(tmpdir) / f"dem_{scenario}.tif")
-            dem_result = fetch_dem_for_bbox(bbox, dem_path)
-
-            if dem_result is None:
-                log.warning("DEM fetch failed for %s", scenario)
-                evidence["scenarios"][scenario] = {"status": "FAILED", "error": "dem_fetch_failed"}
-                continue
-
-            # Run depression delineation
-            deps = delineate_depressions(dem_path, tmpdir)
-
-            if deps is None or deps.empty:
-                log.warning("No depressions found for %s", scenario)
-                evidence["scenarios"][scenario] = {
-                    "status": "OK",
-                    "n_zctas": len(zcta_ids),
-                    "n_depressions": 0,
-                    "n_zctas_with_depressions": 0,
-                }
-                continue
-
-            # Assign to ZCTAs
-            scenario_boundaries = zcta_gdf[zcta_gdf["zcta_id"].isin(zcta_ids)]
-            agg = assign_depressions_to_zctas(deps, dem_path, scenario_boundaries)
-
-        elapsed = time.time() - t0
-        coverage = len(agg) / len(zcta_ids) * 100 if zcta_ids else 0
-
-        log.info("%s: %d ZCTAs with depressions (%.1f%% coverage), %.0f sec",
-                 scenario, len(agg), coverage, elapsed)
-
-        evidence["scenarios"][scenario] = {
-            "status": "OK",
-            "n_zctas": len(zcta_ids),
-            "n_depressions": len(deps),
-            "n_zctas_with_depressions": len(agg),
-            "coverage_pct": round(coverage, 1),
-            "total_volume_m3": float(agg["depression_volume_m3"].sum()) if len(agg) > 0 else 0.0,
-            "max_depth_m": float(agg["max_depression_depth_m"].max()) if len(agg) > 0 else 0.0,
-            "elapsed_sec": round(elapsed, 1),
-        }
-        parts.append(agg)
-
-    if not parts:
-        raise RuntimeError("Depression delineation failed for all scenarios")
-
-    # Combine + deduplicate (take max depth, sum others for shared ZCTAs)
-    combined = pd.concat(parts, ignore_index=True)
-    combined = combined.groupby("zcta_id").agg(
-        depression_count=("depression_count", "sum"),
-        depression_volume_m3=("depression_volume_m3", "sum"),
-        max_depression_depth_m=("max_depression_depth_m", "max"),
-        depression_area_m2=("depression_area_m2", "sum"),
-    ).reset_index()
-    log.info("Combined: %d unique ZCTAs with depressions", len(combined))
-
-    evidence["n_zctas_total"] = len(combined)
-    evidence["total_depressions"] = int(combined["depression_count"].sum())
-
     if upload:
-        s3_write_parquet(s3, combined, DEPRESSIONS_PARQUET_KEY)
-        upload_json_result(s3, BUCKET, DEPRESSIONS_EVIDENCE_KEY, evidence)
+        evidence_key = f"results/s035/depressions_extraction_{scenario}.json"
+        upload_json_result(s3, BUCKET, evidence_key, evidence)
     else:
-        log.info("Skipping upload (--upload not set)")
         print(json.dumps(evidence, indent=2))
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Depression delineation from Copernicus DEM")
-    parser.add_argument("--scenario", choices=SCENARIOS, default=None,
-                        help="Single scenario (default: all)")
+    parser.add_argument("--scenario", required=True, choices=SCENARIOS,
+                        help="Scenario to process (one per job)")
     parser.add_argument("--upload", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
-    scenarios = [args.scenario] if args.scenario else SCENARIOS
-    run(scenarios, args.upload, args.dry_run)
+    run(args.scenario, args.upload, args.dry_run)
 
 
 if __name__ == "__main__":

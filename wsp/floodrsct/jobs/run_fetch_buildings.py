@@ -8,18 +8,19 @@ spatially joins with ZCTA boundaries, and aggregates per-ZCTA statistics:
   - total_footprint_area_m2: total building footprint area (EPSG:5070 equal-area)
 
 Output is scenario-independent (keyed by ZCTA, not by event), so results live
-in the processed/shared/ prefix and are built once for all scenarios.
+in processed/shared/ and are built once for all scenarios. Cache-first: if the
+shared parquet already contains a ZCTA, it is not re-fetched.
 
 Source:
   Overture Maps Foundation (via open-buildings DuckDB adapter)
 
 Output:
   s3://swarm-floodrsct-data/processed/shared/zcta_buildings.parquet
+  s3://swarm-floodrsct-data/results/s035/buildings_extraction_{scenario}.json
 
 Usage:
-    python run_fetch_buildings.py --upload
     python run_fetch_buildings.py --scenario houston --upload
-    python run_fetch_buildings.py --dry-run
+    python run_fetch_buildings.py --scenario houston --dry-run
 """
 
 from __future__ import annotations
@@ -53,8 +54,8 @@ from _coverage_common import BUCKET, SCENARIOS, get_s3_client
 from _s3_result import upload_json_result
 
 # Output keys
-BUILDINGS_PARQUET_KEY = "processed/shared/zcta_buildings.parquet"
-BUILDINGS_EVIDENCE_KEY = "results/s035/buildings_extraction.json"
+BUILDINGS_CACHE_KEY = "processed/shared/zcta_buildings.parquet"
+OUTPUT_COLUMNS = ["zcta_id", "building_count", "total_footprint_area_m2"]
 
 # ZCTA boundaries (GeoParquet with polygon geometry)
 ZCTA_BOUNDARIES_KEYS = [
@@ -98,27 +99,21 @@ def s3_write_parquet(s3, df: pd.DataFrame, key: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Load ZCTA universe
+# Load ZCTA universe + boundaries
 # ---------------------------------------------------------------------------
 
-def load_scenario_zctas(s3, scenarios: list[str]) -> dict[str, list[str]]:
-    """Load unique ZCTA IDs per scenario from event_features parquets."""
-    result = {}
-    for scenario in scenarios:
-        key = SCENARIO_EVENT_KEYS.get(scenario)
-        if not key:
-            continue
-        df = s3_read_parquet(s3, key)
-        if df is None:
-            log.warning("Missing event_features for %s, skipping", scenario)
-            continue
-        zcta_col = next((c for c in df.columns if "zcta" in c.lower()), None)
-        if zcta_col is None:
-            continue
-        ids = sorted(df[zcta_col].astype(str).unique().tolist())
-        result[scenario] = ids
-        log.info("  %s: %d unique ZCTAs", scenario, len(ids))
-    return result
+def load_scenario_zcta_ids(s3, scenario: str) -> list[str]:
+    """Load unique ZCTA IDs for one scenario from event_features."""
+    key = SCENARIO_EVENT_KEYS[scenario]
+    df = s3_read_parquet(s3, key)
+    if df is None:
+        raise RuntimeError(f"event_features not found: s3://{BUCKET}/{key}")
+    zcta_col = next((c for c in df.columns if "zcta" in c.lower()), None)
+    if zcta_col is None:
+        raise RuntimeError(f"No zcta column in {key}")
+    ids = sorted(df[zcta_col].astype(str).unique().tolist())
+    log.info("%s: %d unique ZCTAs", scenario, len(ids))
+    return ids
 
 
 def load_zcta_boundaries(s3, zcta_ids: list[str]):
@@ -129,6 +124,7 @@ def load_zcta_boundaries(s3, zcta_ids: list[str]):
         try:
             obj = s3.get_object(Bucket=BUCKET, Key=key)
             gdf = gpd.read_parquet(io.BytesIO(obj["Body"].read()))
+            # Normalize zcta_id column
             if "zcta_id" in gdf.columns:
                 gdf["zcta_id"] = gdf["zcta_id"].astype(str)
             elif "ZCTA5CE20" in gdf.columns:
@@ -140,7 +136,6 @@ def load_zcta_boundaries(s3, zcta_ids: list[str]):
                     gdf = gdf.rename(columns={zcta_col: "zcta_id"})
                     gdf["zcta_id"] = gdf["zcta_id"].astype(str)
                 else:
-                    log.warning("No zcta_id column in %s, trying next", key)
                     continue
 
             gdf = gdf[gdf["zcta_id"].isin(zcta_ids)]
@@ -156,20 +151,38 @@ def load_zcta_boundaries(s3, zcta_ids: list[str]):
 
 
 # ---------------------------------------------------------------------------
-# Building extraction per scenario
+# Cache-first pattern
+# ---------------------------------------------------------------------------
+
+def load_cache(s3) -> pd.DataFrame | None:
+    """Load existing buildings cache from S3."""
+    return s3_read_parquet(s3, BUILDINGS_CACHE_KEY)
+
+
+def merge_and_write_cache(s3, existing: pd.DataFrame | None,
+                          new_rows: pd.DataFrame) -> pd.DataFrame:
+    """Append new rows to cache, dedupe on zcta_id, write back."""
+    if existing is not None and not existing.empty:
+        combined = pd.concat([existing, new_rows], ignore_index=True)
+    else:
+        combined = new_rows.copy()
+    combined = combined.drop_duplicates(subset=["zcta_id"], keep="last")
+    # Enforce output schema
+    for col in OUTPUT_COLUMNS:
+        if col not in combined.columns:
+            combined[col] = np.nan
+    combined = combined[OUTPUT_COLUMNS]
+    s3_write_parquet(s3, combined, BUILDINGS_CACHE_KEY)
+    return combined
+
+
+# ---------------------------------------------------------------------------
+# Building extraction
 # ---------------------------------------------------------------------------
 
 def extract_buildings_for_bbox(bbox: tuple[float, float, float, float],
                                dst_path: str) -> str | None:
-    """Download Overture buildings for a bounding box to GeoParquet.
-
-    Args:
-        bbox: (min_lon, min_lat, max_lon, max_lat) in EPSG:4326
-        dst_path: Local file path for output GeoParquet
-
-    Returns:
-        Path to output file, or None on failure.
-    """
+    """Download Overture buildings for a bounding box to GeoParquet."""
     try:
         from open_buildings.download_buildings import download
         download(
@@ -196,10 +209,7 @@ def extract_buildings_for_bbox(bbox: tuple[float, float, float, float],
 
 def aggregate_buildings_per_zcta(buildings_path: str,
                                   zcta_gdf) -> pd.DataFrame:
-    """Spatial join buildings with ZCTA polygons and aggregate.
-
-    Returns DataFrame with columns: zcta_id, building_count, total_footprint_area_m2
-    """
+    """Spatial join buildings with ZCTA polygons and aggregate."""
     import geopandas as gpd
 
     log.info("Reading buildings from %s...", buildings_path)
@@ -207,7 +217,7 @@ def aggregate_buildings_per_zcta(buildings_path: str,
     log.info("Loaded %d building footprints", len(buildings))
 
     if buildings.empty:
-        return pd.DataFrame(columns=["zcta_id", "building_count", "total_footprint_area_m2"])
+        return pd.DataFrame(columns=OUTPUT_COLUMNS)
 
     # Project buildings to EPSG:5070 for area calculation
     if buildings.crs is None:
@@ -232,118 +242,129 @@ def aggregate_buildings_per_zcta(buildings_path: str,
 
 
 # ---------------------------------------------------------------------------
+# Coverage logging
+# ---------------------------------------------------------------------------
+
+def log_coverage(df: pd.DataFrame, zcta_ids: list[str]) -> dict:
+    """Log per-column coverage and return coverage dict."""
+    coverage = {}
+    for col in OUTPUT_COLUMNS:
+        if col == "zcta_id":
+            continue
+        if col in df.columns:
+            pct = df[col].notna().mean() * 100
+        else:
+            pct = 0.0
+        coverage[col] = round(pct, 1)
+        log.info("  %s: %.1f%% non-null", col, pct)
+
+    hit_rate = len(df[df["zcta_id"].isin(zcta_ids)]) / len(zcta_ids) * 100
+    coverage["zcta_hit_rate"] = round(hit_rate, 1)
+    log.info("  ZCTA hit rate: %.1f%% (%d / %d)",
+             hit_rate, len(df[df["zcta_id"].isin(zcta_ids)]), len(zcta_ids))
+    return coverage
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
-def run(scenarios: list[str], upload: bool, dry_run: bool) -> None:
+def run(scenario: str, upload: bool, dry_run: bool) -> None:
     s3 = get_s3_client()
+    t0 = time.time()
 
-    # Load ZCTA universe
-    scenario_zctas = load_scenario_zctas(s3, scenarios)
-    all_zcta_ids = sorted(set(z for ids in scenario_zctas.values() for z in ids))
-    log.info("Total unique ZCTAs across %d scenarios: %d",
-             len(scenario_zctas), len(all_zcta_ids))
+    # 1. Load target ZCTAs for this scenario
+    zcta_ids = load_scenario_zcta_ids(s3, scenario)
 
-    if dry_run:
-        log.info("[DRY RUN] Would extract buildings for %d ZCTAs across %d scenarios",
-                 len(all_zcta_ids), len(scenario_zctas))
-        for scenario, ids in scenario_zctas.items():
-            log.info("  %s: %d ZCTAs", scenario, len(ids))
+    # 2. Load existing cache — check which ZCTAs are already done
+    cache = load_cache(s3)
+    if cache is not None:
+        cached_ids = set(cache["zcta_id"].astype(str).tolist())
+        needed_ids = [z for z in zcta_ids if z not in cached_ids]
+        log.info("Cache has %d ZCTAs; %d of %d needed are already cached",
+                 len(cached_ids), len(zcta_ids) - len(needed_ids), len(zcta_ids))
+    else:
+        needed_ids = zcta_ids
+        log.info("No existing cache; all %d ZCTAs needed", len(needed_ids))
+
+    if not needed_ids:
+        log.info("All ZCTAs already in cache. Nothing to do.")
+        log_coverage(cache, zcta_ids)
         return
 
-    # Load ZCTA boundaries (polygons in EPSG:5070)
-    zcta_gdf = load_zcta_boundaries(s3, all_zcta_ids)
+    if dry_run:
+        log.info("[DRY RUN] Would extract buildings for %d ZCTAs (%d cached, %d new)",
+                 len(zcta_ids), len(zcta_ids) - len(needed_ids), len(needed_ids))
+        return
 
-    # For bounding box computation, get 4326 envelope per scenario
+    # 3. Load ZCTA boundaries for needed ZCTAs
+    zcta_gdf = load_zcta_boundaries(s3, needed_ids)
+
+    # 4. Compute bounding box for this scenario's needed ZCTAs
     import geopandas as gpd
     zcta_4326 = zcta_gdf.to_crs("EPSG:4326")
+    bounds = zcta_4326.total_bounds  # (minx, miny, maxx, maxy)
+    bbox = (bounds[0] - 0.05, bounds[1] - 0.05,
+            bounds[2] + 0.05, bounds[3] + 0.05)
+    log.info("BBox for %s: %.4f, %.4f, %.4f, %.4f", scenario, *bbox)
 
-    parts = []
+    # 5. Download buildings for bbox
+    with tempfile.TemporaryDirectory() as tmpdir:
+        dst = str(Path(tmpdir) / f"buildings_{scenario}.parquet")
+        result_path = extract_buildings_for_bbox(bbox, dst)
+
+        if result_path is None:
+            raise RuntimeError(f"Building extraction failed for {scenario}")
+
+        # 6. Spatial join + aggregate
+        new_rows = aggregate_buildings_per_zcta(result_path, zcta_gdf)
+
+    elapsed = time.time() - t0
+
+    # 7. Merge into cache, dedupe, write back
+    if upload:
+        combined = merge_and_write_cache(s3, cache, new_rows)
+    else:
+        if cache is not None and not cache.empty:
+            combined = pd.concat([cache, new_rows], ignore_index=True)
+            combined = combined.drop_duplicates(subset=["zcta_id"], keep="last")
+        else:
+            combined = new_rows
+
+    # 8. Coverage logging
+    log.info("=== Coverage for %s ===", scenario)
+    coverage = log_coverage(combined, zcta_ids)
+
+    # 9. Metadata JSON
     evidence = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "scenarios": {},
+        "scenario": scenario,
+        "n_zctas_requested": len(zcta_ids),
+        "n_zctas_cached": len(zcta_ids) - len(needed_ids),
+        "n_zctas_fetched": len(new_rows),
+        "n_zctas_in_cache_total": len(combined),
+        "total_buildings": int(new_rows["building_count"].sum()) if len(new_rows) > 0 else 0,
+        "total_area_m2": float(new_rows["total_footprint_area_m2"].sum()) if len(new_rows) > 0 else 0.0,
+        "elapsed_sec": round(elapsed, 1),
+        "coverage": coverage,
     }
 
-    for scenario, zcta_ids in scenario_zctas.items():
-        t0 = time.time()
-        log.info("=== %s: %d ZCTAs ===", scenario, len(zcta_ids))
-
-        # Compute bounding box for this scenario
-        scenario_geom = zcta_4326[zcta_4326["zcta_id"].isin(zcta_ids)]
-        if scenario_geom.empty:
-            log.warning("No ZCTA boundaries for %s, skipping", scenario)
-            continue
-
-        bounds = scenario_geom.total_bounds  # (minx, miny, maxx, maxy)
-        # Add small buffer (0.05 deg ~ 5km) to avoid edge clipping
-        bbox = (bounds[0] - 0.05, bounds[1] - 0.05,
-                bounds[2] + 0.05, bounds[3] + 0.05)
-        log.info("BBox: %.4f, %.4f, %.4f, %.4f", *bbox)
-
-        # Download buildings for this scenario bbox
-        with tempfile.TemporaryDirectory() as tmpdir:
-            dst = str(Path(tmpdir) / f"buildings_{scenario}.parquet")
-            result_path = extract_buildings_for_bbox(bbox, dst)
-
-            if result_path is None:
-                log.warning("Building extraction failed for %s", scenario)
-                evidence["scenarios"][scenario] = {"status": "FAILED", "error": "download_failed"}
-                continue
-
-            # Spatial join + aggregate
-            scenario_boundaries = zcta_gdf[zcta_gdf["zcta_id"].isin(zcta_ids)]
-            agg = aggregate_buildings_per_zcta(result_path, scenario_boundaries)
-
-        elapsed = time.time() - t0
-        coverage = len(agg) / len(zcta_ids) * 100 if zcta_ids else 0
-
-        log.info("%s: %d ZCTAs with buildings (%.1f%% coverage), %.0f sec",
-                 scenario, len(agg), coverage, elapsed)
-
-        evidence["scenarios"][scenario] = {
-            "status": "OK",
-            "n_zctas": len(zcta_ids),
-            "n_zctas_with_buildings": len(agg),
-            "coverage_pct": round(coverage, 1),
-            "total_buildings": int(agg["building_count"].sum()) if len(agg) > 0 else 0,
-            "total_area_m2": float(agg["total_footprint_area_m2"].sum()) if len(agg) > 0 else 0.0,
-            "elapsed_sec": round(elapsed, 1),
-        }
-        parts.append(agg)
-
-    if not parts:
-        raise RuntimeError("Building extraction failed for all scenarios")
-
-    # Combine + deduplicate (ZCTAs can overlap between scenarios)
-    combined = pd.concat(parts, ignore_index=True)
-    combined = combined.groupby("zcta_id").agg(
-        building_count=("building_count", "sum"),
-        total_footprint_area_m2=("total_footprint_area_m2", "sum"),
-    ).reset_index()
-    log.info("Combined: %d unique ZCTAs, %d total buildings",
-             len(combined), combined["building_count"].sum())
-
-    evidence["n_zctas_total"] = len(combined)
-    evidence["total_buildings"] = int(combined["building_count"].sum())
-
     if upload:
-        s3_write_parquet(s3, combined, BUILDINGS_PARQUET_KEY)
-        upload_json_result(s3, BUCKET, BUILDINGS_EVIDENCE_KEY, evidence)
+        evidence_key = f"results/s035/buildings_extraction_{scenario}.json"
+        upload_json_result(s3, BUCKET, evidence_key, evidence)
     else:
-        log.info("Skipping upload (--upload not set)")
         print(json.dumps(evidence, indent=2))
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Extract Overture building footprints per ZCTA")
-    parser.add_argument("--scenario", choices=SCENARIOS, default=None,
-                        help="Single scenario (default: all)")
+    parser.add_argument("--scenario", required=True, choices=SCENARIOS,
+                        help="Scenario to process (one per job)")
     parser.add_argument("--upload", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
-    scenarios = [args.scenario] if args.scenario else SCENARIOS
-    run(scenarios, args.upload, args.dry_run)
+    run(args.scenario, args.upload, args.dry_run)
 
 
 if __name__ == "__main__":
