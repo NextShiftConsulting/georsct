@@ -3,13 +3,16 @@
 fetch_jrc_deltares.py -- SageMaker job: fetch JRC + Deltares shared features.
 
 Extracts two shared feature layers from Microsoft Planetary Computer STAC API
-for all ~794 ZCTA centroids in the geocertdb2026 universe:
+for the ~794 ZCTA centroids in the s035 universe (5 scenarios):
 
   1. JRC Global Surface Water (1984-2020): water occurrence stats
   2. Deltares Global Flood Maps: modeled depth at RP 10/50/100
 
 Both are scenario-independent (keyed by ZCTA, not by event), so they live
 in the shared/ prefix and are built once for all scenarios.
+
+Processes per-scenario to keep STAC bounding boxes small (city-scale, not
+continental). Results are deduplicated and merged into single shared parquets.
 
 Source:
   JRC: https://planetarycomputer.microsoft.com/dataset/jrc-gsw
@@ -52,6 +55,15 @@ CENTROID_KEY = "raw/geocertdb2026/zcta_features_labels.parquet"
 JRC_CACHE_KEY = "processed/shared/zcta_jrc_water_occurrence_pct.parquet"
 DELTARES_CACHE_KEY = "processed/shared/zcta_deltares_depth.parquet"
 
+# s035 scenario -> event_features key (for ZCTA ID extraction)
+SCENARIO_EVENT_KEYS = {
+    "houston": "processed/houston/houston_event_features.parquet",
+    "new_orleans": "processed/new_orleans/no_event_features.parquet",
+    "nyc": "processed/nyc/nyc_event_features.parquet",
+    "riverside_coachella": "processed/riverside_coachella/rc_event_features.parquet",
+    "southwest_florida": "processed/southwest_florida/swfl_event_features.parquet",
+}
+
 
 # ---------------------------------------------------------------------------
 # S3 helpers
@@ -81,11 +93,29 @@ def s3_write_parquet(s3, df: pd.DataFrame, key: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Centroid loading
+# ZCTA universe + centroid loading
 # ---------------------------------------------------------------------------
 
-def load_centroids(s3) -> pd.DataFrame:
-    """Load ZCTA centroids from geocertdb2026."""
+def load_scenario_zctas(s3) -> dict[str, list[str]]:
+    """Load unique ZCTA IDs per scenario from event_features parquets."""
+    scenario_zctas = {}
+    for scenario, key in SCENARIO_EVENT_KEYS.items():
+        df = s3_read(s3, key)
+        if df is None:
+            log.warning("Missing event_features for %s, skipping", scenario)
+            continue
+        zcta_col = next((c for c in df.columns if "zcta" in c.lower()), None)
+        if zcta_col is None:
+            log.warning("No zcta column in %s, skipping", scenario)
+            continue
+        ids = sorted(df[zcta_col].astype(str).unique().tolist())
+        scenario_zctas[scenario] = ids
+        log.info("  %s: %d unique ZCTAs", scenario, len(ids))
+    return scenario_zctas
+
+
+def load_centroids(s3, zcta_ids: list[str]) -> pd.DataFrame:
+    """Load ZCTA centroids from geocertdb2026, filtered to target IDs."""
     static = s3_read(s3, CENTROID_KEY)
     if static is None:
         raise RuntimeError(f"geocertdb2026 not found at s3://{BUCKET}/{CENTROID_KEY}")
@@ -107,52 +137,89 @@ def load_centroids(s3) -> pd.DataFrame:
         .dropna(subset=["lat", "lon"])
     )
     centroids["zcta_id"] = centroids["zcta_id"].astype(str)
-    log.info("Loaded %d ZCTA centroids", len(centroids))
+    centroids = centroids[centroids["zcta_id"].isin(zcta_ids)]
+    log.info("Loaded %d ZCTA centroids (filtered from geocertdb2026)", len(centroids))
     return centroids
 
 
 # ---------------------------------------------------------------------------
-# JRC extraction
+# JRC extraction (per-scenario batching)
 # ---------------------------------------------------------------------------
 
-def fetch_jrc(s3, centroids: pd.DataFrame) -> pd.DataFrame:
-    """Fetch JRC Global Surface Water occurrence for all centroids."""
-    log.info("--- JRC Global Surface Water ---")
-    t0 = time.time()
-
+def fetch_jrc(s3, scenario_zctas: dict[str, list[str]], all_centroids: pd.DataFrame) -> pd.DataFrame:
+    """Fetch JRC Global Surface Water occurrence, batched per scenario bbox."""
+    log.info("=== JRC Global Surface Water ===")
     from floodcaster.stac import jrc_centroid_occurrence
-    result = jrc_centroid_occurrence(centroids, id_col="zcta_id")
 
-    elapsed = time.time() - t0
-    coverage = result["jrc_occurrence_mean"].notna().mean() * 100
-    log.info("JRC extraction: %d ZCTAs, %.1f%% coverage, %.0f sec",
-             len(result), coverage, elapsed)
+    parts = []
+    for scenario, zcta_ids in scenario_zctas.items():
+        centroids = all_centroids[all_centroids["zcta_id"].isin(zcta_ids)]
+        if centroids.empty:
+            log.warning("JRC: no centroids for %s, skipping", scenario)
+            continue
 
-    s3_write_parquet(s3, result, JRC_CACHE_KEY)
-    return result
+        t0 = time.time()
+        log.info("JRC: %s (%d centroids)...", scenario, len(centroids))
+        try:
+            result = jrc_centroid_occurrence(centroids, id_col="zcta_id")
+            elapsed = time.time() - t0
+            coverage = result["jrc_occurrence_mean"].notna().mean() * 100
+            log.info("JRC: %s done -- %d rows, %.1f%% coverage, %.0f sec",
+                     scenario, len(result), coverage, elapsed)
+            parts.append(result)
+        except Exception as e:
+            log.warning("JRC: %s STAC extraction failed: %s", scenario, e)
+
+    if not parts:
+        raise RuntimeError("JRC: all scenarios failed")
+
+    combined = pd.concat(parts, ignore_index=True)
+    combined = combined.drop_duplicates(subset=["zcta_id"], keep="last")
+    log.info("JRC combined: %d unique ZCTAs", len(combined))
+
+    s3_write_parquet(s3, combined, JRC_CACHE_KEY)
+    return combined
 
 
 # ---------------------------------------------------------------------------
-# Deltares extraction
+# Deltares extraction (per-scenario batching)
 # ---------------------------------------------------------------------------
 
-def fetch_deltares(s3, centroids: pd.DataFrame) -> pd.DataFrame:
-    """Fetch Deltares Global Flood Maps depth for all centroids."""
-    log.info("--- Deltares Global Flood Maps ---")
-    t0 = time.time()
-
+def fetch_deltares(s3, scenario_zctas: dict[str, list[str]], all_centroids: pd.DataFrame) -> pd.DataFrame:
+    """Fetch Deltares Global Flood Maps depth, batched per scenario bbox."""
+    log.info("=== Deltares Global Flood Maps ===")
     from floodcaster.batch import deltares_centroid_depth
-    result = deltares_centroid_depth(
-        centroids, id_col="zcta_id", return_periods=[10, 50, 100],
-    )
 
-    elapsed = time.time() - t0
-    coverage = result["deltares_depth_ft_rp100"].notna().mean() * 100
-    log.info("Deltares extraction: %d ZCTAs, %.1f%% coverage, %.0f sec",
-             len(result), coverage, elapsed)
+    parts = []
+    for scenario, zcta_ids in scenario_zctas.items():
+        centroids = all_centroids[all_centroids["zcta_id"].isin(zcta_ids)]
+        if centroids.empty:
+            log.warning("Deltares: no centroids for %s, skipping", scenario)
+            continue
 
-    s3_write_parquet(s3, result, DELTARES_CACHE_KEY)
-    return result
+        t0 = time.time()
+        log.info("Deltares: %s (%d centroids)...", scenario, len(centroids))
+        try:
+            result = deltares_centroid_depth(
+                centroids, id_col="zcta_id", return_periods=[10, 50, 100],
+            )
+            elapsed = time.time() - t0
+            coverage = result["deltares_depth_ft_rp100"].notna().mean() * 100
+            log.info("Deltares: %s done -- %d rows, %.1f%% coverage, %.0f sec",
+                     scenario, len(result), coverage, elapsed)
+            parts.append(result)
+        except Exception as e:
+            log.warning("Deltares: %s STAC extraction failed: %s", scenario, e)
+
+    if not parts:
+        raise RuntimeError("Deltares: all scenarios failed")
+
+    combined = pd.concat(parts, ignore_index=True)
+    combined = combined.drop_duplicates(subset=["zcta_id"], keep="last")
+    log.info("Deltares combined: %d unique ZCTAs", len(combined))
+
+    s3_write_parquet(s3, combined, DELTARES_CACHE_KEY)
+    return combined
 
 
 # ---------------------------------------------------------------------------
@@ -173,14 +240,23 @@ def main():
     aws = get_aws_credentials()
     s3 = boto3.client("s3", **aws)
 
-    centroids = load_centroids(s3)
+    # Collect ZCTA universe from s035 event_features
+    scenario_zctas = load_scenario_zctas(s3)
+    all_zcta_ids = sorted(set(
+        z for ids in scenario_zctas.values() for z in ids
+    ))
+    log.info("Total unique ZCTAs across %d scenarios: %d",
+             len(scenario_zctas), len(all_zcta_ids))
+
+    # Load centroids for the full universe
+    all_centroids = load_centroids(s3, all_zcta_ids)
 
     if do_jrc:
-        jrc_df = fetch_jrc(s3, centroids)
+        jrc_df = fetch_jrc(s3, scenario_zctas, all_centroids)
         log.info("JRC columns: %s", list(jrc_df.columns))
 
     if do_deltares:
-        deltares_df = fetch_deltares(s3, centroids)
+        deltares_df = fetch_deltares(s3, scenario_zctas, all_centroids)
         log.info("Deltares columns: %s", list(deltares_df.columns))
 
     log.info("fetch_jrc_deltares.py complete")

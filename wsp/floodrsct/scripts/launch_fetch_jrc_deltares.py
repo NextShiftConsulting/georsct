@@ -24,7 +24,9 @@ Resource review:
   - Volume: 20 GB. No local raster storage; STAC reads via HTTP.
   - pip_packages: rasterio + planetary-computer + pystac-client + duckdb +
     geopandas + shapely (floodcaster transitive deps not in wheel).
-  - pre_install_cmd: None. rasterio works without system GDAL on PyTorch image.
+  - pre_install_cmd: Explicit floodcaster wheel install with --find-links
+    to ensure sphere deps resolve before floodcaster. The default bootstrap
+    glob (*.whl 2>/dev/null || true) swallows errors silently.
   - Timeout: Default (7200s). Expect ~10-20 min for 794 centroids.
 """
 
@@ -68,6 +70,13 @@ def main() -> None:
         pip_packages=(
             "geopandas rasterio planetary-computer pystac-client "
             "duckdb shapely pyogrio"
+        ),
+        pre_install_cmd=(
+            # Default bootstrap glob swallows wheel install errors.
+            # Force explicit install with --find-links so sphere deps
+            # resolve before floodcaster.
+            "pip install --no-index --find-links /opt/ml/processing/input/wheels/"
+            " sphere-core sphere-data sphere-flood floodcaster"
         ),
         dry_run=args.dry_run,
     )
