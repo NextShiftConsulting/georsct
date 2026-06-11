@@ -1,0 +1,322 @@
+# floodcaster_story_doe.yaml -- Machine-readable DOE contract for floodcaster diagnostic stories.
+#
+# Companion to: PREREG_floodcaster_story_doe.md (locked 2026-06-11)
+# The markdown file explains the claims. This file controls what experiments are legal.
+#
+# Every assertion in the paper must map to a doe_id, a feature_set, a metric,
+# a pass_condition, and a demotion_path. No experiment runs without this contract.
+
+experiment: s035-model-ladder
+sub_experiment: floodcaster_story_doe
+lock_date: "2026-06-11"
+version: "1.0"
+bucket: swarm-floodrsct-data
+
+# ── Frozen Universe ──────────────────────────────────────────────────────
+frozen_universe:
+  grain: [zcta_id, event]
+  source: "Same ZCTA-event rows as s035 R0 baseline"
+  fold_source: "folds/{scenario}_folds.parquet"
+  seed: 42
+
+# ── Hard Guards ──────────────────────────────────────────────────────────
+guards:
+  frozen_rows_required: true
+  frozen_folds_required: true
+  same_seed_required: true
+  no_feature_dependent_row_loss: true
+  forecast_nowcast_separation_required: true
+  sar_anomaly_forbidden_in_forecast: true
+  taxi_route_claim_forbidden_without_kappa_reconstruct: true
+
+# ── Feature Sets ─────────────────────────────────────────────────────────
+feature_sets:
+
+  # DOE-C1: Construct Divergence
+  c1_fast_signal:
+    doe_id: DOE-C1
+    features:
+      - fast_total_loss_usd
+      - fast_mean_loss_per_sqft
+      - fast_pct_damaged
+    source: "processed/{scenario}/{scenario}_fast_zcta_*.parquet"
+
+  c1_nfip_signal:
+    doe_id: DOE-C1
+    features:
+      - nfip_event_claim_count
+      - nfip_event_total_loss
+    source: "processed/{scenario}/*_event_features.parquet"
+
+  # DOE-P1: Topology Necessity
+  p1_baseline:
+    doe_id: DOE-P1
+    description: "R0 + HAND + GFI + TWI + SPI (full topology)"
+    extends: r0_baseline
+    additional_features:
+      - hand_mean_m
+      - gfi_mean
+      - twi_mean
+      - spi_mean
+
+  p1_no_topology:
+    doe_id: DOE-P1
+    description: "R0 only (topology features removed)"
+    extends: r0_baseline
+    additional_features: []
+
+  p1_shuffled_topology:
+    doe_id: DOE-P1
+    description: "R0 + shuffled(HAND/GFI/TWI/SPI)"
+    extends: r0_baseline
+    additional_features:
+      - hand_mean_m_shuffled
+      - gfi_mean_shuffled
+      - twi_mean_shuffled
+      - spi_mean_shuffled
+    shuffle_seed: 42
+
+  # DOE-H1: Hazard Shape
+  h1_depth_scalar:
+    doe_id: DOE-H1
+    description: "R0 + deltares_depth_ft_rp100 only"
+    extends: r0_baseline
+    additional_features:
+      - deltares_depth_ft_rp100
+
+  h1_depth_shape:
+    doe_id: DOE-H1
+    description: "R0 + level + gradient (derived from Deltares)"
+    extends: r0_baseline
+    additional_features:
+      - deltares_depth_level
+      - deltares_depth_gradient
+    derived:
+      deltares_depth_level: "mean(rp10, rp50, rp100)"
+      deltares_depth_gradient: "(rp100 - rp10) / rp100"
+
+  h1_depth_vector:
+    doe_id: DOE-H1
+    description: "R0 + full RP vector + max + inundation_pct"
+    extends: r0_baseline
+    additional_features:
+      - deltares_depth_ft_rp10
+      - deltares_depth_ft_rp50
+      - deltares_depth_ft_rp100
+      - deltares_max_depth_ft
+      - deltares_inundation_pct
+
+  # DOE-O1: Observation Value (NOWCAST ONLY)
+  o1_pre_event:
+    doe_id: DOE-O1
+    description: "R0 + R1 + JRC baseline (forecast arm)"
+    extends: r1_hydrology
+    additional_features:
+      - jrc_water_occurrence
+      - jrc_water_seasonality
+    information_regime: forecast
+
+  o1_nowcast_sar:
+    doe_id: DOE-O1
+    description: "R0 + R1 + JRC baseline + SAR anomaly (nowcast arm)"
+    extends: r1_hydrology
+    additional_features:
+      - jrc_water_occurrence
+      - jrc_water_seasonality
+      - sar_water_pct
+      - sar_water_pct_anomaly
+    information_regime: nowcast
+    timestamp_audit_required: true
+    sar_acquisition_lag_days_required: true
+
+# ── DOE Rows ─────────────────────────────────────────────────────────────
+doe_rows:
+
+  DOE-C1:
+    name: "Construct Divergence -- FAST vs NFIP"
+    story: "Insurance Is Not Damage"
+    act: I
+    information_regime: null  # descriptive, not forecast/nowcast
+    feature_sets: [c1_fast_signal, c1_nfip_signal]
+    split_protocol: null  # descriptive comparison
+    primary_metrics:
+      - spearman_rho
+      - kendall_tau
+      - quadrant_mass_distribution
+    secondary_metrics:
+      - bivariate_lisa
+    pass_condition: "rho significantly different from +1.0"
+    demotion_condition: "rho > 0.5 (positive and strong)"
+    demotion_language: >
+      FAST and NFIP show spatial agreement for this scenario;
+      construct divergence not demonstrated.
+    allowed_conclusion: >
+      FAST and NFIP diverge spatially and should not be treated
+      as interchangeable flood-damage labels.
+    forbidden_conclusion: >
+      High FAST / low NFIP means under-insurance.
+      (Requires PIF denominator, not available.)
+    code_path: "jobs/compute_construct_divergence.py"
+    s3_output: "results/s035/story/construct_divergence_{scenario}.json"
+    figure: "Bivariate construct divergence map (Houston, 3 events)"
+    status: DESIGNED
+    data_ready: true
+    priority: 1
+
+  DOE-P1:
+    name: "Topology Necessity -- HAND/GFI Load-Bearing Test"
+    story: "Is Topology Load-Bearing?"
+    act: II
+    information_regime: forecast
+    feature_sets: [p1_baseline, p1_no_topology, p1_shuffled_topology]
+    split_protocol: spatial_blocked_cv
+    primary_metrics:
+      - delta_rmse_baseline_vs_no_topology
+      - delta_rmse_baseline_vs_shuffled_topology
+      - paired_bootstrap_ci
+      - fold_stability
+    pass_condition: >
+      Both deltas negative (worse without topology), CI excludes zero,
+      all 5 folds agree on direction.
+    demotion_condition: "CI includes zero OR folds disagree on direction"
+    demotion_language: >
+      HAND/GFI were not load-bearing under this representation and solver.
+      Topology features are redundant with existing R0 covariates.
+    allowed_conclusion: >
+      Drainage-derived features are load-bearing for flood prediction
+      in this substrate.
+    forbidden_conclusion: >
+      The model predicts in a city where water runs uphill.
+      (Requires DOE-R1 kappa_reconstruct.)
+    code_path: "jobs/run_topology_necessity.py"
+    s3_output: "results/s035/story/topology_necessity_{scenario}.json"
+    figure: "Ablation table (3 arms x 5 scenarios x primary metric)"
+    status: DESIGNED
+    data_ready: false
+    blocked_by: "Hydrology features not fetched for all scenarios"
+    priority: 3
+
+  DOE-H1:
+    name: "Hazard Shape -- Multi-Return-Period Deltares Depths"
+    story: "The Floodplain Is Not a Scalar"
+    act: III
+    information_regime: forecast
+    feature_sets: [h1_depth_scalar, h1_depth_shape, h1_depth_vector]
+    split_protocol: spatial_blocked_cv
+    primary_metrics:
+      - delta_rmse_scalar_vs_vector
+      - delta_rmse_scalar_vs_level_gradient
+      - kendall_tau_b_ranking
+      - fold_stability
+    pass_condition: >
+      Vector or level+gradient outperforms scalar. CI excludes zero.
+    demotion_condition: "CI includes zero"
+    demotion_language: >
+      No evidence that return-period shape improved this task
+      beyond a single depth scalar.
+    allowed_conclusion: >
+      Multi-return-period modeled depths preserve hazard structure
+      beyond a single tail-risk scalar.
+    forbidden_conclusion: null
+    wording_note: "'modeled hazard structure' not 'observed risk'"
+    code_path: "jobs/run_hazard_shape.py"
+    s3_output: "results/s035/story/hazard_shape_{scenario}.json"
+    figure: "Return-period curves for representative ZCTAs + spatial gradient map"
+    status: DESIGNED
+    data_ready: false
+    blocked_by: "Deltares features not fetched"
+    priority: 2
+
+  DOE-O1:
+    name: "Observation Value -- SAR Anomaly in Nowcast Arm"
+    story: "Wet Today, or Always Wet?"
+    act: IV
+    information_regime: nowcast
+    feature_sets: [o1_pre_event, o1_nowcast_sar]
+    split_protocol: spatial_blocked_cv
+    primary_metrics:
+      - delta_rmse_pre_event_vs_nowcast
+      - scenario_level_lift
+      - timestamp_eligibility_audit
+    pass_condition: >
+      Nowcast arm outperforms pre-event arm, CI excludes zero,
+      timestamp audit confirms >80% SAR features are event-time.
+    demotion_condition: "CI includes zero OR timestamp audit < 80%"
+    demotion_language: >
+      SAR anomaly did not improve nowcast performance beyond static
+      exposure, OR timestamp audit failed (leakage risk).
+    allowed_conclusion: >
+      SAR anomaly separates permanent water from event-specific
+      inundation and improves nowcast/damage assessment.
+    forbidden_conclusion: >
+      SAR anomaly proves forecast representation lift.
+    code_path: "jobs/run_observation_value.py"
+    s3_output: "results/s035/story/observation_value_{scenario}.json"
+    figure: "Raw SAR vs anomaly maps (2-panel) + lift by scenario"
+    status: DESIGNED
+    data_ready: false
+    blocked_by: "SAR features not fetched per-event"
+    priority: 4
+
+  DOE-R1:
+    name: "Reconstruction -- kappa_reconstruct"
+    story: "The Model's Impossible Watershed"
+    act: IIb
+    information_regime: null  # registered extension
+    status: REGISTERED
+    data_ready: false
+    blocked_by: "kappa=0.0 pin must be fixed; DOE_U0 arms not launched"
+    priority: 5
+    note: >
+      Registered extension. Do not claim taxi-route analogy without
+      this row completed. See DOE_U0_adversarial_geography.md for
+      full 4-arm design (real, permuted, block-permuted, covariate-only).
+    code_path: "georsct/domain/kappa_reconstruct.py"
+    s3_output: "results/u0_adversarial/gate_3b_{arm}_{scenario}.json"
+
+# ── Paper Placement Decision Rule ────────────────────────────────────────
+paper_placement:
+  description: >
+    Do not choose 281 vs companion based on narrative elegance.
+    Choose based on result outcomes.
+  rules:
+    - outcome: "DOE-C1 only confirms"
+      placement: "Add construct divergence subsection to 281"
+    - outcome: "DOE-C1 + DOE-H1 confirm"
+      placement: "Strong 281 results expansion"
+    - outcome: "DOE-C1 + DOE-H1 + DOE-P1 confirm"
+      placement: "281 gets diagnostic section"
+    - outcome: "DOE-C1 + DOE-H1 + DOE-P1 + DOE-O1 confirm"
+      placement: "281 gets forecast/nowcast split, or companion starts to justify"
+    - outcome: "DOE-R1 implemented and works"
+      placement: "Companion paper becomes real"
+    - outcome: "Without DOE-R1"
+      placement: "Taxi-route analogy stays in future work"
+
+# ── Execution Priority ───────────────────────────────────────────────────
+execution_priority:
+  - doe_id: DOE-C1
+    reason: "Data exists, run first"
+  - doe_id: DOE-H1
+    reason: "Requires Deltares fetch, high paper value"
+  - doe_id: DOE-P1
+    reason: "Requires hydrology fetch, high diagnostic value"
+  - doe_id: DOE-O1
+    reason: "Requires SAR fetch per-event, nowcast arm only"
+  - doe_id: DOE-R1
+    reason: "Registered extension, blocks taxi-route claim"
+
+# ── Literature Prior (for physics_compat_probe.py) ───────────────────────
+literature_prior:
+  description: >
+    Pre-registered expected compatibility ordering for physics-constrained solvers.
+    Derived from prior hydrologic evidence, NOT from FloodRSCT outcomes.
+  ranks:
+    smooth_metric: {rank: 6, sources: ["feng2022", "song2025"]}
+    spatial_dependence: {rank: 5, sources: ["bindas2024", "taghizadeh2025"]}
+    composite: {rank: 4, sources: ["feng2022"]}
+    periodic: {rank: 3, sources: [], note: "flagged as uncovered"}
+    hierarchical: {rank: 2, sources: ["feng2022", "song2025"]}
+    logical_relational: {rank: 1, sources: ["zhang2025"]}
+  test: "Kendall tau-b concordance between predicted and realized ordering"
+  hard_dependency: "kappa=0.0 pin must be fixed before testing"

@@ -325,6 +325,41 @@ phases:
       (p=0.594, d=-0.249). H7=4/11. H6/H8=INSUFFICIENT_DATA.
 
       '
+  # ── Floodcaster Diagnostic Stories (DOE locked 2026-06-11) ──────────
+  construct_divergence:
+    status: DESIGNED
+    doe_id: DOE-C1
+    notes: >
+      FAST vs NFIP spatial construct comparison. Data exists on S3.
+      Run first per execution priority.
+    contract: floodcaster_story_doe.yaml
+  topology_necessity:
+    status: DESIGNED
+    doe_id: DOE-P1
+    notes: >
+      HAND/GFI ablation test. Blocked on hydrology features for all scenarios.
+    contract: floodcaster_story_doe.yaml
+  hazard_shape:
+    status: DESIGNED
+    doe_id: DOE-H1
+    notes: >
+      Multi-RP Deltares depth vectors. Blocked on Deltares feature fetch.
+    contract: floodcaster_story_doe.yaml
+  observation_value:
+    status: DESIGNED
+    doe_id: DOE-O1
+    notes: >
+      SAR anomaly nowcast arm. Blocked on per-event SAR feature fetch.
+      Nowcast only -- SAR forbidden in forecast arm.
+    contract: floodcaster_story_doe.yaml
+  kappa_reconstruct:
+    status: REGISTERED
+    doe_id: DOE-R1
+    notes: >
+      Registered extension. Blocks taxi-route claim. See DOE_U0_adversarial_geography.md.
+      kappa=0.0 pin must be fixed first.
+    contract: floodcaster_story_doe.yaml
+
 paper_claims:
   sec_7_1_variance_stack:
     status: GREEN

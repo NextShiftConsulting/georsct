@@ -1001,11 +1001,13 @@ phases:
 
     features: null
 
-    # Pre-registered gate thresholds for cell admission
-    gate_thresholds:
-      classification_prevalence_floor: 0.03
-      min_fold_size: 10                   # runnability gate (can sklearn fit at all?)
-      min_interpretable_train_n: 50       # interpretability gate (is HGB more than a stump?)
+    # Pre-flight gate thresholds for cell runnability (cell_outcome.py).
+    # Derived, not magic: fold_floor = 2 * min_samples_leaf.
+    gate:
+      max_bins: 32                        # fixed for ALL cells; never min(255, n_train)
+      min_samples_leaf: 20                # HGB default; fold_floor derived as 2x this
+      min_prevalence: 0.03                # classification prevalence floor
+      # fold_floor = 40 (derived, not stored separately)
 
     outputs:
       - key: "results/s035/sidecar/variance_stack/variance_stack_results.json"
@@ -1297,3 +1299,106 @@ verification_gates:
       - id: V5.16
         check: event_count_reported
         pass_criteria: "paper reports events per scenario (Houston 3, NOLA 4, etc.) and states that events within a scenario share spatial substrate and are not independent spatial evidence"
+
+  # ── Floodcaster Diagnostic Stories (DOE locked 2026-06-11) ──────────
+  # Machine-readable contract: floodcaster_story_doe.yaml
+  # Pre-registration doc: PREREG_floodcaster_story_doe.md
+
+  - phase_id: construct_divergence
+    script: compute_construct_divergence.py
+    description: "DOE-C1: FAST vs NFIP spatial construct divergence"
+    per_scenario: true
+    depends_on: [fast_validation, r0_baseline]
+
+    packages:
+      - numpy
+      - pandas
+      - pyarrow
+      - scipy
+
+    s3_artifacts:
+      - key: "results/s035/fast_validation.json"
+        description: "FAST validation results"
+      - key: "processed/{scenario}/{scenario}_fast_zcta_*.parquet"
+        description: "FAST ZCTA aggregates"
+        per_scenario: true
+        scenarios: *modelable
+
+    outputs:
+      - key: "results/s035/story/construct_divergence_{scenario}.json"
+        description: "Construct divergence metrics (Spearman, Kendall, quadrant mass)"
+        per_scenario: true
+
+  - phase_id: topology_necessity
+    script: run_topology_necessity.py
+    description: "DOE-P1: HAND/GFI ablation (3 arms x 5 scenarios)"
+    per_scenario: true
+    depends_on: [r0_baseline]
+
+    packages:
+      - scikit-learn
+      - numpy
+      - pandas
+      - pyarrow
+      - scipy
+
+    s3_artifacts:
+      - key: "folds/{scenario}_folds.parquet"
+        description: "Fold assignments from R0"
+        per_scenario: true
+        scenarios: *modelable
+
+    outputs:
+      - key: "results/s035/story/topology_necessity_{scenario}.json"
+        description: "Ablation deltas (baseline vs no_topology vs shuffled)"
+        per_scenario: true
+
+  - phase_id: hazard_shape
+    script: run_hazard_shape.py
+    description: "DOE-H1: Multi-RP Deltares depth comparison (3 arms)"
+    per_scenario: true
+    depends_on: [r0_baseline]
+
+    packages:
+      - scikit-learn
+      - numpy
+      - pandas
+      - pyarrow
+      - scipy
+
+    s3_artifacts:
+      - key: "processed/shared/zcta_deltares_depth.parquet"
+        description: "Deltares depths at RP 10, 50, 100"
+      - key: "folds/{scenario}_folds.parquet"
+        description: "Fold assignments from R0"
+        per_scenario: true
+        scenarios: *modelable
+
+    outputs:
+      - key: "results/s035/story/hazard_shape_{scenario}.json"
+        description: "Scalar vs shape vs vector RMSE deltas"
+        per_scenario: true
+
+  - phase_id: observation_value
+    script: run_observation_value.py
+    description: "DOE-O1: SAR anomaly nowcast lift (NOWCAST ARM ONLY)"
+    per_scenario: true
+    depends_on: [r1_hydrology]
+
+    packages:
+      - scikit-learn
+      - numpy
+      - pandas
+      - pyarrow
+      - scipy
+
+    s3_artifacts:
+      - key: "folds/{scenario}_folds.parquet"
+        description: "Fold assignments from R0"
+        per_scenario: true
+        scenarios: *modelable
+
+    outputs:
+      - key: "results/s035/story/observation_value_{scenario}.json"
+        description: "Pre-event vs nowcast RMSE delta + timestamp audit"
+        per_scenario: true
