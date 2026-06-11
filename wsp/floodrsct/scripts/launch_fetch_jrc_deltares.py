@@ -3,7 +3,7 @@
 launch_fetch_jrc_deltares.py -- Fetch JRC + Deltares shared features.
 
 Launches a SageMaker Processing job that fetches static flood-hazard
-features from Microsoft Planetary Computer for all ~794 ZCTA centroids:
+features from Microsoft Planetary Computer for the s035 ZCTA universe:
 
   - JRC Global Surface Water occurrence (1984-2020)
   - Deltares Global Flood Maps depth at RP 10/50/100
@@ -13,20 +13,17 @@ Output:
   s3://swarm-floodrsct-data/processed/shared/zcta_deltares_depth.parquet
 
 Resource review:
-  - Memory: ~794 centroids, single-tile raster sampling per source.
-    JRC does 1 STAC call (full bbox), Deltares does 3 (per RP).
-    Peak memory ~500 MB (one raster tile in memory). 8 GB is ample.
+  - Memory: ~794 centroids batched per scenario (~200 each). JRC does
+    1 STAC call per scenario bbox, Deltares does 3 (per RP). Peak
+    memory ~500 MB. 8 GB is ample.
   - Cache: No prior cache exists on S3 (first run).
-  - Threads: Single-threaded (STAC calls are I/O-bound but sequential
-    within floodcaster; parallelism at centroid-loop level is in-process).
+  - Threads: Sequential per scenario. STAC calls are I/O-bound.
   - Image: PYTORCH_CPU (default). No GPU needed.
-  - Instance: ml.m5.large (2 vCPU, 8 GB). Point sampling, no heavy GIS.
+  - Instance: ml.m5.large (2 vCPU, 8 GB). Point sampling, not heavy GIS.
   - Volume: 20 GB. No local raster storage; STAC reads via HTTP.
-  - pip_packages: rasterio + planetary-computer + pystac-client + duckdb +
-    geopandas + shapely (floodcaster transitive deps not in wheel).
-  - pre_install_cmd: Explicit floodcaster wheel install with --find-links
-    to ensure sphere deps resolve before floodcaster. The default bootstrap
-    glob (*.whl 2>/dev/null || true) swallows errors silently.
+  - pip_packages: PyPI deps + floodcaster/sphere from local wheels via
+    --find-links. This avoids the bootstrap glob (*.whl || true) which
+    swallows install errors silently.
   - Timeout: Default (7200s). Expect ~10-20 min for 794 centroids.
 """
 
@@ -61,6 +58,9 @@ def main() -> None:
 
     job_name = make_job_name(f"fetch-{suffix}")
 
+    # Install floodcaster + sphere from local wheels via --find-links
+    # in the SAME pip resolution pass as PyPI deps. The default bootstrap
+    # glob (pip install *.whl 2>/dev/null || true) swallows errors.
     launch_processing_job(
         job_name=job_name,
         job_script="fetch_jrc_deltares.py",
@@ -69,24 +69,10 @@ def main() -> None:
         volume_size_gb=20,
         pip_packages=(
             "geopandas rasterio planetary-computer pystac-client "
-            "duckdb shapely pyogrio"
+            "duckdb shapely pyogrio "
+            "--find-links /opt/ml/processing/input/wheels/ "
+            "sphere-core sphere-data sphere-flood floodcaster"
         ),
-        pre_install_cmd=(
-            # Default bootstrap glob (*.whl || true) swallows wheel install
-            # errors. Run explicit install AFTER pip packages are available
-            # by deferring to a post-pip hook embedded in pre_install_cmd.
-            # This runs before pip packages, so we can't use --no-index.
-            # Instead we skip pre_install_cmd and fix the wheel install
-            # below via env_overrides trick.
-            None
-        ),
-        env_overrides={
-            # Force floodcaster wheel install by adding to pip_packages.
-            # The wheel is in the S3 wheels mount; pip finds it via
-            # --find-links in bootstrap.  We pass the package names
-            # so the glob install treats them as explicit requirements.
-            "FLOODCASTER_WHEEL_INSTALL": "1",
-        },
         dry_run=args.dry_run,
     )
 
