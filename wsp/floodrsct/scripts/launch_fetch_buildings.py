@@ -36,7 +36,7 @@ SCENARIOS = ["houston", "southwest_florida", "nyc", "riverside_coachella", "new_
 
 
 def _launch_one(scenario: str, dry_run: bool) -> str:
-    job_name = make_job_name(f"buildings-{scenario[:8]}")
+    job_name = make_job_name(f"buildings-{scenario[:8].replace('_', '-')}")
     return launch_processing_job(
         job_name=job_name,
         job_script="run_fetch_buildings.py",
