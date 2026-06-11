@@ -21,9 +21,6 @@ class FitPredictResult:
     forward_score: float     # R2, AUC, or accuracy
     task_type: str           # "regression" | "binary_classification" | ...
 
-    class Config:
-        arbitrary_types_allowed = True
-
 
 @dataclass(frozen=True)
 class EmbedResult:
@@ -31,9 +28,6 @@ class EmbedResult:
 
     embeddings: np.ndarray       # (n_regions, n_features) z-scored
     region_order: tuple[str, ...]
-
-    class Config:
-        arbitrary_types_allowed = True
 
 
 class ModelFitter(ABC):

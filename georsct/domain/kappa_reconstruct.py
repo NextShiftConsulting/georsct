@@ -352,8 +352,10 @@ def compute_kappa_reconstruct(
 
 
 # =========================================================================
-# Gate 3B decision
+# Gate 3B decision -- MOVED to application layer (P4 separation)
 # =========================================================================
+# Canonical location: georsct.application.use_cases.gate_3b_decision
+# Re-exported here for backwards compatibility with existing callers.
 
 def gate_3b_decision(
     forward_score: float,
@@ -363,18 +365,16 @@ def gate_3b_decision(
 ) -> str:
     """Gate 3B: spatial recoverability.
 
-    Forward accuracy is not enough. A representation must also preserve
-    enough backward structure to recover the geography it claims to
-    reason over.
-
-    Fires only on the taxi-map quadrant: high forward, low recoverability.
-
-    Returns:
-        "EXECUTE" or "RE_ENCODE"
+    .. deprecated::
+        Import from ``georsct.application.use_cases.gate_3b_decision``
+        instead.  This re-export exists for backwards compatibility only.
     """
-    if forward_score >= forward_floor and kappa_reconstruct < reconstruct_floor:
-        return "RE_ENCODE"
-    return "EXECUTE"
+    from georsct.application.use_cases.gate_3b_decision import (
+        gate_3b_decision as _canonical,
+    )
+    return _canonical(
+        forward_score, kappa_reconstruct, forward_floor, reconstruct_floor,
+    )
 
 
 # =========================================================================

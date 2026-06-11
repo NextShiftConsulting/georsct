@@ -172,6 +172,42 @@ class TestKappaSpatialEdgeCases:
         assert math.isnan(kappa)
         assert math.isnan(I)
 
+    def test_morans_i_exceeding_one_is_clamped(self):
+        """Binary (non-row-normalized) W can produce |I| > 1; kappa must stay [0,1].
+
+        The theoretical Moran's I range for a non-row-normalized binary W
+        is [lambda_min, lambda_max] of (n/s0)*M@W@M, which can exceed [-1, 1].
+        We use the eigenvector for the minimum eigenvalue to achieve this.
+        """
+        g = 10
+        n = g * g
+        rows, cols, data = [], [], []
+        for r in range(g):
+            for c in range(g):
+                idx = r * g + c
+                for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                    nr, nc = r + dr, c + dc
+                    if 0 <= nr < g and 0 <= nc < g:
+                        rows.append(idx)
+                        cols.append(nr * g + nc)
+                        data.append(1.0)  # binary, not row-normalized
+        W_binary = sparse.csr_matrix((data, (rows, cols)), shape=(n, n))
+
+        # Find residual pattern that achieves |I| > 1 via eigendecomposition
+        W_dense = W_binary.toarray()
+        M = np.eye(n) - np.ones((n, n)) / n
+        B = M @ W_dense @ M
+        eigenvalues, eigenvectors = np.linalg.eigh(B)
+        # Eigenvector for minimum eigenvalue is already mean-zero (in range of M)
+        residuals = eigenvectors[:, 0]
+
+        kappa, I = compute_kappa_spatial(residuals, W_binary)
+
+        # Raw I should exceed |1| for this non-row-normalized W
+        assert abs(I) > 1.0, f"Expected |I| > 1, got I={I}"
+        # kappa must be clamped to [0, 1]
+        assert 0.0 <= kappa <= 1.0, f"Clamp failed: kappa={kappa}"
+
 
 # =========================================================================
 # from_scores factory

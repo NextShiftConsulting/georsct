@@ -105,7 +105,7 @@ def certify_single_construct(
     return ConstructCertificate.from_scores(
         construct=construct,
         target_column=target_col,
-        forward_score=float(fp.forward_score),
+        forward_score=float(np.clip(fp.forward_score, 0.0, 1.0)),
         kappa_spatial=float(kappa_s),
         kappa_reconstruct=float(sr.kappa_reconstruct),
         morans_i=float(morans_i),

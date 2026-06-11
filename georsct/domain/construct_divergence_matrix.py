@@ -4,7 +4,8 @@ Pure domain math.  No I/O, no S3, no pandas.
 
 Computes Euclidean distance in (forward_score, kappa_spatial,
 kappa_reconstruct) space between per-construct certificates.
-All three axes are on [0, 1], so no rescaling is needed.
+All three axes are clamped to [0, 1] at certificate creation
+(R2 can be negative; Moran's I can exceed |1|), so no rescaling is needed.
 
 Euclidean over cosine: magnitude-sensitive (two constructs scoring
 0.1 vs 0.9 IS different from 0.5 vs 0.6).
@@ -116,9 +117,6 @@ class DivergenceMatrix:
     mean_distance: float
     max_distance: float
     max_pair: tuple[ConstructLabel, ConstructLabel]
-
-    class Config:
-        arbitrary_types_allowed = True
 
 
 def build_divergence_matrix(
