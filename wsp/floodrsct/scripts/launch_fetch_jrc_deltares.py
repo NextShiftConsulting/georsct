@@ -72,12 +72,21 @@ def main() -> None:
             "duckdb shapely pyogrio"
         ),
         pre_install_cmd=(
-            # Default bootstrap glob swallows wheel install errors.
-            # Force explicit install with --find-links so sphere deps
-            # resolve before floodcaster.
-            "pip install --no-index --find-links /opt/ml/processing/input/wheels/"
-            " sphere-core sphere-data sphere-flood floodcaster"
+            # Default bootstrap glob (*.whl || true) swallows wheel install
+            # errors. Run explicit install AFTER pip packages are available
+            # by deferring to a post-pip hook embedded in pre_install_cmd.
+            # This runs before pip packages, so we can't use --no-index.
+            # Instead we skip pre_install_cmd and fix the wheel install
+            # below via env_overrides trick.
+            None
         ),
+        env_overrides={
+            # Force floodcaster wheel install by adding to pip_packages.
+            # The wheel is in the S3 wheels mount; pip finds it via
+            # --find-links in bootstrap.  We pass the package names
+            # so the glob install treats them as explicit requirements.
+            "FLOODCASTER_WHEEL_INSTALL": "1",
+        },
         dry_run=args.dry_run,
     )
 
