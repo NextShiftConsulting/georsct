@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Diagnostic: enumerate Deltares file variants and test coverage."""
+"""Diagnostic: compare rasterio vs netCDF4 reads for Deltares events."""
 import subprocess, sys
 _WHEELS = "/opt/ml/processing/input/wheels"
 subprocess.check_call([
@@ -12,239 +12,192 @@ subprocess.check_call([
 import numpy as np
 import planetary_computer
 import urllib.request
+import netCDF4
+import rasterio
+from rasterio.transform import from_bounds
+from rasterio.windows import Window
+import tempfile, os
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 EVENTS_BASE = (
     "https://deltaresfloodssa.blob.core.windows.net/floods/v2021.06/events"
 )
+NO_BBOX = (-90.2, 29.8, -89.8, 30.1)  # xmin, ymin, xmax, ymax
 
-STORMS = [
-    ("Katrina", 2005), ("Sandy", 2012), ("Irma", 2017), ("Ike", 2008),
-    ("Harvey", 2017), ("Ian", 2022), ("Ida", 2021), ("Michael", 2018),
-]
+# Download Katrina 90m file
+url = f"{EVENTS_BASE}/NASADEM_90m-wm_final/Katrina_2005_masked.nc"
+href = planetary_computer.sign(url)
 
-# DEM directories to probe
-DEM_DIRS = [
-    "NASADEM_90m-wm_final",
-    "NASADEM_1km-wm_final",
-    "MERITDEM_90m-wm_final",
-    "MERITDEM_1km-wm_final",
-    "LIDAR_90m-wm_final",
-    "LIDAR_1km-wm_final",
-    # Try without -wm suffix
-    "NASADEM_90m_final",
-    "NASADEM_1km_final",
-]
-
-# File suffixes to probe
-SUFFIXES = ["_masked.nc", ".nc", "_unmasked.nc"]
-
-
-def probe_url(url):
-    """Check if a URL exists (HTTP HEAD). Returns (exists, size_mb)."""
-    signed = planetary_computer.sign(url)
-    req = urllib.request.Request(signed, method="HEAD")
-    try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            size = int(resp.headers.get("Content-Length", 0))
-            return True, size / 1024 / 1024
-    except urllib.error.HTTPError:
-        return False, 0
-    except Exception:
-        return False, 0
-
+tmpfile = tempfile.mktemp(suffix=".nc")
+print("Downloading Katrina event file...", flush=True)
+with urllib.request.urlopen(href, timeout=120) as resp:
+    size = int(resp.headers.get("Content-Length", 0))
+    print(f"  File size: {size / 1024 / 1024:.1f} MB", flush=True)
+    with open(tmpfile, "wb") as f:
+        f.write(resp.read())
+print("Downloaded.", flush=True)
 
 # ===================================================================
-# Part 1: Enumerate available event file variants
+# Method A: netCDF4 direct read (known good from Part 2)
 # ===================================================================
-print("=" * 70, flush=True)
-print("PART 1: Enumerate Deltares event file variants", flush=True)
-print("=" * 70, flush=True)
+print("\n=== Method A: netCDF4 direct array slicing ===", flush=True)
+ds = netCDF4.Dataset(tmpfile, "r")
+lats = ds.variables["lat"][:]
+lons = ds.variables["lon"][:]
 
-found_files = []
-for storm, year in STORMS:
-    print(f"\n--- {storm} {year} ---", flush=True)
-    for dem_dir in DEM_DIRS:
-        for suffix in SUFFIXES:
-            filename = f"{storm}_{year}{suffix}"
-            url = f"{EVENTS_BASE}/{dem_dir}/{filename}"
-            exists, size_mb = probe_url(url)
-            if exists:
-                print(f"  FOUND: {dem_dir}/{filename} ({size_mb:.1f} MB)", flush=True)
-                found_files.append((storm, year, dem_dir, suffix, size_mb))
-            # Don't print misses to keep output short
+lat_mask = (lats >= NO_BBOX[1]) & (lats <= NO_BBOX[3])
+lon_mask = (lons >= NO_BBOX[0]) & (lons <= NO_BBOX[2])
+lat_idx = np.where(lat_mask)[0]
+lon_idx = np.where(lon_mask)[0]
 
-print(f"\n\nTotal files found: {len(found_files)}", flush=True)
-for storm, year, dem_dir, suffix, size_mb in found_files:
-    print(f"  {storm}_{year}: {dem_dir}{suffix} ({size_mb:.1f} MB)", flush=True)
+r0_nc, r1_nc = lat_idx[0], lat_idx[-1] + 1
+c0_nc, c1_nc = lon_idx[0], lon_idx[-1] + 1
+print(f"  lat range used: [{float(lats[r0_nc]):.4f}, {float(lats[r1_nc-1]):.4f}]", flush=True)
+print(f"  lon range used: [{float(lons[c0_nc]):.4f}, {float(lons[c1_nc-1]):.4f}]", flush=True)
+print(f"  row slice: [{r0_nc}:{r1_nc}], col slice: [{c0_nc}:{c1_nc}]", flush=True)
 
+data_nc = ds.variables["inun"][0, r0_nc:r1_nc, c0_nc:c1_nc]
+nodata_val = getattr(ds.variables["inun"], '_FillValue', -9999.0)
+data_nc = np.where(data_nc == nodata_val, np.nan, data_nc)
+ds.close()
 
-# ===================================================================
-# Part 2: For files that exist, check if UNMASKED has more coverage
-# ===================================================================
-print("\n" + "=" * 70, flush=True)
-print("PART 2: Compare masked vs unmasked coverage (New Orleans bbox)", flush=True)
-print("=" * 70, flush=True)
-
-from floodcaster.sources import BBox
-from floodcaster.stac import get_deltares_event_depth
-
-NO_BBOX = BBox(-90.2, 29.8, -89.8, 30.1)
-
-# If unmasked Katrina exists, test it
-for storm, year, dem_dir, suffix, size_mb in found_files:
-    if storm == "Katrina":
-        print(f"\n--- {storm}_{year} ({dem_dir}, suffix={suffix}) ---", flush=True)
-        # Build the URL manually for non-standard variants
-        filename = f"{storm}_{year}{suffix}"
-        url = f"{EVENTS_BASE}/{dem_dir}/{filename}"
-        href = planetary_computer.sign(url)
-
-        # Download and check with netCDF4
-        import netCDF4, tempfile, os
-        tmpfile = tempfile.mktemp(suffix=".nc")
-        try:
-            with urllib.request.urlopen(href, timeout=120) as resp:
-                with open(tmpfile, "wb") as f:
-                    f.write(resp.read())
-            ds = netCDF4.Dataset(tmpfile, "r")
-
-            # Find the data variable
-            data_var = None
-            for name in ds.variables:
-                if name not in ("lat", "lon", "latitude", "longitude",
-                                "time", "projection", "x", "y", "crs"):
-                    data_var = name
-                    break
-
-            if data_var:
-                var = ds.variables[data_var]
-                print(f"  data var: {data_var}, shape={var.shape}", flush=True)
-
-                # Get lat/lon bounds
-                lat_var = ds.variables.get("lat") or ds.variables.get("latitude")
-                lon_var = ds.variables.get("lon") or ds.variables.get("longitude")
-                if lat_var and lon_var:
-                    lat_min, lat_max = float(lat_var[:].min()), float(lat_var[:].max())
-                    lon_min, lon_max = float(lon_var[:].min()), float(lon_var[:].max())
-                    print(f"  lat: [{lat_min:.2f}, {lat_max:.2f}]", flush=True)
-                    print(f"  lon: [{lon_min:.2f}, {lon_max:.2f}]", flush=True)
-
-                # Extract New Orleans window
-                if lat_var is not None and lon_var is not None:
-                    lats = lat_var[:]
-                    lons = lon_var[:]
-
-                    # Find indices for NO bbox
-                    lat_mask = (lats >= NO_BBOX.ymin) & (lats <= NO_BBOX.ymax)
-                    lon_mask = (lons >= NO_BBOX.xmin) & (lons <= NO_BBOX.xmax)
-                    lat_idx = np.where(lat_mask)[0]
-                    lon_idx = np.where(lon_mask)[0]
-
-                    if len(lat_idx) > 0 and len(lon_idx) > 0:
-                        r0, r1 = lat_idx[0], lat_idx[-1] + 1
-                        c0, c1 = lon_idx[0], lon_idx[-1] + 1
-                        # Read the data variable
-                        if len(var.shape) == 3:
-                            data = var[0, r0:r1, c0:c1]
-                        else:
-                            data = var[r0:r1, c0:c1]
-                        nodata = getattr(var, '_FillValue', -9999.0)
-                        data = np.where(data == nodata, np.nan, data)
-
-                        valid = data[np.isfinite(data)]
-                        wet = data[data > 0]
-                        total = data.size
-                        print(f"  window: {data.shape}", flush=True)
-                        print(f"  valid: {len(valid)}/{total} "
-                              f"({len(valid)/max(total,1)*100:.1f}%)", flush=True)
-                        print(f"  wet: {len(wet)}/{total} "
-                              f"({len(wet)/max(total,1)*100:.1f}%)", flush=True)
-                        if len(wet) > 0:
-                            print(f"  depth (m): median={np.median(wet):.3f}, "
-                                  f"max={np.max(wet):.3f}", flush=True)
-                    else:
-                        print("  NO bbox outside file coverage", flush=True)
-
-            ds.close()
-        except Exception as e:
-            print(f"  ERROR: {e}", flush=True)
-        finally:
-            if os.path.exists(tmpfile):
-                os.unlink(tmpfile)
-
+valid_nc = data_nc[np.isfinite(data_nc)]
+wet_nc = data_nc[data_nc > 0]
+print(f"  shape: {data_nc.shape}", flush=True)
+print(f"  valid: {len(valid_nc)}/{data_nc.size} ({len(valid_nc)/data_nc.size*100:.1f}%)", flush=True)
+print(f"  wet: {len(wet_nc)}/{data_nc.size} ({len(wet_nc)/data_nc.size*100:.1f}%)", flush=True)
+if len(wet_nc) > 0:
+    print(f"  depth (m): median={np.median(wet_nc):.3f}, max={np.max(wet_nc):.3f}", flush=True)
 
 # ===================================================================
-# Part 3: STAC catalog - what query properties are available?
+# Method B: rasterio with from_bounds transform
 # ===================================================================
-print("\n" + "=" * 70, flush=True)
-print("PART 3: STAC catalog query properties (deltares-floods)", flush=True)
-print("=" * 70, flush=True)
+print("\n=== Method B: rasterio windowed read (local file) ===", flush=True)
+env = rasterio.Env(GDAL_HTTP_UNSAFESSL="YES", CPL_VSIL_CURL_ALLOWED_EXTENSIONS=".nc")
+with env:
+    with rasterio.open(tmpfile) as src:
+        h, w = src.height, src.width
+        print(f"  rasterio shape: {w}x{h}", flush=True)
+        print(f"  rasterio transform: {src.transform}", flush=True)
+        print(f"  rasterio nodata: {src.nodata}", flush=True)
+        print(f"  rasterio CRS: {src.crs}", flush=True)
+        print(f"  rasterio dtypes: {src.dtypes}", flush=True)
+        print(f"  rasterio subdatasets: {src.subdatasets}", flush=True)
 
-import pystac_client
+        # Build transform from known coordinate bounds
+        lat_min = float(lats.min())
+        lat_max = float(lats.max())
+        lon_min = float(lons.min())
+        lon_max = float(lons.max())
+        transform = from_bounds(lon_min, lat_min, lon_max, lat_max, w, h)
+        print(f"  computed transform: {transform}", flush=True)
 
-client = pystac_client.Client.open(
-    "https://planetarycomputer.microsoft.com/api/stac/v1",
-    modifier=planetary_computer.sign_inplace,
-)
+        # Compute pixel window from bbox
+        inv = ~transform
+        col_min_px, row_min_px = inv * (NO_BBOX[0], NO_BBOX[3])  # xmin, ymax
+        col_max_px, row_max_px = inv * (NO_BBOX[2], NO_BBOX[1])  # xmax, ymin
+        print(f"  pixel coords: rows=[{row_min_px:.1f}, {row_max_px:.1f}], "
+              f"cols=[{col_min_px:.1f}, {col_max_px:.1f}]", flush=True)
 
-# Search with broad bbox covering New Orleans
-search = client.search(
-    collections=["deltares-floods"],
-    bbox=(-90.2, 29.8, -89.8, 30.1),
-    max_items=200,
-)
-items = list(search.items())
-print(f"\nTotal STAC items for NO bbox: {len(items)}", flush=True)
+        r0 = max(0, int(row_min_px))
+        r1 = min(h, int(row_max_px) + 1)
+        c0 = max(0, int(col_min_px))
+        c1 = min(w, int(col_max_px) + 1)
+        print(f"  clamped window: rows=[{r0}:{r1}], cols=[{c0}:{c1}]", flush=True)
 
-# Collect unique property values
-prop_values = {}
-for item in items:
-    for key, val in item.properties.items():
-        if key.startswith("deltares:"):
-            prop_values.setdefault(key, set()).add(str(val))
+        window = Window(col_off=c0, row_off=r0, width=c1 - c0, height=r1 - r0)
+        data_rio = np.squeeze(src.read(1, window=window)).astype(np.float64)
+        nodata_rio = src.nodata
+        if nodata_rio is not None:
+            data_rio[data_rio == nodata_rio] = np.nan
 
-print("\nAvailable STAC query properties:", flush=True)
-for key in sorted(prop_values.keys()):
-    vals = sorted(prop_values[key])
-    print(f"  {key}: {vals}", flush=True)
+print(f"  shape: {data_rio.shape}", flush=True)
+valid_rio = data_rio[np.isfinite(data_rio)]
+wet_rio = data_rio[data_rio > 0]
+print(f"  valid: {len(valid_rio)}/{data_rio.size} ({len(valid_rio)/data_rio.size*100:.1f}%)", flush=True)
+print(f"  wet: {len(wet_rio)}/{data_rio.size} ({len(wet_rio)/data_rio.size*100:.1f}%)", flush=True)
+if len(wet_rio) > 0:
+    print(f"  depth (m): median={np.median(wet_rio):.3f}, max={np.max(wet_rio):.3f}", flush=True)
 
-# Show asset keys from first item
-if items:
-    item0 = items[0]
-    print(f"\nAsset keys in first item ({item0.id}):", flush=True)
-    for ak, asset in item0.assets.items():
-        print(f"  {ak}: {asset.title or ''} "
-              f"({asset.media_type or 'unknown type'})", flush=True)
-    print(f"\nAll properties:", flush=True)
-    for k, v in sorted(item0.properties.items()):
-        vstr = str(v)
-        print(f"  {k}: {vstr[:120]}", flush=True)
+# ===================================================================
+# Method C: Check if lat direction matters (N-to-S vs S-to-N)
+# ===================================================================
+print("\n=== Coordinate direction check ===", flush=True)
+print(f"  lat[0] = {float(lats[0]):.4f} (first = {'south' if lats[0] < lats[-1] else 'north'})", flush=True)
+print(f"  lat[-1] = {float(lats[-1]):.4f}", flush=True)
+print(f"  lat direction: {'ascending (S-to-N)' if lats[0] < lats[-1] else 'descending (N-to-S)'}", flush=True)
+print(f"  lon[0] = {float(lons[0]):.4f}", flush=True)
+print(f"  lon[-1] = {float(lons[-1]):.4f}", flush=True)
+print(f"  lon direction: {'ascending (W-to-E)' if lons[0] < lons[-1] else 'descending (E-to-W)'}", flush=True)
 
-# Test: how many items per return period?
-print("\n\nItems per return period:", flush=True)
-for rp in [2, 5, 10, 25, 50, 100, 250]:
-    count = sum(1 for i in items
-                if i.properties.get("deltares:return_period") == rp)
-    print(f"  RP {rp:3d}: {count} items", flush=True)
+# netCDF4 row 0 = lat[0]; rasterio row 0 = ?
+# Check what rasterio reads at specific pixel coords
+print("\n=== Spot checks: rasterio vs netCDF4 at same pixel ===", flush=True)
+with env:
+    with rasterio.open(tmpfile) as src:
+        # Read corners of the full grid
+        for label, row, col in [
+            ("top-left (0,0)", 0, 0),
+            ("top-right (0,11999)", 0, 11999),
+            ("bottom-left (11999,0)", 11999, 0),
+            ("bottom-right (11999,11999)", 11999, 11999),
+            ("center (6000,6000)", 6000, 6000),
+        ]:
+            w_1px = Window(col_off=col, row_off=row, width=1, height=1)
+            rio_val = float(src.read(1, window=w_1px).ravel()[0])
+            print(f"  {label}: rasterio={rio_val:.4f}", flush=True)
 
-# Test: how many items per DEM?
-print("\nItems per DEM:", flush=True)
-dems = {}
-for i in items:
-    d = i.properties.get("deltares:dem_name", "unknown")
-    dems[d] = dems.get(d, 0) + 1
-for d, c in sorted(dems.items()):
-    print(f"  {d}: {c} items", flush=True)
+# Same from netCDF4
+ds = netCDF4.Dataset(tmpfile, "r")
+inun = ds.variables["inun"]
+for label, row, col in [
+    ("top-left (0,0)", 0, 0),
+    ("top-right (0,11999)", 0, 11999),
+    ("bottom-left (11999,0)", 11999, 0),
+    ("bottom-right (11999,11999)", 11999, 11999),
+    ("center (6000,6000)", 6000, 6000),
+]:
+    nc_val = float(inun[0, row, col])
+    print(f"  {label}: netCDF4={nc_val:.4f}", flush=True)
+ds.close()
 
-# Test: how many items per scenario?
-print("\nItems per sea_level_year:", flush=True)
-years = {}
-for i in items:
-    y = i.properties.get("deltares:sea_level_year", "unknown")
-    years[y] = years.get(y, 0) + 1
-for y, c in sorted(years.items(), key=lambda x: str(x[0])):
-    print(f"  {y}: {c} items", flush=True)
+# ===================================================================
+# Method D: rasterio with NETCDF subdataset path
+# ===================================================================
+print("\n=== Method D: rasterio via NETCDF:path:inun subdataset ===", flush=True)
+netcdf_sd = f'NETCDF:"{tmpfile}":inun'
+try:
+    with rasterio.open(netcdf_sd) as src:
+        h2, w2 = src.height, src.width
+        print(f"  shape: {w2}x{h2}", flush=True)
+        print(f"  transform: {src.transform}", flush=True)
+        print(f"  nodata: {src.nodata}", flush=True)
+        print(f"  CRS: {src.crs}", flush=True)
 
+        # Build transform + window
+        transform = from_bounds(lon_min, lat_min, lon_max, lat_max, w2, h2)
+        inv = ~transform
+        col_min_px, row_min_px = inv * (NO_BBOX[0], NO_BBOX[3])
+        col_max_px, row_max_px = inv * (NO_BBOX[2], NO_BBOX[1])
+        r0 = max(0, int(row_min_px))
+        r1 = min(h2, int(row_max_px) + 1)
+        c0 = max(0, int(col_min_px))
+        c1 = min(w2, int(col_max_px) + 1)
+        window = Window(col_off=c0, row_off=r0, width=c1 - c0, height=r1 - r0)
+        data_sd = np.squeeze(src.read(1, window=window)).astype(np.float64)
+        nd = src.nodata
+        if nd is not None:
+            data_sd[data_sd == nd] = np.nan
+        valid_sd = data_sd[np.isfinite(data_sd)]
+        wet_sd = data_sd[data_sd > 0]
+        print(f"  window shape: {data_sd.shape}", flush=True)
+        print(f"  valid: {len(valid_sd)}/{data_sd.size}", flush=True)
+        print(f"  wet: {len(wet_sd)}/{data_sd.size}", flush=True)
+        if len(wet_sd) > 0:
+            print(f"  depth (m): median={np.median(wet_sd):.3f}, max={np.max(wet_sd):.3f}", flush=True)
+except Exception as e:
+    print(f"  ERROR: {e}", flush=True)
+
+os.unlink(tmpfile)
 print("\n=== Done ===", flush=True)
