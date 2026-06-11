@@ -1041,7 +1041,7 @@ phases:
   - phase_id: construct_divergence
     script: compute_construct_divergence.py
     description: "DOE-C1: FAST vs NFIP spatial construct divergence"
-    per_scenario: true
+    per_scenario: false
     depends_on: [fast_validation, r0_baseline]
 
     packages:
@@ -1053,10 +1053,10 @@ phases:
     s3_artifacts:
       - key: "results/s035/fast_validation.json"
         description: "FAST validation results"
-      - key: "processed/{scenario}/{scenario}_fast_zcta_*.parquet"
-        description: "FAST ZCTA aggregates"
-        per_scenario: true
-        scenarios: *modelable
+      - key: "processed/houston/houston_fast_zcta_100yr.parquet"
+        description: "FAST ZCTA aggregates (Houston, spot-check)"
+      - key: "processed/houston/houston_event_features.parquet"
+        description: "Event features with NFIP columns"
 
     outputs:
       - key: "results/s035/story/construct_divergence_{scenario}.json"
