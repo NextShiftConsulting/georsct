@@ -185,21 +185,29 @@ def extract_buildings_for_bbox(bbox: tuple[float, float, float, float],
     """Download Overture buildings for a bounding box to GeoParquet."""
     try:
         from open_buildings.download_buildings import download
+        geojson_str = json.dumps({
+            "type": "Polygon",
+            "coordinates": [[
+                [float(bbox[0]), float(bbox[1])],
+                [float(bbox[2]), float(bbox[1])],
+                [float(bbox[2]), float(bbox[3])],
+                [float(bbox[0]), float(bbox[3])],
+                [float(bbox[0]), float(bbox[1])],
+            ]],
+        })
+        # open-buildings 0.10.0: geojson_input is a file handle (json.load),
+        # all params are positional from the Click CLI wrapper.
         download(
-            geojson_data=json.dumps({
-                "type": "Polygon",
-                "coordinates": [[
-                    [bbox[0], bbox[1]],
-                    [bbox[2], bbox[1]],
-                    [bbox[2], bbox[3]],
-                    [bbox[0], bbox[3]],
-                    [bbox[0], bbox[1]],
-                ]],
-            }),
+            geojson_input=io.StringIO(geojson_str),
+            format="parquet",
+            generate_sql=False,
             dst=dst_path,
-            source="overture",
-            country_iso="US",
+            silent=False,
+            overwrite=True,
             verbose=True,
+            data_path=None,
+            hive_partitioning=False,
+            country_iso="US",
         )
         return dst_path
     except Exception as e:
