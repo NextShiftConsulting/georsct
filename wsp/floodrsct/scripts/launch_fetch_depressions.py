@@ -23,8 +23,8 @@ Deployment Resource Review (9 dimensions):
   6. Volume:    50 GB. DEM tiles ~50 MB each x 8 = 400 MB. Whitebox creates
                 intermediate rasters (sink, fill, depression) = ~3x DEM size.
                 Budget ~2 GB per scenario on disk.
-  7. Pip:       lidar whitebox geopandas rasterio planetary-computer
-                pystac-client shapely
+  7. Pip:       lidar whitebox richdem geopandas rasterio
+                planetary-computer pystac-client shapely
   8. Pre-inst:  libgdal-dev + gdal-bin + matching GDAL Python bindings.
                 lidar uses osgeo (GDAL) for raster I/O. whitebox-tools
                 binary auto-downloads on first ExtractSinks() call.
@@ -51,7 +51,7 @@ def _launch_one(scenario: str, dry_run: bool) -> str:
         instance_type="ml.m5.large",
         volume_size_gb=50,
         pip_packages=(
-            "lidar whitebox geopandas rasterio "
+            "lidar whitebox richdem geopandas rasterio "
             "planetary-computer pystac-client shapely"
         ),
         pre_install_cmd=(

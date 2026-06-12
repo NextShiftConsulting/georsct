@@ -182,9 +182,17 @@ def merge_and_write_cache(s3, existing: pd.DataFrame | None,
 
 def extract_buildings_for_bbox(bbox: tuple[float, float, float, float],
                                dst_path: str) -> str | None:
-    """Download Overture buildings for a bounding box to GeoParquet."""
+    """Download Overture buildings for a bounding box to GeoParquet.
+
+    Uses Click CliRunner to invoke open-buildings download() so that
+    internal defaults (Overture Maps data source URL) are resolved
+    correctly -- direct Python calls pass data_path=None literally.
+    """
     try:
+        import os
+        from click.testing import CliRunner
         from open_buildings.download_buildings import download
+
         geojson_str = json.dumps({
             "type": "Feature",
             "geometry": {
@@ -199,21 +207,42 @@ def extract_buildings_for_bbox(bbox: tuple[float, float, float, float],
             },
             "properties": {},
         })
-        # open-buildings 0.10.0: geojson_input is a file handle (json.load),
-        # all params are positional from the Click CLI wrapper.
-        download(
-            geojson_input=io.StringIO(geojson_str),
-            format="parquet",
-            generate_sql=False,
-            dst=dst_path,
-            silent=False,
-            overwrite=True,
-            verbose=True,
-            data_path=None,
-            hive_partitioning=False,
-            country_iso="US",
-        )
-        return dst_path
+
+        # Write GeoJSON to temp file (Click expects a file path, not StringIO)
+        geojson_path = dst_path.replace(".parquet", ".geojson")
+        with open(geojson_path, "w") as f:
+            f.write(geojson_str)
+
+        # Invoke via Click CliRunner so data_path default resolves to
+        # the latest Overture Maps release URL automatically.
+        runner = CliRunner()
+        args = [
+            geojson_path,
+            "-f", "parquet",
+            dst_path,
+            "--overwrite",
+            "--verbose",
+            "--country_iso", "US",
+        ]
+        log.info("open-buildings CLI args: %s", args)
+        result = runner.invoke(download, args)
+        log.info("open-buildings output:\n%s", result.output)
+
+        if result.exit_code != 0:
+            log.error("open-buildings exit code %d: %s",
+                      result.exit_code, result.exception or result.output)
+            return None
+
+        # Clean up temp geojson
+        try:
+            os.remove(geojson_path)
+        except OSError:
+            pass
+
+        if os.path.exists(dst_path):
+            return dst_path
+        log.error("open-buildings produced no output file at %s", dst_path)
+        return None
     except Exception as e:
         log.error("Building download failed for bbox %s: %s", bbox, e)
         return None
