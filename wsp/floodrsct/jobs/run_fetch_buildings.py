@@ -216,6 +216,7 @@ def extract_buildings_for_bbox(bbox: tuple[float, float, float, float],
         # to the latest Overture Maps release URL automatically.
         cmd = [
             sys.executable, "-m", "open_buildings.download_buildings",
+            "download",  # subcommand of the Click group
             geojson_path,
             "-f", "parquet",
             dst_path,
