@@ -184,15 +184,14 @@ def extract_buildings_for_bbox(bbox: tuple[float, float, float, float],
                                dst_path: str) -> str | None:
     """Download Overture buildings for a bounding box to GeoParquet.
 
-    Uses Click CliRunner to invoke open-buildings download() so that
-    internal defaults (Overture Maps data source URL) are resolved
-    correctly -- direct Python calls pass data_path=None literally.
+    Uses subprocess to invoke the open-buildings CLI so that internal
+    defaults (Overture Maps data source URL) resolve correctly.
+    Direct Python API calls pass data_path=None literally into DuckDB SQL.
     """
-    try:
-        import os
-        from click.testing import CliRunner
-        from open_buildings.download_buildings import download
+    import os
+    import subprocess
 
+    try:
         geojson_str = json.dumps({
             "type": "Feature",
             "geometry": {
@@ -208,15 +207,15 @@ def extract_buildings_for_bbox(bbox: tuple[float, float, float, float],
             "properties": {},
         })
 
-        # Write GeoJSON to temp file (Click expects a file path, not StringIO)
+        # Write GeoJSON to temp file
         geojson_path = dst_path.replace(".parquet", ".geojson")
         with open(geojson_path, "w") as f:
             f.write(geojson_str)
 
-        # Invoke via Click CliRunner so data_path default resolves to
-        # the latest Overture Maps release URL automatically.
-        runner = CliRunner()
-        args = [
+        # Invoke via subprocess so Click default for data_path resolves
+        # to the latest Overture Maps release URL automatically.
+        cmd = [
+            sys.executable, "-m", "open_buildings.download_buildings",
             geojson_path,
             "-f", "parquet",
             dst_path,
@@ -224,13 +223,17 @@ def extract_buildings_for_bbox(bbox: tuple[float, float, float, float],
             "--verbose",
             "--country_iso", "US",
         ]
-        log.info("open-buildings CLI args: %s", args)
-        result = runner.invoke(download, args)
-        log.info("open-buildings output:\n%s", result.output)
+        log.info("Running: %s", " ".join(cmd))
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=1800,
+        )
+        if result.stdout:
+            log.info("open-buildings stdout:\n%s", result.stdout[-2000:])
+        if result.stderr:
+            log.info("open-buildings stderr:\n%s", result.stderr[-2000:])
 
-        if result.exit_code != 0:
-            log.error("open-buildings exit code %d: %s",
-                      result.exit_code, result.exception or result.output)
+        if result.returncode != 0:
+            log.error("open-buildings exited %d", result.returncode)
             return None
 
         # Clean up temp geojson
