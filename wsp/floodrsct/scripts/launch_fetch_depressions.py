@@ -56,8 +56,9 @@ def _launch_one(scenario: str, dry_run: bool) -> str:
         ),
         pre_install_cmd=(
             "apt-get update -qq && "
-            "apt-get install -y -qq libgdal-dev gdal-bin && "
-            "pip install -q GDAL==$(gdal-config --version)"
+            "apt-get install -y -qq libgdal-dev gdal-bin python3-gdal && "
+            'SITE=$(python -c "import site; print(site.getsitepackages()[0])") && '
+            'ln -sf /usr/lib/python3/dist-packages/osgeo "$SITE/osgeo"'
         ),
         dry_run=dry_run,
     )
