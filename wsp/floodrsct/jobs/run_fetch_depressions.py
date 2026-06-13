@@ -81,8 +81,9 @@ SCENARIO_EVENT_KEYS = {
 }
 
 # Depression delineation parameters
-MIN_SINK_SIZE = 100       # minimum sink area in pixels (~100 * 30m^2 = 90000 m2)
+MIN_SINK_SIZE = 100         # minimum sink area in pixels (~100 * 30m^2 = 90000 m2)
 MIN_DEPRESSION_DEPTH = 0.5  # minimum depth in meters
+DEPRESSION_INTERVAL = 0.5   # depth interval for volume integration (meters)
 
 
 # ---------------------------------------------------------------------------
@@ -313,35 +314,57 @@ def delineate_depressions(dem_path: str, work_dir: str) -> pd.DataFrame | None:
         labeled, n_features = label(depression_mask)
         log.info("Found %d raw sink regions", n_features)
 
-        records = []
-        for sid in range(1, n_features + 1):
-            mask = labeled == sid
-            n_pixels = int(mask.sum())
-            if n_pixels < MIN_SINK_SIZE:
-                continue
-
-            dep_depths = depth[mask]
-            max_depth = float(dep_depths.max())
-            if max_depth < MIN_DEPRESSION_DEPTH:
-                continue
-
-            volume = float(dep_depths.sum() * pixel_area_m2)
-            area = float(n_pixels * pixel_area_m2)
-
-            # Centroid in pixel coords
-            rows, cols = np.where(mask)
-            records.append({
-                "row": int(rows.mean()),
-                "col": int(cols.mean()),
-                "volume": volume,
-                "max_depth": max_depth,
-                "area": area,
-            })
-
-        if not records:
-            log.warning("No depressions passed filters (min_size=%d, min_depth=%.1f)",
-                        MIN_SINK_SIZE, MIN_DEPRESSION_DEPTH)
+        if n_features == 0:
+            log.warning("No sink regions found")
             return None
+
+        # --- Vectorized filtering (O(n_pixels) not O(n_labels * n_pixels)) ---
+        flat_labels = labeled.ravel()
+        flat_depth = depth.ravel()
+
+        # Pixel counts per label: single pass
+        pixel_counts = np.bincount(flat_labels, minlength=n_features + 1)
+
+        # Sum of depths per label (for volume): single pass
+        sum_depths = np.bincount(flat_labels, weights=flat_depth,
+                                 minlength=n_features + 1)
+
+        # Max depth per label: single pass
+        max_depths = np.full(n_features + 1, -np.inf)
+        np.maximum.at(max_depths, flat_labels, flat_depth)
+
+        # Filter by size AND depth thresholds
+        valid = ((pixel_counts >= MIN_SINK_SIZE)
+                 & (max_depths >= MIN_DEPRESSION_DEPTH))
+        valid[0] = False  # label 0 = background
+        valid_ids = np.where(valid)[0]
+        log.info("%d depressions pass filters (from %d raw, "
+                 "min_size=%d, min_depth=%.1f)",
+                 len(valid_ids), n_features, MIN_SINK_SIZE,
+                 MIN_DEPRESSION_DEPTH)
+
+        if len(valid_ids) == 0:
+            log.warning("No depressions passed filters")
+            return None
+
+        # Centroids via find_objects (bounding-box slices, avoids full-array scan)
+        from scipy.ndimage import find_objects
+        slices = find_objects(labeled)
+
+        records = []
+        for sid in valid_ids:
+            s = slices[sid - 1]  # find_objects is 0-indexed
+            if s is None:
+                continue
+            sub_mask = labeled[s] == sid
+            rows_local, cols_local = np.where(sub_mask)
+            records.append({
+                "row": int(rows_local.mean()) + s[0].start,
+                "col": int(cols_local.mean()) + s[1].start,
+                "volume": float(sum_depths[sid] * pixel_area_m2),
+                "max_depth": float(max_depths[sid]),
+                "area": float(pixel_counts[sid] * pixel_area_m2),
+            })
 
         deps = pd.DataFrame(records)
         log.info("Found %d depressions after filtering", len(deps))

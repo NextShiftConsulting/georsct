@@ -219,27 +219,29 @@ def extract_buildings_for_bbox(bbox: tuple[float, float, float, float],
 
         quadkey = geojson_to_quadkey(geojson_data)
         wkt = geojson_to_wkt(geojson_data)
-        log.info("Querying Overture for quadkey=%s, country_iso=US", quadkey)
 
-        # Build SQL. Overture GeoParquet stores geometry as native GEOMETRY
-        # type (auto-detected by DuckDB), so use it directly — no
-        # ST_GeomFromWKB() wrapper needed.
+        # Short quadkey prefixes (e.g. "0" for New Orleans) scan too much
+        # data and OOM.  Split into depth-3 sub-quadkeys so each sub-query
+        # reads a manageable partition slice.
+        MIN_QK_LEN = 3
+        if len(quadkey) < MIN_QK_LEN:
+            from itertools import product as iterproduct
+            pad = MIN_QK_LEN - len(quadkey)
+            sub_quadkeys = [quadkey + "".join(d)
+                            for d in iterproduct("0123", repeat=pad)]
+            log.info("Short quadkey '%s' -> splitting into %d sub-queries",
+                     quadkey, len(sub_quadkeys))
+        else:
+            sub_quadkeys = [quadkey]
+
+        # Build SQL components. Overture GeoParquet stores geometry as
+        # native GEOMETRY type (auto-detected by DuckDB), so use it
+        # directly — no ST_GeomFromWKB() wrapper needed.
         select_values = "id, level, height, numfloors, class, country_iso, quadkey"
-        base_sql = (
-            f"SELECT {select_values}, ST_AsWKB(geometry) AS geometry "
-            f"FROM read_parquet('{OVERTURE_DATA_PATH}', hive_partitioning=1)"
-        )
-        where_clause = (
-            f"WHERE country_iso = 'US' AND quadkey LIKE '{quadkey}%' AND "
-            f"ST_Within(geometry, ST_GeomFromText('{wkt}'))"
-        )
-        create_sql = f"CREATE TABLE buildings AS ({base_sql},\n{where_clause});"
-        log.info("SQL:\n%s", create_sql)
 
         # Configure DuckDB with S3 path-style for source.coop bucket.
         # The bucket name "us-west-2.opendata.source.coop" has dots that
         # break the SSL wildcard cert for virtual-hosted style URLs.
-        # Path-style puts the bucket in the URL path, not hostname.
         conn = duckdb.connect(database=":memory:")
         conn.execute("INSTALL httpfs;")
         conn.execute("LOAD httpfs;")
@@ -248,7 +250,29 @@ def extract_buildings_for_bbox(bbox: tuple[float, float, float, float],
         conn.execute("INSTALL spatial;")
         conn.execute("LOAD spatial;")
 
-        conn.execute(create_sql)
+        # Execute sub-queries (single query if quadkey is long enough)
+        for i, qk in enumerate(sub_quadkeys):
+            select_sql = (
+                f"SELECT {select_values}, ST_AsWKB(geometry) AS geometry "
+                f"FROM read_parquet('{OVERTURE_DATA_PATH}', hive_partitioning=1)"
+            )
+            where_sql = (
+                f"WHERE country_iso = 'US' AND quadkey LIKE '{qk}%' AND "
+                f"ST_Within(geometry, ST_GeomFromText('{wkt}'))"
+            )
+            if i == 0:
+                sql = f"CREATE TABLE buildings AS ({select_sql},\n{where_sql});"
+                log.info("Querying Overture for quadkey=%s, country_iso=US", qk)
+            else:
+                sql = f"INSERT INTO buildings {select_sql},\n{where_sql};"
+                if i % 4 == 0:
+                    sub_count = conn.execute(
+                        "SELECT COUNT(*) FROM buildings;"
+                    ).fetchone()[0]
+                    log.info("Sub-query %d/%d (qk=%s), %d buildings so far",
+                             i + 1, len(sub_quadkeys), qk, sub_count)
+            conn.execute(sql)
+
         count = conn.execute("SELECT COUNT(*) FROM buildings;").fetchone()[0]
         log.info("Downloaded %d building features via DuckDB", count)
 
