@@ -190,14 +190,19 @@ def extract_buildings_for_bbox(bbox: tuple[float, float, float, float],
                                dst_path: str) -> str | None:
     """Download Overture buildings for a bounding box to GeoParquet.
 
-    Calls open_buildings.download_buildings.download() directly with
-    the Overture data_path. The CLI wrappers (cli.py, download_buildings
-    Click group) have registration issues that make subprocess unreliable.
+    Uses open_buildings utilities for GeoJSON-to-quadkey/WKT conversion,
+    then runs the DuckDB query directly with a properly configured
+    connection (s3_region=us-west-2 for source.coop bucket access).
     """
     import os
+    import shutil
 
     try:
-        geojson_str = json.dumps({
+        import duckdb
+        import geopandas as gpd
+        from open_buildings.download_buildings import geojson_to_quadkey, geojson_to_wkt
+
+        geojson_data = {
             "type": "Feature",
             "geometry": {
                 "type": "Polygon",
@@ -210,40 +215,63 @@ def extract_buildings_for_bbox(bbox: tuple[float, float, float, float],
                 ]],
             },
             "properties": {},
-        })
+        }
 
-        # Write GeoJSON to temp file (download() expects a file handle)
-        geojson_path = dst_path.replace(".parquet", ".geojson")
-        with open(geojson_path, "w", encoding="utf-8") as f:
-            f.write(geojson_str)
+        quadkey = geojson_to_quadkey(geojson_data)
+        wkt = geojson_to_wkt(geojson_data)
+        log.info("Querying Overture for quadkey=%s, country_iso=US", quadkey)
 
-        from open_buildings.download_buildings import download
+        # Build SQL (same as open_buildings.download_buildings.download())
+        select_values = "id, level, height, numfloors, class, country_iso, quadkey"
+        base_sql = (
+            f"SELECT {select_values}, ST_AsWKB(ST_GeomFromWKB(geometry)) AS geometry "
+            f"FROM read_parquet('{OVERTURE_DATA_PATH}', hive_partitioning=1)"
+        )
+        where_clause = (
+            f"WHERE country_iso = 'US' AND quadkey LIKE '{quadkey}%' AND "
+            f"ST_Within(ST_GeomFromWKB(geometry), ST_GeomFromText('{wkt}'))"
+        )
+        create_sql = f"CREATE TABLE buildings AS ({base_sql},\n{where_clause});"
+        log.info("SQL:\n%s", create_sql)
 
-        log.info("Calling open-buildings download() for bbox %s -> %s",
-                 bbox, dst_path)
-        with open(geojson_path, "r", encoding="utf-8") as fh:
-            download(
-                geojson_input=fh,
-                format=None,
-                generate_sql=False,
-                dst=dst_path,
-                silent=False,
-                overwrite=True,
-                verbose=True,
-                data_path=OVERTURE_DATA_PATH,
-                hive_partitioning=True,
-                country_iso="US",
-            )
+        # Configure DuckDB with correct S3 region for source.coop bucket
+        conn = duckdb.connect(database=":memory:")
+        conn.execute("INSTALL httpfs;")
+        conn.execute("LOAD httpfs;")
+        conn.execute("SET s3_region = 'us-west-2';")
+        conn.execute("SET s3_url_compatibility_mode = true;")
+        conn.execute("INSTALL spatial;")
+        conn.execute("LOAD spatial;")
 
-        # Clean up temp geojson
+        conn.execute(create_sql)
+        count = conn.execute("SELECT COUNT(*) FROM buildings;").fetchone()[0]
+        log.info("Downloaded %d building features via DuckDB", count)
+
+        if count == 0:
+            log.warning("No buildings found for bbox %s", bbox)
+            conn.close()
+            return None
+
+        # Write to parquet, then convert to GeoParquet
+        conn.execute(f"COPY buildings TO '{dst_path}' WITH (FORMAT Parquet);")
+        conn.close()
+
+        # Convert WKB geometry to proper GeoParquet
         try:
-            os.remove(geojson_path)
-        except OSError:
-            pass
+            from shapely import wkb
+            df = pd.read_parquet(dst_path)
+            df["geometry"] = df["geometry"].apply(wkb.loads, hex=True)
+            gdf = gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:4326")
+            tmp_path = dst_path.replace(".parquet", "_geo.parquet")
+            gdf.to_parquet(tmp_path)
+            os.remove(dst_path)
+            shutil.move(tmp_path, dst_path)
+        except Exception as e:
+            log.warning("GeoParquet conversion failed (raw parquet kept): %s", e)
 
         if os.path.exists(dst_path):
             return dst_path
-        log.error("open-buildings produced no output file at %s", dst_path)
+        log.error("No output file at %s", dst_path)
         return None
     except Exception as e:
         log.error("Building download failed for bbox %s: %s", bbox, e)
