@@ -180,16 +180,21 @@ def merge_and_write_cache(s3, existing: pd.DataFrame | None,
 # Building extraction
 # ---------------------------------------------------------------------------
 
+OVERTURE_DATA_PATH = (
+    "s3://us-west-2.opendata.source.coop/cholmes/overture/"
+    "geoparquet-country-quad-hive/*/*.parquet"
+)
+
+
 def extract_buildings_for_bbox(bbox: tuple[float, float, float, float],
                                dst_path: str) -> str | None:
     """Download Overture buildings for a bounding box to GeoParquet.
 
-    Uses subprocess to invoke the open-buildings CLI so that internal
-    defaults (Overture Maps data source URL) resolve correctly.
-    Direct Python API calls pass data_path=None literally into DuckDB SQL.
+    Calls open_buildings.download_buildings.download() directly with
+    the Overture data_path. The CLI wrappers (cli.py, download_buildings
+    Click group) have registration issues that make subprocess unreliable.
     """
     import os
-    import subprocess
 
     try:
         geojson_str = json.dumps({
@@ -207,55 +212,28 @@ def extract_buildings_for_bbox(bbox: tuple[float, float, float, float],
             "properties": {},
         })
 
-        # Write GeoJSON to temp file
+        # Write GeoJSON to temp file (download() expects a file handle)
         geojson_path = dst_path.replace(".parquet", ".geojson")
         with open(geojson_path, "w", encoding="utf-8") as f:
             f.write(geojson_str)
 
-        # Discover the CLI structure, then invoke.
-        # open-buildings may be a Click group or standalone command.
-        help_result = subprocess.run(
-            [sys.executable, "-m", "open_buildings.download_buildings", "--help"],
-            capture_output=True, text=True, timeout=30,
-        )
-        help_text = help_result.stdout + help_result.stderr
-        log.info("open-buildings --help:\n%s", help_text[:1500])
+        from open_buildings.download_buildings import download
 
-        # Build the command based on CLI structure
-        base = [sys.executable, "-m", "open_buildings.download_buildings"]
-
-        # Check if it's a Click group with subcommands
-        if "COMMAND" in help_text and "download" in help_text.lower():
-            # Find actual subcommand name from help output
-            for line in help_text.splitlines():
-                stripped = line.strip()
-                if stripped.lower().startswith("download"):
-                    subcmd = stripped.split()[0]
-                    base.append(subcmd)
-                    break
-            else:
-                base.append("download")
-
-        cmd = base + [
-            geojson_path,
-            "-f", "parquet",
-            dst_path,
-            "--overwrite",
-            "--verbose",
-            "--country_iso", "US",
-        ]
-        log.info("Running: %s", " ".join(cmd))
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=1800,
-        )
-        if result.stdout:
-            log.info("open-buildings stdout:\n%s", result.stdout[-2000:])
-        if result.stderr:
-            log.info("open-buildings stderr:\n%s", result.stderr[-2000:])
-
-        if result.returncode != 0:
-            log.error("open-buildings exited %d", result.returncode)
-            return None
+        log.info("Calling open-buildings download() for bbox %s -> %s",
+                 bbox, dst_path)
+        with open(geojson_path, "r", encoding="utf-8") as fh:
+            download(
+                geojson_input=fh,
+                format=None,
+                generate_sql=False,
+                dst=dst_path,
+                silent=False,
+                overwrite=True,
+                verbose=True,
+                data_path=OVERTURE_DATA_PATH,
+                hive_partitioning=True,
+                country_iso="US",
+            )
 
         # Clean up temp geojson
         try:
