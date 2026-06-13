@@ -221,15 +221,17 @@ def extract_buildings_for_bbox(bbox: tuple[float, float, float, float],
         wkt = geojson_to_wkt(geojson_data)
         log.info("Querying Overture for quadkey=%s, country_iso=US", quadkey)
 
-        # Build SQL (same as open_buildings.download_buildings.download())
+        # Build SQL. Overture GeoParquet stores geometry as native GEOMETRY
+        # type (auto-detected by DuckDB), so use it directly — no
+        # ST_GeomFromWKB() wrapper needed.
         select_values = "id, level, height, numfloors, class, country_iso, quadkey"
         base_sql = (
-            f"SELECT {select_values}, ST_AsWKB(ST_GeomFromWKB(geometry)) AS geometry "
+            f"SELECT {select_values}, ST_AsWKB(geometry) AS geometry "
             f"FROM read_parquet('{OVERTURE_DATA_PATH}', hive_partitioning=1)"
         )
         where_clause = (
             f"WHERE country_iso = 'US' AND quadkey LIKE '{quadkey}%' AND "
-            f"ST_Within(ST_GeomFromWKB(geometry), ST_GeomFromText('{wkt}'))"
+            f"ST_Within(geometry, ST_GeomFromText('{wkt}'))"
         )
         create_sql = f"CREATE TABLE buildings AS ({base_sql},\n{where_clause});"
         log.info("SQL:\n%s", create_sql)
