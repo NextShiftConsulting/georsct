@@ -60,7 +60,7 @@ def _get_s3():
 
 def load_registry() -> list[dict]:
     """Load feature registry."""
-    with open(REGISTRY_PATH) as f:
+    with open(REGISTRY_PATH, encoding="utf-8") as f:
         data = yaml.safe_load(f)
     return data.get("features", [])
 

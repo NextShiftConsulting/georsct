@@ -55,10 +55,16 @@ def _launch_one(scenario: str, dry_run: bool) -> str:
             "planetary-computer pystac-client shapely"
         ),
         pre_install_cmd=(
+            "set -x && "
             "apt-get update -qq && "
             "apt-get install -y -qq libgdal-dev gdal-bin python3-gdal && "
-            'SITE=$(python -c "import site; print(site.getsitepackages()[0])") && '
-            'ln -sf /usr/lib/python3/dist-packages/osgeo "$SITE/osgeo"'
+            "echo '=== apt-get done ===' && "
+            "SITE=$(python -c 'import site; print(site.getsitepackages()[0])') && "
+            "echo SITE=$SITE && "
+            "ln -sf /usr/lib/python3/dist-packages/osgeo $SITE/osgeo && "
+            "ls -la $SITE/osgeo && "
+            "python -c 'from osgeo import gdal; print(gdal.VersionInfo())' && "
+            "echo '=== GDAL import OK ==='"
         ),
         dry_run=dry_run,
     )

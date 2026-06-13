@@ -209,14 +209,34 @@ def extract_buildings_for_bbox(bbox: tuple[float, float, float, float],
 
         # Write GeoJSON to temp file
         geojson_path = dst_path.replace(".parquet", ".geojson")
-        with open(geojson_path, "w") as f:
+        with open(geojson_path, "w", encoding="utf-8") as f:
             f.write(geojson_str)
 
-        # Invoke via subprocess so Click default for data_path resolves
-        # to the latest Overture Maps release URL automatically.
-        cmd = [
-            sys.executable, "-m", "open_buildings.download_buildings",
-            "download",  # subcommand of the Click group
+        # Discover the CLI structure, then invoke.
+        # open-buildings may be a Click group or standalone command.
+        help_result = subprocess.run(
+            [sys.executable, "-m", "open_buildings.download_buildings", "--help"],
+            capture_output=True, text=True, timeout=30,
+        )
+        help_text = help_result.stdout + help_result.stderr
+        log.info("open-buildings --help:\n%s", help_text[:1500])
+
+        # Build the command based on CLI structure
+        base = [sys.executable, "-m", "open_buildings.download_buildings"]
+
+        # Check if it's a Click group with subcommands
+        if "COMMAND" in help_text and "download" in help_text.lower():
+            # Find actual subcommand name from help output
+            for line in help_text.splitlines():
+                stripped = line.strip()
+                if stripped.lower().startswith("download"):
+                    subcmd = stripped.split()[0]
+                    base.append(subcmd)
+                    break
+            else:
+                base.append("download")
+
+        cmd = base + [
             geojson_path,
             "-f", "parquet",
             dst_path,
