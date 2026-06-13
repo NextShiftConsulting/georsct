@@ -56,7 +56,7 @@ features:
     launcher_script: launch_fetch_depressions.py
     scenarios: all
     min_coverage_pct: 80
-    pip_packages: lidar whitebox richdem geopandas rasterio planetary-computer pystac-client shapely
+    pip_packages: whitebox geopandas rasterio scipy planetary-computer pystac-client shapely
 
   - feature_id: impervious
     title: NLCD 2021 Impervious Surface

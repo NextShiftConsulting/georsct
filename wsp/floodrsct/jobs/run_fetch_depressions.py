@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """run_fetch_depressions.py -- Depression delineation from Copernicus DEM.
 
-Runs level-set depression delineation on Copernicus 30m DEM tiles for one
-scenario's ZCTA universe. Uses the `lidar` package (graph-based sink extraction
-via whitebox-tools) to identify surface depressions that act as flood storage.
+Runs depression delineation on Copernicus 30m DEM tiles for one scenario's
+ZCTA universe. Uses whitebox-tools directly (fill_depressions + depth_in_sink)
+with rasterio for I/O and scipy for connected-component labeling.
 
 Outputs per-ZCTA statistics:
   - depression_count: number of depressions intersecting the ZCTA
@@ -83,7 +83,6 @@ SCENARIO_EVENT_KEYS = {
 # Depression delineation parameters
 MIN_SINK_SIZE = 100       # minimum sink area in pixels (~100 * 30m^2 = 90000 m2)
 MIN_DEPRESSION_DEPTH = 0.5  # minimum depth in meters
-DEPRESSION_INTERVAL = 0.5   # depth interval for nested level sets (meters)
 
 
 # ---------------------------------------------------------------------------
@@ -258,42 +257,94 @@ def fetch_dem_for_bbox(bbox: tuple[float, float, float, float],
 # ---------------------------------------------------------------------------
 
 def delineate_depressions(dem_path: str, work_dir: str) -> pd.DataFrame | None:
-    """Run lidar depression delineation on a DEM tile."""
+    """Run whitebox depression delineation on a DEM tile.
+
+    Uses whitebox-tools directly instead of the lidar package to avoid
+    the osgeo/GDAL dependency (lidar uses osgeo internally, which requires
+    system-level GDAL matching the container Python version).
+
+    Pipeline: depth_in_sink -> connected-component labeling -> per-sink stats.
+    """
     try:
-        import lidar
+        import rasterio
+        import whitebox
+        from scipy.ndimage import label
 
-        dep_path = Path(work_dir) / "depressions"
-        dep_path.mkdir(exist_ok=True)
+        wbt = whitebox.WhiteboxTools()
+        wbt.set_verbose_mode(True)
 
-        log.info("Extracting sinks (min_size=%d pixels)...", MIN_SINK_SIZE)
-        lidar.ExtractSinks(
-            in_dem=dem_path,
-            min_size=MIN_SINK_SIZE,
-            out_dir=str(dep_path),
-        )
+        dep_dir = Path(work_dir) / "depressions"
+        dep_dir.mkdir(exist_ok=True)
 
-        sink_files = list(dep_path.glob("*sink*.tif")) + list(dep_path.glob("*Sink*.tif"))
-        if not sink_files:
-            log.warning("No sink files produced")
+        depth_path = str(dep_dir / "depth_in_sink.tif")
+
+        # Compute per-pixel depression depth (filled DEM minus original)
+        log.info("Computing depth-in-sink...")
+        ret = wbt.depth_in_sink(dem_path, depth_path, zero_background=True)
+        if ret != 0:
+            log.error("whitebox depth_in_sink returned %s", ret)
             return None
 
-        log.info("Delineating depressions (min_depth=%.1f m, interval=%.1f m)...",
-                 MIN_DEPRESSION_DEPTH, DEPRESSION_INTERVAL)
-        lidar.DelineateDepressions(
-            in_sink=str(sink_files[0]),
-            min_size=MIN_SINK_SIZE,
-            min_depth=MIN_DEPRESSION_DEPTH,
-            interval=DEPRESSION_INTERVAL,
-            out_dir=str(dep_path),
-        )
+        # Read the depth raster
+        with rasterio.open(depth_path) as src:
+            depth = src.read(1)
+            transform = src.transform
+            nodata = src.nodata
+            crs = src.crs
 
-        csv_files = list(dep_path.glob("*depression*.csv")) + list(dep_path.glob("*Depression*.csv"))
-        if not csv_files:
-            log.warning("No depression CSV produced")
+        # Mask nodata
+        if nodata is not None:
+            depth = np.where(depth == nodata, 0.0, depth)
+
+        # Approximate pixel area in m^2 for geographic CRS (Copernicus is EPSG:4326)
+        if crs and crs.is_geographic:
+            center_lat = transform.f + depth.shape[0] * transform.e / 2
+            cos_lat = np.cos(np.radians(abs(center_lat)))
+            pixel_w_m = abs(transform.a) * 111320.0 * cos_lat
+            pixel_h_m = abs(transform.e) * 110540.0
+        else:
+            pixel_w_m = abs(transform.a)
+            pixel_h_m = abs(transform.e)
+        pixel_area_m2 = pixel_w_m * pixel_h_m
+        log.info("Pixel area: %.1f m2 (%.1f x %.1f m)", pixel_area_m2, pixel_w_m, pixel_h_m)
+
+        # Label connected components of depressed pixels
+        depression_mask = depth > 0
+        labeled, n_features = label(depression_mask)
+        log.info("Found %d raw sink regions", n_features)
+
+        records = []
+        for sid in range(1, n_features + 1):
+            mask = labeled == sid
+            n_pixels = int(mask.sum())
+            if n_pixels < MIN_SINK_SIZE:
+                continue
+
+            dep_depths = depth[mask]
+            max_depth = float(dep_depths.max())
+            if max_depth < MIN_DEPRESSION_DEPTH:
+                continue
+
+            volume = float(dep_depths.sum() * pixel_area_m2)
+            area = float(n_pixels * pixel_area_m2)
+
+            # Centroid in pixel coords
+            rows, cols = np.where(mask)
+            records.append({
+                "row": int(rows.mean()),
+                "col": int(cols.mean()),
+                "volume": volume,
+                "max_depth": max_depth,
+                "area": area,
+            })
+
+        if not records:
+            log.warning("No depressions passed filters (min_size=%d, min_depth=%.1f)",
+                        MIN_SINK_SIZE, MIN_DEPRESSION_DEPTH)
             return None
 
-        deps = pd.read_csv(csv_files[0])
-        log.info("Found %d depressions", len(deps))
+        deps = pd.DataFrame(records)
+        log.info("Found %d depressions after filtering", len(deps))
         return deps
 
     except Exception as e:
@@ -303,31 +354,16 @@ def delineate_depressions(dem_path: str, work_dir: str) -> pd.DataFrame | None:
 
 def assign_depressions_to_zctas(deps: pd.DataFrame, dem_path: str,
                                  zcta_gdf) -> pd.DataFrame:
-    """Assign depression centroids to ZCTAs and aggregate statistics."""
+    """Assign depression centroids to ZCTAs and aggregate statistics.
+
+    deps has columns: row, col, volume, max_depth, area (from delineate_depressions).
+    """
     import geopandas as gpd
     import rasterio
     from shapely.geometry import Point
 
     if deps.empty:
         return pd.DataFrame(columns=OUTPUT_COLUMNS)
-
-    # Standardize column names (lidar output varies)
-    col_map = {}
-    for c in deps.columns:
-        cl = c.lower()
-        if "vol" in cl:
-            col_map[c] = "volume"
-        elif "max" in cl and "depth" in cl:
-            col_map[c] = "max_depth"
-        elif "avg" in cl and "depth" in cl:
-            col_map[c] = "avg_depth"
-        elif "area" in cl:
-            col_map[c] = "area"
-        elif cl in ("row", "y"):
-            col_map[c] = "row"
-        elif cl in ("col", "x"):
-            col_map[c] = "col"
-    deps = deps.rename(columns=col_map)
 
     # Convert pixel coords to geographic
     if "row" in deps.columns and "col" in deps.columns:

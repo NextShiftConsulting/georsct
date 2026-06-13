@@ -2,32 +2,31 @@
 """launch_fetch_depressions.py -- Depression delineation from Copernicus DEM.
 
 Fetches Copernicus GLO-30 DEM per scenario bbox from Planetary Computer,
-runs lidar depression delineation (whitebox-tools), aggregates per-ZCTA
-depression volume and depth statistics.
+runs whitebox-tools depression delineation (depth_in_sink + connected-component
+labeling), aggregates per-ZCTA depression volume and depth statistics.
 
 Deployment Resource Review (9 dimensions):
   1. Memory:    DEM tile merge is the bottleneck. Each COP-30 tile is
                 3601x3601 float32 = ~50 MB. Houston bbox spans ~6 tiles,
                 SW Florida ~8. rasterio.merge peak = merged array only
                 (tiles read lazily). Largest merged DEM: ~8 tiles =
-                ~7200x7200 px = ~200 MB. Whitebox sink extraction works
-                on disk. Depression CSV is small (<1 MB).
+                ~7200x7200 px = ~200 MB. Whitebox depth_in_sink works
+                on disk. scipy.ndimage.label on depth raster = ~200 MB.
                 Budget: ~1 GB peak. 8 GB instance sufficient.
   2. Cache:     Cache-first on s3://swarm-floodrsct-data/processed/shared/
                 zcta_depressions.parquet. ZCTAs already in cache are skipped.
   3. Threads:   Whitebox engine is single-threaded per DEM. rasterio merge
                 is single-threaded. No parallelism benefit beyond 2 vCPU.
-  4. Image:     PYTORCH_CPU (default). Includes GDAL/rasterio system libs.
+  4. Image:     PYTORCH_CPU (default). rasterio bundles its own GDAL.
   5. Instance:  ml.m5.large (2 vCPU, 8 GB). Whitebox is CPU-bound but
                 single-threaded. 8 GB handles merged DEM + whitebox buffers.
   6. Volume:    50 GB. DEM tiles ~50 MB each x 8 = 400 MB. Whitebox creates
-                intermediate rasters (sink, fill, depression) = ~3x DEM size.
+                intermediate rasters (fill, depth) = ~2x DEM size.
                 Budget ~2 GB per scenario on disk.
-  7. Pip:       lidar whitebox richdem geopandas rasterio
+  7. Pip:       whitebox geopandas rasterio scipy
                 planetary-computer pystac-client shapely
-  8. Pre-inst:  libgdal-dev + gdal-bin + matching GDAL Python bindings.
-                lidar uses osgeo (GDAL) for raster I/O. whitebox-tools
-                binary auto-downloads on first ExtractSinks() call.
+  8. Pre-inst:  None. rasterio wheel bundles GDAL. whitebox-tools binary
+                auto-downloads on first call.
   9. Timeout:   7200s (2h). DEM fetch ~2-5 min, delineation ~5-15 min
                 per scenario. Cache-first means re-runs are fast.
 """
@@ -51,20 +50,8 @@ def _launch_one(scenario: str, dry_run: bool) -> str:
         instance_type="ml.m5.large",
         volume_size_gb=50,
         pip_packages=(
-            "lidar whitebox richdem geopandas rasterio "
+            "whitebox geopandas rasterio scipy "
             "planetary-computer pystac-client shapely"
-        ),
-        pre_install_cmd=(
-            "set -x && "
-            "apt-get update -qq && "
-            "apt-get install -y -qq libgdal-dev gdal-bin python3-gdal && "
-            "echo '=== apt-get done ===' && "
-            "SITE=$(python -c 'import site; print(site.getsitepackages()[0])') && "
-            "echo SITE=$SITE && "
-            "ln -sf /usr/lib/python3/dist-packages/osgeo $SITE/osgeo && "
-            "ls -la $SITE/osgeo && "
-            "python -c 'from osgeo import gdal; print(gdal.VersionInfo())' && "
-            "echo '=== GDAL import OK ==='"
         ),
         dry_run=dry_run,
     )
