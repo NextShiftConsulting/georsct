@@ -15,8 +15,9 @@ Deployment Resource Review (9 dimensions):
   3. Threads:   DuckDB uses all cores for Overture query. geopandas sjoin
                 is single-threaded. n_jobs=1 is fine; I/O-bound.
   4. Image:     PYTORCH_CPU (default). No GPU needed.
-  5. Instance:  ml.m5.large (2 vCPU, 8 GB). I/O-bound (HTTP to Overture S3).
-                DuckDB peak ~1 GB, sjoin peak ~1 GB. 8 GB is sufficient.
+  5. Instance:  ml.m5.xlarge (4 vCPU, 16 GB). DuckDB peak varies by quadkey
+                breadth. Short quadkeys (New Orleans) scan large partitions.
+                16 GB provides safety margin for concurrent DuckDB+sjoin.
   6. Volume:    30 GB. Overture parquet download ~500 MB per scenario +
                 ZCTA boundaries ~50 MB + temp files.
   7. Pip:       open-buildings geopandas duckdb shapely pyarrow
@@ -41,7 +42,7 @@ def _launch_one(scenario: str, dry_run: bool) -> str:
         job_name=job_name,
         job_script="run_fetch_buildings.py",
         job_args=["--scenario", scenario, "--upload"],
-        instance_type="ml.m5.large",
+        instance_type="ml.m5.xlarge",
         volume_size_gb=30,
         pip_packages="open-buildings geopandas duckdb shapely pyarrow",
         dry_run=dry_run,

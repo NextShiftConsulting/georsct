@@ -223,7 +223,7 @@ def extract_buildings_for_bbox(bbox: tuple[float, float, float, float],
         # Short quadkey prefixes (e.g. "0" for New Orleans) scan too much
         # data and OOM.  Split into depth-3 sub-quadkeys so each sub-query
         # reads a manageable partition slice.
-        MIN_QK_LEN = 3
+        MIN_QK_LEN = 5
         if len(quadkey) < MIN_QK_LEN:
             from itertools import product as iterproduct
             pad = MIN_QK_LEN - len(quadkey)
@@ -262,15 +262,15 @@ def extract_buildings_for_bbox(bbox: tuple[float, float, float, float],
             )
             if i == 0:
                 sql = f"CREATE TABLE buildings AS ({select_sql},\n{where_sql});"
-                log.info("Querying Overture for quadkey=%s, country_iso=US", qk)
+                log.info("Querying Overture sub-query 1/%d (qk=%s)",
+                         len(sub_quadkeys), qk)
             else:
                 sql = f"INSERT INTO buildings {select_sql},\n{where_sql};"
-                if i % 4 == 0:
-                    sub_count = conn.execute(
-                        "SELECT COUNT(*) FROM buildings;"
-                    ).fetchone()[0]
-                    log.info("Sub-query %d/%d (qk=%s), %d buildings so far",
-                             i + 1, len(sub_quadkeys), qk, sub_count)
+                sub_count = conn.execute(
+                    "SELECT COUNT(*) FROM buildings;"
+                ).fetchone()[0]
+                log.info("Sub-query %d/%d (qk=%s), %d buildings so far",
+                         i + 1, len(sub_quadkeys), qk, sub_count)
             conn.execute(sql)
 
         count = conn.execute("SELECT COUNT(*) FROM buildings;").fetchone()[0]
