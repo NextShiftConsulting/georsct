@@ -7,19 +7,19 @@ labeling), aggregates per-ZCTA depression volume and depth statistics.
 
 Deployment Resource Review (9 dimensions):
   1. Memory:    DEM tile merge is the bottleneck. Each COP-30 tile is
-                3601x3601 float32 = ~50 MB. Houston bbox spans ~6 tiles,
-                SW Florida ~8. rasterio.merge peak = merged array only
-                (tiles read lazily). Largest merged DEM: ~8 tiles =
-                ~7200x7200 px = ~200 MB. Whitebox depth_in_sink works
-                on disk. scipy.ndimage.label on depth raster = ~200 MB.
-                Budget: ~1 GB peak. 8 GB instance sufficient.
+                3601x3601 float32 = ~50 MB. Houston bbox spans ~8 tiles,
+                merge -> 10800x10800 = ~445 MB. Whitebox depth_in_sink
+                loads DEM + filled DEM + output = ~1.3 GB internal.
+                scipy.ndimage.label on depth raster = ~450 MB.
+                Budget: ~3 GB peak. 16 GB instance required.
   2. Cache:     Cache-first on s3://swarm-floodrsct-data/processed/shared/
                 zcta_depressions.parquet. ZCTAs already in cache are skipped.
   3. Threads:   Whitebox engine is single-threaded per DEM. rasterio merge
                 is single-threaded. No parallelism benefit beyond 2 vCPU.
   4. Image:     PYTORCH_CPU (default). rasterio bundles its own GDAL.
-  5. Instance:  ml.m5.large (2 vCPU, 8 GB). Whitebox is CPU-bound but
-                single-threaded. 8 GB handles merged DEM + whitebox buffers.
+  5. Instance:  ml.m5.xlarge (4 vCPU, 16 GB). Whitebox depth_in_sink
+                needs ~3x DEM size in memory. 8 GB OOM-killed on Houston
+                (10800x10800 merged DEM). 16 GB provides safe headroom.
   6. Volume:    50 GB. DEM tiles ~50 MB each x 8 = 400 MB. Whitebox creates
                 intermediate rasters (fill, depth) = ~2x DEM size.
                 Budget ~2 GB per scenario on disk.
@@ -47,7 +47,7 @@ def _launch_one(scenario: str, dry_run: bool) -> str:
         job_name=job_name,
         job_script="run_fetch_depressions.py",
         job_args=["--scenario", scenario, "--upload"],
-        instance_type="ml.m5.large",
+        instance_type="ml.m5.xlarge",
         volume_size_gb=50,
         pip_packages=(
             "whitebox geopandas rasterio scipy "
