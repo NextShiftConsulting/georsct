@@ -234,12 +234,15 @@ def extract_buildings_for_bbox(bbox: tuple[float, float, float, float],
         create_sql = f"CREATE TABLE buildings AS ({base_sql},\n{where_clause});"
         log.info("SQL:\n%s", create_sql)
 
-        # Configure DuckDB with correct S3 region for source.coop bucket
+        # Configure DuckDB with S3 path-style for source.coop bucket.
+        # The bucket name "us-west-2.opendata.source.coop" has dots that
+        # break the SSL wildcard cert for virtual-hosted style URLs.
+        # Path-style puts the bucket in the URL path, not hostname.
         conn = duckdb.connect(database=":memory:")
         conn.execute("INSTALL httpfs;")
         conn.execute("LOAD httpfs;")
         conn.execute("SET s3_region = 'us-west-2';")
-        conn.execute("SET s3_url_compatibility_mode = true;")
+        conn.execute("SET s3_url_style = 'path';")
         conn.execute("INSTALL spatial;")
         conn.execute("LOAD spatial;")
 
