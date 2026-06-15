@@ -809,9 +809,9 @@ features:
     version_target: v24.010
     scenario_status:
       houston:              { status: COMPLETED, verified: "2026-06-15", staging_key: "processed/shared/staging/zcta_buildings_houston.parquet" }
-      southwest_florida:    { status: LAUNCHED,  verified: null,         staging_key: "processed/shared/staging/zcta_buildings_southwest_florida.parquet" }
+      southwest_florida:    { status: COMPLETED, verified: "2026-06-15", staging_key: "processed/shared/staging/zcta_buildings_southwest_florida.parquet" }
       nyc:                  { status: COMPLETED, verified: "2026-06-15", staging_key: "processed/shared/staging/zcta_buildings_nyc.parquet" }
-      riverside_coachella:  { status: LAUNCHED,  verified: null,         staging_key: "processed/shared/staging/zcta_buildings_riverside_coachella.parquet" }
+      riverside_coachella:  { status: COMPLETED, verified: "2026-06-15", staging_key: "processed/shared/staging/zcta_buildings_riverside_coachella.parquet" }
       new_orleans:          { status: COMPLETED, verified: "2026-06-15", staging_key: "processed/shared/staging/zcta_buildings_new_orleans.parquet" }
     notes: >
       Count of Overture Maps Foundation building footprint polygons
