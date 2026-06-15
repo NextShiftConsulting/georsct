@@ -30,12 +30,15 @@ CODE_BUCKET = "swarm-floodrsct-data"
 WHEELS_BUCKET = "swarm-yrsn-datasets"
 WHEELS_PREFIX = "rsct_code/wheels/20260610-070717"
 
-# SageMaker-managed scikit-learn image -- lightweight Python 3.11, no GPU
+# SageMaker-managed scikit-learn image -- lightweight Python 3, no GPU
 # libs.  ~1-2 min faster boot than PyTorch image.  Use for data extraction,
 # feature engineering, and any job that doesn't need torch.
+# NOTE: sklearn images live in a DIFFERENT ECR account (683313688378) than
+# PyTorch/DLC images (763104351884).  URI retrieved via:
+#   sagemaker.image_uris.retrieve('sklearn', REGION, version='1.2-1')
 SKLEARN_CPU = (
-    f"763104351884.dkr.ecr.{REGION}.amazonaws.com/"
-    "sagemaker-scikit-learn:1.5-1-cpu-py311-ubuntu20.04-sagemaker-v1.0"
+    f"683313688378.dkr.ecr.{REGION}.amazonaws.com/"
+    "sagemaker-scikit-learn:1.2-1-cpu-py3"
 )
 # SageMaker-managed PyTorch CPU image (for jobs that import torch)
 PYTORCH_CPU = (
