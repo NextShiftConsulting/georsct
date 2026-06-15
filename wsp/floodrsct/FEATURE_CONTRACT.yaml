@@ -792,17 +792,25 @@ features:
     source_dataset: overture_maps_buildings
     raw_s3_path: (fetched live from Overture Maps S3 via DuckDB)
     processed_s3_path: processed/shared/zcta_buildings.parquet
+    staging_prefix: processed/shared/staging/zcta_buildings_
     build_function: build_building_features
     output_column: building_count
     missing_behavior: "NaN — field_status = missing_source_data"
     field_status_behavior: missing_source_data
     version_target: v24.010
+    scenario_status:
+      houston:              { status: COMPLETED, verified: "2026-06-15", staging_key: "processed/shared/staging/zcta_buildings_houston.parquet" }
+      southwest_florida:    { status: LAUNCHED,  verified: null,         staging_key: "processed/shared/staging/zcta_buildings_southwest_florida.parquet" }
+      nyc:                  { status: COMPLETED, verified: "2026-06-15", staging_key: "processed/shared/staging/zcta_buildings_nyc.parquet" }
+      riverside_coachella:  { status: LAUNCHED,  verified: null,         staging_key: "processed/shared/staging/zcta_buildings_riverside_coachella.parquet" }
+      new_orleans:          { status: COMPLETED, verified: "2026-06-15", staging_key: "processed/shared/staging/zcta_buildings_new_orleans.parquet" }
     notes: >
       Count of Overture Maps Foundation building footprint polygons
       spatially joined to ZCTA boundary (EPSG:5070). Proxy for
       built environment density and flood exposure concentration.
       Extracted via open-buildings DuckDB adapter per scenario bbox.
-      Cache: processed/shared/zcta_buildings.parquet (compute once, share across scenarios).
+      Cache: processed/shared/zcta_buildings.parquet (consolidated from staging files).
+      Verification: all scenario staging files must exist before cache is authoritative.
 
   - feature_name: total_footprint_area_m2
     temporal_class: slow_drift
@@ -811,11 +819,13 @@ features:
     source_dataset: overture_maps_buildings
     raw_s3_path: (fetched live from Overture Maps S3 via DuckDB)
     processed_s3_path: processed/shared/zcta_buildings.parquet
+    staging_prefix: processed/shared/staging/zcta_buildings_
     build_function: build_building_features
     output_column: total_footprint_area_m2
     missing_behavior: "NaN — field_status = missing_source_data"
     field_status_behavior: missing_source_data
     version_target: v24.010
+    scenario_status: (see building_count — same staging files)
     notes: >
       Sum of building footprint polygon areas (m2, EPSG:5070 equal-area)
       within ZCTA boundary. Proxy for impervious built surface and
@@ -831,16 +841,24 @@ features:
     source_dataset: copernicus_dem_glo30
     raw_s3_path: (fetched live from Planetary Computer STAC API)
     processed_s3_path: processed/shared/zcta_depressions.parquet
+    staging_prefix: processed/shared/staging/zcta_depressions_
     build_function: build_depression_features
     output_column: depression_count
     missing_behavior: "NaN — field_status = missing_source_data"
     field_status_behavior: missing_source_data
     version_target: v24.010
+    scenario_status:
+      houston:              { status: COMPLETED, verified: "2026-06-15", staging_key: "processed/shared/staging/zcta_depressions_houston.parquet" }
+      southwest_florida:    { status: COMPLETED, verified: "2026-06-15", staging_key: "processed/shared/staging/zcta_depressions_southwest_florida.parquet" }
+      nyc:                  { status: COMPLETED, verified: "2026-06-15", staging_key: "processed/shared/staging/zcta_depressions_nyc.parquet" }
+      riverside_coachella:  { status: COMPLETED, verified: "2026-06-15", staging_key: "processed/shared/staging/zcta_depressions_riverside_coachella.parquet" }
+      new_orleans:          { status: COMPLETED, verified: "2026-06-15", staging_key: "processed/shared/staging/zcta_depressions_new_orleans.parquet" }
     notes: >
       Count of topographic depressions (sinks) intersecting the ZCTA,
-      delineated from Copernicus GLO-30 DEM via lidar/whitebox level-set
+      delineated from Copernicus GLO-30 DEM via whitebox depth-in-sink
       algorithm. Min sink size 100 px (~90000 m2), min depth 0.5 m.
-      Cache: processed/shared/zcta_depressions.parquet.
+      DEM clipped to ZCTA land area before delineation (prevents coastal stall).
+      Cache: processed/shared/zcta_depressions.parquet (consolidated from staging files).
 
   - feature_name: depression_volume_m3
     temporal_class: invariant
@@ -849,11 +867,13 @@ features:
     source_dataset: copernicus_dem_glo30
     raw_s3_path: (fetched live from Planetary Computer STAC API)
     processed_s3_path: processed/shared/zcta_depressions.parquet
+    staging_prefix: processed/shared/staging/zcta_depressions_
     build_function: build_depression_features
     output_column: depression_volume_m3
     missing_behavior: "NaN — field_status = missing_source_data"
     field_status_behavior: missing_source_data
     version_target: v24.010
+    scenario_status: (see depression_count — same staging files)
     notes: >
       Total depression volume (m3) within the ZCTA. Proxy for
       natural flood storage capacity — higher volume means more
@@ -866,11 +886,13 @@ features:
     source_dataset: copernicus_dem_glo30
     raw_s3_path: (fetched live from Planetary Computer STAC API)
     processed_s3_path: processed/shared/zcta_depressions.parquet
+    staging_prefix: processed/shared/staging/zcta_depressions_
     build_function: build_depression_features
     output_column: max_depression_depth_m
     missing_behavior: "NaN — field_status = missing_source_data"
     field_status_behavior: missing_source_data
     version_target: v24.010
+    scenario_status: (see depression_count — same staging files)
     notes: >
       Maximum depression depth (m) among all depressions in the ZCTA.
       Captures deepest terrain pocket — relevant for ponding risk
@@ -883,11 +905,13 @@ features:
     source_dataset: copernicus_dem_glo30
     raw_s3_path: (fetched live from Planetary Computer STAC API)
     processed_s3_path: processed/shared/zcta_depressions.parquet
+    staging_prefix: processed/shared/staging/zcta_depressions_
     build_function: build_depression_features
     output_column: depression_area_m2
     missing_behavior: "NaN — field_status = missing_source_data"
     field_status_behavior: missing_source_data
     version_target: v24.010
+    scenario_status: (see depression_count — same staging files)
     notes: >
       Total depressed surface area (m2) within the ZCTA. Ratio of
       depression_area_m2 to ZCTA total area gives fraction of
