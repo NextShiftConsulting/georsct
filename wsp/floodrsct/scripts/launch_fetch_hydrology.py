@@ -4,9 +4,8 @@
 Fetches Copernicus GLO-30 DEM from Planetary Computer and computes HAND, TWI,
 GFI, SPI within ~1 km of each ZCTA centroid.
 
-IMPORTANT: Run scenarios SEQUENTIALLY (not --all), same as buildings.
-The shared cache at processed/shared/zcta_hydrology.parquet has a
-read-modify-write pattern that is not safe under parallel writes.
+Each scenario writes its own file (zcta_hydrology_{scenario}.parquet) so
+parallel launches are safe -- no shared cache, no merge step, no race.
 
 Deployment Resource Review (9 dimensions):
   1. Memory:    DEM tile for a metro bbox (~1-2 deg at 30m GLO-30) is
@@ -57,9 +56,9 @@ def main() -> None:
         description="Launch hydrology feature extraction (SageMaker)"
     )
     parser.add_argument("--scenario", default=None, choices=SCENARIOS,
-                        help="Single scenario (run one at a time!)")
+                        help="Single scenario")
     parser.add_argument("--all", action="store_true",
-                        help="Launch all 5 scenarios SEQUENTIALLY (waits between each)")
+                        help="Launch all 5 scenarios in parallel")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -67,7 +66,6 @@ def main() -> None:
         parser.error("Specify --scenario or --all")
 
     if args.all:
-        print("WARNING: --all launches sequentially. Use --scenario for single runs.")
         for scenario in SCENARIOS:
             _launch_one(scenario, args.dry_run)
     else:

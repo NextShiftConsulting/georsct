@@ -65,7 +65,9 @@ MIN_SAMPLES_LEAF = 20
 FOLD_FLOOR = 2 * MIN_SAMPLES_LEAF  # 40
 
 TOPOLOGY_FEATURES = ["hand_mean_m", "gfi_mean", "twi_mean", "spi_mean"]
-HYDROLOGY_CACHE_KEY = "processed/shared/zcta_hydrology.parquet"
+HYDROLOGY_KEY_TEMPLATE = "processed/shared/zcta_hydrology_{scenario}.parquet"
+# Legacy shared cache (Houston wrote here before per-scenario refactor)
+HYDROLOGY_LEGACY_KEY = "processed/shared/zcta_hydrology.parquet"
 MIN_HYDROLOGY_COVERAGE = 0.50  # At least 50% of scenario ZCTAs must have hydrology
 
 # R0 features -- same as train_r0_baseline.py canonical list.
@@ -184,16 +186,22 @@ def load_and_join(
             f"Run build_nfip_historical.py --scenario {scenario} --upload first."
         ) from exc
 
-    # 3. Load hydrology cache
-    hydro = s3_read_parquet(s3, HYDROLOGY_CACHE_KEY)
+    # 3. Load hydrology -- per-scenario file first, then legacy shared cache
+    scenario_key = HYDROLOGY_KEY_TEMPLATE.format(scenario=scenario)
+    hydro = s3_read_parquet(s3, scenario_key)
+    hydro_source = scenario_key
+    if hydro is None:
+        log.info("Per-scenario hydrology not found, trying legacy shared cache")
+        hydro = s3_read_parquet(s3, HYDROLOGY_LEGACY_KEY)
+        hydro_source = HYDROLOGY_LEGACY_KEY
     if hydro is None:
         raise RuntimeError(
             "FAIL_DATA_READY: Hydrology cache not found at "
-            f"s3://{BUCKET}/{HYDROLOGY_CACHE_KEY}. "
+            f"s3://{BUCKET}/{scenario_key} or {HYDROLOGY_LEGACY_KEY}. "
             "Run the hydrology fetch job first."
         )
     hydro["zcta_id"] = hydro["zcta_id"].astype(str)
-    log.info("Hydrology cache: %d rows, columns=%s", len(hydro), list(hydro.columns))
+    log.info("Hydrology cache: %d rows from %s", len(hydro), hydro_source)
 
     # Check that all 4 topology features exist in the cache
     missing_cols = [f for f in TOPOLOGY_FEATURES if f not in hydro.columns]

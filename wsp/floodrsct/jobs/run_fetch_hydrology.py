@@ -10,17 +10,15 @@ four topographic indices within ~1 km of each ZCTA centroid:
   - spi_mean: Stream Power Index (mean)
 
 Output is scenario-independent (keyed by ZCTA, not by event), so results live
-in processed/shared/ and are built once for all scenarios. Cache-first: if the
-shared parquet already contains a ZCTA, it is not re-fetched.
-
-IMPORTANT: Run scenarios SEQUENTIALLY (not --all in parallel) to avoid
-the same read-modify-write race condition that hit buildings.
+in processed/shared/ as per-scenario files. Each scenario writes its own file
+(e.g. zcta_hydrology_houston.parquet) -- no shared cache, no merge step, no
+race condition. Scenarios can run in parallel safely.
 
 Source:
   Copernicus DEM GLO-30 via Microsoft Planetary Computer STAC
 
 Output:
-  s3://swarm-floodrsct-data/processed/shared/zcta_hydrology.parquet
+  s3://swarm-floodrsct-data/processed/shared/zcta_hydrology_{scenario}.parquet
   s3://swarm-floodrsct-data/results/s035/hydrology_extraction_{scenario}.json
 
 Usage:
@@ -60,8 +58,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 from _coverage_common import BUCKET, SCENARIOS, get_s3_client
 from _s3_result import upload_json_result
 
-# Output keys
-HYDROLOGY_CACHE_KEY = "processed/shared/zcta_hydrology.parquet"
+# Output keys -- one file per scenario, no shared merge
+HYDROLOGY_KEY_TEMPLATE = "processed/shared/zcta_hydrology_{scenario}.parquet"
 OUTPUT_COLUMNS = ["zcta_id", "hand_mean_m", "twi_mean", "gfi_mean", "spi_mean"]
 
 # ZCTA centroids source
@@ -195,28 +193,14 @@ def extract_hydrology(centroids: pd.DataFrame) -> pd.DataFrame:
     return extracted
 
 
-def merge_and_write_cache(s3, new_data: pd.DataFrame) -> int:
-    """Merge new data with existing cache and write back to S3.
-
-    Returns total row count after merge.
-    """
-    new_data["zcta_id"] = new_data["zcta_id"].astype(str)
-
-    existing = s3_read_parquet(s3, HYDROLOGY_CACHE_KEY)
-    if existing is not None and "zcta_id" in existing.columns:
-        existing["zcta_id"] = existing["zcta_id"].astype(str)
-        # Keep only OUTPUT_COLUMNS from each source
-        keep_cols = [c for c in OUTPUT_COLUMNS if c in existing.columns]
-        combined = pd.concat([existing[keep_cols], new_data[keep_cols]], ignore_index=True)
-        combined = combined.drop_duplicates(subset=["zcta_id"], keep="last")
-        log.info("Merged cache: %d existing + %d new -> %d total",
-                 len(existing), len(new_data), len(combined))
-    else:
-        combined = new_data[[c for c in OUTPUT_COLUMNS if c in new_data.columns]]
-        log.info("No existing cache; writing %d rows", len(combined))
-
-    s3_write_parquet(s3, combined, HYDROLOGY_CACHE_KEY)
-    return len(combined)
+def write_scenario_cache(s3, scenario: str, data: pd.DataFrame) -> int:
+    """Write per-scenario hydrology file to S3. Returns row count."""
+    data["zcta_id"] = data["zcta_id"].astype(str)
+    keep_cols = [c for c in OUTPUT_COLUMNS if c in data.columns]
+    out = data[keep_cols].drop_duplicates(subset=["zcta_id"], keep="last")
+    key = HYDROLOGY_KEY_TEMPLATE.format(scenario=scenario)
+    s3_write_parquet(s3, out, key)
+    return len(out)
 
 
 # ---------------------------------------------------------------------------
@@ -236,42 +220,33 @@ def run(scenario: str, upload: bool, dry_run: bool) -> None:
     # 1. Get scenario ZCTAs
     zcta_ids = get_scenario_zctas(s3, scenario)
 
-    # 2. Check cache for already-extracted ZCTAs
-    cached = s3_read_parquet(s3, HYDROLOGY_CACHE_KEY)
-    if cached is not None and "zcta_id" in cached.columns:
-        cached["zcta_id"] = cached["zcta_id"].astype(str)
-        cached_zctas = set(cached["zcta_id"].unique())
-        new_zctas = [z for z in zcta_ids if z not in cached_zctas]
-        log.info("Cache: %d ZCTAs cached, %d new for %s",
-                 len(cached_zctas), len(new_zctas), scenario)
-    else:
-        new_zctas = zcta_ids
-        log.info("No existing cache; extracting all %d ZCTAs", len(new_zctas))
-
-    if not new_zctas:
-        log.info("All %d ZCTAs already cached. Nothing to do.", len(zcta_ids))
+    # 2. Check if per-scenario cache already exists
+    cache_key = HYDROLOGY_KEY_TEMPLATE.format(scenario=scenario)
+    cached = s3_read_parquet(s3, cache_key)
+    if cached is not None and len(cached) > 0:
+        log.info("Per-scenario cache exists: %s (%d rows). Skipping.", cache_key, len(cached))
         evidence = {
             "scenario": scenario,
             "status": "CACHE_HIT",
             "n_zctas_requested": len(zcta_ids),
             "n_zctas_new": 0,
-            "n_zctas_in_cache_total": len(cached) if cached is not None else 0,
+            "n_zctas_in_cache": len(cached),
             "git_hash": git_hash,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     else:
         if dry_run:
-            log.info("DRY RUN: would extract %d ZCTAs for %s", len(new_zctas), scenario)
+            log.info("DRY RUN: would extract %d ZCTAs for %s", len(zcta_ids), scenario)
             return
 
-        # 3. Load centroids for new ZCTAs only
-        centroids = load_centroids(s3, new_zctas)
+        # 3. Load centroids
+        centroids = load_centroids(s3, zcta_ids)
 
         # 4. Extract hydrology features
         extracted = extract_hydrology(centroids)
 
-        # 5. Merge with cache and write back
-        n_total = merge_and_write_cache(s3, extracted)
+        # 5. Write per-scenario file (no merge, no race)
+        n_written = write_scenario_cache(s3, scenario, extracted)
 
         elapsed = time.time() - t0
         n_valid = int(extracted["hand_mean_m"].notna().sum()) if "hand_mean_m" in extracted.columns else 0
@@ -280,11 +255,10 @@ def run(scenario: str, upload: bool, dry_run: bool) -> None:
             "scenario": scenario,
             "status": "EXTRACTED",
             "n_zctas_requested": len(zcta_ids),
-            "n_zctas_new": len(new_zctas),
             "n_zctas_extracted": len(extracted),
             "n_valid_hand": n_valid,
             "coverage_pct": round(100 * n_valid / len(extracted), 1) if len(extracted) > 0 else 0,
-            "n_zctas_in_cache_total": n_total,
+            "n_zctas_in_cache": n_written,
             "elapsed_sec": round(elapsed, 1),
             "git_hash": git_hash,
             "timestamp": datetime.now(timezone.utc).isoformat(),
