@@ -30,12 +30,10 @@ CODE_BUCKET = "swarm-floodrsct-data"
 WHEELS_BUCKET = "swarm-yrsn-datasets"
 WHEELS_PREFIX = "rsct_code/wheels/20260610-070717"
 
-# SageMaker-managed scikit-learn image -- lightweight Python 3, no GPU
-# libs.  ~1-2 min faster boot than PyTorch image.  Use for data extraction,
-# feature engineering, and any job that doesn't need torch.
-# NOTE: sklearn images live in a DIFFERENT ECR account (683313688378) than
-# PyTorch/DLC images (763104351884).  URI retrieved via:
-#   sagemaker.image_uris.retrieve('sklearn', REGION, version='1.2-1')
+# SageMaker-managed scikit-learn image -- DO NOT USE AS DEFAULT.
+# sklearn images (683313688378) ship Python 3.9 with ancient pinned deps
+# (pandas 1.1.3, numpy <1.24). Upgrading any dep breaks numpy C extensions.
+# Kept for reference only; use PYTORCH_CPU for all data extraction jobs.
 SKLEARN_CPU = (
     f"683313688378.dkr.ecr.{REGION}.amazonaws.com/"
     "sagemaker-scikit-learn:1.2-1-cpu-py3"
@@ -50,8 +48,10 @@ PYTORCH_GPU = (
     f"763104351884.dkr.ecr.{REGION}.amazonaws.com/"
     "pytorch-training:2.5.1-gpu-py311-cu121-ubuntu20.04-sagemaker"
 )
-# Default image for data extraction / feature engineering jobs
-DEFAULT_IMAGE = SKLEARN_CPU
+# Default image for data extraction / feature engineering jobs.
+# PyTorch CPU is the only viable base -- sklearn image ships Python 3.9
+# with pinned numpy that breaks when any dep is upgraded.
+DEFAULT_IMAGE = PYTORCH_CPU
 
 SERIES_DIR = Path(__file__).parent.parent
 JOBS_DIR = SERIES_DIR / "jobs"
