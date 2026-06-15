@@ -31,9 +31,10 @@ experiments:
     jobs: "jobs/"
 
     phase_status:
-      total_phases: 30
+      total_phases: 32
       completed: 26
-      designed: 3
+      in_progress: 2
+      designed: 2
       blocked: 1
       last_audit: "2026-06-15"
 

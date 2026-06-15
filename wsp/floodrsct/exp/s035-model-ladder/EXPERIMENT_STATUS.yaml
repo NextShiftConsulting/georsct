@@ -342,11 +342,31 @@ phases:
       correlated (rho=+0.50, DEMOTION), NYC insufficient data. Overall
       verdict MIXED -- constructs diverge heterogeneously by geography.
     contract: floodcaster_story_doe.yaml
-  topology_necessity:
-    status: DESIGNED
-    doe_id: DOE-P1
+  hydrology_fetch:
+    status: IN_PROGRESS
+    doe_id: DOE-P1-prereq
+    code: jobs/run_fetch_hydrology.py
+    launcher: scripts/launch_fetch_hydrology.py
+    job_ids:
+    - s035-hydro-houston-20260615-192935
+    artifact_keys:
+    - processed/shared/zcta_hydrology.parquet
     notes: >
-      HAND/GFI ablation test. Blocked on hydrology features for all scenarios.
+      Standalone DEM-derived hydrology extraction (HAND, GFI, TWI, SPI)
+      via Copernicus GLO-30 + Planetary Computer. Sequential chain:
+      houston (running) -> nyc -> riverside -> nola -> swfl.
+      Prerequisite for topology_necessity. Cache-first pattern.
+      Instance: ml.m5.large. Git: f05d5b9.
+  topology_necessity:
+    status: IN_PROGRESS
+    doe_id: DOE-P1
+    code: jobs/run_topology_necessity.py
+    launcher: scripts/launch_topology_necessity.py
+    blocked_by: hydrology_fetch
+    notes: >
+      3-arm ablation (baseline/no_topology/shuffled). Code committed
+      (86341cd). Blocked on hydrology cache population. Will launch
+      --all once zcta_hydrology.parquet is on S3.
     contract: floodcaster_story_doe.yaml
   hazard_shape:
     status: DESIGNED
