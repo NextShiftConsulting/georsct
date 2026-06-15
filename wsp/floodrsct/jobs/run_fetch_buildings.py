@@ -211,6 +211,28 @@ OVERTURE_DATA_PATH = (
 )
 
 
+def _quadkey_to_bbox(qk: str) -> tuple[float, float, float, float]:
+    """Convert a quadkey to its tile bounding box (minx, miny, maxx, maxy).
+
+    Uses the TMS tiling scheme: each quadkey digit subdivides the tile
+    into quadrants (0=TL, 1=TR, 2=BL, 3=BR).
+    """
+    minx, maxx = -180.0, 180.0
+    miny, maxy = -85.05112878, 85.05112878
+    for ch in qk:
+        midx = (minx + maxx) / 2
+        midy = (miny + maxy) / 2
+        if ch == "0":
+            maxx, miny = midx, midy
+        elif ch == "1":
+            minx, miny = midx, midy
+        elif ch == "2":
+            maxx, maxy = midx, midy
+        elif ch == "3":
+            minx, maxy = midx, midy
+    return (minx, miny, maxx, maxy)
+
+
 def extract_buildings_for_bbox(bbox: tuple[float, float, float, float],
                                dst_path: str) -> str | None:
     """Download Overture buildings for a bounding box to GeoParquet.
@@ -246,16 +268,27 @@ def extract_buildings_for_bbox(bbox: tuple[float, float, float, float],
         wkt = geojson_to_wkt(geojson_data)
 
         # Short quadkey prefixes (e.g. "0" for New Orleans) scan too much
-        # data and OOM.  Split into depth-3 sub-quadkeys so each sub-query
-        # reads a manageable partition slice.
+        # data and OOM.  Split into depth-5 sub-quadkeys, then pre-filter
+        # to only those whose tile bbox intersects the query bbox.
+        # This eliminates ~80% of sub-queries that would return 0 rows.
         MIN_QK_LEN = 5
         if len(quadkey) < MIN_QK_LEN:
             from itertools import product as iterproduct
             pad = MIN_QK_LEN - len(quadkey)
-            sub_quadkeys = [quadkey + "".join(d)
-                            for d in iterproduct("0123", repeat=pad)]
-            log.info("Short quadkey '%s' -> splitting into %d sub-queries",
-                     quadkey, len(sub_quadkeys))
+            all_sub = [quadkey + "".join(d)
+                       for d in iterproduct("0123", repeat=pad)]
+
+            # Pre-filter: only keep sub-quadkeys whose tile overlaps the bbox
+            sub_quadkeys = []
+            for qk in all_sub:
+                tb = _quadkey_to_bbox(qk)
+                if (tb[0] <= bbox[2] and tb[2] >= bbox[0]
+                        and tb[1] <= bbox[3] and tb[3] >= bbox[1]):
+                    sub_quadkeys.append(qk)
+
+            log.info("Short quadkey '%s' -> %d sub-queries (%d pre-filtered from %d)",
+                     quadkey, len(sub_quadkeys),
+                     len(all_sub) - len(sub_quadkeys), len(all_sub))
         else:
             sub_quadkeys = [quadkey]
 
@@ -278,9 +311,9 @@ def extract_buildings_for_bbox(bbox: tuple[float, float, float, float],
         # Short quadkeys (e.g. "0" for New Orleans) scan huge partitions.
         # Constrain DuckDB memory so it spills to disk instead of OOM.
         if len(quadkey) < MIN_QK_LEN:
-            conn.execute("SET memory_limit = '8GB';")
-            conn.execute("SET threads = 1;")
-            log.info("Short quadkey: DuckDB constrained to 8GB + 1 thread (spill-to-disk)")
+            conn.execute("SET memory_limit = '12GB';")
+            conn.execute("SET threads = 2;")
+            log.info("Short quadkey: DuckDB constrained to 12GB + 2 threads (spill-to-disk)")
 
         # Execute sub-queries (single query if quadkey is long enough)
         for i, qk in enumerate(sub_quadkeys):

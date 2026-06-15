@@ -48,7 +48,7 @@ def _launch_one(scenario: str, dry_run: bool) -> str:
         job_script="run_fetch_depressions.py",
         job_args=["--scenario", scenario, "--upload"],
         instance_type="ml.m5.xlarge",
-        volume_size_gb=50,
+        volume_size_gb=20,
         pip_packages=(
             "whitebox geopandas rasterio scipy "
             "planetary-computer pystac-client shapely"
