@@ -30,7 +30,14 @@ CODE_BUCKET = "swarm-floodrsct-data"
 WHEELS_BUCKET = "swarm-yrsn-datasets"
 WHEELS_PREFIX = "rsct_code/wheels/20260610-070717"
 
-# SageMaker-managed PyTorch CPU image (no GPU needed for data pulls)
+# SageMaker-managed scikit-learn image -- lightweight Python 3.11, no GPU
+# libs.  ~1-2 min faster boot than PyTorch image.  Use for data extraction,
+# feature engineering, and any job that doesn't need torch.
+SKLEARN_CPU = (
+    f"763104351884.dkr.ecr.{REGION}.amazonaws.com/"
+    "sagemaker-scikit-learn:1.5-1-cpu-py311-ubuntu20.04-sagemaker-v1.0"
+)
+# SageMaker-managed PyTorch CPU image (for jobs that import torch)
 PYTORCH_CPU = (
     f"763104351884.dkr.ecr.{REGION}.amazonaws.com/"
     "pytorch-training:2.5.1-cpu-py311-ubuntu22.04-sagemaker"
@@ -40,6 +47,8 @@ PYTORCH_GPU = (
     f"763104351884.dkr.ecr.{REGION}.amazonaws.com/"
     "pytorch-training:2.5.1-gpu-py311-cu121-ubuntu20.04-sagemaker"
 )
+# Default image for data extraction / feature engineering jobs
+DEFAULT_IMAGE = SKLEARN_CPU
 
 SERIES_DIR = Path(__file__).parent.parent
 JOBS_DIR = SERIES_DIR / "jobs"
@@ -179,8 +188,8 @@ def launch_processing_job(
         pip_packages: Space-separated packages to install *in addition to*
             _BASE_PACKAGES.  Pass e.g. ``"geopandas rasterio"`` for spatial
             jobs.  None means base packages only.
-        image_uri: Override the default PYTORCH_CPU image. Pass PYTORCH_GPU
-            for jobs that require a CUDA forward pass (e.g. Prithvi smoke test).
+        image_uri: Override the default SKLEARN_CPU image. Pass PYTORCH_CPU
+            for jobs that import torch, or PYTORCH_GPU for CUDA forward pass.
         env_overrides: Additional environment variables to inject into the
             container (e.g. {"EARTHDATA_TOKEN": token}).  Merged on top of
             the default environment; caller-supplied values take precedence.
@@ -293,7 +302,7 @@ def launch_processing_job(
             }
         },
         "AppSpecification": {
-            "ImageUri": image_uri or PYTORCH_CPU,
+            "ImageUri": image_uri or DEFAULT_IMAGE,
             "ContainerEntrypoint": container_cmd,
         },
         "ProcessingInputs": processing_inputs,
