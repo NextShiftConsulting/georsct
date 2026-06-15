@@ -9,21 +9,24 @@ The shared cache at processed/shared/zcta_hydrology.parquet has a
 read-modify-write pattern that is not safe under parallel writes.
 
 Deployment Resource Review (9 dimensions):
-  1. Memory:    DEM tile for a metro bbox (~1 deg x 1 deg at 30m) is
-                ~12,000 x 12,000 pixels = ~1.1 GB float64. Flow accumulation
-                doubles this. Peak ~3 GB for large metros (Houston 6-county).
-                Budget: 8 GB for small metros, 16 GB for Houston/NYC.
+  1. Memory:    DEM tile for a metro bbox (~1-2 deg at 30m GLO-30) is
+                3600-7200 px per side. Houston (largest, ~1x1.5 deg) =
+                ~20M pixels x 8 bytes = ~150 MB. Flow accumulation +
+                4 derived grids (HAND/TWI/GFI/SPI) = ~6 arrays x 150 MB
+                = ~900 MB peak. 8 GB (ml.m5.large) is sufficient.
   2. Cache:     Reads/writes processed/shared/zcta_hydrology.parquet.
                 Reads raw/geocertdb2026/zcta_features_labels.parquet.
+                Cache-first: skips ZCTAs already present.
   3. Threads:   D8 flow accumulation is single-threaded (numpy). 2 vCPU ok.
   4. Image:     PYTORCH_CPU (default). No GPU needed.
-  5. Instance:  ml.m5.xlarge (4 vCPU, 16 GB). Needed for DEM tile in memory.
-  6. Volume:    30 GB. DEM temp files can be large.
-  7. Pip:       floodcaster planetary-computer pystac-client rasterio
-                numpy pandas pyarrow scipy scikit-image
-  8. Pre-inst:  GDAL (included in SageMaker base image).
-  9. Timeout:   7200s (2h). DEM download + D8 accumulation can be slow for
-                large bboxes. Houston (largest) expected ~30-60 min.
+  5. Instance:  ml.m5.large (2 vCPU, 8 GB). DEM peak < 1 GB.
+  6. Volume:    20 GB. One temp GeoTIFF per scenario (~150 MB).
+  7. Pip:       PyPI: geopandas rasterio planetary-computer pystac-client.
+                Wheels (mounted from S3): floodcaster, sphere-*.
+                NOTE: floodcaster is NOT on PyPI; comes from ecosystem wheels.
+  8. Pre-inst:  None. SageMaker PyTorch image includes GDAL.
+  9. Timeout:   7200s (default). STAC download + D8 accumulation: expected
+                10-30 min per scenario. Houston largest (~30 min).
 """
 
 import argparse
@@ -42,9 +45,9 @@ def _launch_one(scenario: str, dry_run: bool) -> str:
         job_name=job_name,
         job_script="run_fetch_hydrology.py",
         job_args=["--scenario", scenario, "--upload"],
-        instance_type="ml.m5.xlarge",
-        volume_size_gb=30,
-        pip_packages="floodcaster planetary-computer pystac-client rasterio numpy pandas pyarrow scipy scikit-image",
+        instance_type="ml.m5.large",
+        volume_size_gb=20,
+        pip_packages="geopandas rasterio planetary-computer pystac-client",
         dry_run=dry_run,
     )
 
