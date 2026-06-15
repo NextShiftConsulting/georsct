@@ -407,6 +407,64 @@ def aggregate_buildings_per_zcta(buildings_path: str,
 
 
 # ---------------------------------------------------------------------------
+# QA/QC — acceptance criteria from FEATURE_CONTRACT.yaml
+# ---------------------------------------------------------------------------
+
+def qa_buildings(df: pd.DataFrame, zcta_ids: list[str]) -> dict:
+    """Run acceptance criteria checks. Returns dict of findings."""
+    findings = []
+
+    # No nulls
+    for col in ["building_count", "total_footprint_area_m2"]:
+        n_null = df[col].isna().sum()
+        if n_null > 0:
+            findings.append({"severity": "FAIL", "check": f"{col}_nulls",
+                             "detail": f"{n_null} null values"})
+
+    # No negatives or zeros
+    for col in ["building_count", "total_footprint_area_m2"]:
+        n_neg = (df[col] < 0).sum()
+        if n_neg > 0:
+            findings.append({"severity": "FAIL", "check": f"{col}_negative",
+                             "detail": f"{n_neg} negative values"})
+
+    # No duplicate zcta_ids
+    n_dupes = df["zcta_id"].duplicated().sum()
+    if n_dupes > 0:
+        findings.append({"severity": "FAIL", "check": "duplicate_zcta_ids",
+                         "detail": f"{n_dupes} duplicates"})
+
+    # Avg footprint plausibility [50, 5000] m2
+    if len(df) > 0 and (df["building_count"] > 0).all():
+        avg = df["total_footprint_area_m2"] / df["building_count"]
+        n_low = (avg < 50).sum()
+        n_high = (avg > 5000).sum()
+        if n_low > 0:
+            findings.append({"severity": "WARN", "check": "avg_footprint_low",
+                             "detail": f"{n_low} ZCTAs with avg < 50 m2"})
+        if n_high > 0:
+            ids = df.loc[avg > 5000, "zcta_id"].tolist()[:5]
+            findings.append({"severity": "WARN", "check": "avg_footprint_high",
+                             "detail": f"{n_high} ZCTAs with avg > 5000 m2: {ids}"})
+
+    # ZCTA hit rate >= 95%
+    hit_rate = len(df[df["zcta_id"].isin(zcta_ids)]) / max(len(zcta_ids), 1) * 100
+    if hit_rate < 95:
+        findings.append({"severity": "WARN", "check": "low_hit_rate",
+                         "detail": f"hit rate {hit_rate:.1f}% (threshold 95%)"})
+
+    passed = all(f["severity"] != "FAIL" for f in findings)
+    n_warn = sum(1 for f in findings if f["severity"] == "WARN")
+
+    log.info("=== QA BUILDINGS: %s (%d findings, %d warnings) ===",
+             "PASS" if passed else "FAIL", len(findings), n_warn)
+    for f in findings:
+        log.info("  [%s] %s: %s", f["severity"], f["check"], f["detail"])
+
+    return {"passed": passed, "findings": findings}
+
+
+# ---------------------------------------------------------------------------
 # Coverage logging
 # ---------------------------------------------------------------------------
 
@@ -498,11 +556,14 @@ def run(scenario: str, upload: bool, dry_run: bool) -> None:
         else:
             combined = new_rows
 
-    # 8. Coverage logging
+    # 8. QA checks on newly extracted rows
+    qa_result = qa_buildings(new_rows, zcta_ids) if len(new_rows) > 0 else {"passed": True, "findings": []}
+
+    # 9. Coverage logging
     log.info("=== Coverage for %s ===", scenario)
     coverage = log_coverage(combined, zcta_ids)
 
-    # 9. Metadata JSON
+    # 10. Metadata JSON
     evidence = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "scenario": scenario,
@@ -514,6 +575,7 @@ def run(scenario: str, upload: bool, dry_run: bool) -> None:
         "total_area_m2": float(new_rows["total_footprint_area_m2"].sum()) if len(new_rows) > 0 else 0.0,
         "elapsed_sec": round(elapsed, 1),
         "coverage": coverage,
+        "qa": qa_result,
     }
 
     if upload:

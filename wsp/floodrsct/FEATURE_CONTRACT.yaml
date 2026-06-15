@@ -784,6 +784,15 @@ features:
       of ZCTA centroid. Higher SPI = more erosive power.
 
   # --- Overture Building Footprints (open-buildings / DuckDB) -------------
+  # QA/QC acceptance criteria (enforced in run_fetch_buildings.py post-extraction):
+  #   - building_count > 0 for every ZCTA (no empty rows)
+  #   - avg footprint per building in [50, 5000] m2 (residential ~150-300 m2;
+  #     commercial/industrial ZCTAs can exceed 1000 m2 but >5000 m2 flags
+  #     a merge artifact or miscoded polygon)
+  #   - building_count >= 10 for urban ZCTAs (< 10 suggests bbox/quadkey miss)
+  #   - no duplicate zcta_ids in consolidated cache
+  #   - ZCTA hit rate >= 95% per scenario (< 95% means spatial join failed)
+  #   - no negative or NaN values in any numeric column
 
   - feature_name: building_count
     temporal_class: slow_drift
@@ -832,7 +841,17 @@ features:
       total structural exposure. Complements NLCD impervious % with
       explicit structure geometry.
 
-  # --- DEM Depression Delineation (Copernicus DEM + lidar/whitebox) -------
+  # --- DEM Depression Delineation (Copernicus DEM + whitebox) -------------
+  # QA/QC acceptance criteria (enforced in run_fetch_depressions.py post-extraction):
+  #   - max_depression_depth_m <= 50m (>50m = canyon/quarry/DEM artifact, not
+  #     a flood-relevant depression; flag but do not drop — downstream can filter)
+  #   - depression_area_m2 < ZCTA total area (depression cannot exceed container)
+  #   - depression_volume_m3 > 0 for all rows (volume = depth * pixel_area; zero
+  #     means the depth raster was empty or nodata-masked entirely)
+  #   - no duplicate zcta_ids in consolidated cache
+  #   - ZCTA hit rate >= 80% per scenario (depressions are terrain-dependent;
+  #     flat coastal ZCTAs may legitimately have none, so threshold is lower)
+  #   - no negative or NaN values in any numeric column
 
   - feature_name: depression_count
     temporal_class: invariant

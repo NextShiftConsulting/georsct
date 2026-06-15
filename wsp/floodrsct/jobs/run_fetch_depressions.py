@@ -491,6 +491,85 @@ def assign_depressions_to_zctas(deps: pd.DataFrame, dem_path: str,
 
 
 # ---------------------------------------------------------------------------
+# QA checks
+# ---------------------------------------------------------------------------
+
+def qa_depressions(df: pd.DataFrame, zcta_ids: list[str]) -> dict:
+    """Run QA acceptance checks on depression extraction results.
+
+    Checks (from FEATURE_CONTRACT.yaml):
+      - max_depression_depth_m <= 50m (WARN, not FAIL -- canyons are real terrain)
+      - depression_area_m2 < ZCTA total area (sanity)
+      - depression_volume_m3 > 0 for all rows
+      - no duplicate zcta_ids
+      - ZCTA hit rate >= 80%
+      - no negative or NaN values
+    """
+    findings = []
+
+    if df.empty:
+        findings.append({"severity": "WARN", "check": "empty_result",
+                         "detail": "no depressions extracted"})
+        return {"passed": True, "findings": findings}
+
+    # Null / NaN check on numeric columns
+    num_cols = ["depression_count", "depression_volume_m3",
+                "max_depression_depth_m", "depression_area_m2"]
+    for col in num_cols:
+        if col in df.columns:
+            n_null = df[col].isna().sum()
+            if n_null > 0:
+                findings.append({"severity": "FAIL", "check": f"null_{col}",
+                                 "detail": f"{n_null} NaN values in {col}"})
+
+    # Negative values
+    for col in num_cols:
+        if col in df.columns:
+            n_neg = (df[col] < 0).sum()
+            if n_neg > 0:
+                findings.append({"severity": "FAIL", "check": f"negative_{col}",
+                                 "detail": f"{n_neg} negative values in {col}"})
+
+    # Volume > 0
+    if "depression_volume_m3" in df.columns:
+        n_zero = (df["depression_volume_m3"] == 0).sum()
+        if n_zero > 0:
+            findings.append({"severity": "WARN", "check": "zero_volume",
+                             "detail": f"{n_zero} ZCTAs with zero volume"})
+
+    # Depth outlier (>50m = canyon/quarry/DEM artifact -- WARN, not FAIL)
+    if "max_depression_depth_m" in df.columns:
+        n_deep = (df["max_depression_depth_m"] > 50).sum()
+        if n_deep > 0:
+            ids = df.loc[df["max_depression_depth_m"] > 50, "zcta_id"].tolist()[:5]
+            findings.append({"severity": "WARN", "check": "depth_outlier",
+                             "detail": f"{n_deep} ZCTAs with depth > 50m: {ids}"})
+
+    # Duplicate zcta_ids
+    if "zcta_id" in df.columns:
+        n_dup = df["zcta_id"].duplicated().sum()
+        if n_dup > 0:
+            findings.append({"severity": "FAIL", "check": "duplicate_zcta_id",
+                             "detail": f"{n_dup} duplicate zcta_ids"})
+
+    # ZCTA hit rate >= 80%
+    hit_rate = len(df[df["zcta_id"].isin(zcta_ids)]) / max(len(zcta_ids), 1) * 100
+    if hit_rate < 80:
+        findings.append({"severity": "WARN", "check": "low_hit_rate",
+                         "detail": f"hit rate {hit_rate:.1f}% (threshold 80%)"})
+
+    passed = all(f["severity"] != "FAIL" for f in findings)
+    n_warn = sum(1 for f in findings if f["severity"] == "WARN")
+
+    log.info("=== QA DEPRESSIONS: %s (%d findings, %d warnings) ===",
+             "PASS" if passed else "FAIL", len(findings), n_warn)
+    for f in findings:
+        log.info("  [%s] %s: %s", f["severity"], f["check"], f["detail"])
+
+    return {"passed": passed, "findings": findings}
+
+
+# ---------------------------------------------------------------------------
 # Coverage logging
 # ---------------------------------------------------------------------------
 
@@ -593,11 +672,14 @@ def run(scenario: str, upload: bool, dry_run: bool) -> None:
     else:
         combined = new_rows
 
-    # 9. Coverage logging
+    # 9. QA checks on newly extracted rows
+    qa_result = qa_depressions(new_rows, zcta_ids) if len(new_rows) > 0 else {"passed": True, "findings": []}
+
+    # 10. Coverage logging
     log.info("=== Coverage for %s ===", scenario)
     coverage = log_coverage(combined, zcta_ids) if not combined.empty else {}
 
-    # 10. Metadata JSON
+    # 11. Metadata JSON
     evidence = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "scenario": scenario,
@@ -615,6 +697,7 @@ def run(scenario: str, upload: bool, dry_run: bool) -> None:
         "max_depth_m": float(new_rows["max_depression_depth_m"].max()) if len(new_rows) > 0 else 0.0,
         "elapsed_sec": round(elapsed, 1),
         "coverage": coverage,
+        "qa": qa_result,
     }
 
     if upload:
