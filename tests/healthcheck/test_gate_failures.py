@@ -8,7 +8,7 @@ Key semantics:
   - Oobleck: lambda_turbulence=0.0 for geo -> flat kappa_req=0.22
 """
 
-from conftest import make_cert
+from tests.healthcheck.conftest import make_cert
 from georsct.healthcheck.layers.gate_triage import evaluate_gates
 from georsct.healthcheck.thresholds import GEOSPATIAL_CONUS27, UNIVERSAL
 

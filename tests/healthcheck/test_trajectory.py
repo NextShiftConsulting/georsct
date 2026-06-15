@@ -1,6 +1,6 @@
 """Layer 4: Trajectory analysis tests."""
 
-from conftest import make_cert
+from tests.healthcheck.conftest import make_cert
 from georsct.healthcheck.layers.trajectory import analyze_trajectory
 from georsct.healthcheck.thresholds import GEOSPATIAL_CONUS27
 

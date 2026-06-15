@@ -1,6 +1,6 @@
 """Layer 2: Degradation pattern tests."""
 
-from conftest import make_cert
+from tests.healthcheck.conftest import make_cert
 from georsct.healthcheck.layers.degradation import classify_degradation
 
 

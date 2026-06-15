@@ -1,4 +1,4 @@
-"""Shared fixtures for failure taxonomy tests."""
+"""Shared fixtures for healthcheck tests."""
 
 from __future__ import annotations
 

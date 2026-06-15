@@ -1,4 +1,4 @@
-"""Allow running as: python -m failure_taxonomy <folder>"""
+"""Allow running as: python -m georsct.healthcheck <folder>"""
 
 import sys
 

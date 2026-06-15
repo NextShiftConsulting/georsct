@@ -1,4 +1,4 @@
-"""CLI entry point for the failure taxonomy diagnostic tool."""
+"""CLI entry point for the rsct-healthcheck diagnostic tool."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from .thresholds import resolve_preset
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="rsct-healthcheck",
-        description="RSCT failure taxonomy diagnostic tool",
+        description="RSCT healthcheck diagnostic tool",
     )
     parser.add_argument(
         "folder",

@@ -1,6 +1,6 @@
 """Layer 3: Diagnostic ratio analysis tests."""
 
-from conftest import make_cert
+from tests.healthcheck.conftest import make_cert
 from georsct.healthcheck.layers.diagnostics import analyze_diagnostics
 from georsct.healthcheck.thresholds import GEOSPATIAL_CONUS27
 
