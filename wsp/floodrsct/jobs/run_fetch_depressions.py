@@ -59,6 +59,7 @@ from _s3_result import upload_json_result
 
 # Output keys
 DEPRESSIONS_CACHE_KEY = "processed/shared/zcta_depressions.parquet"
+DEPRESSIONS_SCENARIO_PREFIX = "processed/shared/staging/zcta_depressions_"
 OUTPUT_COLUMNS = [
     "zcta_id", "depression_count", "depression_volume_m3",
     "max_depression_depth_m", "depression_area_m2",
@@ -170,13 +171,34 @@ def load_cache(s3) -> pd.DataFrame | None:
     return s3_read_parquet(s3, DEPRESSIONS_CACHE_KEY)
 
 
-def merge_and_write_cache(s3, existing: pd.DataFrame | None,
-                          new_rows: pd.DataFrame) -> pd.DataFrame:
-    """Append new rows to cache, dedupe on zcta_id, write back."""
-    if existing is not None and not existing.empty:
-        combined = pd.concat([existing, new_rows], ignore_index=True)
-    else:
-        combined = new_rows.copy()
+def write_scenario_staging(s3, scenario: str, new_rows: pd.DataFrame) -> None:
+    """Write per-scenario staging parquet (safe for parallel jobs)."""
+    key = f"{DEPRESSIONS_SCENARIO_PREFIX}{scenario}.parquet"
+    s3_write_parquet(s3, new_rows, key)
+
+
+def consolidate_cache(s3) -> pd.DataFrame:
+    """Merge all scenario staging files + existing cache into one.
+
+    Each job writes its own staging file; consolidation reads all and dedupes.
+    Safe against parallel write race conditions.
+    """
+    cache = load_cache(s3)
+    parts = [cache] if cache is not None and not cache.empty else []
+
+    paginator = s3.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=BUCKET, Prefix=DEPRESSIONS_SCENARIO_PREFIX):
+        for obj in page.get("Contents", []):
+            if obj["Key"].endswith(".parquet"):
+                df = s3_read_parquet(s3, obj["Key"])
+                if df is not None and not df.empty:
+                    parts.append(df)
+                    log.info("Loaded staging file: %s (%d rows)", obj["Key"], len(df))
+
+    if not parts:
+        return pd.DataFrame(columns=OUTPUT_COLUMNS)
+
+    combined = pd.concat(parts, ignore_index=True)
     combined = combined.drop_duplicates(subset=["zcta_id"], keep="last")
     for col in OUTPUT_COLUMNS:
         if col not in combined.columns:
@@ -189,6 +211,51 @@ def merge_and_write_cache(s3, existing: pd.DataFrame | None,
 # ---------------------------------------------------------------------------
 # DEM fetching — one tile at a time, merge to disk
 # ---------------------------------------------------------------------------
+
+def clip_dem_to_land(dem_path: str, zcta_gdf, out_path: str) -> str:
+    """Clip DEM to ZCTA polygon union, masking ocean pixels.
+
+    Coastal DEMs cause whitebox DepthInSink to stall indefinitely on
+    ocean/NoData pixels. Clipping to the ZCTA land area (buffered 1km)
+    eliminates the pathological fill condition.
+    """
+    import rasterio
+    from rasterio.mask import mask as rio_mask
+
+    # Buffer ZCTA polygons by 1km to include coastline fringe
+    land = zcta_gdf.copy()
+    if land.crs is None or land.crs.to_epsg() != 5070:
+        land = land.to_crs("EPSG:5070")
+    land["geometry"] = land.geometry.buffer(1000)
+    land = land.dissolve()
+
+    # Reproject to DEM CRS (EPSG:4326 for Copernicus)
+    with rasterio.open(dem_path) as src:
+        dem_crs = src.crs
+    land = land.to_crs(dem_crs)
+
+    with rasterio.open(dem_path) as src:
+        clipped, clipped_transform = rio_mask(
+            src, land.geometry, crop=True, nodata=src.nodata or -9999,
+        )
+        profile = src.profile.copy()
+        profile.update(
+            height=clipped.shape[1],
+            width=clipped.shape[2],
+            transform=clipped_transform,
+            nodata=src.nodata or -9999,
+        )
+
+    with rasterio.open(out_path, "w", **profile) as dst:
+        dst.write(clipped)
+
+    pct_reduction = (1 - (clipped.shape[1] * clipped.shape[2])
+                     / (profile["height"] * profile["width"])) * 100
+    log.info("Clipped DEM to land: %d x %d px -> %d x %d px (%.0f%% smaller)",
+             profile["height"], profile["width"],
+             clipped.shape[1], clipped.shape[2], max(0, pct_reduction))
+    return out_path
+
 
 def fetch_dem_for_bbox(bbox: tuple[float, float, float, float],
                        dst_path: str) -> str | None:
@@ -492,11 +559,16 @@ def run(scenario: str, upload: bool, dry_run: bool) -> None:
 
     with tempfile.TemporaryDirectory() as tmpdir:
         # 5. Fetch + merge DEM
+        dem_raw_path = str(Path(tmpdir) / f"dem_{scenario}_raw.tif")
         dem_path = str(Path(tmpdir) / f"dem_{scenario}.tif")
-        dem_result = fetch_dem_for_bbox(bbox, dem_path)
+        dem_result = fetch_dem_for_bbox(bbox, dem_raw_path)
 
         if dem_result is None:
             raise RuntimeError(f"DEM fetch failed for {scenario}")
+
+        # 5b. Clip DEM to ZCTA land area (prevents whitebox stall on
+        # ocean pixels in coastal scenarios like NYC, New Orleans)
+        clip_dem_to_land(dem_raw_path, zcta_gdf, dem_path)
 
         # 6. Delineate depressions
         deps = delineate_depressions(dem_path, tmpdir)
@@ -510,9 +582,11 @@ def run(scenario: str, upload: bool, dry_run: bool) -> None:
 
     elapsed = time.time() - t0
 
-    # 8. Merge into cache, dedupe, write back
+    # 8. Write per-scenario staging file (safe for parallel jobs),
+    #    then consolidate all staging files into the shared cache.
     if upload and not new_rows.empty:
-        combined = merge_and_write_cache(s3, cache, new_rows)
+        write_scenario_staging(s3, scenario, new_rows)
+        combined = consolidate_cache(s3)
     elif cache is not None and not cache.empty:
         combined = pd.concat([cache, new_rows], ignore_index=True) if not new_rows.empty else cache
         combined = combined.drop_duplicates(subset=["zcta_id"], keep="last")

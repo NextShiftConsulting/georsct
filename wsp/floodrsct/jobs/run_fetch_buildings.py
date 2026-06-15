@@ -55,6 +55,7 @@ from _s3_result import upload_json_result
 
 # Output keys
 BUILDINGS_CACHE_KEY = "processed/shared/zcta_buildings.parquet"
+BUILDINGS_SCENARIO_PREFIX = "processed/shared/staging/zcta_buildings_"
 OUTPUT_COLUMNS = ["zcta_id", "building_count", "total_footprint_area_m2"]
 
 # ZCTA boundaries (GeoParquet with polygon geometry)
@@ -159,15 +160,39 @@ def load_cache(s3) -> pd.DataFrame | None:
     return s3_read_parquet(s3, BUILDINGS_CACHE_KEY)
 
 
-def merge_and_write_cache(s3, existing: pd.DataFrame | None,
-                          new_rows: pd.DataFrame) -> pd.DataFrame:
-    """Append new rows to cache, dedupe on zcta_id, write back."""
-    if existing is not None and not existing.empty:
-        combined = pd.concat([existing, new_rows], ignore_index=True)
-    else:
-        combined = new_rows.copy()
+def write_scenario_staging(s3, scenario: str, new_rows: pd.DataFrame) -> None:
+    """Write per-scenario staging parquet (safe for parallel jobs)."""
+    key = f"{BUILDINGS_SCENARIO_PREFIX}{scenario}.parquet"
+    s3_write_parquet(s3, new_rows, key)
+
+
+def consolidate_cache(s3) -> pd.DataFrame:
+    """Merge all scenario staging files + existing cache into one.
+
+    Called after all parallel jobs complete, or at end of each job.
+    Safe against race conditions: each job writes its own staging file,
+    consolidation reads all staging files and dedupes.
+    """
+    # Load existing cache
+    cache = load_cache(s3)
+    parts = [cache] if cache is not None and not cache.empty else []
+
+    # Load all staging files
+    paginator = s3.get_paginator("list_objects_v2")
+    prefix = BUILDINGS_SCENARIO_PREFIX
+    for page in paginator.paginate(Bucket=BUCKET, Prefix=prefix):
+        for obj in page.get("Contents", []):
+            if obj["Key"].endswith(".parquet"):
+                df = s3_read_parquet(s3, obj["Key"])
+                if df is not None and not df.empty:
+                    parts.append(df)
+                    log.info("Loaded staging file: %s (%d rows)", obj["Key"], len(df))
+
+    if not parts:
+        return pd.DataFrame(columns=OUTPUT_COLUMNS)
+
+    combined = pd.concat(parts, ignore_index=True)
     combined = combined.drop_duplicates(subset=["zcta_id"], keep="last")
-    # Enforce output schema
     for col in OUTPUT_COLUMNS:
         if col not in combined.columns:
             combined[col] = np.nan
@@ -249,6 +274,13 @@ def extract_buildings_for_bbox(bbox: tuple[float, float, float, float],
         conn.execute("SET s3_url_style = 'path';")
         conn.execute("INSTALL spatial;")
         conn.execute("LOAD spatial;")
+
+        # Short quadkeys (e.g. "0" for New Orleans) scan huge partitions.
+        # Constrain DuckDB memory so it spills to disk instead of OOM.
+        if len(quadkey) < MIN_QK_LEN:
+            conn.execute("SET memory_limit = '8GB';")
+            conn.execute("SET threads = 1;")
+            log.info("Short quadkey: DuckDB constrained to 8GB + 1 thread (spill-to-disk)")
 
         # Execute sub-queries (single query if quadkey is long enough)
         for i, qk in enumerate(sub_quadkeys):
@@ -421,9 +453,11 @@ def run(scenario: str, upload: bool, dry_run: bool) -> None:
 
     elapsed = time.time() - t0
 
-    # 7. Merge into cache, dedupe, write back
+    # 7. Write per-scenario staging file (safe for parallel jobs),
+    #    then consolidate all staging files into the shared cache.
     if upload:
-        combined = merge_and_write_cache(s3, cache, new_rows)
+        write_scenario_staging(s3, scenario, new_rows)
+        combined = consolidate_cache(s3)
     else:
         if cache is not None and not cache.empty:
             combined = pd.concat([cache, new_rows], ignore_index=True)
