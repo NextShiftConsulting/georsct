@@ -1063,6 +1063,47 @@ phases:
         description: "Construct divergence metrics (Spearman, Kendall, quadrant mass)"
         per_scenario: true
 
+  - phase_id: five_construct_divergence
+    script: run_five_construct_divergence.py
+    description: "DOE-C1: Five-construct divergence harness (E1+E2)"
+    per_scenario: true
+    depends_on: [r0_baseline, construct_divergence]
+
+    packages:
+      - scikit-learn
+      - numpy
+      - pandas
+      - pyarrow
+      - scipy
+
+    s3_artifacts:
+      # Event features have irregular names (no_event_features.parquet for
+      # new_orleans, rc_event_features for riverside_coachella, etc.).
+      # The job resolves via _coverage_common.OUTPUT_KEYS at runtime.
+      # We check shared layers and folds which DO follow {scenario} convention.
+      - key: "processed/shared/zcta_jrc_water_occurrence_pct.parquet"
+        description: "JRC Global Surface Water (shared layer)"
+      - key: "processed/shared/zcta_deltares_depth.parquet"
+        description: "Deltares modeled depth (shared layer)"
+      - key: "folds/{scenario}_folds.parquet"
+        description: "Fold assignments"
+        per_scenario: true
+      - key: "raw/geocertdb2026/zcta_adjacency.parquet"
+        description: "ZCTA Queen contiguity adjacency"
+      - key: "raw/geocertdb2026/zcta_features_labels.parquet"
+        description: "ZCTA centroids (lat/lon)"
+
+    outputs:
+      - key: "results/s035/doe_c1/five_construct_{scenario}.json"
+        description: "Full five-construct divergence result"
+        per_scenario: true
+      - key: "results/s035/doe_c1/cache/certificates_{scenario}.parquet"
+        description: "Per-construct certificate metrics (QA aggregation)"
+        per_scenario: true
+      - key: "results/s035/doe_c1/cache/pairwise_{scenario}.parquet"
+        description: "Pairwise construct distances (QA aggregation)"
+        per_scenario: true
+
   - phase_id: topology_necessity
     script: run_topology_necessity.py
     description: "DOE-P1: HAND/GFI ablation (3 arms x 5 scenarios)"
