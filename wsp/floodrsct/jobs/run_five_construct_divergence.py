@@ -70,7 +70,14 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 logging.getLogger("botocore.credentials").setLevel(logging.WARNING)
 
-RESULTS_PREFIX = "results/s035/five_construct_divergence"
+# Naming convention: results/s035/doe_c1/{artifact}_{scenario}.json
+# Matches PAPER_CONTRACT.yaml artifact paths and pipeline convention
+# ({phase}_{scenario}.json for per-scenario, {artifact}.json for aggregate).
+RESULTS_PREFIX = "results/s035/doe_c1"
+
+# Metric-level cache: flat parquets for cross-scenario aggregation in QA.
+# One row per construct per scenario, columns = certificate axes + metadata.
+CACHE_PREFIX = "results/s035/doe_c1/cache"
 
 # FAST S3 key pattern per scenario and return period
 FAST_RP_MAP = {
@@ -353,6 +360,43 @@ def _load_event_features(s3, scenario: str) -> pd.DataFrame:
     return df
 
 
+def _merge_shared_layers(s3, df: pd.DataFrame) -> pd.DataFrame:
+    """Merge JRC and Deltares shared parquets into event_features.
+
+    These are ZCTA-level static layers stored in processed/shared/ that
+    are NOT scenario-specific.  The construct harness needs them as columns
+    in the event_features dataframe so S3ConstructDataSource can find them.
+    """
+    shared_layers = {
+        "processed/shared/zcta_jrc_water_occurrence_pct.parquet": [
+            "jrc_occurrence_mean",
+        ],
+        "processed/shared/zcta_deltares_depth.parquet": [
+            "deltares_depth_ft_rp100",
+        ],
+    }
+    for key, cols in shared_layers.items():
+        # Skip if columns already present
+        if all(c in df.columns for c in cols):
+            log.info("Shared columns %s already in event_features, skipping %s", cols, key)
+            continue
+        try:
+            resp = s3.get_object(Bucket=BUCKET, Key=key)
+            layer = pd.read_parquet(io.BytesIO(resp["Body"].read()))
+            layer["zcta_id"] = layer["zcta_id"].astype(str)
+            merge_cols = ["zcta_id"] + [c for c in cols if c in layer.columns]
+            if len(merge_cols) > 1:
+                df = df.merge(layer[merge_cols], on="zcta_id", how="left")
+                log.info("Merged %d cols from %s (%d rows matched)",
+                         len(merge_cols) - 1, key, df[cols[0]].notna().sum())
+            else:
+                log.warning("Expected columns %s not found in %s (has: %s)",
+                            cols, key, layer.columns.tolist())
+        except Exception as exc:
+            log.warning("Could not load shared layer %s: %s", key, exc)
+    return df
+
+
 def _load_folds(s3, scenario: str) -> pd.DataFrame:
     """Load fold assignments from S3."""
     key = f"folds/{scenario}_folds.parquet"
@@ -456,6 +500,7 @@ def main() -> int:
     # Load data
     log.info("Loading data for scenario: %s", args.scenario)
     event_df = _load_event_features(s3, args.scenario)
+    event_df = _merge_shared_layers(s3, event_df)
     folds_df = _load_folds(s3, args.scenario)
     coords_df = _load_coords(s3)
     W_geo = _load_adjacency(s3)
@@ -520,6 +565,8 @@ def main() -> int:
 
     # Serialize (P9: replayable audit trail)
     summary = summarize_divergence(dm)
+    summary["doe_id"] = "DOE-C1"
+    summary["phase"] = "five_construct_divergence"
     summary["scenario"] = args.scenario
     summary["event"] = args.event
     summary["n_features"] = len(feature_cols)
@@ -549,19 +596,86 @@ def main() -> int:
         ))
     print("=" * 72)
 
+    # ---------------------------------------------------------------
+    # Output naming convention:
+    #   results/s035/doe_c1/five_construct_{scenario}.json      (full result)
+    #   results/s035/doe_c1/cache/certificates_{scenario}.parquet (metric cache)
+    #   results/s035/doe_c1/cache/pairwise_{scenario}.parquet    (pair cache)
+    # ---------------------------------------------------------------
+    scenario_tag = args.scenario
+
     # Write local copy
-    out_dir = Path(__file__).parent.parent / "exp" / "s035-model-ladder" / "results"
+    out_dir = Path(__file__).parent.parent / "exp" / "s035-model-ladder" / "results" / "doe_c1"
     out_dir.mkdir(parents=True, exist_ok=True)
-    local_file = out_dir / f"five_construct_divergence_{args.scenario}.json"
+    local_file = out_dir / f"five_construct_{scenario_tag}.json"
     with open(local_file, "w") as f:
         json.dump(summary, f, indent=2)
-    log.info("Written local copy to %s", local_file)
+    log.info("Written local: %s", local_file)
+
+    # Build metric-level cache parquets for cross-scenario QA aggregation.
+    # certificates cache: one row per construct, columns = certificate axes.
+    cert_rows = []
+    for c in dm.certificates:
+        cert_rows.append({
+            "scenario": scenario_tag,
+            "construct": c.construct.value,
+            "target_available": c.target_available,
+            "target_column": c.target_column,
+            "forward_score": float(c.forward_score) if np.isfinite(c.forward_score) else None,
+            "kappa_spatial": float(c.kappa_spatial) if np.isfinite(c.kappa_spatial) else None,
+            "kappa_reconstruct": float(c.kappa_reconstruct) if np.isfinite(c.kappa_reconstruct) else None,
+            "morans_i": float(c.morans_i) if np.isfinite(c.morans_i) else None,
+            "n_regions": c.n_regions,
+            "n_observations": c.n_observations,
+            "n_finite_targets": c.n_finite_targets,
+        })
+    cert_cache_df = pd.DataFrame(cert_rows)
+
+    # pairwise cache: one row per construct pair, columns = distance axes.
+    pair_rows = []
+    for p in dm.pairwise:
+        pair_rows.append({
+            "scenario": scenario_tag,
+            "construct_a": p.construct_a.value,
+            "construct_b": p.construct_b.value,
+            "euclidean_distance": float(p.euclidean_distance) if np.isfinite(p.euclidean_distance) else None,
+            "forward_delta": float(p.forward_delta) if np.isfinite(p.forward_delta) else None,
+            "kappa_spatial_delta": float(p.kappa_spatial_delta) if np.isfinite(p.kappa_spatial_delta) else None,
+            "kappa_reconstruct_delta": float(p.kappa_reconstruct_delta) if np.isfinite(p.kappa_reconstruct_delta) else None,
+            "both_available": p.both_available,
+        })
+    pair_cache_df = pd.DataFrame(pair_rows)
+
+    # Write local cache
+    cache_dir = out_dir / "cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cert_cache_df.to_parquet(cache_dir / f"certificates_{scenario_tag}.parquet", index=False)
+    pair_cache_df.to_parquet(cache_dir / f"pairwise_{scenario_tag}.parquet", index=False)
+    log.info("Written local cache: %s/certificates_%s.parquet, pairwise_%s.parquet",
+             cache_dir, scenario_tag, scenario_tag)
 
     # Upload to S3
     if args.upload:
-        key = f"{RESULTS_PREFIX}/{args.scenario}.json"
-        upload_json_result(s3, BUCKET, key, summary)
-        log.info("Uploaded to s3://%s/%s", BUCKET, key)
+        # Full result JSON
+        json_key = f"{RESULTS_PREFIX}/five_construct_{scenario_tag}.json"
+        upload_json_result(s3, BUCKET, json_key, summary)
+        log.info("Uploaded s3://%s/%s", BUCKET, json_key)
+
+        # Certificate cache parquet
+        cert_buf = io.BytesIO()
+        cert_cache_df.to_parquet(cert_buf, index=False)
+        cert_buf.seek(0)
+        cert_key = f"{CACHE_PREFIX}/certificates_{scenario_tag}.parquet"
+        s3.put_object(Bucket=BUCKET, Key=cert_key, Body=cert_buf.getvalue())
+        log.info("Uploaded s3://%s/%s", BUCKET, cert_key)
+
+        # Pairwise cache parquet
+        pair_buf = io.BytesIO()
+        pair_cache_df.to_parquet(pair_buf, index=False)
+        pair_buf.seek(0)
+        pair_key = f"{CACHE_PREFIX}/pairwise_{scenario_tag}.parquet"
+        s3.put_object(Bucket=BUCKET, Key=pair_key, Body=pair_buf.getvalue())
+        log.info("Uploaded s3://%s/%s", BUCKET, pair_key)
 
     return 0
 
