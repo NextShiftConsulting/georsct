@@ -315,27 +315,31 @@ class S3ConstructDataSource(ConstructDataSource):
                 reason=f"column {target_col} not in FAST parquet",
             )
 
-        # Merge with event df to align on shared ZCTAs
+        # Left join on full df to keep row alignment with features.
+        # ZCTAs without FAST data get NaN target (same partial-coverage
+        # pattern as JRC/Deltares — model fitter handles NaN targets).
+        fast_lookup = fast_df[["zcta_id", target_col]].drop_duplicates(subset="zcta_id")
         merged = pd.merge(
-            df[["zcta_id"]].drop_duplicates(),
-            fast_df[["zcta_id", target_col]],
+            df[["zcta_id"]],
+            fast_lookup,
             on="zcta_id",
-            how="inner",
+            how="left",
         )
 
-        if len(merged) < 10:
+        n_finite = int(np.isfinite(merged[target_col].to_numpy(dtype=float)).sum())
+        if n_finite < 10:
             return ConstructData(
                 construct=ConstructLabel.FAST,
                 target_values=None,
                 region_ids=None,
                 available=False,
-                reason=f"insufficient FAST overlap (n={len(merged)})",
+                reason=f"insufficient FAST overlap (n={n_finite})",
             )
 
         return ConstructData(
             construct=ConstructLabel.FAST,
             target_values=merged[target_col].to_numpy(dtype=float),
-            region_ids=merged["zcta_id"].astype(str).to_numpy(),
+            region_ids=df["zcta_id"].astype(str).to_numpy(),
             available=True,
             reason="ok",
         )
