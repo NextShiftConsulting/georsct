@@ -1,11 +1,10 @@
-"""Spatial expert base class — port (ABC).
+"""Spatial expert port — ABC for DMoE-style modular experts.
 
-DMoE-style modular expert admitted on demand by the gearbox.
-Concrete implementations go in this package or in flood/adapters/
-depending on whether they need I/O.
+Admitted on demand by the gearbox. Concrete implementations belong in
+flood/adapters/ (backed by real data/source contracts) or in test
+fixtures (demo/mock experts).
 
 Import rule: this module imports only from contracts and provenance.
-The execution layer depends on this ABC, never on concrete experts.
 """
 
 from __future__ import annotations
@@ -47,7 +46,7 @@ class SpatialExpert(ABC):
 
     Concrete experts that need I/O (S3, APIs) should live in
     ``flood/adapters/`` and inject their data sources via ports.
-    Pure-computation experts can live directly in ``experts/``.
+    Pure-computation experts can live directly in test fixtures.
     """
 
     expert_id: str = "base"

@@ -1,44 +1,17 @@
-"""GeoCertDB provenance store — Layer 4.
+"""Local trace store — file-system implementation.
 
-Persists traces, certificates, artifacts, and scores.
-Extends the existing CertificateRepository pattern from ports/.
-
-Import rule: depends only on provenance.trace and contracts.
-S3 access uses the port pattern — the ABC is here, the S3
-adapter would live in flood/adapters/outbound/s3/.
+Generic provenance infrastructure for development and testing.
+The TraceStore ABC lives in ports/trace_store.py.
 """
 
 from __future__ import annotations
 
 import json
-from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional
 
+from georsct.ports.trace_store import TraceStore
 from georsct.provenance.trace import Trace
-
-
-class TraceStore(ABC):
-    """Port: persistence for execution traces.
-
-    Tables implied by this interface:
-      - workflow_trace (task_id, timestamp, verdict, ...)
-      - workflow_step (step_index, tool_name, admission_reason, ...)
-      - artifact (artifact_id, uri, checksum, ...)
-      - score_process / score_outcome / score_geocert
-    """
-
-    @abstractmethod
-    def save_trace(self, trace: Trace) -> str:
-        """Persist a trace. Returns a storage key."""
-
-    @abstractmethod
-    def load_trace(self, task_id: str) -> Optional[Trace]:
-        """Load a trace by task_id."""
-
-    @abstractmethod
-    def list_traces(self, prefix: str = "") -> list[str]:
-        """List stored trace task_ids."""
 
 
 class LocalTraceStore(TraceStore):

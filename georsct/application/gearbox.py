@@ -1,18 +1,16 @@
 """GeoRSCT-X gearbox — maps certificate weakness to expert admission mode.
 
-Layer 3: GeoGearbox.
-
 The gearbox reads the certificate's ranked weakness vector and selects
 the appropriate gear (intervention mode). Experts are then ranked by
 expected compatibility gain within that gear.
 
-Import rule: depends only on provenance and experts.base (ABCs).
+Import rule: depends only on contracts, provenance, and ports.
 """
 
 from __future__ import annotations
 
 from georsct.contracts.task_contract import TaskContract
-from georsct.experts.base import SpatialExpert
+from georsct.ports.spatial_expert import SpatialExpert
 from georsct.provenance.trace import ExecutionCertificate, Weakness
 
 
@@ -57,9 +55,6 @@ def rank_experts(
     Steps:
       1. Hard filter: remove already-run and non-admissible experts.
       2. Soft rank: sort by expected_delta descending.
-
-    The expected_delta comes from historical traces (GeoCertDB) or
-    static defaults on the expert class.
 
     Args:
         candidates: All registered experts.

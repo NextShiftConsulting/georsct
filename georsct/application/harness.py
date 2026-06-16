@@ -1,4 +1,4 @@
-"""GeoRSCT-X execution harness — Layer 2.
+"""GeoRSCT-X execution harness — the system spine.
 
 ReAct loop: plan -> admit -> execute -> observe -> recertify.
 
@@ -8,9 +8,9 @@ recording admissibility provenance, and emitting certificates.
 The key differentiator from TerraBench:
     The trace is an admissibility log, not just a tool-use log.
 
-Import rule: depends on contracts, provenance, experts.base (ABCs),
-and execution.gearbox. NEVER imports domain types directly --
-the CertificateEvaluator is injected as a Protocol callable.
+Import rule: depends on contracts, provenance, and ports (ABCs).
+NEVER imports domain types directly -- the CertificateEvaluator
+is injected as a Protocol callable.
 """
 
 from __future__ import annotations
@@ -18,9 +18,9 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import Any, Protocol
 
+from georsct.application.gearbox import rank_experts, select_gear
 from georsct.contracts.task_contract import TaskContract
-from georsct.execution.gearbox import rank_experts, select_gear
-from georsct.experts.base import SpatialExpert
+from georsct.ports.spatial_expert import SpatialExpert
 from georsct.provenance.trace import (
     ExecutionCertificate,
     Step,
