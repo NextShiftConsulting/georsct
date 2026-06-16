@@ -32,6 +32,12 @@ import numpy as np
 from scipy.spatial import Delaunay
 
 
+# Maximum dimensionality for direct Delaunay triangulation.
+# Above this, we reduce to 2D via PCA before computing the Gabriel graph.
+# Qhull cannot handle Delaunay in more than ~15-20 dimensions.
+_MAX_DELAUNAY_DIM = 15
+
+
 # =========================================================================
 # Gabriel graph construction
 # =========================================================================
@@ -46,17 +52,32 @@ def gabriel_graph(points: np.ndarray) -> list[tuple[int, int]]:
     Computed via Delaunay triangulation (Gabriel is a subgraph of Delaunay)
     then filtering edges by the diametral ball criterion.
 
+    For high-dimensional inputs (d > _MAX_DELAUNAY_DIM), points are
+    projected to 2D via PCA before Delaunay. This preserves the local
+    neighbor structure while making the triangulation tractable.
+
     Args:
         points: (n, d) array of point coordinates in any dimension.
 
     Returns:
         List of (i, j) edges with i < j.
     """
-    n = points.shape[0]
+    n, d = points.shape
     if n < 3:
         return [(i, j) for i in range(n) for j in range(i + 1, n)]
 
-    tri = Delaunay(points)
+    # High-dimensional case: project to 2D via PCA
+    if d > _MAX_DELAUNAY_DIM:
+        points_proj = _pca_reduce(points, n_components=min(2, n - 1))
+    else:
+        points_proj = points
+
+    try:
+        tri = Delaunay(points_proj, qhull_options="QJ")
+    except Exception:
+        # Fallback: use k-NN edges if Delaunay fails even after PCA
+        return _knn_edges(points, k=min(6, n - 1))
+
     candidate_edges: set[tuple[int, int]] = set()
     for simplex in tri.simplices:
         for a in range(len(simplex)):
@@ -66,6 +87,7 @@ def gabriel_graph(points: np.ndarray) -> list[tuple[int, int]]:
 
     # Filter: keep edge (i,j) only if no point k falls inside the
     # open diametral ball (midpoint = center, radius = half edge length)
+    # Use ORIGINAL points (not projected) for the Gabriel criterion
     gabriel_edges = []
     for i, j in candidate_edges:
         mid = (points[i] + points[j]) / 2.0
@@ -77,6 +99,28 @@ def gabriel_graph(points: np.ndarray) -> list[tuple[int, int]]:
             gabriel_edges.append((i, j))
 
     return gabriel_edges
+
+
+def _pca_reduce(X: np.ndarray, n_components: int = 2) -> np.ndarray:
+    """Lightweight PCA projection (no sklearn dependency)."""
+    X_centered = X - X.mean(axis=0)
+    # Use SVD for numerical stability
+    _, _, Vt = np.linalg.svd(X_centered, full_matrices=False)
+    return X_centered @ Vt[:n_components].T
+
+
+def _knn_edges(points: np.ndarray, k: int = 6) -> list[tuple[int, int]]:
+    """Fallback: k-NN graph edges when Delaunay fails."""
+    n = points.shape[0]
+    dists = np.sum((points[:, None] - points[None, :]) ** 2, axis=2)
+    edges: set[tuple[int, int]] = set()
+    for i in range(n):
+        neighbors = np.argsort(dists[i])[:k + 1]
+        for j in neighbors:
+            j = int(j)
+            if j != i:
+                edges.add((min(i, j), max(i, j)))
+    return sorted(edges)
 
 
 # =========================================================================
