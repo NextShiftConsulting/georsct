@@ -135,13 +135,16 @@ class HistGBDTModelFitter(ModelFitter):
         for fold in folds:
             train = fold_ids != fold
             test = ~train
-            if train.sum() < 20 or test.sum() < 5:
+
+            # Mask NaN targets (e.g., JRC/Deltares with partial coverage)
+            train_valid = train & np.isfinite(y)
+            if train_valid.sum() < 20 or test.sum() < 5:
                 continue
 
             model = HistGradientBoostingRegressor(
                 random_state=self._seed, **HGBDT_PARAMS,
             )
-            model.fit(X[train], y[train])
+            model.fit(X[train_valid], y[train_valid])
             pred[test] = model.predict(X[test])
 
         valid = np.isfinite(pred)
