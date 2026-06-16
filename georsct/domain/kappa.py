@@ -25,7 +25,11 @@ class GeometryKappa:
 
     @property
     def kappa_prior(self) -> float:
-        """Alias for kappa_geom (Q-007: pre-evidence estimate, not geometry)."""
+        """Q-007 canonical name: prior_geometry.
+
+        Pre-model diagnostic from spatial geometry stats.
+        NOT kappa_coupling (R*(1-N)) — cannot flow to gates (ADR-020 D8.6).
+        """
         return self.kappa_geom
 
 
