@@ -169,7 +169,7 @@ def run_permutation_test(names, vectors, n_perm=N_PERMUTATIONS, seed=42):
     }
 
 
-def process_scenario(s3, scenario, upload=False):
+def process_scenario(s3, scenario, upload=False, n_perm=N_PERMUTATIONS):
     """Run permutation test for one scenario."""
     log.info("Loading DOE-C1 result for %s ...", scenario)
     result = _load_scenario_result(s3, scenario)
@@ -181,7 +181,7 @@ def process_scenario(s3, scenario, upload=False):
         log.warning("  Fewer than 2 constructs available; skipping.")
         return None
 
-    perm_result = run_permutation_test(names, vectors)
+    perm_result = run_permutation_test(names, vectors, n_perm=n_perm)
     perm_result["scenario"] = scenario
     perm_result["timestamp"] = datetime.now(timezone.utc).isoformat()
     perm_result["source_artifact"] = (
@@ -227,16 +227,15 @@ def main():
                         help="Number of permutations (default: 10000)")
     args = parser.parse_args()
 
-    global N_PERMUTATIONS
-    N_PERMUTATIONS = args.n_perm
-
+    n_perm = args.n_perm
     s3 = _get_s3()
 
     scenarios = SCENARIOS if args.all else [args.scenario]
     all_results = []
 
     for scenario in scenarios:
-        result = process_scenario(s3, scenario, upload=args.upload)
+        result = process_scenario(s3, scenario, upload=args.upload,
+                                  n_perm=n_perm)
         if result:
             all_results.append(result)
 
