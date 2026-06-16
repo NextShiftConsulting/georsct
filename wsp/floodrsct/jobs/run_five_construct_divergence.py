@@ -132,22 +132,29 @@ class HistGBDTModelFitter(ModelFitter):
         folds = sorted(set(fold_ids))
         pred = np.full(len(y), np.nan, dtype=float)
 
+        # Invariant: a row participates in fit/eval only if target is finite.
+        # Missing coverage (e.g., JRC for 12/648 ZCTAs) stays visible as NaN.
+        target_valid = np.isfinite(y)
+        n_total, n_finite = len(y), int(target_valid.sum())
+        log.info("  target coverage: %d/%d = %.3f", n_finite, n_total,
+                 n_finite / n_total if n_total > 0 else 0.0)
+
         for fold in folds:
             train = fold_ids != fold
             test = ~train
 
-            # Mask NaN targets (e.g., JRC/Deltares with partial coverage)
-            train_valid = train & np.isfinite(y)
-            if train_valid.sum() < 20 or test.sum() < 5:
+            train_valid = train & target_valid
+            test_valid = test & target_valid
+            if train_valid.sum() < 20 or test_valid.sum() < 5:
                 continue
 
             model = HistGradientBoostingRegressor(
                 random_state=self._seed, **HGBDT_PARAMS,
             )
             model.fit(X[train_valid], y[train_valid])
-            pred[test] = model.predict(X[test])
+            pred[test_valid] = model.predict(X[test_valid])
 
-        valid = np.isfinite(pred) & np.isfinite(y)
+        valid = np.isfinite(pred) & target_valid
         if valid.sum() < 3:
             return FitPredictResult(
                 predictions=pred,
