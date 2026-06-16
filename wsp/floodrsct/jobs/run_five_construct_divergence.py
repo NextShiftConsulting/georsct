@@ -396,11 +396,24 @@ def _merge_shared_layers(s3, df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _load_folds(s3, scenario: str) -> pd.DataFrame:
-    """Load fold assignments from S3."""
+    """Load fold assignments from S3.
+
+    The folds parquet has columns: zcta_id, event, fold_random,
+    fold_spatial_blocked, fold_leave_event_out.  We use fold_random
+    as the canonical fold for DOE-C1 (ADR-014: frozen hyperparameters,
+    frozen folds).
+    """
     key = f"folds/{scenario}_folds.parquet"
     try:
         resp = s3.get_object(Bucket=BUCKET, Key=key)
-        return pd.read_parquet(io.BytesIO(resp["Body"].read()))
+        df = pd.read_parquet(io.BytesIO(resp["Body"].read()))
+        # Normalize: use fold_spatial_blocked (5 integer folds) for cross-validation.
+        # fold_random is only train/test; fold_spatial_blocked gives proper 5-fold CV.
+        if "fold" not in df.columns and "fold_spatial_blocked" in df.columns:
+            df["fold"] = df["fold_spatial_blocked"]
+        elif "fold" not in df.columns and "fold_random" in df.columns:
+            df["fold"] = df["fold_random"]
+        return df
     except Exception:
         log.warning("Folds not found at %s, will use hash-based folds", key)
         return pd.DataFrame()
@@ -503,10 +516,11 @@ def main() -> int:
     coords_df = _load_coords(s3)
     W_geo = _load_adjacency(s3)
 
-    # Merge folds if available
+    # Merge folds if available (deduplicate: folds may have multiple events per zcta)
     if not folds_df.empty and "fold" not in event_df.columns:
         folds_df["zcta_id"] = folds_df["zcta_id"].astype(str)
-        event_df = event_df.merge(folds_df[["zcta_id", "fold"]], on="zcta_id", how="left")
+        fold_map = folds_df[["zcta_id", "fold"]].drop_duplicates(subset="zcta_id")
+        event_df = event_df.merge(fold_map, on="zcta_id", how="left")
 
     if "fold" not in event_df.columns:
         log.info("No folds found, creating hash-based folds")
