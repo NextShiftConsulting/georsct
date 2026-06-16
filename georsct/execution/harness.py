@@ -90,7 +90,7 @@ def _default_solver(
 # GeoRSCT-X Harness
 # ---------------------------------------------------------------------------
 
-# Convergence threshold for kappa_geom fixpoint.
+# Convergence threshold for kappa_coupling fixpoint.
 _KAPPA_EPS = 1e-3
 
 
@@ -162,8 +162,12 @@ class GeoRSCTHarness:
                 self.experts, cert, contract, frozenset(admitted),
             )
             if not ranked:
-                # No new admissible expert for this weakness
-                if not cert.is_admissible() or cert.primary_weakness() != "none":
+                # No admissible expert left for this weakness.
+                # FAIL if high-severity weaknesses remain unresolved;
+                # otherwise ESCALATE for human review.
+                if cert.has_high_severity_unresolved():
+                    cert.verdict = Verdict.FAIL
+                elif cert.primary_weakness() != "none":
                     if cert.verdict == Verdict.WARN:
                         cert.verdict = Verdict.ESCALATE
                 break
@@ -200,12 +204,12 @@ class GeoRSCTHarness:
                 gear=gear,
                 certificate_before=cert_before,
                 certificate_after=asdict(cert_after),
-                compatibility_delta=cert_after.kappa_geom - cert.kappa_geom,
+                compatibility_delta=cert_after.kappa_coupling - cert.kappa_coupling,
             ))
 
             # Muon admissibility check: rollback if expert hurt the certificate
             if (
-                cert_after.kappa_geom < cert.kappa_geom
+                cert_after.kappa_coupling < cert.kappa_coupling
                 or cert_after.residual_moran > cert.residual_moran
             ):
                 cert_after.verdict = Verdict.SUPPRESS
@@ -213,7 +217,7 @@ class GeoRSCTHarness:
                 break
 
             # Fixpoint: if enrichment no longer moves compatibility, stop
-            if abs(cert_after.kappa_geom - cert.kappa_geom) < _KAPPA_EPS:
+            if abs(cert_after.kappa_coupling - cert.kappa_coupling) < _KAPPA_EPS:
                 cert = cert_after
                 break
 

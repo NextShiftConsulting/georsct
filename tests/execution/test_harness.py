@@ -59,7 +59,7 @@ def _make_gold(task_id: str = "test-001") -> TaskGold:
 
 
 def _make_cert(
-    kappa_geom: float = 0.4,
+    kappa_coupling: float = 0.4,
     N: float = 0.6,
     residual_moran: float = 0.2,
     leakage: float = 0.05,
@@ -70,8 +70,8 @@ def _make_cert(
         R=1 - N - 0.1,
         S_sup=0.1,
         N=N,
-        kappa_geom=kappa_geom,
-        kappa_req=0.7,
+        kappa_coupling=kappa_coupling,
+        kappa_threshold=0.7,
         leakage_score=leakage,
         fold_stability=0.9,
         residual_moran=residual_moran,
@@ -105,7 +105,7 @@ def _mock_evaluator_factory(
         return ExecutionCertificate(
             geometry=contract.geometry,
             R=1 - N - 0.1, S_sup=0.1, N=N,
-            kappa_geom=round(kappa, 3), kappa_req=kreq,
+            kappa_coupling=round(kappa, 3), kappa_threshold=kreq,
             leakage_score=0.05, fold_stability=0.91,
             residual_moran=moran, gates=gates, verdict=verdict,
         )
@@ -161,28 +161,43 @@ class TestExecutionCertificate:
         assert "low_target_coverage" in types
 
     def test_weakness_vector_under_supported(self):
-        cert = _make_cert(kappa_geom=0.4, N=0.3)
+        cert = _make_cert(kappa_coupling=0.4, N=0.3)
         wv = cert.weakness_vector()
         types = [w.weakness_type for w in wv]
         assert "under_supported_geometry" in types
 
     def test_weakness_vector_none_when_healthy(self):
-        cert = _make_cert(kappa_geom=0.8, N=0.2, residual_moran=0.1, leakage=0.05)
+        cert = _make_cert(kappa_coupling=0.8, N=0.2, residual_moran=0.1, leakage=0.05)
         wv = cert.weakness_vector()
         assert len(wv) == 0
 
     def test_weakness_vector_capped_at_3(self):
-        cert = _make_cert(kappa_geom=0.3, N=0.7, residual_moran=0.5, leakage=0.4)
+        cert = _make_cert(kappa_coupling=0.3, N=0.7, residual_moran=0.5, leakage=0.4)
         wv = cert.weakness_vector(max_weaknesses=3)
         assert len(wv) <= 3
 
-    def test_too_many_weaknesses_fails(self):
-        cert = _make_cert(kappa_geom=0.3, N=0.7, residual_moran=0.5, leakage=0.4)
+    def test_weakness_vector_no_longer_sets_fail(self):
+        """FAIL is decided by the harness, not weakness_vector."""
+        cert = _make_cert(kappa_coupling=0.3, N=0.7, residual_moran=0.5, leakage=0.4)
         cert.weakness_vector(max_weaknesses=3)
-        assert cert.verdict == Verdict.FAIL
+        # verdict unchanged -- harness decides FAIL when experts exhausted
+        assert cert.verdict == Verdict.WARN
+
+    def test_all_weaknesses_returns_full_audit(self):
+        cert = _make_cert(kappa_coupling=0.3, N=0.7, residual_moran=0.5, leakage=0.4)
+        all_w = cert.all_weaknesses()
+        assert len(all_w) == 4  # all four weakness types active
+
+    def test_has_high_severity_unresolved(self):
+        # N=0.7 > 0.5 threshold → high severity
+        cert = _make_cert(kappa_coupling=0.8, N=0.7, residual_moran=0.1)
+        assert cert.has_high_severity_unresolved()
+        # healthy cert has no high severity
+        healthy = _make_cert(kappa_coupling=0.8, N=0.2, residual_moran=0.1)
+        assert not healthy.has_high_severity_unresolved()
 
     def test_weakness_ranked_by_severity(self):
-        cert = _make_cert(kappa_geom=0.3, N=0.7, residual_moran=0.5)
+        cert = _make_cert(kappa_coupling=0.3, N=0.7, residual_moran=0.5)
         wv = cert.weakness_vector()
         severities = [w.severity for w in wv]
         assert severities == sorted(severities, reverse=True)
@@ -201,19 +216,19 @@ class TestExecutionCertificate:
 class TestGearbox:
 
     def test_select_gear_observe(self):
-        cert = _make_cert(N=0.6, kappa_geom=0.8)
+        cert = _make_cert(N=0.6, kappa_coupling=0.8)
         assert select_gear(cert) == "G1_observe"
 
     def test_select_gear_enrich(self):
-        cert = _make_cert(N=0.3, kappa_geom=0.4)
+        cert = _make_cert(N=0.3, kappa_coupling=0.4)
         assert select_gear(cert) == "G2_enrich"
 
     def test_select_gear_base_when_healthy(self):
-        cert = _make_cert(kappa_geom=0.8, N=0.2, residual_moran=0.1)
+        cert = _make_cert(kappa_coupling=0.8, N=0.2, residual_moran=0.1)
         assert select_gear(cert) == "G0_base"
 
     def test_rank_experts_by_delta(self):
-        cert = _make_cert(kappa_geom=0.4, N=0.3)
+        cert = _make_cert(kappa_coupling=0.4, N=0.3)
         contract = _make_contract()
         experts = [HWMObservationExpert(), JRCSurfaceWaterExpert()]
         ranked = rank_experts(experts, cert, contract)
@@ -221,7 +236,7 @@ class TestGearbox:
         assert ranked[0].expert_id == "jrc_surface_water"
 
     def test_rank_excludes_already_run(self):
-        cert = _make_cert(kappa_geom=0.4, N=0.3)
+        cert = _make_cert(kappa_coupling=0.4, N=0.3)
         contract = _make_contract()
         experts = [JRCSurfaceWaterExpert()]
         ranked = rank_experts(
@@ -292,7 +307,7 @@ class TestHarness:
             return ExecutionCertificate(
                 geometry=contract.geometry,
                 R=0.5, S_sup=0.2, N=0.3,
-                kappa_geom=kappa, kappa_req=0.7,
+                kappa_coupling=kappa, kappa_threshold=0.7,
                 leakage_score=0.05, fold_stability=0.9,
                 residual_moran=0.2, verdict=Verdict.WARN,
             )
@@ -319,7 +334,7 @@ class TestHarness:
 
         # Always returns under-supported
         def stuck_evaluator(contract, state):
-            return _make_cert(kappa_geom=0.4, N=0.3)
+            return _make_cert(kappa_coupling=0.4, N=0.3)
 
         harness = GeoRSCTHarness(
             experts=[InfiniteExpert()],

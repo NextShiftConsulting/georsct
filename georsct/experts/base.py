@@ -22,7 +22,7 @@ class ExpertResult:
 
     Attributes:
         features: New features to merge into the state.
-        compatibility_delta: Signed change in kappa_geom (estimate).
+        compatibility_delta: Signed change in kappa_coupling (estimate).
         artifacts: Evidence objects produced.
     """
 

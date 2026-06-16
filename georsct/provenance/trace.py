@@ -92,8 +92,8 @@ class ExecutionCertificate:
     N: float
 
     # Compatibility
-    kappa_geom: float
-    kappa_req: float  # Oobleck threshold
+    kappa_coupling: float
+    kappa_threshold: float  # Oobleck threshold
 
     # Geospatial quality
     leakage_score: float
@@ -109,13 +109,23 @@ class ExecutionCertificate:
     def is_admissible(self) -> bool:
         return self.verdict in (Verdict.PASS, Verdict.WARN)
 
-    def weakness_vector(self, max_weaknesses: int = 3) -> list[Weakness]:
-        """Ranked weakness vector, capped at max_weaknesses.
+    # High-severity threshold: weaknesses above this drive FAIL decisions.
+    HIGH_SEVERITY_THRESHOLD: float = 0.5
 
-        If more than max_weaknesses are active, the certificate should
-        FAIL outright -- the representation is too degraded for
-        incremental expert enrichment.
+    def weakness_vector(self, max_weaknesses: int = 3) -> list[Weakness]:
+        """Top weaknesses shown to gearbox, capped at max_weaknesses.
+
+        Returns the top-ranked weaknesses for the gearbox to act on.
+        The full audit is available via ``all_weaknesses()``.
+
+        Does NOT set verdict — FAIL is decided by the harness when
+        high-severity weaknesses remain after admissible experts are
+        exhausted.
         """
+        return self.all_weaknesses()[:max_weaknesses]
+
+    def all_weaknesses(self) -> list[Weakness]:
+        """Full ranked weakness audit retained in the certificate."""
         weaknesses: list[Weakness] = []
         if self.N > 0.5:
             weaknesses.append(Weakness("low_target_coverage", min(self.N, 1.0)))
@@ -123,22 +133,22 @@ class ExecutionCertificate:
             weaknesses.append(Weakness(
                 "residual_spatial_structure", min(self.residual_moran, 1.0),
             ))
-        if self.kappa_geom < self.kappa_req:
-            gap = self.kappa_req - self.kappa_geom
+        if self.kappa_coupling < self.kappa_threshold:
+            gap = self.kappa_threshold - self.kappa_coupling
             weaknesses.append(Weakness(
-                "under_supported_geometry", min(gap / self.kappa_req, 1.0),
+                "under_supported_geometry", min(gap / self.kappa_threshold, 1.0),
             ))
         if self.leakage_score > 0.2:
             weaknesses.append(Weakness("leakage", min(self.leakage_score, 1.0)))
-
-        # Rank by severity descending
         weaknesses.sort(key=lambda w: w.severity, reverse=True)
+        return weaknesses
 
-        if len(weaknesses) > max_weaknesses:
-            # Too degraded for incremental enrichment
-            self.verdict = Verdict.FAIL
-
-        return weaknesses[:max_weaknesses]
+    def has_high_severity_unresolved(self) -> bool:
+        """True if any weakness exceeds the high-severity threshold."""
+        return any(
+            w.severity > self.HIGH_SEVERITY_THRESHOLD
+            for w in self.all_weaknesses()
+        )
 
     def primary_weakness(self) -> str:
         """Top weakness type (for backward compat with gearbox)."""
