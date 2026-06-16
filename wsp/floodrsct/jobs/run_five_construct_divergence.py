@@ -426,9 +426,12 @@ def _load_coords(s3) -> pd.DataFrame:
         resp = s3.get_object(Bucket=BUCKET, Key=key)
         df = pd.read_parquet(io.BytesIO(resp["Body"].read()))
         df["zcta_id"] = df["zcta_id"].astype(str)
+        # Normalize column names (source has latitude/longitude)
+        if "latitude" in df.columns and "lat" not in df.columns:
+            df = df.rename(columns={"latitude": "lat", "longitude": "lon"})
         return df[["zcta_id", "lat", "lon"]]
-    except Exception:
-        log.warning("Centroids not found at %s", key)
+    except Exception as exc:
+        log.warning("Centroids not found at %s: %s", key, exc)
         return pd.DataFrame()
 
 
@@ -465,11 +468,18 @@ def _adjacency_df_to_csr(adj_df: pd.DataFrame) -> sparse.csr_matrix:
 
 
 def _select_features(df: pd.DataFrame, target: str) -> list[str]:
-    """Select numeric feature columns, excluding reserved columns."""
-    reserved = {
+    """Select numeric feature columns, excluding reserved columns.
+
+    All construct target columns are excluded to prevent cross-construct
+    leakage: if JRC were a feature when predicting NFIP, the certificates
+    would not be independent.
+    """
+    # All construct targets must be excluded regardless of which is the target
+    construct_targets = set(CONSTRUCT_TARGET_COLUMNS.values())
+    reserved = construct_targets | {
         target, "zcta_id", "event", "fold", "lat", "lon",
-        "obs_nfip_event_claims", "nfip_event_claim_count",
-        "nfip_event_total_loss", "obs_has_311", "obs_has_hwm",
+        "nfip_event_claim_count", "nfip_event_total_loss",
+        "obs_has_311", "obs_has_hwm",
     }
     return [
         c for c in df.select_dtypes(include=[np.number]).columns
