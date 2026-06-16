@@ -41,10 +41,8 @@ from sklearn.metrics import r2_score
 from sklearn.preprocessing import StandardScaler
 
 # ---------------------------------------------------------------------------
-# Wire domain + ports + use case
+# Wire domain + ports + use case (installed via rsct wheel)
 # ---------------------------------------------------------------------------
-sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
-
 from georsct.domain.construct_certificate import (
     CONSTRUCT_TARGET_COLUMNS,
     ConstructLabel,
