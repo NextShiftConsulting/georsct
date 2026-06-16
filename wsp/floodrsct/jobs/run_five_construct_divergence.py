@@ -147,7 +147,7 @@ class HistGBDTModelFitter(ModelFitter):
             model.fit(X[train_valid], y[train_valid])
             pred[test] = model.predict(X[test])
 
-        valid = np.isfinite(pred)
+        valid = np.isfinite(pred) & np.isfinite(y)
         if valid.sum() < 3:
             return FitPredictResult(
                 predictions=pred,
