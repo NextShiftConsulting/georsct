@@ -28,7 +28,9 @@ SCENARIOS = ["houston", "southwest_florida", "nyc", "riverside_coachella", "new_
 
 def _launch_one(scenario: str, event: str | None, dry_run: bool) -> str:
     """Launch a single scenario job."""
-    job_name = make_job_name(f"5construct-{scenario[:8]}")
+    # SageMaker job names allow only [a-zA-Z0-9-]; replace underscores.
+    tag = scenario[:8].replace("_", "-")
+    job_name = make_job_name(f"5construct-{tag}")
 
     job_args = ["--scenario", scenario, "--upload"]
     if event:
