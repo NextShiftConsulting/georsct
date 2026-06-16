@@ -445,22 +445,27 @@ def _load_coords(s3) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def _load_adjacency(s3) -> Optional[sparse.csr_matrix]:
-    """Load ZCTA adjacency as CSR matrix."""
+def _load_adjacency_df(s3) -> Optional[pd.DataFrame]:
+    """Load raw ZCTA adjacency edge list."""
     from _coverage_common import load_adjacency
     try:
-        adj_df = load_adjacency(s3)
-        return _adjacency_df_to_csr(adj_df)
+        return load_adjacency(s3)
     except Exception as exc:
         log.warning("Adjacency not loaded: %s", exc)
         return None
 
 
-def _adjacency_df_to_csr(adj_df: pd.DataFrame) -> sparse.csr_matrix:
-    """Convert adjacency edge list to row-normalized CSR."""
-    ids = sorted(set(adj_df.iloc[:, 0].astype(str)) | set(adj_df.iloc[:, 1].astype(str)))
-    idx = {z: i for i, z in enumerate(ids)}
-    n = len(ids)
+def _build_adjacency_csr(
+    adj_df: pd.DataFrame,
+    region_order: tuple[str, ...],
+) -> sparse.csr_matrix:
+    """Build row-normalized CSR from edge list, subset to region_order.
+
+    Only edges between ZCTAs in region_order are included. The matrix
+    dimensions match len(region_order), indexed by region_order position.
+    """
+    idx = {z: i for i, z in enumerate(region_order)}
+    n = len(region_order)
     rows, cols = [], []
     for _, row in adj_df.iterrows():
         a = idx.get(str(row.iloc[0]))
@@ -474,6 +479,7 @@ def _adjacency_df_to_csr(adj_df: pd.DataFrame) -> sparse.csr_matrix:
     row_sums = np.array(W.sum(axis=1)).flatten()
     row_sums[row_sums == 0] = 1.0
     W = W.multiply(1.0 / row_sums[:, np.newaxis]).tocsr()
+    log.info("Adjacency: %d x %d, %d edges in scenario", n, n, len(rows) // 2)
     return W
 
 
@@ -534,7 +540,7 @@ def main() -> int:
     event_df = _merge_shared_layers(s3, event_df)
     folds_df = _load_folds(s3, args.scenario)
     coords_df = _load_coords(s3)
-    W_geo = _load_adjacency(s3)
+    adj_df = _load_adjacency_df(s3)
 
     # Merge folds if available (deduplicate: folds may have multiple events per zcta)
     if not folds_df.empty and "fold" not in event_df.columns:
@@ -573,7 +579,10 @@ def main() -> int:
         log.warning("No coordinates available, using zeros (kappa_reconstruct will be NaN)")
         coords2d = np.zeros((len(region_order), 2))
 
-    if W_geo is None:
+    # Build adjacency CSR subset to scenario ZCTAs (must happen after region_order)
+    if adj_df is not None:
+        W_geo = _build_adjacency_csr(adj_df, region_order)
+    else:
         log.warning("No adjacency matrix, creating identity (kappa_spatial will be NaN)")
         W_geo = sparse.eye(len(region_order), format="csr")
 
