@@ -461,19 +461,7 @@ def main() -> int:
     out_dir = Path(__file__).parent.parent / "exp" / "s035-model-ladder" / "results" / "doe_c2a"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # Strip bootstrap_samples from the JSON for size (keep in parquet)
-    result_slim = {k: v for k, v in result.items()}
-    for cname in result_slim.get("constructs", {}):
-        cr = result_slim["constructs"][cname]
-        if isinstance(cr, dict) and "bootstrap_samples" in cr:
-            cr["bootstrap_samples"] = "see cache parquet"
-
-    local_file = out_dir / ("omega_bootstrap_%s.json" % args.scenario)
-    with open(local_file, "w") as f:
-        json.dump(result_slim, f, indent=2, default=str)
-    log.info("Written local: %s", local_file)
-
-    # Bootstrap samples cache (full detail)
+    # Bootstrap samples cache (full detail) — extract BEFORE stripping
     boot_rows = []
     for construct in CONSTRUCT_ORDER:
         cr = construct_results.get(construct.name, {})
@@ -488,6 +476,19 @@ def main() -> int:
                 "kappa_spatial": sample["kappa_spatial"],
                 "kappa_reconstruct": sample["kappa_reconstruct"],
             })
+
+    # Strip bootstrap_samples from the JSON for size (keep in parquet)
+    import copy
+    result_slim = copy.deepcopy(result)
+    for cname in result_slim.get("constructs", {}):
+        cr = result_slim["constructs"][cname]
+        if isinstance(cr, dict) and "bootstrap_samples" in cr:
+            cr["bootstrap_samples"] = "see cache parquet"
+
+    local_file = out_dir / ("omega_bootstrap_%s.json" % args.scenario)
+    with open(local_file, "w") as f:
+        json.dump(result_slim, f, indent=2, default=str)
+    log.info("Written local: %s", local_file)
     boot_df = pd.DataFrame(boot_rows)
 
     # Omega summary table
