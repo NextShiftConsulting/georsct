@@ -453,22 +453,20 @@ phases:
     depends_on: five_construct_divergence
     doe_spec: DOE_C2a_omega_bootstrap.md
     job_ids:
-    - s035-omega-boot-houston-20260617-192042
-    - s035-omega-boot-southwes-20260617-192511
-    - s035-omega-boot-nyc-20260617-192526
-    - s035-omega-boot-riversid-20260617-192534
-    - s035-omega-boot-new-orle-20260617-192544
+    - s035-omega-boot-houston-20260617-193338
+    - s035-omega-boot-southwes-20260617-193347
+    - s035-omega-boot-nyc-20260617-193354
+    - s035-omega-boot-riversid-20260617-193402
+    - s035-omega-boot-new-orle-20260617-193409
     artifact_keys:
     - results/s035/doe_c2a/omega_bootstrap_{scenario}.json
     - results/s035/doe_c2a/cache/bootstrap_samples_{scenario}.parquet
     - results/s035/doe_c2a/cache/omega_table_{scenario}.parquet
     notes: >
-      Relaunched 2026-06-17 (v2). Prior run (v1) hit shallow-copy mutation bug
-      (TypeError: string indices must be integers) -- fixed in 20a0d89.
-      Also fixed preflight for SW Florida (assembled_parquet alias, 5d539fa).
-      5 parallel SageMaker jobs (ml.m5.xlarge, git 5d539fa).
-      50 bootstrap x ~5 constructs per scenario. P16 blended quality.
-      Expected runtime: ~40 min per job.
+      Relaunched 2026-06-17 (v3). v1 hit shallow-copy bug (20a0d89),
+      v2 ran single-threaded (killed). v3 adds joblib.Parallel(n_jobs=4)
+      on bootstrap loop (98f90c9). Volume 20->10 GB.
+      ml.m5.xlarge (4 vCPU, 16 GB). Expected runtime: ~10 min per job.
   temporal_prior:
     status: DESIGNED
     doe_id: DOE-C2b
