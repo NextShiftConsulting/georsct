@@ -7,7 +7,7 @@ from unittest.mock import patch, MagicMock
 import pytest
 
 # Module under test
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "data" / "floodrsct" / "scripts"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "wsp" / "floodrsct" / "scripts"))
 from _launcher_base import ALLOWED_INSTANCES, launch_processing_job
 
 

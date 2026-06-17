@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 # Add evidence/diagnostics to path for import
-sys.path.insert(0, str(Path(__file__).parent.parent / "evidence" / "diagnostics"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "data" / "evidence" / "diagnostics"))
 
 from certificate_issuer import compute_simplex_diagnostic_ratios
 

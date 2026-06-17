@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 # Add jobs directory to path for import
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "data" / "floodrsct" / "jobs"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "wsp" / "floodrsct" / "jobs"))
 
 from compute_geometry_kappa import _guard_s3_read
 
