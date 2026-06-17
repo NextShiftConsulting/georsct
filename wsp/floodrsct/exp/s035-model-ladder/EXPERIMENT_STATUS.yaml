@@ -388,6 +388,45 @@ phases:
       Registered extension. Blocks taxi-route claim. See DOE_U0_adversarial_geography.md.
       kappa=0.0 pin must be fixed first.
     contract: floodcaster_story_doe.yaml
+  # ── DOE-C2a through C4: Floodcaster engine experiments ──────────────
+  omega_bootstrap:
+    status: DESIGNED
+    doe_id: DOE-C2a
+    code: jobs/run_omega_bootstrap.py
+    launcher: scripts/launch_omega_bootstrap.py
+    depends_on: construct_divergence
+    doe_spec: DOE_C2a_omega_bootstrap.md
+    artifact_keys:
+    - results/s035/doe_c2a/omega_bootstrap_{scenario}.json
+    - results/s035/doe_c2a/cache/bootstrap_samples_{scenario}.parquet
+    - results/s035/doe_c2a/cache/omega_table_{scenario}.parquet
+    notes: >
+      Bootstrap variance of certificates -> omega per construct.
+      P16 blended quality (alpha_omega). 50 bootstrap x 5 constructs x 5 scenarios.
+  temporal_prior:
+    status: DESIGNED
+    doe_id: DOE-C2b
+    depends_on: omega_bootstrap
+    doe_spec: DOE_C2b_temporal_prior.md
+    notes: >
+      Sequential event certification with P16 hint blending.
+      Houston (3 events) + NYC (2 events). Needs omega from DOE-C2a.
+  tract_resolution:
+    status: DESIGNED
+    doe_id: DOE-C3
+    depends_on: construct_divergence
+    doe_spec: DOE_C3_tract_resolution.md
+    notes: >
+      Census tract resolution rebuild for Gate 3B activation.
+      Heaviest data engineering lift. Houston + New Orleans.
+  morph_dispatch:
+    status: DESIGNED
+    doe_id: DOE-C4
+    depends_on: tract_resolution
+    doe_spec: DOE_C4_morph_dispatch.md
+    notes: >
+      ADR-012 gate-fail-morph-regate loop. Blocked on DOE-C3
+      (needs discriminative Gate 3B at tract resolution).
 
 paper_claims:
   sec_7_1_variance_stack:

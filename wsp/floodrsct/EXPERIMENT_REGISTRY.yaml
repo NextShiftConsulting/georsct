@@ -67,6 +67,46 @@ experiments:
         yellow: 1
         red: 0
 
+    # ── DOE-C2a through C4: Floodcaster engine experiments ──────────────
+    doe_extensions:
+      - phase_id: omega_bootstrap
+        doe_id: DOE-C2a
+        status: DESIGNED
+        depends_on: DOE-C1
+        code: jobs/run_omega_bootstrap.py
+        launcher: scripts/launch_omega_bootstrap.py
+        doe_spec: exp/s035-model-ladder/DOE_C2a_omega_bootstrap.md
+        notes: >
+          Bootstrap variance of certificates -> omega per construct.
+          P16 blended quality. 50 bootstrap x 5 constructs x 5 scenarios.
+
+      - phase_id: temporal_prior
+        doe_id: DOE-C2b
+        status: DESIGNED
+        depends_on: DOE-C2a
+        doe_spec: exp/s035-model-ladder/DOE_C2b_temporal_prior.md
+        notes: >
+          Sequential event certification with P16 hint blending.
+          Houston (3 events) + NYC (2 events).
+
+      - phase_id: tract_resolution
+        doe_id: DOE-C3
+        status: DESIGNED
+        depends_on: DOE-C1
+        doe_spec: exp/s035-model-ladder/DOE_C3_tract_resolution.md
+        notes: >
+          Census tract resolution rebuild for Gate 3B activation.
+          Heaviest data engineering lift. Houston + New Orleans.
+
+      - phase_id: morph_dispatch
+        doe_id: DOE-C4
+        status: DESIGNED
+        depends_on: DOE-C3
+        doe_spec: exp/s035-model-ladder/DOE_C4_morph_dispatch.md
+        notes: >
+          ADR-012 gate-fail-morph-regate loop. Blocked on DOE-C3
+          (needs discriminative Gate 3B at tract resolution).
+
 # ===========================================================================
 # Adding a new experiment:
 # 1. Copy the template above
