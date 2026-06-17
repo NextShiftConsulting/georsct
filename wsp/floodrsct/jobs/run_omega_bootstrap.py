@@ -320,7 +320,7 @@ def main() -> int:
                 model_fitter=model_fitter,
             )
 
-        bootstrap_certs = Parallel(n_jobs=n_jobs, prefer="threads")(
+        bootstrap_certs = Parallel(n_jobs=n_jobs, backend="loky")(
             delayed(_run_one_bootstrap)(b) for b in range(B)
         )
         log.info("  %s: %d/%d bootstrap samples complete", construct.name, B, B)
