@@ -165,6 +165,8 @@ class TestModulesImportCleanly:
         "georsct.provenance.store",
         "georsct.ports.spatial_expert",
         "georsct.ports.trace_store",
+        "georsct.ports.threshold_source",
+        "georsct.ports.static_thresholds",
         "georsct.application.gearbox",
         "georsct.application.harness",
         "georsct.evaluation.scoring",
