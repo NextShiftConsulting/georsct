@@ -174,7 +174,8 @@ def main() -> int:
     omega_map = {}
     for cname, cdata in omega_data.get("constructs", {}).items():
         if isinstance(cdata, dict) and cdata.get("available"):
-            omega_map[cname] = cdata.get("omega_composite", float("nan"))
+            val = cdata.get("omega_composite")
+            omega_map[cname] = float(val) if val is not None else float("nan")
     log.info("Omega map: %s", {k: "%.3f" % v if np.isfinite(v) else "NaN" for k, v in omega_map.items()})
 
     # ---------------------------------------------------------------
