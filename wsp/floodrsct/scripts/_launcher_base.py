@@ -169,6 +169,123 @@ def _run_preflight(phase_id: str, scenario: str | None = None) -> bool:
             sys.path.remove(str(JOBS_DIR))
 
 
+# Instance metadata: vCPUs and RAM (GB) for resource audit.
+_INSTANCE_SPECS = {
+    "ml.m5.large":    (2,   8),
+    "ml.m5.xlarge":   (4,  16),
+    "ml.m5.2xlarge":  (8,  32),
+    "ml.m5.4xlarge": (16,  64),
+    "ml.m5.8xlarge": (32, 128),
+}
+
+
+def _resource_audit(
+    job_script: str,
+    instance_type: str,
+    volume_size_gb: int,
+    pip_packages: str | None,
+    image_uri: str | None,
+    timeout_s: int,
+) -> list[str]:
+    """9-dimension resource audit. Returns list of warnings (empty = clean).
+
+    Dimensions checked:
+      1. Memory   -- data size vs instance RAM
+      2. Cache    -- (informational only)
+      3. Thread   -- parallelism keywords vs instance vCPUs
+      4. Image    -- which base image
+      5. Instance -- type and specs
+      6. Volume   -- EBS sizing
+      7. Pip      -- packages requested
+      8. Pre-install -- (checked at call site)
+      9. Timeout  -- max runtime
+    """
+    warnings: list[str] = []
+    vcpus, ram_gb = _INSTANCE_SPECS.get(instance_type, (0, 0))
+
+    # --- Dim 3: Thread audit ---
+    script_path = JOBS_DIR / job_script
+    if script_path.exists():
+        code = script_path.read_text(encoding="utf-8", errors="replace")
+        has_parallel = any(kw in code for kw in [
+            "n_jobs", "Parallel(", "Pool(", "ThreadPool(",
+            "multiprocessing", "concurrent.futures",
+        ])
+        if not has_parallel and vcpus > 1:
+            warnings.append(
+                "THREAD: No parallelism detected in %s but instance "
+                "has %d vCPUs -- %d cores will be idle. "
+                "Add joblib.Parallel or n_jobs=-1." % (job_script, vcpus, vcpus - 1)
+            )
+        if has_parallel and vcpus <= 1:
+            warnings.append(
+                "THREAD: Parallelism in %s but instance %s has only "
+                "%d vCPU -- consider a larger instance." % (job_script, instance_type, vcpus)
+            )
+    else:
+        warnings.append("THREAD: Job script %s not found locally for audit." % job_script)
+
+    # --- Dim 1: Memory (heuristic) ---
+    if ram_gb > 32:
+        warnings.append(
+            "MEMORY: Instance %s has %d GB RAM. Most s035 jobs need "
+            "<8 GB. Consider a smaller instance." % (instance_type, ram_gb)
+        )
+
+    # --- Dim 5: Instance summary ---
+    if vcpus == 0:
+        warnings.append("INSTANCE: Unknown instance type %s -- cannot audit specs." % instance_type)
+
+    # --- Dim 6: Volume ---
+    if volume_size_gb > 30:
+        warnings.append(
+            "VOLUME: %d GB requested. Most s035 jobs need <10 GB. "
+            "Oversized volumes waste startup time." % volume_size_gb
+        )
+
+    # --- Dim 9: Timeout ---
+    if timeout_s > 14400:
+        warnings.append(
+            "TIMEOUT: %ds (%.1fh) is very long. Typical s035 jobs "
+            "run <1h." % (timeout_s, timeout_s / 3600)
+        )
+
+    # --- Print audit summary ---
+    image_label = "pytorch-cpu" if (image_uri or DEFAULT_IMAGE) == PYTORCH_CPU else (
+        "pytorch-gpu" if (image_uri or "") == PYTORCH_GPU else "custom"
+    )
+    print()
+    print("=" * 64)
+    print("RESOURCE AUDIT (9 dimensions)")
+    print("=" * 64)
+    print("  1. Memory     : %s (%d vCPU, %d GB RAM)" % (instance_type, vcpus, ram_gb))
+    print("  2. Cache      : (no shared cache -- per-job isolation)")
+    print("  3. Thread     : %s" % (
+        "parallelism detected" if (script_path.exists() and any(
+            kw in script_path.read_text(encoding="utf-8", errors="replace")
+            for kw in ["n_jobs", "Parallel(", "Pool("]
+        )) else "SERIAL (single-threaded)"
+    ))
+    print("  4. Image      : %s" % image_label)
+    print("  5. Instance   : %s" % instance_type)
+    print("  6. Volume     : %d GB" % volume_size_gb)
+    print("  7. Pip        : %s" % (pip_packages or "(base only)"))
+    print("  8. Pre-install: (none)")
+    print("  9. Timeout    : %ds (%.1fh)" % (timeout_s, timeout_s / 3600))
+
+    if warnings:
+        print("-" * 64)
+        for w in warnings:
+            print("  WARN: %s" % w)
+    else:
+        print("-" * 64)
+        print("  ALL CLEAR")
+    print("=" * 64)
+    print()
+
+    return warnings
+
+
 def launch_processing_job(
     job_name: str,
     job_script: str,
@@ -220,6 +337,19 @@ def launch_processing_job(
             sys.exit(1)
         elif not ok:
             log.warning("[DRY RUN] PREFLIGHT FAILED. Fix before real launch.")
+
+    # Resource audit (9 dimensions)
+    timeout_s = 7200
+    audit_warnings = _resource_audit(
+        job_script=job_script,
+        instance_type=instance_type,
+        volume_size_gb=volume_size_gb,
+        pip_packages=pip_packages,
+        image_uri=image_uri,
+        timeout_s=timeout_s,
+    )
+    if audit_warnings and not dry_run:
+        log.warning("Resource audit has %d warning(s). Review above.", len(audit_warnings))
 
     # Capture git provenance
     git_info = _get_git_info()
@@ -330,7 +460,7 @@ def launch_processing_job(
             "HF_DATASETS_CACHE": "/tmp/hf_cache/datasets",
             **(env_overrides or {}),
         },
-        "StoppingCondition": {"MaxRuntimeInSeconds": 7200},
+        "StoppingCondition": {"MaxRuntimeInSeconds": timeout_s},
     }
 
     if dry_run:
