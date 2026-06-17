@@ -46,7 +46,7 @@ def _launch_one(scenario: str, dry_run: bool) -> str:
         job_args=["--scenario", scenario, "--upload"],
         instance_type="ml.m5.large",
         volume_size_gb=20,
-        pip_packages="geopandas rasterio planetary-computer pystac-client",
+        pip_packages="geopandas rasterio planetary-computer pystac-client duckdb",
         dry_run=dry_run,
     )
 
