@@ -1194,7 +1194,10 @@ phases:
       - scipy
 
     s3_artifacts:
-      - key: "processed/{scenario}/{scenario}_event_features.parquet"
+      # Event features have irregular names per scenario (swfl_, rc_, no_, etc.).
+      # The job resolves via _coverage_common.OUTPUT_KEYS at runtime.
+      # Use assembled_parquet alias which resolve_s3_key maps correctly.
+      - key: assembled_parquet
         description: "Event features (same as DOE-C1)"
         per_scenario: true
       - key: "folds/{scenario}_folds.parquet"
