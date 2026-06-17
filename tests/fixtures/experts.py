@@ -22,6 +22,7 @@ class HWMObservationExpert(SpatialExpert):
     admissible_geometries = frozenset({"prediction", "ranking", "allocation"})
     addresses = frozenset({"low_target_coverage"})
     known_failure_modes = ("sparse_coverage_overconfidence",)
+    preserves = frozenset({"topology", "adjacency"})
 
     def expected_delta(self, geometry: str) -> float:
         return 0.06
@@ -52,6 +53,7 @@ class JRCSurfaceWaterExpert(SpatialExpert):
     admissible_geometries = frozenset({"prediction", "ranking"})
     addresses = frozenset({"under_supported_geometry"})
     known_failure_modes = ("autocorrelation_amplification",)
+    preserves = frozenset({"topology", "area_proportional"})
 
     def expected_delta(self, geometry: str) -> float:
         return 0.18

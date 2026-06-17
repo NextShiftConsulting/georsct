@@ -259,6 +259,28 @@ class TestHarness:
         assert "test-001" in j
         assert "admission_reason" in j
 
+    def test_severity_gate_skips_marginal_weaknesses(self):
+        """Marginal weaknesses below severity threshold skip the expert loop."""
+        def healthy_evaluator(contract, state):
+            return make_cert(kappa_coupling=0.65, N=0.25, residual_moran=0.15)
+
+        contract = make_contract()
+        harness = GeoRSCTHarness(
+            experts=[HWMObservationExpert(), JRCSurfaceWaterExpert()],
+            evaluator=healthy_evaluator,
+        )
+        trace = harness.run(contract)
+        assert len(trace.steps) == 0
+        assert trace.certificate is not None
+
+    def test_expert_preserves_declared(self):
+        """Experts declare spatial invariants they preserve."""
+        hwm = HWMObservationExpert()
+        jrc = JRCSurfaceWaterExpert()
+        assert "topology" in hwm.preserves
+        assert "adjacency" in hwm.preserves
+        assert "area_proportional" in jrc.preserves
+
 
 # ---------------------------------------------------------------------------
 # Scoring tests

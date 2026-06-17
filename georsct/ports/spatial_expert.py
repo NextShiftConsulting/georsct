@@ -41,7 +41,8 @@ class ExpertResult:
 class SpatialExpert(ABC):
     """Port: a modular spatial expert that can be admitted by the gearbox.
 
-    Subclasses declare what task geometries and weaknesses they address.
+    Subclasses declare what task geometries and weaknesses they address,
+    and what spatial invariants they preserve.
     The harness calls ``admissible_for`` before ``run``.
 
     Concrete experts that need I/O (S3, APIs) should live in
@@ -54,6 +55,12 @@ class SpatialExpert(ABC):
     admissible_geometries: frozenset[str] = frozenset()
     addresses: frozenset[str] = frozenset()
     known_failure_modes: tuple[str, ...] = ()
+
+    # Geometry-preservation contract (SERA insight, §2603.12538):
+    # Spatial invariants this expert maintains during feature enrichment.
+    # Empty = no declared invariants (legacy default).
+    # Examples: "topology", "adjacency", "contiguity", "area_proportional"
+    preserves: frozenset[str] = frozenset()
 
     def admissible_for(
         self,

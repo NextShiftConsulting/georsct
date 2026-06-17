@@ -93,6 +93,10 @@ def _default_solver(
 # Convergence threshold for kappa_coupling fixpoint.
 _KAPPA_EPS = 1e-3
 
+# Minimum weakness severity to enter the expert loop (DMoE insight,
+# §2606.14243): don't route to experts for marginal weaknesses.
+_MIN_WEAKNESS_SEVERITY = 0.1
+
 
 class GeoRSCTHarness:
     """Executable certificate-governed workflow harness.
@@ -124,11 +128,13 @@ class GeoRSCTHarness:
         evaluator: CertificateEvaluator,
         solver: Solver | None = None,
         max_iters: int = 6,
+        min_weakness_severity: float = _MIN_WEAKNESS_SEVERITY,
     ):
         self.experts = experts
         self.evaluate = evaluator
         self.solve = solver or _default_solver
         self.max_iters = max_iters
+        self.min_weakness_severity = min_weakness_severity
 
     def run(self, contract: TaskContract) -> Trace:
         """Execute one benchmark task end-to-end.
@@ -146,6 +152,16 @@ class GeoRSCTHarness:
         # Initial certificate evaluation
         cert = self.evaluate(contract, state)
         admitted: set[str] = set()
+
+        # Severity gate (DMoE insight): skip expert loop if all
+        # weaknesses are below the minimum severity threshold.
+        max_severity = max(
+            (w.severity for w in cert.all_weaknesses()), default=0.0,
+        )
+        if max_severity < self.min_weakness_severity:
+            trace.certificate = cert
+            trace.final_json = self.solve(contract, state)
+            return trace
 
         for _ in range(self.max_iters):
             gear = select_gear(cert)
