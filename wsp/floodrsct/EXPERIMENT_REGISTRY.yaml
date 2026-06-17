@@ -32,11 +32,11 @@ experiments:
 
     phase_status:
       total_phases: 32
-      completed: 26
-      in_progress: 2
-      designed: 2
-      blocked: 1
-      last_audit: "2026-06-15"
+      completed: 28
+      in_progress: 1
+      designed: 3
+      blocked: 0
+      last_audit: "2026-06-17"
 
     hypotheses:
       count: 9

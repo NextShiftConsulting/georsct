@@ -364,30 +364,65 @@ phases:
       with certificates, pairwise distances, and permutation null tests.
       V7 paper figures generated (heatmaps, RSN profiles, cross-scenario).
   hydrology_fetch:
-    status: IN_PROGRESS
+    status: COMPLETED
+    verified: '2026-06-17'
+    verification_method: s3_ls
     doe_id: DOE-P1-prereq
     code: jobs/run_fetch_hydrology.py
     launcher: scripts/launch_fetch_hydrology.py
     job_ids:
-    - s035-hydro-houston-20260615-192935
+    - s035-hydro-houston-20260617-045756
+    - s035-hydro-southwes-20260617-045714
+    - s035-hydro-nyc-20260617-045706
+    - s035-hydro-riversid-20260617-045804
+    - s035-hydro-new-orle-20260617-045721
     artifact_keys:
-    - processed/shared/zcta_hydrology.parquet
+    - processed/shared/zcta_hydrology_houston.parquet
+    - processed/shared/zcta_hydrology_southwest_florida.parquet
+    - processed/shared/zcta_hydrology_nyc.parquet
+    - processed/shared/zcta_hydrology_riverside_coachella.parquet
+    - processed/shared/zcta_hydrology_new_orleans.parquet
+    - results/s035/hydrology_extraction_houston.json
+    - results/s035/hydrology_extraction_southwest_florida.json
+    - results/s035/hydrology_extraction_nyc.json
+    - results/s035/hydrology_extraction_riverside_coachella.json
+    - results/s035/hydrology_extraction_new_orleans.json
     notes: >
-      Standalone DEM-derived hydrology extraction (HAND, GFI, TWI, SPI)
-      via Copernicus GLO-30 + Planetary Computer. Sequential chain:
-      houston (running) -> nyc -> riverside -> nola -> swfl.
-      Prerequisite for topology_necessity. Cache-first pattern.
-      Instance: ml.m5.large. Git: f05d5b9.
+      All 5 scenarios completed 2026-06-17. Per-actor isolation pattern
+      (one file per scenario, no shared cache). DEM mosaic fix (5e4f2e2)
+      + adaptive stream threshold (a5bbaa8) required for flat terrain.
+      Coverage: Houston 72.6%, SW Florida 40.8%, NYC 44.2%,
+      Riverside 23.5%, New Orleans 59.7%. Git: a1bfc0f.
   topology_necessity:
-    status: IN_PROGRESS
+    status: COMPLETED
+    verified: '2026-06-17'
+    verification_method: s3_ls
     doe_id: DOE-P1
     code: jobs/run_topology_necessity.py
     launcher: scripts/launch_topology_necessity.py
-    blocked_by: hydrology_fetch
+    depends_on: hydrology_fetch
+    job_ids:
+    - s035-doep1-houston-20260617-125931
+    - s035-doep1-southwes-20260617-125942
+    - s035-doep1-nyc-20260617-125949
+    - s035-doep1-riversid-20260617-125956
+    - s035-doep1-new-orle-20260617-130003
+    artifact_keys:
+    - results/s035/story/topology_necessity_houston.json
+    - results/s035/story/topology_necessity_southwest_florida.json
+    - results/s035/story/topology_necessity_nyc.json
+    - results/s035/story/topology_necessity_riverside_coachella.json
+    - results/s035/story/topology_necessity_new_orleans.json
     notes: >
-      3-arm ablation (baseline/no_topology/shuffled). Code committed
-      (86341cd). Blocked on hydrology cache population. Will launch
-      --all once zcta_hydrology.parquet is on S3.
+      All 5 scenarios completed 2026-06-17. 3-arm ablation
+      (baseline/no_topology/shuffled_topology). Verdicts:
+      Houston=NOT_LOAD_BEARING (R2 0.53->0.63 without topo),
+      SW Florida=LOAD_BEARING (baseline RMSE 1.665 < no_topo 1.883),
+      NYC=INCONCLUSIVE (neg R2 all arms),
+      Riverside=INCONCLUSIVE (baseline skipped, <50 usable rows),
+      New Orleans=NOT_LOAD_BEARING (R2 0.04->0.29 without topo).
+      Topology features hurt 3/5 scenarios due to partial HAND coverage
+      introducing missingness noise. Git: a1bfc0f.
     contract: floodcaster_story_doe.yaml
   hazard_shape:
     status: DESIGNED
