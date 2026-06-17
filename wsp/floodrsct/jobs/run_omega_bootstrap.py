@@ -22,6 +22,7 @@ import argparse
 import io
 import json
 import logging
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,6 +30,7 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
+from joblib import Parallel, delayed
 from scipy import sparse
 
 from sklearn.ensemble import HistGradientBoostingRegressor
@@ -277,14 +279,17 @@ def main() -> int:
     data_source = S3ConstructDataSource(s3, event_df, args.scenario)
 
     # ---------------------------------------------------------------
-    # Bootstrap loop
+    # Bootstrap loop (parallelized across bootstrap samples)
     # ---------------------------------------------------------------
+    n_jobs = int(os.environ.get("OMEGA_N_JOBS", os.cpu_count() or 1))
+    log.info("Bootstrap parallelism: n_jobs=%d (cpus=%s)", n_jobs, os.cpu_count())
+
     rng = np.random.default_rng(args.seed)
     construct_results = {}
 
     for construct in CONSTRUCT_ORDER:
         log.info("=" * 60)
-        log.info("Bootstrap: %s (B=%d)", construct.name, B)
+        log.info("Bootstrap: %s (B=%d, n_jobs=%d)", construct.name, B, n_jobs)
 
         cd = data_source.load_construct_target(construct, args.scenario)
         if not cd.available:
@@ -296,30 +301,29 @@ def main() -> int:
             continue
 
         target = cd.target_values
-        bootstrap_certs = []
 
-        for b in range(B):
+        # Pre-generate all resampled folds (deterministic, RNG-ordered)
+        resampled_folds_all = [_resample_folds(fold_ids, rng) for _ in range(B)]
+
+        def _run_one_bootstrap(b: int) -> dict:
             seed_b = args.seed + b + 1
             model_fitter = HistGBDTModelFitter(seed=seed_b)
-
-            # Block bootstrap: resample which folds appear
-            resampled_folds = _resample_folds(fold_ids, rng)
-
-            cert_dict = _certify_one_bootstrap(
+            return _certify_one_bootstrap(
                 construct=construct,
                 features=features,
                 target=target,
-                fold_ids=resampled_folds,
+                fold_ids=resampled_folds_all[b],
                 region_ids=region_ids,
                 region_order=region_order,
                 coords2d=coords2d,
                 W_geo=W_geo,
                 model_fitter=model_fitter,
             )
-            bootstrap_certs.append(cert_dict)
 
-            if (b + 1) % 10 == 0:
-                log.info("  %s: %d/%d bootstrap samples complete", construct.name, b + 1, B)
+        bootstrap_certs = Parallel(n_jobs=n_jobs, prefer="threads")(
+            delayed(_run_one_bootstrap)(b) for b in range(B)
+        )
+        log.info("  %s: %d/%d bootstrap samples complete", construct.name, B, B)
 
         # Compute omega from bootstrap samples
         fwd_samples = np.array([c["forward_score"] for c in bootstrap_certs])
