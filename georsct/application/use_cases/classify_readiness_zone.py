@@ -19,8 +19,11 @@ def classify(
 
     Stage 1: R >= 0.3 (relevance ~ model fit)
     Stage 2: S >= 0.4 (stability ~ clustering quality)
+    Stage 3: moran_p — not yet wired (spatial autocorrelation check)
     Stage 4: kappa >= 0.7 (geometry compatibility)
     """
+    # TODO: Stage 3 — moran_p is accepted but not yet used in decision logic.
+    # Requires defining the residual Moran's I threshold (see ADR-048).
     if r2 < r_threshold:
         return PublicDecision.REFUSE
     if silhouette < s_threshold:

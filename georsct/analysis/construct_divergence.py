@@ -21,11 +21,14 @@ and imports these pure functions.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
 from scipy import stats
+
+_log = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -72,6 +75,7 @@ def apply_pif_floor(
     """
     df = df.copy()
     if pif_col not in df.columns:
+        _log.warning("PIF floor skipped: column '%s' not in DataFrame", pif_col)
         return df
     mask = df[pif_col] < min_pif
     for col in nfip_cols:
@@ -96,6 +100,7 @@ def mask_permanent_water(
         Filtered copy. If jrc_col missing, returns df unchanged.
     """
     if jrc_col not in df.columns:
+        _log.warning("Permanent water mask skipped: column '%s' not in DataFrame", jrc_col)
         return df
     return df[~(df[jrc_col] > threshold)].copy()
 
@@ -128,6 +133,8 @@ def gate_mechanism(
             return df[df[slosh_col].notna()].copy()
         if coastal_col in df.columns:
             return df[df[coastal_col] <= coastal_threshold_m].copy()
+        _log.warning("Mechanism gate '%s' bypassed: neither '%s' nor '%s' in DataFrame",
+                     mechanism, slosh_col, coastal_col)
         return df.copy()
 
     if mechanism == "pluvial":
@@ -135,8 +142,11 @@ def gate_mechanism(
             return df[df[slosh_col].isna()].copy()
         if coastal_col in df.columns:
             return df[df[coastal_col] > coastal_threshold_m].copy()
+        _log.warning("Mechanism gate '%s' bypassed: neither '%s' nor '%s' in DataFrame",
+                     mechanism, slosh_col, coastal_col)
         return df.copy()
 
+    _log.warning("Unknown mechanism '%s' — returning unfiltered", mechanism)
     return df.copy()
 
 
@@ -172,7 +182,15 @@ def same_sensor_events(events: list[str]) -> list[str]:
     Returns:
         Events that use sentinel1 sensor.
     """
-    return [e for e in events if SENSOR_MAP.get(e, "sentinel1") == "sentinel1"]
+    filtered = []
+    for e in events:
+        sensor = SENSOR_MAP.get(e)
+        if sensor is None:
+            _log.warning("Event '%s' not in SENSOR_MAP — excluding from same-sensor filter", e)
+            continue
+        if sensor == "sentinel1":
+            filtered.append(e)
+    return filtered
 
 
 # ---------------------------------------------------------------------------
