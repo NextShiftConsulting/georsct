@@ -446,7 +446,9 @@ phases:
     contract: floodcaster_story_doe.yaml
   # ── DOE-C2a through C4: Floodcaster engine experiments ──────────────
   omega_bootstrap:
-    status: IN_PROGRESS
+    status: COMPLETED
+    verified: '2026-06-17'
+    verification_method: s3_ls
     doe_id: DOE-C2a
     code: jobs/run_omega_bootstrap.py
     launcher: scripts/launch_omega_bootstrap.py
@@ -455,26 +457,49 @@ phases:
     job_ids:
     - s035-omega-boot-houston-20260617-194022
     - s035-omega-boot-southwes-20260617-194030
-    - s035-omega-boot-nyc-20260617-194038
-    - s035-omega-boot-riversid-20260617-194045
-    - s035-omega-boot-new-orle-20260617-194053
+    - s035-omega-boot-nyc-20260617-192237
+    - s035-omega-boot-riversid-20260617-183441
+    - s035-omega-boot-new-orle-20260617-183449
     artifact_keys:
-    - results/s035/doe_c2a/omega_bootstrap_{scenario}.json
-    - results/s035/doe_c2a/cache/bootstrap_samples_{scenario}.parquet
-    - results/s035/doe_c2a/cache/omega_table_{scenario}.parquet
+    - results/s035/doe_c2a/omega_bootstrap_houston.json
+    - results/s035/doe_c2a/omega_bootstrap_southwest_florida.json
+    - results/s035/doe_c2a/omega_bootstrap_nyc.json
+    - results/s035/doe_c2a/omega_bootstrap_riverside_coachella.json
+    - results/s035/doe_c2a/omega_bootstrap_new_orleans.json
+    - results/s035/doe_c2a/cache/bootstrap_samples_houston.parquet
+    - results/s035/doe_c2a/cache/bootstrap_samples_southwest_florida.parquet
+    - results/s035/doe_c2a/cache/bootstrap_samples_nyc.parquet
+    - results/s035/doe_c2a/cache/bootstrap_samples_riverside_coachella.parquet
+    - results/s035/doe_c2a/cache/bootstrap_samples_new_orleans.parquet
+    - results/s035/doe_c2a/cache/omega_table_houston.parquet
+    - results/s035/doe_c2a/cache/omega_table_southwest_florida.parquet
+    - results/s035/doe_c2a/cache/omega_table_nyc.parquet
+    - results/s035/doe_c2a/cache/omega_table_riverside_coachella.parquet
+    - results/s035/doe_c2a/cache/omega_table_new_orleans.parquet
     notes: >
-      Launched 2026-06-17 (v4, 460235f). v1: shallow-copy bug. v2: serial.
-      v3: threads (GIL-bound). v4: loky process parallelism (n_jobs=4).
-      ml.m5.xlarge (4 vCPU, 16 GB), volume 10 GB.
-      9-dim resource audit CLEAR. Expected runtime: ~10 min per job.
+      All 5 scenarios completed 2026-06-17. B=50 block bootstrap per construct.
+      v4 (460235f): loky process parallelism (n_jobs=4), deepcopy fix.
+      ml.m5.xlarge (4 vCPU, 16 GB), volume 10 GB. Runtime: ~12 min per job.
+      Key findings: omega range 0.869-1.000 across constructs. NFIP has lower
+      omega than FEMA in New Orleans (0.909 vs 0.975). P16 blending shrinks
+      high-alpha constructs toward prior. FEMA NYC: omega=null (kappa_spatial
+      null due to perfect forward_score). Deltares NYC: omega=1.0 (zero
+      variance, zero predictive power). Houston has FAST data (omega=0.931).
   temporal_prior:
-    status: DESIGNED
+    status: IN_PROGRESS
     doe_id: DOE-C2b
+    code: jobs/run_temporal_prior.py
+    launcher: scripts/launch_temporal_prior.py
     depends_on: omega_bootstrap
     doe_spec: DOE_C2b_temporal_prior.md
+    job_ids: []
+    artifact_keys:
+    - results/s035/doe_c2b/temporal_prior_{scenario}.json
+    - results/s035/doe_c2b/cache/sequential_certificates_{scenario}.parquet
     notes: >
       Sequential event certification with P16 hint blending.
-      Houston (3 events) + NYC (2 events). Needs omega from DOE-C2a.
+      Houston (3 events) + NYC (4 events). Uses omega from DOE-C2a.
+      ~30 certifications total. ml.m5.large (2 vCPU, 8 GB).
   tract_resolution:
     status: DESIGNED
     doe_id: DOE-C3

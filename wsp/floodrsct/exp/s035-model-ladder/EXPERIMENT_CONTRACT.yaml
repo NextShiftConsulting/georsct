@@ -1219,6 +1219,47 @@ phases:
         description: "Omega summary table"
         per_scenario: true
 
+  - phase_id: temporal_prior
+    script: run_temporal_prior.py
+    description: "DOE-C2b: Sequential certification with P16 hint blending"
+    per_scenario: true
+    depends_on: [omega_bootstrap]
+
+    packages:
+      - scikit-learn
+      - numpy
+      - pandas
+      - pyarrow
+      - scipy
+
+    s3_artifacts:
+      - key: assembled_parquet
+        description: "Event features (same as DOE-C1)"
+        per_scenario: true
+        scenarios: [houston, nyc]
+      - key: "folds/{scenario}_folds.parquet"
+        description: "Fold assignments"
+        per_scenario: true
+        scenarios: [houston, nyc]
+      - key: "processed/shared/zcta_jrc_water_occurrence_pct.parquet"
+        description: "JRC shared layer"
+      - key: "processed/shared/zcta_deltares_depth.parquet"
+        description: "Deltares shared layer"
+      - key: "results/s035/doe_c2a/omega_bootstrap_{scenario}.json"
+        description: "DOE-C2a omega values for P16 blending weight"
+        per_scenario: true
+        scenarios: [houston, nyc]
+
+    outputs:
+      - key: "results/s035/doe_c2b/temporal_prior_{scenario}.json"
+        description: "Sequential vs independent certification comparison"
+        per_scenario: true
+        scenarios: [houston, nyc]
+      - key: "results/s035/doe_c2b/cache/sequential_certificates_{scenario}.parquet"
+        description: "Per-event per-arm certificate detail"
+        per_scenario: true
+        scenarios: [houston, nyc]
+
 # ── Verification Gates ────────────────────────────────────────────────
 # Machine-readable gate definitions.  Full prose and commands in VERIFY.md.
 # Each gate lists checks with pass_criteria.  Automated verification
