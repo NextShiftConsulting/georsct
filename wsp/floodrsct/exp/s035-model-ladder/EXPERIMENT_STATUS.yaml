@@ -482,11 +482,14 @@ phases:
       ml.m5.xlarge (4 vCPU, 16 GB), volume 10 GB. Runtime: ~12 min per job.
       Key findings: omega range 0.869-1.000 across constructs. NFIP has lower
       omega than FEMA in New Orleans (0.909 vs 0.975). P16 blending shrinks
-      high-alpha constructs toward prior. FEMA NYC: omega=null (kappa_spatial
-      null due to perfect forward_score). Deltares NYC: omega=1.0 (zero
-      variance, zero predictive power). Houston has FAST data (omega=0.931).
+      high-alpha constructs toward prior. Houston has FAST data (omega=0.931).
+      NYC re-run (2026-06-17): FEMA omega_comp=0.936, alpha_omega=0.778
+      (previously null due to DFIRM 360497 consolidated community bug -- see
+      patch_nyc_flood_zones.py). NFIP omega_comp=0.874, JRC omega_comp=0.882.
   temporal_prior:
     status: COMPLETED
+    verified: '2026-06-17'
+    verification_method: s3_ls
     doe_id: DOE-C2b
     code: jobs/run_temporal_prior.py
     launcher: scripts/launch_temporal_prior.py
@@ -494,8 +497,7 @@ phases:
     doe_spec: DOE_C2b_temporal_prior.md
     job_ids:
     - s035-temp-prior-houston-20260617-203926
-    - s035-temp-prior-nyc-20260617-203935  # crashed: None omega; stopped
-    - s035-temp-prior-nyc-20260617-204433  # relaunch with fix (231c3cb)
+    - s035-temp-prior-nyc-20260617-224225  # NYC re-run with corrected FEMA data
     artifact_keys:
     - results/s035/doe_c2b/temporal_prior_houston.json
     - results/s035/doe_c2b/temporal_prior_nyc.json
@@ -503,16 +505,19 @@ phases:
     - results/s035/doe_c2b/cache/sequential_certificates_nyc.parquet
     findings: >
       Houston: NFIP vr=1.6%, FEMA vr=2.2%, JRC vr=5.4%. AC-C2b-1 PASS,
-      AC-C2b-2 PASS, AC-C2b-3 FAIL (FEMA vr > NFIP vr -- FEMA near-zero
-      absolute variance makes relative reduction misleading).
-      NYC: NFIP vr=10.4%, JRC vr=8.2%, FEMA unavailable (omega=null).
-      AC-C2b-1 PASS, AC-C2b-2 PASS, AC-C2b-3 PASS.
-      Key: temporal prior most effective for NFIP in NYC (10.4% reduction);
-      Houston high omega (0.96) limits blending effect.
+      AC-C2b-2 PASS, AC-C2b-3 FAIL (FEMA vr > NFIP vr -- near-zero absolute
+      variance makes relative reduction misleading).
+      NYC (corrected FEMA data): NFIP vr=9.0%, FEMA vr=8.5%, JRC vr=7.8%.
+      AC-C2b-1 PASS, AC-C2b-2 PASS, AC-C2b-3 PASS (FEMA vr < NFIP vr).
+      Key: FEMA now available (omega=0.936) after DFIRM 360497 fix.
+      Temporal prior reduces variance 7-9% across all NYC constructs.
     notes: >
       Sequential event certification with P16 hint blending.
       Houston (3 events) + NYC (4 events). Uses omega from DOE-C2a.
-      NYC first launch crashed on None omega_composite (FEMA); fixed in 231c3cb.
+      NYC re-run (2026-06-17): DFIRM 360497 consolidated community bug fixed,
+      flood zones patched, full pipeline re-run (five_construct_divergence ->
+      omega_bootstrap -> temporal_prior). FEMA now has valid omega_comp=0.936.
+      Previous NYC runs archived in S3 doe_c2b/archive/.
   tract_resolution:
     status: DESIGNED
     doe_id: DOE-C3
