@@ -55,6 +55,17 @@ S3_PROVENANCE_KEY = "rsct_curriculum/series_018/processed/flood_zones_provenance
 NON_CONUS_PREFIXES = {"02", "15", "60", "66", "69", "72", "78"}
 CONUS_5070_BOUNDS = (-2_500_000, 100_000, 2_400_000, 3_300_000)
 
+# ---------------------------------------------------------------------------
+# Consolidated-community DFIRM -> county FIPS mapping.
+# FEMA assigns city-level DFIRM IDs to consolidated communities that don't
+# decompose to county FIPS via simple [:5] truncation.  Without this map,
+# the overlay step silently drops all ZCTAs in these jurisdictions.
+# ---------------------------------------------------------------------------
+CONSOLIDATED_DFIRM_TO_FIPS: dict[str, list[str]] = {
+    # New York City (5 boroughs, single DFIRM 360497)
+    "360497": ["36005", "36047", "36061", "36081", "36085"],
+}
+
 
 # ---------------------------------------------------------------------------
 # S3 helpers
@@ -372,17 +383,29 @@ def main():
     log.info("  Found %d raw zips", len(raw_files))
 
     by_fips = {}
+    consolidated_applied = 0
     for key, fname in raw_files:
         dfirm_id = fname.split("_")[0] if "_" in fname else fname[:-4]
+        m = re.search(r"_(\d{8})\.", fname)
+        entry_date = m.group(1) if m else "00000000"
+
+        # Consolidated communities: one DFIRM covers multiple county FIPS
+        if dfirm_id in CONSOLIDATED_DFIRM_TO_FIPS:
+            for fips in CONSOLIDATED_DFIRM_TO_FIPS[dfirm_id]:
+                if fips[:2] not in NON_CONUS_PREFIXES:
+                    if fips not in by_fips or entry_date > by_fips[fips]["date"]:
+                        by_fips[fips] = {"key": key, "dfirm_id": dfirm_id, "date": entry_date}
+            consolidated_applied += 1
+            continue
+
         fips = dfirm_id[:5]
         if fips[:2] in NON_CONUS_PREFIXES:
             continue
-        m = re.search(r"_(\d{8})\.", fname)
-        entry_date = m.group(1) if m else "00000000"
         if fips not in by_fips or entry_date > by_fips[fips]["date"]:
             by_fips[fips] = {"key": key, "dfirm_id": dfirm_id, "date": entry_date}
 
-    log.info("  Dedup: %d unique CONUS FIPS", len(by_fips))
+    log.info("  Dedup: %d unique CONUS FIPS (%d consolidated communities expanded)",
+             len(by_fips), consolidated_applied)
 
     # ===================================================================
     # 2. Load TIGER + crosswalk, project to EPSG:5070
@@ -570,6 +593,35 @@ def main():
         log.info("  Check 5 PASS: Harris County has Zone A coverage")
     else:
         log.warning("  Check 5 FAIL: Harris County has no Zone A coverage")
+
+    # Check 5b: County coverage gap detection
+    # Cross-reference crosswalk counties against overlay results.
+    # Any county with ZCTAs but zero Zone A may indicate a DFIRM mapping gap.
+    counties_in_crosswalk = set(zcta_geo["county_fips"].unique()) - {"unknown"}
+    counties_with_zone_a = set()
+    for cfips, idxs in county_zcta_map.items():
+        zcta_ids_in_county = zcta_geo.iloc[idxs]["zcta_id"].tolist()
+        county_rows = result_df[result_df["zcta_id"].isin(zcta_ids_in_county)]
+        if (county_rows["flood_pct_zone_a"] > 0).any():
+            counties_with_zone_a.add(cfips)
+    counties_no_zone_a = counties_in_crosswalk - counties_with_zone_a
+    # Filter to counties that have >10 ZCTAs (skip tiny rural counties)
+    large_counties_no_zone_a = []
+    for cfips in sorted(counties_no_zone_a):
+        n_zctas = len(county_zcta_map.get(cfips, []))
+        if n_zctas >= 10:
+            large_counties_no_zone_a.append((cfips, n_zctas))
+    if large_counties_no_zone_a:
+        log.warning("  Check 5b WARN: %d large counties (>=10 ZCTAs) have zero Zone A coverage:",
+                    len(large_counties_no_zone_a))
+        for cfips, nz in large_counties_no_zone_a[:20]:
+            # Check if a consolidated DFIRM might cover this county
+            possible = [did for did, fips_list in CONSOLIDATED_DFIRM_TO_FIPS.items()
+                        if cfips in fips_list]
+            hint = " (mapped via %s)" % possible[0] if possible else " -- CHECK DFIRM CATALOG"
+            log.warning("    %s: %d ZCTAs%s", cfips, nz, hint)
+    else:
+        log.info("  Check 5b PASS: no large counties with zero Zone A coverage")
 
     # Check 7: Distribution
     log.info("  Check 7 - Distribution:")
