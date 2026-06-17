@@ -486,7 +486,7 @@ phases:
       null due to perfect forward_score). Deltares NYC: omega=1.0 (zero
       variance, zero predictive power). Houston has FAST data (omega=0.931).
   temporal_prior:
-    status: IN_PROGRESS
+    status: COMPLETED
     doe_id: DOE-C2b
     code: jobs/run_temporal_prior.py
     launcher: scripts/launch_temporal_prior.py
@@ -494,14 +494,25 @@ phases:
     doe_spec: DOE_C2b_temporal_prior.md
     job_ids:
     - s035-temp-prior-houston-20260617-203926
-    - s035-temp-prior-nyc-20260617-203935
+    - s035-temp-prior-nyc-20260617-203935  # crashed: None omega; stopped
+    - s035-temp-prior-nyc-20260617-204433  # relaunch with fix (231c3cb)
     artifact_keys:
-    - results/s035/doe_c2b/temporal_prior_{scenario}.json
-    - results/s035/doe_c2b/cache/sequential_certificates_{scenario}.parquet
+    - results/s035/doe_c2b/temporal_prior_houston.json
+    - results/s035/doe_c2b/temporal_prior_nyc.json
+    - results/s035/doe_c2b/cache/sequential_certificates_houston.parquet
+    - results/s035/doe_c2b/cache/sequential_certificates_nyc.parquet
+    findings: >
+      Houston: NFIP vr=1.6%, FEMA vr=2.2%, JRC vr=5.4%. AC-C2b-1 PASS,
+      AC-C2b-2 PASS, AC-C2b-3 FAIL (FEMA vr > NFIP vr -- FEMA near-zero
+      absolute variance makes relative reduction misleading).
+      NYC: NFIP vr=10.4%, JRC vr=8.2%, FEMA unavailable (omega=null).
+      AC-C2b-1 PASS, AC-C2b-2 PASS, AC-C2b-3 PASS.
+      Key: temporal prior most effective for NFIP in NYC (10.4% reduction);
+      Houston high omega (0.96) limits blending effect.
     notes: >
       Sequential event certification with P16 hint blending.
       Houston (3 events) + NYC (4 events). Uses omega from DOE-C2a.
-      ~30 certifications total. ml.m5.large (2 vCPU, 8 GB).
+      NYC first launch crashed on None omega_composite (FEMA); fixed in 231c3cb.
   tract_resolution:
     status: DESIGNED
     doe_id: DOE-C3
