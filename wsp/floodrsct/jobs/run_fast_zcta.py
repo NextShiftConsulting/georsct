@@ -37,14 +37,14 @@ import rasterio
 sys.path.insert(0, str(Path(__file__).parent))
 from _coverage_common import BUCKET, get_s3_client
 
-# Sphere types via georsct.flood.engine (not reimplementing -- per DOE constraint)
-from georsct.flood.engine import (
+# Sphere types via floodcaster.engine (not reimplementing -- per DOE constraint)
+from floodcaster.engine import (
     FastBuildings,
     HazusFloodAnalysis,
     DefaultFloodVulnerability,
     SingleValueRaster,
 )
-from georsct.flood.aggregation import aggregate_by_zcta
+from floodcaster.aggregation import aggregate_by_zcta
 
 logging.basicConfig(
     level=logging.INFO,
