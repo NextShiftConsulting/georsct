@@ -492,7 +492,9 @@ phases:
     launcher: scripts/launch_temporal_prior.py
     depends_on: omega_bootstrap
     doe_spec: DOE_C2b_temporal_prior.md
-    job_ids: []
+    job_ids:
+    - s035-temp-prior-houston-20260617-203926
+    - s035-temp-prior-nyc-20260617-203935
     artifact_keys:
     - results/s035/doe_c2b/temporal_prior_{scenario}.json
     - results/s035/doe_c2b/cache/sequential_certificates_{scenario}.parquet
