@@ -131,6 +131,7 @@ class HistGBDTModelFitter(ModelFitter):
         y = target.astype(float)
         folds = sorted(set(fold_ids))
         pred = np.full(len(y), np.nan, dtype=float)
+        fold_scores: list[float] = []
 
         # Invariant: a row participates in fit/eval only if target is finite.
         # Missing coverage (e.g., JRC for 12/648 ZCTAs) stays visible as NaN.
@@ -154,12 +155,18 @@ class HistGBDTModelFitter(ModelFitter):
             model.fit(X[train_valid], y[train_valid])
             pred[test_valid] = model.predict(X[test_valid])
 
+            # Per-fold held-out score for downstream sigma/tau/omega
+            fold_valid = test_valid & np.isfinite(pred)
+            if fold_valid.sum() >= 3:
+                fold_scores.append(float(r2_score(y[fold_valid], pred[fold_valid])))
+
         valid = np.isfinite(pred) & target_valid
         if valid.sum() < 3:
             return FitPredictResult(
                 predictions=pred,
                 forward_score=float("nan"),
                 task_type=task_type,
+                fold_scores=tuple(fold_scores),
             )
 
         score = float(r2_score(y[valid], pred[valid]))
@@ -167,6 +174,7 @@ class HistGBDTModelFitter(ModelFitter):
             predictions=pred,
             forward_score=score,
             task_type=task_type,
+            fold_scores=tuple(fold_scores),
         )
 
     def aggregate_embeddings(

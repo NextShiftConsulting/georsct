@@ -20,6 +20,7 @@ class FitPredictResult:
     predictions: np.ndarray  # (n_obs,) out-of-fold predictions
     forward_score: float     # R2, AUC, or accuracy
     task_type: str           # "regression" | "binary_classification" | ...
+    fold_scores: tuple[float, ...] = ()  # per-fold held-out metric (R2, AUC)
 
 
 @dataclass(frozen=True)
@@ -57,7 +58,8 @@ class ModelFitter(ABC):
                 or "multiclass_classification".
 
         Returns:
-            FitPredictResult with predictions and forward score.
+            FitPredictResult with predictions, forward score, and
+            per-fold held-out scores for downstream sigma/tau/omega.
         """
 
     @abstractmethod
