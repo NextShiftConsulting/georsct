@@ -209,7 +209,7 @@ def test_audit_result_overall_fail():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd C:/Users/marti/github/rsct-geocert && python -m pytest tests/experiment_audit/test_models.py -v`
+Run: `cd C:/Users/marti/github/georsct && python -m pytest tests/experiment_audit/test_models.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'georsct.experiment_audit'`
 
 - [ ] **Step 3: Create `__init__.py` files and implement `models.py`**
@@ -343,13 +343,13 @@ class AuditResult:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd C:/Users/marti/github/rsct-geocert && python -m pytest tests/experiment_audit/test_models.py -v`
+Run: `cd C:/Users/marti/github/georsct && python -m pytest tests/experiment_audit/test_models.py -v`
 Expected: All 10 tests PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd C:/Users/marti/github/rsct-geocert
+cd C:/Users/marti/github/georsct
 git add georsct/experiment_audit/__init__.py georsct/experiment_audit/models.py tests/experiment_audit/__init__.py tests/experiment_audit/test_models.py
 git commit -m "feat(experiment_audit): add core data models and severity vocabulary"
 ```
@@ -424,7 +424,7 @@ def test_contracted_cells_excludes_swfl_hwm():
 
 - [ ] **Step 3: Run test to verify it fails**
 
-Run: `cd C:/Users/marti/github/rsct-geocert && python -m pytest tests/experiment_audit/test_constants.py -v`
+Run: `cd C:/Users/marti/github/georsct && python -m pytest tests/experiment_audit/test_constants.py -v`
 Expected: FAIL — `ImportError`
 
 - [ ] **Step 4: Implement `constants.py`**
@@ -520,13 +520,13 @@ TARGET_SPECS: dict[str, dict] = {
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `cd C:/Users/marti/github/rsct-geocert && python -m pytest tests/experiment_audit/test_constants.py -v`
+Run: `cd C:/Users/marti/github/georsct && python -m pytest tests/experiment_audit/test_constants.py -v`
 Expected: All 7 tests PASS
 
 - [ ] **Step 6: Commit**
 
 ```bash
-cd C:/Users/marti/github/rsct-geocert
+cd C:/Users/marti/github/georsct
 git add georsct/experiment_audit/constants.py tests/experiment_audit/test_constants.py
 git commit -m "feat(experiment_audit): add constants mirroring _coverage_common.py"
 ```
@@ -707,7 +707,7 @@ def test_parse_contract_depends_on():
 
 - [ ] **Step 3: Run test to verify it fails**
 
-Run: `cd C:/Users/marti/github/rsct-geocert && python -m pytest tests/experiment_audit/test_contract.py -v`
+Run: `cd C:/Users/marti/github/georsct && python -m pytest tests/experiment_audit/test_contract.py -v`
 Expected: FAIL — `ImportError: cannot import name 'parse_contract'`
 
 - [ ] **Step 4: Implement `contract.py`**
@@ -904,13 +904,13 @@ def parse_contract(path: Path) -> ParsedContract:
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `cd C:/Users/marti/github/rsct-geocert && python -m pytest tests/experiment_audit/test_contract.py -v`
+Run: `cd C:/Users/marti/github/georsct && python -m pytest tests/experiment_audit/test_contract.py -v`
 Expected: All 10 tests PASS
 
 - [ ] **Step 6: Commit**
 
 ```bash
-cd C:/Users/marti/github/rsct-geocert
+cd C:/Users/marti/github/georsct
 git add georsct/experiment_audit/contract.py tests/experiment_audit/test_contract.py tests/experiment_audit/fixtures/mini_contract.yaml
 git commit -m "feat(experiment_audit): add contract parser with cell matrix resolution"
 ```
@@ -1044,7 +1044,7 @@ def test_best_timestamp_uses_internal(stub_inventory):
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd C:/Users/marti/github/rsct-geocert && python -m pytest tests/experiment_audit/test_s3_inventory.py -v`
+Run: `cd C:/Users/marti/github/georsct && python -m pytest tests/experiment_audit/test_s3_inventory.py -v`
 Expected: FAIL — `ImportError`
 
 - [ ] **Step 3: Implement `s3_inventory.py`**
@@ -1158,13 +1158,13 @@ class S3Inventory:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd C:/Users/marti/github/rsct-geocert && python -m pytest tests/experiment_audit/test_s3_inventory.py -v`
+Run: `cd C:/Users/marti/github/georsct && python -m pytest tests/experiment_audit/test_s3_inventory.py -v`
 Expected: All 6 tests PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd C:/Users/marti/github/rsct-geocert
+cd C:/Users/marti/github/georsct
 git add georsct/experiment_audit/s3_inventory.py tests/experiment_audit/test_s3_inventory.py
 git commit -m "feat(experiment_audit): add S3 inventory with swarm_auth and timestamp extraction"
 ```
@@ -1349,7 +1349,7 @@ import pytest
 
 - [ ] **Step 3: Run test to verify it fails**
 
-Run: `cd C:/Users/marti/github/rsct-geocert && python -m pytest tests/experiment_audit/test_content_readers.py -v`
+Run: `cd C:/Users/marti/github/georsct && python -m pytest tests/experiment_audit/test_content_readers.py -v`
 Expected: FAIL — `ImportError`
 
 - [ ] **Step 4: Implement `content_readers.py`**
@@ -1503,13 +1503,13 @@ def extract_aggregate_cells(
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `cd C:/Users/marti/github/rsct-geocert && python -m pytest tests/experiment_audit/test_content_readers.py -v`
+Run: `cd C:/Users/marti/github/georsct && python -m pytest tests/experiment_audit/test_content_readers.py -v`
 Expected: All 6 tests PASS
 
 - [ ] **Step 6: Commit**
 
 ```bash
-cd C:/Users/marti/github/rsct-geocert
+cd C:/Users/marti/github/georsct
 git add georsct/experiment_audit/content_readers.py tests/experiment_audit/test_content_readers.py tests/experiment_audit/fixtures/
 git commit -m "feat(experiment_audit): add content readers for run results, money table, and aggregates"
 ```
@@ -1610,7 +1610,7 @@ def test_warn_one_missing():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd C:/Users/marti/github/rsct-geocert && python -m pytest tests/experiment_audit/test_timestamp_ordering.py -v`
+Run: `cd C:/Users/marti/github/georsct && python -m pytest tests/experiment_audit/test_timestamp_ordering.py -v`
 Expected: FAIL — `ImportError`
 
 - [ ] **Step 3: Implement `timestamp_ordering.py`**
@@ -1745,13 +1745,13 @@ def check_ordering(
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd C:/Users/marti/github/rsct-geocert && python -m pytest tests/experiment_audit/test_timestamp_ordering.py -v`
+Run: `cd C:/Users/marti/github/georsct && python -m pytest tests/experiment_audit/test_timestamp_ordering.py -v`
 Expected: All 6 tests PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd C:/Users/marti/github/rsct-geocert
+cd C:/Users/marti/github/georsct
 git add georsct/experiment_audit/timestamp_ordering.py tests/experiment_audit/test_timestamp_ordering.py
 git commit -m "feat(experiment_audit): add three-tier timestamp ordering verification"
 ```
@@ -1917,7 +1917,7 @@ def test_gate4_detects_missing_cells():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd C:/Users/marti/github/rsct-geocert && python -m pytest tests/experiment_audit/test_validators.py -v`
+Run: `cd C:/Users/marti/github/georsct && python -m pytest tests/experiment_audit/test_validators.py -v`
 Expected: FAIL — `ImportError`
 
 - [ ] **Step 3: Implement `validators.py`**
@@ -2254,13 +2254,13 @@ def gate_6_ordering(
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd C:/Users/marti/github/rsct-geocert && python -m pytest tests/experiment_audit/test_validators.py -v`
+Run: `cd C:/Users/marti/github/georsct && python -m pytest tests/experiment_audit/test_validators.py -v`
 Expected: All 7 tests PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd C:/Users/marti/github/rsct-geocert
+cd C:/Users/marti/github/georsct
 git add georsct/experiment_audit/validators.py tests/experiment_audit/test_validators.py
 git commit -m "feat(experiment_audit): add 6 audit gates (contract parse, outputs, convention, cell matrix, content, ordering)"
 ```
@@ -2346,7 +2346,7 @@ def test_render_markdown_has_warnings_section():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd C:/Users/marti/github/rsct-geocert && python -m pytest tests/experiment_audit/test_report.py -v`
+Run: `cd C:/Users/marti/github/georsct && python -m pytest tests/experiment_audit/test_report.py -v`
 Expected: FAIL — `ImportError`
 
 - [ ] **Step 3: Implement `report.py`**
@@ -2431,13 +2431,13 @@ def render_markdown(result: AuditResult) -> str:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd C:/Users/marti/github/rsct-geocert && python -m pytest tests/experiment_audit/test_report.py -v`
+Run: `cd C:/Users/marti/github/georsct && python -m pytest tests/experiment_audit/test_report.py -v`
 Expected: All 5 tests PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd C:/Users/marti/github/rsct-geocert
+cd C:/Users/marti/github/georsct
 git add georsct/experiment_audit/report.py tests/experiment_audit/test_report.py
 git commit -m "feat(experiment_audit): add JSON and Markdown report generators"
 ```
@@ -2526,7 +2526,7 @@ def test_build_manifest_tracks_provenance():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd C:/Users/marti/github/rsct-geocert && python -m pytest tests/experiment_audit/test_manifest.py -v`
+Run: `cd C:/Users/marti/github/georsct && python -m pytest tests/experiment_audit/test_manifest.py -v`
 Expected: FAIL — `ImportError`
 
 - [ ] **Step 3: Implement `manifest.py`**
@@ -2574,13 +2574,13 @@ def build_manifest(
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd C:/Users/marti/github/rsct-geocert && python -m pytest tests/experiment_audit/test_manifest.py -v`
+Run: `cd C:/Users/marti/github/georsct && python -m pytest tests/experiment_audit/test_manifest.py -v`
 Expected: All 3 tests PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd C:/Users/marti/github/rsct-geocert
+cd C:/Users/marti/github/georsct
 git add georsct/experiment_audit/manifest.py tests/experiment_audit/test_manifest.py
 git commit -m "feat(experiment_audit): add completion manifest writer"
 ```
@@ -2643,7 +2643,7 @@ def test_parser_defaults():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd C:/Users/marti/github/rsct-geocert && python -m pytest tests/experiment_audit/test_cli.py -v`
+Run: `cd C:/Users/marti/github/georsct && python -m pytest tests/experiment_audit/test_cli.py -v`
 Expected: FAIL — `ImportError`
 
 - [ ] **Step 3: Implement `cli.py`**
@@ -2848,18 +2848,18 @@ __all__ = ["AuditResult", "CheckResult", "Severity"]
 
 - [ ] **Step 6: Run test to verify it passes**
 
-Run: `cd C:/Users/marti/github/rsct-geocert && python -m pytest tests/experiment_audit/test_cli.py -v`
+Run: `cd C:/Users/marti/github/georsct && python -m pytest tests/experiment_audit/test_cli.py -v`
 Expected: All 3 tests PASS
 
 - [ ] **Step 7: Run full test suite**
 
-Run: `cd C:/Users/marti/github/rsct-geocert && python -m pytest tests/experiment_audit/ -v`
+Run: `cd C:/Users/marti/github/georsct && python -m pytest tests/experiment_audit/ -v`
 Expected: All tests PASS (models: 10, constants: 7, contract: 10, s3_inventory: 6, content_readers: 6, timestamp_ordering: 6, validators: 7, report: 5, manifest: 3, cli: 3 = ~63 tests)
 
 - [ ] **Step 8: Commit**
 
 ```bash
-cd C:/Users/marti/github/rsct-geocert
+cd C:/Users/marti/github/georsct
 git add georsct/experiment_audit/cli.py georsct/experiment_audit/__main__.py georsct/experiment_audit/__init__.py tests/experiment_audit/test_cli.py
 git commit -m "feat(experiment_audit): add CLI entry point and __main__ runner"
 ```
@@ -2890,7 +2890,7 @@ The existing `[tool.setuptools.packages.find]` has `include = ["rsct*", "georsct
 - [ ] **Step 3: Commit**
 
 ```bash
-cd C:/Users/marti/github/rsct-geocert
+cd C:/Users/marti/github/georsct
 git add pyproject.toml
 git commit -m "feat(experiment_audit): add audit optional dependency group to pyproject.toml"
 ```
@@ -2901,23 +2901,23 @@ git commit -m "feat(experiment_audit): add audit optional dependency group to py
 
 - [ ] **Step 1: Run the full test suite one final time**
 
-Run: `cd C:/Users/marti/github/rsct-geocert && python -m pytest tests/experiment_audit/ -v --tb=short`
+Run: `cd C:/Users/marti/github/georsct && python -m pytest tests/experiment_audit/ -v --tb=short`
 Expected: All tests PASS
 
 - [ ] **Step 2: Verify CLI help works**
 
-Run: `cd C:/Users/marti/github/rsct-geocert && python -m georsct.experiment_audit --help`
+Run: `cd C:/Users/marti/github/georsct && python -m georsct.experiment_audit --help`
 Expected: Shows argparse help with `--contract`, `--s3-prefix`, `--out` args
 
 - [ ] **Step 3: Verify imports work**
 
-Run: `cd C:/Users/marti/github/rsct-geocert && python -c "from georsct.experiment_audit import AuditResult, Severity; print('OK:', list(Severity))"`
+Run: `cd C:/Users/marti/github/georsct && python -c "from georsct.experiment_audit import AuditResult, Severity; print('OK:', list(Severity))"`
 Expected: Prints `OK:` followed by all severity values
 
 - [ ] **Step 4: Final commit if any fixups needed**
 
 ```bash
-cd C:/Users/marti/github/rsct-geocert
+cd C:/Users/marti/github/georsct
 git add -A
 git commit -m "fix(experiment_audit): integration fixups from smoke test"
 ```

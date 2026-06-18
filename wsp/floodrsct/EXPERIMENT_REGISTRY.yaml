@@ -24,7 +24,7 @@ experiments:
   - series_id: s035
     title: "S035-Model-Ladder: Diagnosis-Driven Representation Ablation"
     target: "SIGSPATIAL 2026"
-    directory: "C:/Users/marti/github/rsct-geocert/wsp/floodrsct/exp/s035-model-ladder"
+    directory: "C:/Users/marti/github/georsct/wsp/floodrsct/exp/s035-model-ladder"
     status_file: "exp/s035-model-ladder/EXPERIMENT_STATUS.yaml"
     contract_file: "exp/s035-model-ladder/EXPERIMENT_CONTRACT.yaml"
     launchers: "scripts/"

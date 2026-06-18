@@ -88,7 +88,7 @@ Experiment-specific logic stays in s035.
 |------------|--------------|---------------|
 | **Overture building fetch** (bbox) | DONE — `sources.py:fetch_overture_buildings()` | Nothing |
 | **Hazus damage computation** | DONE — `analysis.py:run_flood_analysis()` via sphere | Nothing |
-| **NSI 2.0 building fetch** (bbox or ZCTA) | NOT IN FLOODCASTER — exists as standalone `fetch_nsi_structures.py` in rsct-geocert | Migrate to `floodcaster/nsi_sources.py` |
+| **NSI 2.0 building fetch** (bbox or ZCTA) | NOT IN FLOODCASTER — exists as standalone `fetch_nsi_structures.py` in georsct | Migrate to `floodcaster/nsi_sources.py` |
 | **NSI→sphere schema mapping** | NOT IN FLOODCASTER — sphere has `NsiBuildings` | Wire `NsiBuildings` into floodcaster as alternative to Overture |
 | **ZCTA-level aggregation** | NOT IN FLOODCASTER | New `floodcaster/aggregation.py` — spatial join + group stats |
 | **run_nsi_flood_analysis()** | NOT IN FLOODCASTER | New function: NSI buildings + depth raster -> per-building losses (mirrors `run_flood_analysis()`) |
@@ -117,7 +117,7 @@ nsi_sources.fetch_nsi()                    run_fast_zcta.py
                                              computes Spearman correlations (H6)
 ```
 
-### What migrates from rsct-geocert to floodcaster
+### What migrates from georsct to floodcaster
 
 `data/floodrsct/jobs/fetch_nsi_structures.py` — NSI API fetch logic moves
 to `floodcaster/nsi_sources.py`. The s035 script becomes a thin caller that

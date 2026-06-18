@@ -1,4 +1,4 @@
-# rsct-geocert Dev Instructions
+# georsct Dev Instructions
 
 ## Floodcaster Status: FROZEN at v1.7
 

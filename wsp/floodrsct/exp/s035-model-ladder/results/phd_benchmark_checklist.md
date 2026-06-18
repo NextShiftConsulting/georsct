@@ -11,7 +11,7 @@
 
 | # | Item | Status | Evidence |
 |---|------|--------|----------|
-| A1 | Code versioned and committed (git hash traceability) | DONE | Git repo `rsct-geocert`, latest commit `23f8ca9`; CHECKLIST.md has hash placeholder for per-run recording |
+| A1 | Code versioned and committed (git hash traceability) | DONE | Git repo `georsct`, latest commit `23f8ca9`; CHECKLIST.md has hash placeholder for per-run recording |
 | A2 | Random seeds fixed | DONE | `seed=42` specified in DOE_R0_baseline.md, enforced in all training scripts |
 | A3 | Dependencies pinned (requirements.txt) | PARTIAL | `requirements.txt` exists with `>=` lower bounds (e.g. `scikit-learn>=1.4`) but no upper bounds or lockfile. Not a fully reproducible pin. |
 | A4 | Full pipeline re-runnable from raw data to final figures | PARTIAL | Scripts exist for all phases; SageMaker launchers documented in CHECKLIST.md. However, no single `make all` or `snakemake` workflow exists. Requires manual phase-by-phase execution. |

@@ -160,9 +160,9 @@ Each `analyze_s019X.py` script must produce:
 
 | File | Format | Purpose |
 |------|--------|---------|
-| `rsct-geocert/data/s019X/certs/*.json` | Per-cell JSON | Archival certificates |
-| `rsct-geocert/data/s019X/certificates.parquet` | Parquet | Machine-readable full table |
-| `rsct-geocert/data/s019X/summary.json` | JSON | Experiment summary |
+| `georsct/data/s019X/certs/*.json` | Per-cell JSON | Archival certificates |
+| `georsct/data/s019X/certificates.parquet` | Parquet | Machine-readable full table |
+| `georsct/data/s019X/summary.json` | JSON | Experiment summary |
 
 ### 4c. Cross-Seed Outputs (S019D with --all-seeds)
 
@@ -216,7 +216,7 @@ Before marking an experiment as "paper-ready":
 - [ ] H1 simplex integrity passes (max dev < 0.01)
 - [ ] Noisy control rejected by both gatekeepers (S019D sanity check)
 - [ ] Cross-seed consensus > 0.90 (FC-5, S019D only)
-- [ ] Certificate JSONs exported to rsct-geocert/data/
+- [ ] Certificate JSONs exported to georsct/data/
 - [ ] CSV tables generated for LaTeX
 - [ ] Wall-clock time recorded for Appendix H
 - [ ] Git hash of run code recorded in summary

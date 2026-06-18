@@ -106,7 +106,7 @@ VLM/VLA are **consumers** of audit outputs, not the source of scientific evidenc
 
 ---
 
-## Implementation Ownership: floodcaster vs rsct-geocert
+## Implementation Ownership: floodcaster vs georsct
 
 ### floodcaster extensions (general flood analysis — reusable beyond s035)
 
@@ -118,7 +118,7 @@ VLM/VLA are **consumers** of audit outputs, not the source of scientific evidenc
 | `vulnerability.py` (NEW) | Alternative depth-damage curve sets | CanFlood | Extend beyond sphere/HAZUS defaults |
 | `infrastructure.py` (future) | OSM-derived canal/levee/drain proximity | QuickOSM | General flood exposure context |
 
-### rsct-geocert s035 jobs (experiment/audit specific)
+### georsct s035 jobs (experiment/audit specific)
 
 | Script | Capability | QGIS Inspiration | Rationale |
 |---|---|---|---|
@@ -129,7 +129,7 @@ VLM/VLA are **consumers** of audit outputs, not the source of scientific evidenc
 ### Decision rule
 
 **If it takes raster/building inputs and produces flood-relevant outputs → floodcaster.**
-**If it measures model quality or builds experiment-specific features → rsct-geocert.**
+**If it measures model quality or builds experiment-specific features → georsct.**
 
 ### Dependency flow
 
@@ -138,7 +138,7 @@ floodcaster (hydrology, EAD, exact zonal, infrastructure)
     ^
     |  pip install floodcaster
     |
-rsct-geocert/s035 (LISA diagnostics, spatial CV validation, compound timing)
+georsct/s035 (LISA diagnostics, spatial CV validation, compound timing)
     |
     |  imports libpysal, esda directly (not via floodcaster)
     v

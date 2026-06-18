@@ -928,7 +928,7 @@ Generic flood analysis capabilities are open-source API calls in
 
 | New Module | Migrates From | Capability |
 |------------|--------------|------------|
-| `floodcaster/nsi_sources.py` | `rsct-geocert/data/floodrsct/jobs/fetch_nsi_structures.py` | Fetch NSI 2.0 buildings by bbox/FIPS from USACE API, map to sphere schema |
+| `floodcaster/nsi_sources.py` | `georsct/data/floodrsct/jobs/fetch_nsi_structures.py` | Fetch NSI 2.0 buildings by bbox/FIPS from USACE API, map to sphere schema |
 | `floodcaster/aggregation.py` | New | Spatial join buildings to ZCTA polygons, compute group stats (sum, mean, count, percentile) |
 | `floodcaster/analysis.py` update | New function | `run_nsi_flood_analysis()` — NSI buildings + depth raster -> per-building losses via sphere `HazusFloodAnalysis` |
 
