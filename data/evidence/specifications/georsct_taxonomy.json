@@ -1,0 +1,327 @@
+{
+  "version": "s035",
+  "categories": {
+    "GC1": {
+      "name": "GC1_LABEL_CONSTRUCTION",
+      "modes": [
+        {
+          "id": "GCF-1.1",
+          "name": "Tercile Uniformity",
+          "description": "Residual-tercile labels collapse toward uniform or bland class assignments, making noisy controls look serious.",
+          "expected_signal_pattern": {
+            "label_entropy": [
+              0.85,
+              1.0
+            ],
+            "prediction_entropy": [
+              0.8,
+              1.0
+            ],
+            "delta_structure": [
+              0.0,
+              0.25
+            ],
+            "noisy_control_similarity": [
+              0.7,
+              1.0
+            ],
+            "aggregate_separation": [
+              0.0,
+              0.35
+            ]
+          },
+          "diagnostic_tests": [
+            "label entropy by target/solver",
+            "prediction entropy by solver",
+            "distance from noisy control to serious solvers",
+            "ablation-delta structure score"
+          ],
+          "example_scenario": "noisy_solver nearest neighbor is svr_rbf under aggregate certificate metrics.",
+          "paper_use": "Explains why R/S/N should not be treated as ordinary supervised classes."
+        },
+        {
+          "id": "GCF-1.2",
+          "name": "Label-Solver Coupling",
+          "description": "The label construction encodes the behavior of a particular solver rather than solver-independent representation evidence.",
+          "expected_signal_pattern": {
+            "solver_label_dependence": [
+              0.65,
+              1.0
+            ],
+            "cross_solver_label_agreement": [
+              0.0,
+              0.45
+            ],
+            "delta_structure": [
+              0.35,
+              0.8
+            ],
+            "target_variance": [
+              0.3,
+              0.75
+            ],
+            "aggregate_separation": [
+              0.25,
+              0.65
+            ]
+          },
+          "diagnostic_tests": [
+            "label agreement across solvers",
+            "solver-stratified label frequency",
+            "delta-sign consistency across solver families"
+          ],
+          "example_scenario": "R/S/N assignments change primarily when the solver changes, not when representation evidence changes.",
+          "paper_use": "Motivates label-free Y-U over supervised label heads."
+        },
+        {
+          "id": "GCF-1.3",
+          "name": "Target-Difficulty Conflation",
+          "description": "Hard targets receive worse labels because the target is difficult, not because the representation is noisy.",
+          "expected_signal_pattern": {
+            "n_ceiling_correlation": [
+              0.6,
+              1.0
+            ],
+            "target_variance": [
+              0.55,
+              1.0
+            ],
+            "cross_solver_label_agreement": [
+              0.5,
+              1.0
+            ],
+            "solver_label_dependence": [
+              0.0,
+              0.45
+            ],
+            "delta_structure": [
+              0.25,
+              0.65
+            ]
+          },
+          "diagnostic_tests": [
+            "label vs N-ceiling correlation",
+            "target-family stratification",
+            "within-target solver contrast"
+          ],
+          "example_scenario": "high-N-ceiling tasks are marked noisy even when all solvers agree the target is intrinsically hard.",
+          "paper_use": "Separates task recoverability from representation quality."
+        }
+      ]
+    },
+    "GC2": {
+      "name": "GC2_DECOMPOSITION_REDUCTION",
+      "modes": [
+        {
+          "id": "GCF-2.1",
+          "name": "Scalar Projection",
+          "description": "A single certificate projection such as alpha misranks solver quality by hiding other axes such as sigma.",
+          "expected_signal_pattern": {
+            "alpha_rank_gap": [
+              0.6,
+              1.0
+            ],
+            "sigma_outlier": [
+              0.6,
+              1.0
+            ],
+            "kappa_compression": [
+              0.2,
+              0.65
+            ],
+            "gate_entropy": [
+              0.0,
+              0.35
+            ],
+            "aggregate_separation": [
+              0.35,
+              0.85
+            ]
+          },
+          "diagnostic_tests": [
+            "alpha rank vs actual performance rank",
+            "alpha-sigma scatter",
+            "control outlier analysis"
+          ],
+          "example_scenario": "mean_baseline has highest alpha but high sigma, so alpha-alone ranking is misleading.",
+          "paper_use": "Direct support for 'compatibility is not scalar'."
+        },
+        {
+          "id": "GCF-2.2",
+          "name": "Gate Compression",
+          "description": "A multi-axis certificate is reduced to one final gate decision, erasing meaningful metric separation.",
+          "expected_signal_pattern": {
+            "all_execute_rate": [
+              0.85,
+              1.0
+            ],
+            "gate_entropy": [
+              0.0,
+              0.2
+            ],
+            "metric_range": [
+              0.35,
+              1.0
+            ],
+            "kappa_compression": [
+              0.3,
+              0.8
+            ],
+            "false_execute_risk": [
+              0.45,
+              1.0
+            ]
+          },
+          "diagnostic_tests": [
+            "gate decision entropy",
+            "metric range conditional on same gate",
+            "threshold sweep"
+          ],
+          "example_scenario": "all S018D solvers EXECUTE despite visible alpha/N/sigma differences.",
+          "paper_use": "Shows typed decisions can become scalar-like when thresholds erase structure."
+        },
+        {
+          "id": "GCF-2.3",
+          "name": "Range Compression",
+          "description": "Serious solvers occupy a narrow certificate band, limiting fine-grained discrimination.",
+          "expected_signal_pattern": {
+            "serious_solver_range": [
+              0.0,
+              0.3
+            ],
+            "native_tightness": [
+              0.65,
+              1.0
+            ],
+            "kappa_compression": [
+              0.55,
+              1.0
+            ],
+            "aggregate_separation": [
+              0.15,
+              0.55
+            ],
+            "fine_routing_accuracy": [
+              0.0,
+              0.45
+            ]
+          },
+          "diagnostic_tests": [
+            "serious-only metric ranges",
+            "native solver clustering",
+            "within-family vs between-family distance"
+          ],
+          "example_scenario": "pca_v1, spatial_lag_v1, and gnn_v2 cluster tighter than the broad serious-solver panel.",
+          "paper_use": "Explains why coarse separation can coexist with failed fine routing."
+        }
+      ]
+    },
+    "GC3": {
+      "name": "GC3_DEPLOYMENT_TRANSLATION",
+      "modes": [
+        {
+          "id": "GCF-3.1",
+          "name": "Target-Solver Conflation",
+          "description": "The evaluation confuses hard-for-this-target with incompatible-for-this-solver.",
+          "expected_signal_pattern": {
+            "alpha_profile_corr": [
+              0.0,
+              0.35
+            ],
+            "target_variance": [
+              0.5,
+              1.0
+            ],
+            "solver_specificity": [
+              0.5,
+              1.0
+            ],
+            "n_ceiling_correlation": [
+              0.35,
+              0.85
+            ],
+            "fine_routing_accuracy": [
+              0.0,
+              0.45
+            ]
+          },
+          "diagnostic_tests": [
+            "pairwise alpha-profile correlation",
+            "target-family interaction test",
+            "solver-specific delta profiles"
+          ],
+          "example_scenario": "mean pairwise alpha-profile correlation is low, so what is hard for one solver is not hard for another.",
+          "paper_use": "Defines why target averaging is dangerous."
+        },
+        {
+          "id": "GCF-3.2",
+          "name": "Proxy Calibration Drift",
+          "description": "Proxy kappa or proxy certificate metrics decouple from true solver success or expected control behavior.",
+          "expected_signal_pattern": {
+            "kappa_compression": [
+              0.55,
+              1.0
+            ],
+            "proxy_success_corr": [
+              0.0,
+              0.35
+            ],
+            "noisy_control_similarity": [
+              0.55,
+              1.0
+            ],
+            "false_execute_risk": [
+              0.45,
+              1.0
+            ],
+            "gate_entropy": [
+              0.0,
+              0.4
+            ]
+          },
+          "diagnostic_tests": [
+            "kappa vs solver success calibration",
+            "proxy scale range audit",
+            "control-nearest-neighbor audit"
+          ],
+          "example_scenario": "kappa is compressed and noisy_solver is not exposed as noisy by aggregate metrics.",
+          "paper_use": "Turns proxy limitations into an explicit evaluation target."
+        },
+        {
+          "id": "GCF-3.3",
+          "name": "Fine-Routing Failure",
+          "description": "Certificate evidence supports coarse diagnosis but cannot select among serious solvers or route per sample.",
+          "expected_signal_pattern": {
+            "fine_routing_accuracy": [
+              0.0,
+              0.4
+            ],
+            "serious_solver_range": [
+              0.0,
+              0.35
+            ],
+            "solver_specificity": [
+              0.25,
+              0.75
+            ],
+            "native_tightness": [
+              0.55,
+              1.0
+            ],
+            "gate_entropy": [
+              0.0,
+              0.4
+            ]
+          },
+          "diagnostic_tests": [
+            "oracle vs certificate routing gap",
+            "serious-only clustering",
+            "per-sample routing accuracy"
+          ],
+          "example_scenario": "certificate separates controls but not serious solvers well enough for routing.",
+          "paper_use": "Prevents overclaiming that GeoCert solves routing."
+        }
+      ]
+    }
+  }
+}

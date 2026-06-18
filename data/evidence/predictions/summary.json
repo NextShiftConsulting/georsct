@@ -1,0 +1,23 @@
+{
+  "experiment_id": "s018d_posthoc",
+  "status": "PASS",
+  "run_timestamp": "",
+  "git_commit": "",
+  "n_targets": 27,
+  "n_solvers": 12,
+  "n_certificates": 324,
+  "n_feature_groups": null,
+  "key_findings": [
+    "PCA: 5 components explain 100.0% variance",
+    "PC1 explains 63.9% alone",
+    "Noisy solver nearest neighbor: linear_ridge (SERIOUS, not control)",
+    "Controls are NOT a group: distance 10.006 > mean 9.630",
+    "Serious solver cluster tightness: 2.533"
+  ],
+  "paper_claim_supported": "Certificate summaries are structured but incomplete: they separate scale/instability pathologies while hiding noisy-solver pathology",
+  "limitations": [
+    "Only 12 solver profiles (small n for PCA)",
+    "Aggregate metrics only \u2014 no per-target or per-sample resolution",
+    "Motivates but does not replace S018Y-U ablation analysis"
+  ]
+}
