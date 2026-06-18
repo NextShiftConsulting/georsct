@@ -2,7 +2,7 @@
 
 **Experiment:** s035-model-ladder / DOE-C2a
 **Role:** Extend DOE-C1 certificates with omega (distributional reliability)
-**Status:** DESIGNED
+**Status:** COMPLETED (2026-06-17)
 **Depends on:** DOE-C1 (COMPLETED)
 **Blocks:** DOE-C2b (temporal prior needs omega for P16 blending)
 
@@ -137,3 +137,70 @@ weight, which is structurally identical to alpha_omega = omega * alpha + (1-omeg
 If omega is uniformly high across constructs, P16 is unnecessary for flood
 certification. If omega varies (expected), then raw forward_score overstates
 confidence for distribution-sensitive constructs like NFIP.
+
+---
+
+## Results (2026-06-17)
+
+### Omega by Scenario and Construct
+
+| Scenario | JRC | Deltares | FEMA | FAST | NFIP |
+|----------|-----|----------|------|------|------|
+| Houston | 0.874 | -- | 0.952 | 0.931 | 0.961 |
+| SW Florida | 0.935 | -- | 0.960 | 0.894 | 0.954 |
+| NYC | 0.869 | 1.000 | null | -- | 0.871 |
+| New Orleans | 0.970 | -- | 0.975 | -- | 0.909 |
+| Riverside | 0.978 | -- | 0.927 | -- | 0.938 |
+
+### Alpha vs Alpha_Omega (P16 Blended Quality)
+
+| Scenario | Construct | alpha | alpha_omega | shift |
+|----------|-----------|-------|-------------|-------|
+| Houston | FEMA | 0.855 | 0.838 | -0.017 |
+| Houston | NFIP | 0.769 | 0.758 | -0.011 |
+| Houston | JRC | 0.170 | 0.212 | +0.042 |
+| Houston | FAST | 0.064 | 0.094 | +0.030 |
+| SW Florida | FEMA | 0.949 | 0.931 | -0.018 |
+| SW Florida | NFIP | 0.555 | 0.552 | -0.003 |
+| SW Florida | JRC | 0.503 | 0.503 | 0.000 |
+| SW Florida | FAST | 0.324 | 0.342 | +0.018 |
+| NYC | NFIP | 0.622 | 0.607 | -0.015 |
+| NYC | JRC | 0.312 | 0.336 | +0.024 |
+| New Orleans | NFIP | 0.849 | 0.817 | -0.032 |
+| Riverside | FEMA | 0.347 | 0.358 | +0.011 |
+
+### Acceptance Criteria Assessment
+
+| ID | Criterion | Result | Notes |
+|----|-----------|--------|-------|
+| AC-C2a-1 | omega range > 0.1 in >=3 scenarios | **FAIL** (1/5) | Only NYC passes (range 0.131). Others 0.05-0.09. |
+| AC-C2a-2 | NFIP omega < FEMA omega in Houston | **FAIL** | NFIP=0.961 > FEMA=0.952. NFIP is MORE stable. |
+| AC-C2a-3 | alpha_omega changes construct ranking | **FAIL** | No rank changes in any scenario. |
+| AC-C2a-4 | Non-degenerate CIs | **PARTIAL** | NYC FEMA: null (kappa_spatial computation failed). Several zero-width CIs. |
+
+### Interpretation
+
+**Key finding: omega is uniformly high (0.87-1.0) across all constructs
+at ZCTA resolution.** The block bootstrap with 5-fold spatial blocking
+does not produce enough certification variance to meaningfully differentiate
+constructs. P16 blending shifts alpha_omega by at most 0.04 (Houston JRC)
+and never changes construct ordering.
+
+**This is a useful null result:** at ZCTA resolution (~33K regions
+nationally), certificates are distribution-stable. The question of
+whether P16 matters for flood certification may need to be tested at:
+1. Finer spatial resolution (census tracts, DOE-C3)
+2. More aggressive resampling (leave-one-event-out vs fold bootstrap)
+3. Smaller sample sizes (sub-scenario geography)
+
+**Data quality signals:**
+- Deltares unavailable in 4/5 scenarios (no depth data)
+- FAST unavailable in 3/5 scenarios (no FAST RP mapping)
+- NYC FEMA: perfect forward_score=1.0 (flood zones perfectly predictable)
+  producing null kappa_spatial and null omega
+- New Orleans JRC: forward_score always 0.0 (JRC unpredictable from features)
+
+**Implication for DOE-C2b:** Since omega is uniformly high, the temporal
+prior experiment (P16 hint blending across sequential events) will produce
+minimal blending effect. DOE-C2b should acknowledge this and test whether
+temporal information provides value BEYOND what omega captures.
