@@ -82,3 +82,6 @@ MODELS.zip
 
 # Local-only archive — never upload
 nogitupload/
+
+# Temporary PDF downloads
+moe_*.pdf
