@@ -235,7 +235,7 @@ def _project_to_gatekeeper_input(cert: dict) -> CPGatekeeperInput:
 
     return CPGatekeeperInput(
         alpha=alpha,
-        kappa_gate=kappa,
+        kappa_compat=kappa,
         sigma=sigma,
         source_mode="proxy",
         evidence={
@@ -372,7 +372,7 @@ def evaluate_gates(cert: dict) -> dict:
         "coordinator_action": plan.action,
         "morph_hint": plan.morph_hint,
         "source_mode": "proxy",
-        "kappa_compat": gk_input.kappa_gate,
+        "kappa_compat": gk_input.kappa_compat,
         "sigma": gk_input.sigma,
         "alpha": gk_input.alpha,
         "tau": round(tau, 6),

@@ -80,15 +80,13 @@ class TestClassifyHealth:
 
 
 class TestNextSteps:
-    def test_reject_n_floor(self):
-        gate = _gate("REJECT", "GATE_1_INTEGRITY", "N_FLOOR_BREACH")
+    def test_reject_combined_n_and_alpha(self):
+        """Gate 1 REJECT emits N_FLOOR_BREACH_AND_ALPHA_LOW (both failed)."""
+        gate = _gate("REJECT", "GATE_1_INTEGRITY", "N_FLOOR_BREACH_AND_ALPHA_LOW")
         steps = _generate_next_steps(gate, None, None, None)
-        assert any("Noise saturation" in s for s in steps)
-
-    def test_reject_alpha_floor(self):
-        gate = _gate("REJECT", "GATE_1_INTEGRITY", "ALPHA_FLOOR_BREACH")
-        steps = _generate_next_steps(gate, None, None, None)
-        assert any("Low alpha" in s for s in steps)
+        assert len(steps) > 0, "Gate 1 REJECT must produce next-step guidance"
+        assert any("noise" in s.lower() for s in steps)
+        assert any("alpha" in s.lower() for s in steps)
 
     def test_block(self):
         gate = _gate("BLOCK", "GATE_2_CONSENSUS")

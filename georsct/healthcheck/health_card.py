@@ -91,15 +91,11 @@ def _generate_next_steps(
 
     # Gate failures
     if gate.decision == "REJECT":
-        if gate.sub_signal == "N_FLOOR_BREACH":
+        if gate.sub_signal == "N_FLOOR_BREACH_AND_ALPHA_LOW":
             steps.append(
-                "Noise saturation -- signal dominated by noise; "
-                "verify target variable has variance in this scenario"
-            )
-        elif gate.sub_signal == "ALPHA_FLOOR_BREACH":
-            steps.append(
-                "Low alpha -- discriminative quality below threshold; "
-                "check feature relevance or add stronger predictors"
+                "Noise saturation with low alpha -- both noise floor "
+                "and discriminative quality failed; verify target has "
+                "variance and check feature relevance"
             )
     elif gate.decision == "BLOCK":
         steps.append(

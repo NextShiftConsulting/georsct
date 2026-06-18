@@ -191,8 +191,9 @@ class GeoRSCTHarness:
             expert = ranked[0]
             admitted.add(expert.expert_id)
 
-            # Snapshot certificate before expert activation
+            # Snapshot certificate and features before expert activation
             cert_before = asdict(cert)
+            features_before = dict(state["features"])
 
             # Execute expert
             result = expert.run(contract, state)
@@ -223,11 +224,13 @@ class GeoRSCTHarness:
                 compatibility_delta=cert_after.kappa_coupling - cert.kappa_coupling,
             ))
 
-            # Muon admissibility check: rollback if expert hurt the certificate
+            # Muon admissibility check: rollback if expert hurt the certificate.
+            # Revert state["features"] so the solver does not use tainted data.
             if (
                 cert_after.kappa_coupling < cert.kappa_coupling
                 or cert_after.residual_moran > cert.residual_moran
             ):
+                state["features"] = features_before
                 cert_after.verdict = Verdict.SUPPRESS
                 cert = cert_after
                 break

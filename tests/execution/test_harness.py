@@ -225,6 +225,35 @@ class TestHarness:
         trace = harness.run(contract)
         assert trace.certificate.verdict == Verdict.SUPPRESS
 
+    def test_muon_rollback_reverts_state(self):
+        """Muon rollback must revert features so solver sees clean state."""
+        solver_features: list[dict] = []
+
+        def capturing_solver(contract, state):
+            solver_features.append(dict(state.get("features", {})))
+            return {}
+
+        def regressing_evaluator(contract, state):
+            feats = state.get("features", {})
+            kappa = 0.3 if "surface_water_persistence" in feats else 0.5
+            return ExecutionCertificate(
+                geometry=contract.geometry,
+                R=0.5, S_sup=0.2, N=0.3,
+                kappa_coupling=kappa, kappa_threshold=0.7,
+                leakage_score=0.05, fold_stability=0.9,
+                residual_moran=0.2, verdict=Verdict.WARN,
+            )
+
+        contract = make_contract()
+        harness = GeoRSCTHarness(
+            experts=[JRCSurfaceWaterExpert()],
+            evaluator=regressing_evaluator,
+            solver=capturing_solver,
+        )
+        harness.run(contract)
+        # Solver must NOT see the suppressed expert's features
+        assert "surface_water_persistence" not in solver_features[0]
+
     def test_max_iters_respected(self):
         contract = make_contract()
 
