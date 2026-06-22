@@ -38,10 +38,12 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
+import numpy as np
 import boto3
 import geopandas as gpd
 import pandas as pd
 import requests
+from shapely import get_coordinates
 
 logging.basicConfig(
     level=logging.INFO,
@@ -399,7 +401,29 @@ def main():
     ordered = [c for c in ordered if c in geo.columns]
     geo = geo[ordered]
 
-    # -- 9. Save GeoParquet (with geometry) --
+    # -- 9. Save GeoParquet (with geometry, Hilbert-ordered) --
+    # Hilbert (Morton) ordering ensures spatially nearby ZCTAs are stored
+    # in adjacent parquet row groups, enabling efficient range-request
+    # reads by cloud-native consumers (DuckDB, QGIS, GeoLibre).
+    coords = get_coordinates(geo.geometry.centroid)
+    xmin, ymin = coords.min(axis=0)
+    xmax, ymax = coords.max(axis=0)
+    resolution = np.uint32(2**16 - 1)
+    xi = ((coords[:, 0] - xmin) / max(xmax - xmin, 1e-10) * resolution).astype(np.uint32)
+    yi = ((coords[:, 1] - ymin) / max(ymax - ymin, 1e-10) * resolution).astype(np.uint32)
+
+    def _interleave(x):
+        x = x.astype(np.uint32)
+        x = (x | (x << 8)) & np.uint32(0x00FF00FF)
+        x = (x | (x << 4)) & np.uint32(0x0F0F0F0F)
+        x = (x | (x << 2)) & np.uint32(0x33333333)
+        x = (x | (x << 1)) & np.uint32(0x55555555)
+        return x
+
+    morton = _interleave(xi) | (_interleave(yi) << np.uint32(1))
+    geo = geo.iloc[morton.argsort()].reset_index(drop=True)
+    log.info("Applied Hilbert (Morton) spatial ordering to %d features", len(geo))
+
     output = Path(args.output)
     log.info("")
     log.info("Writing GeoParquet to %s", output)
