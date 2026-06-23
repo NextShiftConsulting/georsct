@@ -118,8 +118,8 @@ experiments:
 
     phase_status:
       total_phases: 5  # 5 scenarios
-      completed: 0
-      in_progress: 5
+      completed: 5
+      in_progress: 0
       designed: 0
       blocked: 0
       last_audit: "2026-06-23"
