@@ -130,6 +130,11 @@ class MaskedTabularAE(nn.Module):
         X = X.copy().astype(np.float32)
         self._feature_mean = np.nanmean(X, axis=0)
         self._feature_std = np.nanstd(X, axis=0)
+        # All-NaN columns: nanmean/nanstd return NaN; zero-fill to prevent
+        # NaN propagation through the entire network
+        nan_cols = np.isnan(self._feature_mean)
+        self._feature_mean[nan_cols] = 0.0
+        self._feature_std[nan_cols] = 1.0
         self._feature_std[self._feature_std < 1e-8] = 1.0
         X = np.where(np.isnan(X), self._feature_mean, X)
         X = (X - self._feature_mean) / self._feature_std
