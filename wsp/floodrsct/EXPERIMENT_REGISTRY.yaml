@@ -107,6 +107,48 @@ experiments:
           ADR-012 gate-fail-morph-regate loop. Blocked on DOE-C3
           (needs discriminative Gate 3B at tract resolution).
 
+  - series_id: s037
+    title: "S037-TJEPA: Masked Tabular Representation Compatibility Probe"
+    target: "AAAI-27 (V8 paper)"
+    directory: "C:/Users/marti/github/yrsn-experiments/exp/series_037"
+    status_file: null  # Status tracked in DOE_LOCKED.md v2.0
+    contract_file: null
+    launchers: "scripts/sagemaker_s037_job.py"
+    jobs: null
+
+    phase_status:
+      total_phases: 5  # 5 scenarios
+      completed: 0
+      in_progress: 0
+      designed: 5
+      blocked: 0
+      last_audit: "2026-06-23"
+
+    hypotheses:
+      count: 6
+      primary: "H1 -- TJEPA representations produce higher kappa_compat than raw features"
+      gate: "H6 -- Stability: TJEPA embedding std < 0.05 across mask seeds"
+
+    scenarios:
+      - houston
+      - southwest_florida
+      - nyc
+      - riverside_coachella
+      - new_orleans
+
+    s3_bucket: swarm-floodrsct-data
+    s3_prefix: results/s037/
+
+    blockers: []
+
+    paper:
+      venue: AAAI
+      version: V8
+      claim_status:
+        green: 0
+        yellow: 0
+        red: 0
+
 # ===========================================================================
 # Adding a new experiment:
 # 1. Copy the template above
