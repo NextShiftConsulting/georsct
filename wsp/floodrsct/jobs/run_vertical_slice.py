@@ -52,8 +52,6 @@ from _coverage_common import (
     BUCKET, SCENARIOS, get_s3_client, load_processed_parquet, load_crosswalk,
 )
 from _s3_result import upload_json_result
-from generate_folds import generate_folds
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
