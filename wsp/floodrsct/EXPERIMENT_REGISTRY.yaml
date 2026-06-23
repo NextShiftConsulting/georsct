@@ -131,7 +131,8 @@ experiments:
       new_orleans: s037-tjepa-new-orleans-20260623-213637
       nyc: s037-tjepa-nyc-20260623-213640
       southwest_florida: s037-tjepa-southwest-florida-20260623-213643
-      riverside_coachella: s037-tjepa-riverside-coachella-20260623-213645
+      # riverside_coachella v3 failed (encoder NaN divergence): *-213645
+      riverside_coachella: s037-tjepa-riverside-coachella-20260623-224600
 
     hypotheses:
       count: 6
