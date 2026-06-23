@@ -24,9 +24,10 @@ R4 solver-robust?
 R0-R2 build representations by engineering features from raw data. R4 asks:
 can a VLM derive the representation from the raw evidence directly?
 
-rsct-vision proves this works for embedded hardware (camera → VLM → structured
-signals → action loop). The R4 arm tests whether the same pattern transfers
-to geospatial: flood map image + FEMA text → VLM → structured risk assessment.
+rsct-vision proves this pattern works for deployed systems (camera → VLM →
+structured signals → action loop). The R4 arm tests whether the same pattern
+transfers to geospatial: flood map image + FEMA text → VLM → structured risk
+assessment.
 
 If R4 works, R3 (trained CNN on raster patches) becomes optional — the VLM
 is both feature extractor and classifier.

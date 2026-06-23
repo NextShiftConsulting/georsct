@@ -115,7 +115,7 @@ should help more. But that's a separate hypothesis.
 
 | Model Family | Status | Details |
 |-------------|--------|---------|
-| **VLM** (Vision-Language Model) | **PROMOTED to R4 arm** | Three adapters implemented in `yrsn/adapters/outbound/vlm.py`: Claude Opus (`ClaudeVisionAdapter`), Gemini Flash (`GeminiVisionAdapter`), Qwen2.5-VL-72B (`Qwen2VLAdapter`). Does NOT need satellite imagery — uses rendered FEMA flood zone maps + structured text evidence. Full DOE in `DOE_R4_vlm.md`. rsct-vision proves the pattern works for embedded hardware. |
+| **VLM** (Vision-Language Model) | **PROMOTED to R4 arm** | Three adapters implemented in `yrsn/adapters/outbound/vlm.py`: Claude Opus (`ClaudeVisionAdapter`), Gemini Flash (`GeminiVisionAdapter`), Qwen2.5-VL-72B (`Qwen2VLAdapter`). Does NOT need satellite imagery — uses rendered FEMA flood zone maps + structured text evidence. Full DOE in `DOE_R4_vlm.md`. rsct-vision proves the pattern works for deployed systems. |
 | **VLA** (Vision-Language-Action) | Deferred (R5) | No action space in ZCTA flood prediction. Demo/explanation layer only. |
 | **JEPA** (Joint Embedding Predictive Architecture) | Deferred | Self-supervised spatial representation learning. Interesting but needs training from scratch on ZCTA spatial context. No existing code or pretrained model for this domain. |
 
