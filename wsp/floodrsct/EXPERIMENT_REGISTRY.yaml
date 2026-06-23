@@ -125,11 +125,12 @@ experiments:
       last_audit: "2026-06-23"
 
     jobs:
-      houston: s037-tjepa-houston-20260623-212011
-      new_orleans: s037-tjepa-new-orleans-20260623-212027
-      nyc: s037-tjepa-nyc-20260623-212030
-      southwest_florida: s037-tjepa-southwest-florida-20260623-212033
-      riverside_coachella: s037-tjepa-riverside-coachella-20260623-212036
+      # v1 (exit 127 — tarball not extracted): *-212011, *-212027, *-212030, *-212033, *-212036
+      houston: s037-tjepa-houston-20260623-212955
+      new_orleans: s037-tjepa-new-orleans-20260623-212957
+      nyc: s037-tjepa-nyc-20260623-213000
+      southwest_florida: s037-tjepa-southwest-florida-20260623-213002
+      riverside_coachella: s037-tjepa-riverside-coachella-20260623-213005
 
     hypotheses:
       count: 6
