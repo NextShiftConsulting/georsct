@@ -119,10 +119,17 @@ experiments:
     phase_status:
       total_phases: 5  # 5 scenarios
       completed: 0
-      in_progress: 0
-      designed: 5
+      in_progress: 5
+      designed: 0
       blocked: 0
       last_audit: "2026-06-23"
+
+    jobs:
+      houston: s037-tjepa-houston-20260623-212011
+      new_orleans: s037-tjepa-new-orleans-20260623-212027
+      nyc: s037-tjepa-nyc-20260623-212030
+      southwest_florida: s037-tjepa-southwest-florida-20260623-212033
+      riverside_coachella: s037-tjepa-riverside-coachella-20260623-212036
 
     hypotheses:
       count: 6
