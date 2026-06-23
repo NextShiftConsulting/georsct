@@ -1,21 +1,47 @@
-* text eol=lf
+# Default: normalize text files
+* text=auto
+# Shell scripts must stay LF (SageMaker, ECS, Docker containers are Linux)
+*.sh text eol=lf
+*.bash text eol=lf
+*.zsh text eol=lf
+# Python must be LF for Linux deploys
+*.py text eol=lf
+# Config files used by CI/CD and containers
+*.yml text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.json text eol=lf
+# Docker and Make
+Dockerfile text eol=lf
+*.dockerfile text eol=lf
+Makefile text eol=lf
+*.mk text eol=lf
+# Documentation
+*.md text eol=lf
+*.rst text eol=lf
+*.txt text eol=lf
+# Windows-native files (allowed CRLF)
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+# Binary files — never touch line endings
 *.png binary
 *.jpg binary
 *.jpeg binary
 *.gif binary
 *.ico binary
 *.svg binary
-*.woff binary
-*.woff2 binary
-*.ttf binary
-*.eot binary
 *.pdf binary
 *.zip binary
 *.gz binary
 *.tar binary
 *.bz2 binary
-*.pkl binary
-*.npy binary
-*.npz binary
 *.pt binary
+*.npz binary
+*.pkl binary
+*.parquet binary
+*.whl binary
+*.npy binary
 *.h5 binary
+*.geoparquet binary
+checkpoints/*.pt filter=lfs diff=lfs merge=lfs -text
