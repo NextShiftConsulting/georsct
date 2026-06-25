@@ -481,11 +481,22 @@ phases:
       Nowcast only -- SAR forbidden in forecast arm.
     contract: floodcaster_story_doe.yaml
   kappa_reconstruct:
-    status: REGISTERED
+    status: LAUNCHED
     doe_id: DOE-R1
+    launched: '2026-06-25'
+    code: jobs/adversarial_reconstruct.py
+    launcher: scripts/launch_adversarial_reconstruct.py
+    artifact_keys:
+    - results/s035/adversarial_reconstruct_houston.json
+    - results/s035/adversarial_reconstruct_southwest_florida.json
+    - results/s035/adversarial_reconstruct_nyc.json
+    - results/s035/adversarial_reconstruct_riverside_coachella.json
+    - results/s035/adversarial_reconstruct_new_orleans.json
     notes: >
-      Registered extension. Blocks taxi-route claim. See DOE_U0_adversarial_geography.md.
-      kappa=0.0 pin must be fixed first.
+      kappa=0.0 pin was a stale note -- geometry_kappa.json on S3 since
+      2026-06-05, certificates have real kappa_compat values (0.80-0.85).
+      Graded corruption ladder: 5 levels x 25 seeds = 125 refits per scenario.
+      ml.m5.2xlarge (8 vCPU, 32 GB). Fixed upload_json_result bug (missing BUCKET).
     contract: floodcaster_story_doe.yaml
   # ── DOE-C2a through C4: Floodcaster engine experiments ──────────────
   omega_bootstrap:

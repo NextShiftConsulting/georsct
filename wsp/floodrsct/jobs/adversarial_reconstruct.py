@@ -1028,7 +1028,7 @@ def run_adversarial_harness(args: argparse.Namespace) -> dict:
         from _s3_result import upload_json_result
         s3 = get_s3_client()
         key = f"results/s035/adversarial_reconstruct_{args.scenario}.json"
-        upload_json_result(s3, key, summary_dict)
+        upload_json_result(s3, BUCKET, key, summary_dict)
         log.info("Uploaded to s3://%s/%s", BUCKET, key)
 
     return summary_dict
