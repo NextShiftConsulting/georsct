@@ -298,6 +298,8 @@ def extract_embeddings(
     for start in range(0, n, batch_size):
         end = min(start + batch_size, n)
         batch = torch.from_numpy(chips[start:end]).to(device)
+        # Prithvi expects 5D: (B, C, T, H, W) -- add time dim for single frame
+        batch = batch.unsqueeze(2)
 
         # forward with mask_ratio=0: returns (x, mask, ids_restore)
         # x shape: (batch, 1 + num_patches, embed_dim) -- CLS at position 0
