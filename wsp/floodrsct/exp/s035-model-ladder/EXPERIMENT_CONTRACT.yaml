@@ -1154,6 +1154,34 @@ phases:
         description: "Scalar vs shape vs vector RMSE deltas"
         per_scenario: true
 
+  - phase_id: kappa_reconstruct
+    script: adversarial_reconstruct.py
+    description: "DOE-R1: Graded W-matrix corruption ladder for backward-recoverability (Gate 3B)"
+    per_scenario: true
+    depends_on: [r0_baseline]
+
+    packages:
+      - scikit-learn
+      - scipy
+
+    s3_artifacts:
+      - key: assembled_parquet
+        description: "Event features for the scenario"
+        per_scenario: true
+      - key: "folds/{scenario}_folds.parquet"
+        description: "Fold assignments from R0"
+        per_scenario: true
+        scenarios: *modelable
+      - key: "raw/geocertdb2026/zcta_features_labels.parquet"
+        description: "Static features with centroids (lat/lon)"
+      - key: "raw/geocertdb2026/zcta_adjacency.parquet"
+        description: "ZCTA adjacency matrix"
+
+    outputs:
+      - key: "results/s035/adversarial_reconstruct_{scenario}.json"
+        description: "Corruption ladder results with Gate 3B decision"
+        per_scenario: true
+
   - phase_id: observation_value
     script: run_observation_value.py
     description: "DOE-O1: SAR anomaly nowcast lift (NOWCAST ARM ONLY)"
