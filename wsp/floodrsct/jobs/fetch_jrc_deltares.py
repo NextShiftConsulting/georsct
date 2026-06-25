@@ -232,38 +232,94 @@ def fetch_jrc(s3, scenario_zctas: dict[str, list[str]], all_centroids: pd.DataFr
 # Deltares extraction (per-scenario batching)
 # ---------------------------------------------------------------------------
 
-def fetch_deltares(s3, scenario_zctas: dict[str, list[str]], all_centroids: pd.DataFrame) -> pd.DataFrame:
-    """Fetch Deltares Global Flood Maps depth, batched per scenario bbox."""
-    log.info("=== Deltares Global Flood Maps ===")
+def _fetch_deltares_scenario(
+    centroids: pd.DataFrame,
+    scenario: str,
+    max_retries: int = 3,
+) -> pd.DataFrame | None:
+    """Fetch Deltares depth for one scenario with retry + backoff.
+
+    Azure Blob Storage (deltaresfloodssa) can be intermittently unreachable
+    from SageMaker.  Retry with exponential backoff to handle transient
+    connectivity failures.
+    """
     from floodcaster.batch import deltares_centroid_depth
 
-    parts = []
-    for scenario, zcta_ids in scenario_zctas.items():
-        centroids = all_centroids[all_centroids["zcta_id"].isin(zcta_ids)]
-        if centroids.empty:
-            log.warning("Deltares: no centroids for %s, skipping", scenario)
-            continue
-
+    for attempt in range(1, max_retries + 1):
         t0 = time.time()
-        log.info("Deltares: %s (%d centroids)...", scenario, len(centroids))
         try:
             result = deltares_centroid_depth(
                 centroids, id_col="zcta_id", return_periods=[10, 50, 100],
             )
             elapsed = time.time() - t0
             coverage = result["deltares_depth_ft_rp100"].notna().mean() * 100
-            log.info("Deltares: %s done -- %d rows, %.1f%% coverage, %.0f sec",
-                     scenario, len(result), coverage, elapsed)
-            parts.append(result)
+            log.info(
+                "Deltares: %s done (attempt %d) -- %d rows, %.1f%% coverage, %.0f sec",
+                scenario, attempt, len(result), coverage, elapsed,
+            )
+            # Coverage check: if ALL rows are NaN, treat as failure and retry.
+            # The Deltares Global Flood Maps cover major US floodplains --
+            # 0% coverage means the NetCDF read failed silently.
+            if coverage == 0.0 and attempt < max_retries:
+                log.warning(
+                    "Deltares: %s 0%% coverage on attempt %d -- "
+                    "likely transient Azure read failure, retrying",
+                    scenario, attempt,
+                )
+                time.sleep(2 ** attempt)
+                continue
+            return result
         except Exception as e:
-            log.warning("Deltares: %s STAC extraction failed: %s", scenario, e)
+            log.warning(
+                "Deltares: %s attempt %d failed: %s", scenario, attempt, e,
+            )
+            if attempt < max_retries:
+                time.sleep(2 ** attempt)
+            else:
+                log.error("Deltares: %s all %d attempts exhausted", scenario, max_retries)
+    return None
+
+
+def fetch_deltares(s3, scenario_zctas: dict[str, list[str]], all_centroids: pd.DataFrame) -> pd.DataFrame:
+    """Fetch Deltares Global Flood Maps depth, batched per scenario bbox."""
+    log.info("=== Deltares Global Flood Maps ===")
+
+    parts = []
+    failed_scenarios = []
+    for scenario, zcta_ids in scenario_zctas.items():
+        centroids = all_centroids[all_centroids["zcta_id"].isin(zcta_ids)]
+        if centroids.empty:
+            log.warning("Deltares: no centroids for %s, skipping", scenario)
+            continue
+
+        log.info("Deltares: %s (%d centroids)...", scenario, len(centroids))
+        result = _fetch_deltares_scenario(centroids, scenario)
+        if result is not None:
+            parts.append(result)
+        else:
+            failed_scenarios.append(scenario)
 
     if not parts:
         raise RuntimeError("Deltares: all scenarios failed")
 
+    if failed_scenarios:
+        log.warning("Deltares: %d scenarios failed: %s", len(failed_scenarios), failed_scenarios)
+
     combined = pd.concat(parts, ignore_index=True)
     combined = combined.drop_duplicates(subset=["zcta_id"], keep="last")
-    log.info("Deltares combined: %d unique ZCTAs", len(combined))
+
+    # Final coverage report
+    total = len(combined)
+    non_null = combined["deltares_depth_ft_rp100"].notna().sum()
+    log.info(
+        "Deltares combined: %d unique ZCTAs, %d non-null rp100 (%.1f%%)",
+        total, non_null, non_null / max(total, 1) * 100,
+    )
+    if non_null / max(total, 1) < 0.10:
+        log.warning(
+            "Deltares: <10%% coverage -- Azure connectivity likely degraded. "
+            "Consider re-running with --deltares-only."
+        )
 
     s3_write_parquet(s3, combined, DELTARES_CACHE_KEY)
     return combined
