@@ -444,10 +444,16 @@ phases:
     status: LAUNCHED
     doe_id: DOE-H1
     launched: '2026-06-25'
-    commit: e1574f8
+    commit: 02dfb9e
     code: jobs/run_hazard_shape.py
     launcher: scripts/launch_hazard_shape.py
     depends_on: data_fetch_deltares
+    job_ids:
+    - s035-doeh1-houston-20260625-181254
+    - s035-doeh1-southwes-20260625-181301
+    - s035-doeh1-nyc-20260625-181306
+    - s035-doeh1-riversid-20260625-181313
+    - s035-doeh1-new-orle-20260625-181319
     artifact_keys:
     - results/s035/story/hazard_shape_houston.json
     - results/s035/story/hazard_shape_southwest_florida.json
