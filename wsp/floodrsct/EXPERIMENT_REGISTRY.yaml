@@ -7,6 +7,7 @@
 #
 # CONVENTION: One entry per experiment series.  Fields:
 #   series_id     - Unique identifier (e.g., s035)
+#   active        - true = bootstrap reports it; false = parked/completed
 #   title         - Human-readable name
 #   target        - Submission venue and deadline
 #   directory     - Absolute path to experiment root
@@ -22,6 +23,7 @@
 experiments:
 
   - series_id: s035
+    active: true
     title: "S035-Model-Ladder: Diagnosis-Driven Representation Ablation"
     target: "SIGSPATIAL 2026"
     directory: "C:/Users/marti/github/georsct/wsp/floodrsct/exp/s035-model-ladder"
@@ -108,6 +110,7 @@ experiments:
           (needs discriminative Gate 3B at tract resolution).
 
   - series_id: s037
+    active: false  # All 5 phases COMPLETED (2026-06-23)
     title: "S037-TJEPA: Masked Tabular Representation Compatibility Probe"
     target: "AAAI-27 (V8 paper)"
     directory: "C:/Users/marti/github/yrsn-experiments/exp/series_037"
@@ -164,8 +167,13 @@ experiments:
 # ===========================================================================
 # Adding a new experiment:
 # 1. Copy the template above
-# 2. Fill in series_id, title, directory
+# 2. Fill in series_id, active: true, title, directory
 # 3. Create the experiment directory with standard layout (see SKILL.md)
 # 4. Scaffold EXPERIMENT_CONTRACT.yaml and EXPERIMENT_STATUS.yaml
 # 5. Use swarm-experiment skill for initial scaffolding
+#
+# Lifecycle:
+#   active: true  -> bootstrap reports it, lifecycle tracks it
+#   active: false -> bootstrap skips it (parked/completed)
+#   Set active: false when all phases COMPLETED and no further work planned
 # ===========================================================================
