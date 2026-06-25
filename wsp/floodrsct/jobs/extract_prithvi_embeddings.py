@@ -38,7 +38,7 @@ import requests
 import torch
 
 import boto3
-from swarm_auth import get_aws_credentials
+from swarm_auth import get_aws_credentials, get_credential
 
 sys.path.insert(0, "/opt/ml/processing/input/code")
 from _s3_result import upload_json_result
@@ -381,6 +381,12 @@ def main() -> None:
     # ---------------------------------------------------------------
     # 3. Fetch HLS chips for each ZCTA
     # ---------------------------------------------------------------
+    earthdata_token = get_credential("EARTHDATA_TOKEN")
+    if earthdata_token:
+        log.info("Earthdata token found -- HLS downloads will use Bearer auth")
+    else:
+        log.warning("No EARTHDATA_TOKEN -- HLS downloads may fail (403)")
+
     log.info("Fetching HLS chips for %d ZCTAs (max_cloud=%d%%)", n_zctas, args.max_cloud)
 
     chips = np.zeros((n_zctas, 6, CHIP_SIZE, CHIP_SIZE), dtype=np.float32)
@@ -396,7 +402,8 @@ def main() -> None:
 
         granule = find_hls_granule(lat, lon, max_cloud=args.max_cloud)
         if granule is not None:
-            chip = download_hls_chip(granule, lat, lon, zcta_chip_dir)
+            chip = download_hls_chip(granule, lat, lon, zcta_chip_dir,
+                                     earthdata_token=earthdata_token)
             if chip is not None:
                 chips[i] = chip
                 n_hls_ok += 1
@@ -428,6 +435,13 @@ def main() -> None:
 
     log.info("HLS fetch complete: %d OK, %d fallback, %d total",
              n_hls_ok, n_fallback, n_zctas)
+
+    fallback_pct = 100 * n_fallback / max(n_zctas, 1)
+    if fallback_pct > 80:
+        log.error("ABORT: %.1f%% fallback (%d/%d ZCTAs). "
+                  "Embeddings would be meaningless. Check EARTHDATA_TOKEN and HLS availability.",
+                  fallback_pct, n_fallback, n_zctas)
+        sys.exit(1)
 
     # ---------------------------------------------------------------
     # 4. Load Prithvi encoder and extract embeddings
