@@ -38,7 +38,7 @@ import requests
 import torch
 
 import boto3
-from swarm_auth import get_aws_credentials, get_credential
+from swarm_auth import get_aws_credentials
 
 sys.path.insert(0, "/opt/ml/processing/input/code")
 from _s3_result import upload_json_result
@@ -381,7 +381,18 @@ def main() -> None:
     # ---------------------------------------------------------------
     # 3. Fetch HLS chips for each ZCTA
     # ---------------------------------------------------------------
-    earthdata_token = get_credential("EARTHDATA_TOKEN")
+    # Try env var first, then Secrets Manager directly.
+    # AWSSecretsAdapter defaults to "swarm-it/" prefix but EARTHDATA_TOKEN
+    # is stored as a bare key -- bypass the adapter.
+    earthdata_token = os.environ.get("EARTHDATA_TOKEN")
+    if not earthdata_token:
+        try:
+            _sm = boto3.client("secretsmanager", region_name="us-east-1", **_aws)
+            earthdata_token = _sm.get_secret_value(
+                SecretId="EARTHDATA_TOKEN"
+            )["SecretString"]
+        except Exception as e:
+            log.warning("Could not retrieve EARTHDATA_TOKEN from Secrets Manager: %s", e)
     if earthdata_token:
         log.info("Earthdata token found -- HLS downloads will use Bearer auth")
     else:
