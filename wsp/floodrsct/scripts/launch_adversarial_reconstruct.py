@@ -25,7 +25,7 @@ SCENARIOS = ["houston", "southwest_florida", "nyc", "riverside_coachella", "new_
 
 
 def launch_one(scenario: str, dry_run: bool, n_permutations: int) -> str:
-    job_name = make_job_name(f"adversarial-{scenario[:8]}")
+    job_name = make_job_name(f"adversarial-{scenario.replace('_', '-')[:8]}")
 
     return launch_processing_job(
         job_name=job_name,
