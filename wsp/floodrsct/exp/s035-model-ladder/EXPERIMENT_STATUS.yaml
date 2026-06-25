@@ -441,13 +441,22 @@ phases:
     artifact_keys:
       - processed/shared/zcta_deltares_depth.parquet
   hazard_shape:
-    status: DESIGNED
+    status: LAUNCHED
     doe_id: DOE-H1
+    launched: '2026-06-25'
+    commit: e1574f8
+    code: jobs/run_hazard_shape.py
+    launcher: scripts/launch_hazard_shape.py
+    depends_on: data_fetch_deltares
+    artifact_keys:
+    - results/s035/story/hazard_shape_houston.json
+    - results/s035/story/hazard_shape_southwest_florida.json
+    - results/s035/story/hazard_shape_nyc.json
+    - results/s035/story/hazard_shape_riverside_coachella.json
+    - results/s035/story/hazard_shape_new_orleans.json
     notes: >
-      Multi-RP Deltares depth vectors. Job script (run_hazard_shape.py) and
-      launcher (launch_hazard_shape.py) ready. Waiting for Deltares re-fetch
-      (s035-fetch-deltares-20260625-175427) to complete.
-    commit: bb3e865
+      3-arm ablation: scalar (R0+rp100), shape (R0+level+gradient),
+      vector (R0+all RPs+max+inundation). ml.m5.large x 5 parallel jobs.
     contract: floodcaster_story_doe.yaml
   observation_value:
     status: DESIGNED
