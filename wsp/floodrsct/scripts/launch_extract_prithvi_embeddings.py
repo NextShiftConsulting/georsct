@@ -62,7 +62,7 @@ SCENARIOS = [
 
 
 def launch_one(scenario: str, dry_run: bool) -> None:
-    job_name = make_job_name(f"prithvi-embed-{scenario}")
+    job_name = make_job_name(f"prithvi-embed-{scenario.replace('_', '-')}")
 
     launch_processing_job(
         job_name=job_name,
