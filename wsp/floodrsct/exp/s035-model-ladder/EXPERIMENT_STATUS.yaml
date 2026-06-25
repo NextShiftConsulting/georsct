@@ -424,11 +424,30 @@ phases:
       Topology features hurt 3/5 scenarios due to partial HAND coverage
       introducing missingness noise. Git: a1bfc0f.
     contract: floodcaster_story_doe.yaml
+  data_fetch_deltares:
+    status: COMPLETED
+    doe_id: null
+    launched: '2026-06-25'
+    verified: '2026-06-25'
+    verification_method: s3_ls
+    job_id: s035-fetch-deltares-20260625-175427
+    commit: df3c4f8
+    notes: >
+      Re-fetch Deltares depth with retry+backoff. Previous run had 93.9% NaN
+      due to transient Azure connectivity. Fix: added per-scenario retry with
+      exponential backoff. Result: 751 rows, 749/751 non-null RP100 (99.7%).
+      Coverage: Houston 100%, New Orleans 100%, NYC 100%, Riverside 98.8%,
+      SW Florida 99.5%.
+    artifact_keys:
+      - processed/shared/zcta_deltares_depth.parquet
   hazard_shape:
     status: DESIGNED
     doe_id: DOE-H1
     notes: >
-      Multi-RP Deltares depth vectors. Blocked on Deltares feature fetch.
+      Multi-RP Deltares depth vectors. Job script (run_hazard_shape.py) and
+      launcher (launch_hazard_shape.py) ready. Waiting for Deltares re-fetch
+      (s035-fetch-deltares-20260625-175427) to complete.
+    commit: bb3e865
     contract: floodcaster_story_doe.yaml
   observation_value:
     status: DESIGNED
