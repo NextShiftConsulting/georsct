@@ -441,9 +441,11 @@ phases:
     artifact_keys:
       - processed/shared/zcta_deltares_depth.parquet
   hazard_shape:
-    status: LAUNCHED
+    status: COMPLETED
     doe_id: DOE-H1
     launched: '2026-06-25'
+    verified: '2026-06-25'
+    verification_method: s3_ls
     commit: 02dfb9e
     code: jobs/run_hazard_shape.py
     launcher: scripts/launch_hazard_shape.py
@@ -460,9 +462,16 @@ phases:
     - results/s035/story/hazard_shape_nyc.json
     - results/s035/story/hazard_shape_riverside_coachella.json
     - results/s035/story/hazard_shape_new_orleans.json
+    verdict: SCALAR_SUFFICIENT
     notes: >
-      3-arm ablation: scalar (R0+rp100), shape (R0+level+gradient),
-      vector (R0+all RPs+max+inundation). ml.m5.large x 5 parallel jobs.
+      3-arm ablation completed. SCALAR_SUFFICIENT across all 5 scenarios.
+      Multi-RP Deltares depth does not outperform single RP100 scalar.
+      Houston/Riverside: arms identical (HGB ignores extra features).
+      SW Florida: shape marginal (+0.023 RMSE), vector neutral (-0.005).
+      NYC: shape/vector slightly hurt (delta -0.073, -0.043).
+      New Orleans: neutral (delta -0.007, -0.017).
+      R0 features (flood zones, elevation, slope, TWI) already capture
+      floodplain shape information. RP100 alone is sufficient.
     contract: floodcaster_story_doe.yaml
   observation_value:
     status: DESIGNED
