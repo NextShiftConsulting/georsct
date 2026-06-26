@@ -325,10 +325,10 @@ phases:
       (p=0.594, d=-0.249). H7=4/11. H6/H8=INSUFFICIENT_DATA.
 
       '
-  # ── S038: Prithvi-EO-2.0 Embeddings ────────────────────────────────
+  # ── Prithvi-EO-2.0 Embeddings (s035 phase, not a standalone series) ──
   prithvi_embeddings:
     status: COMPLETED
-    doe_id: S038
+    doe_id: null
     launched: '2026-06-25'
     completed: '2026-06-26'
     verified: '2026-06-26'

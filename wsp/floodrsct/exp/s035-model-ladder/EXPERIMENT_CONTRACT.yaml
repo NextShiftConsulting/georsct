@@ -98,14 +98,14 @@ feature_counts:
 
 phases:
 
-  # ── Prithvi-EO-2.0 Embedding Extraction (S038) ─────────────────────────
+  # ── Prithvi-EO-2.0 Embedding Extraction ─────────────────────────────
   # Per-ZCTA satellite imagery embeddings from Prithvi foundation model.
   # Mean-pooled patch tokens (not CLS) for spatial discrimination.
   # Fallback ZCTAs (no HLS coverage) get NaN embeddings.
   - phase_id: prithvi_embeddings
     script: extract_prithvi_embeddings.py
     launcher: launch_extract_prithvi_embeddings.py
-    description: "S038: Extract Prithvi-EO-2.0 embeddings from HLS satellite imagery per ZCTA"
+    description: "Extract Prithvi-EO-2.0 embeddings from HLS satellite imagery per ZCTA"
     per_scenario: true
     depends_on: [event_building]
 
