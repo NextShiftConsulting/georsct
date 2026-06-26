@@ -1336,6 +1336,112 @@ phases:
         per_scenario: true
         scenarios: [houston, nyc]
 
+  # ── Cross-Analysis Battery (DOE v2.0) ─────────────────────────────────
+  - phase_id: cross_analysis_a1
+    script: cross_analysis_a1_prithvi.py
+    launcher: launch_cross_analysis_a1.py
+    description: "A1: Prithvi vs Tabular predictive utility test"
+    per_scenario: false
+    depends_on: [r0_baseline, prithvi_embeddings]
+
+    packages:
+      - scikit-learn
+      - scipy
+      - numpy
+      - pandas
+      - pyarrow
+
+    s3_artifacts:
+      - key: assembled_parquet
+        description: "Event features"
+        per_scenario: true
+      - key: "folds/{scenario}_folds.parquet"
+        description: "Fold assignments"
+        per_scenario: true
+      - key: "results/s035/prithvi_embeddings/{scenario}_prithvi_embeddings.parquet"
+        description: "Prithvi 1024-dim embeddings"
+        per_scenario: true
+
+    outputs:
+      - key: "results/s035/cross_analysis/a1_prithvi_utility.json"
+        description: "Per-scenario R2 delta, paired t-test, CCA"
+
+  - phase_id: cross_analysis_a3
+    script: cross_analysis_a3_transfer.py
+    launcher: launch_cross_analysis_a3.py
+    description: "A3: Cross-scenario transfer matrix"
+    per_scenario: false
+    depends_on: [r0_baseline, event_distance_matrix]
+
+    packages:
+      - scikit-learn
+      - scipy
+      - numpy
+      - pandas
+      - pyarrow
+
+    s3_artifacts:
+      - key: assembled_parquet
+        description: "Event features"
+        per_scenario: true
+      - key: "results/s035/sidecar/event_distance_matrix.json"
+        description: "Wasserstein/Jaccard distances"
+
+    outputs:
+      - key: "results/s035/cross_analysis/a3_transfer_matrix.json"
+        description: "5x5 transfer R2 matrix, partial Spearman"
+
+  - phase_id: cross_analysis_a4
+    script: cross_analysis_a4_importance.py
+    launcher: launch_cross_analysis_a4.py
+    description: "A4: Feature importance stability across scenarios"
+    per_scenario: false
+    depends_on: [r0_baseline]
+
+    packages:
+      - scikit-learn
+      - scipy
+      - numpy
+      - pandas
+      - pyarrow
+
+    s3_artifacts:
+      - key: assembled_parquet
+        description: "Event features"
+        per_scenario: true
+      - key: "folds/{scenario}_folds.parquet"
+        description: "Fold assignments"
+        per_scenario: true
+
+    outputs:
+      - key: "results/s035/cross_analysis/a4_feature_importance_stability.json"
+        description: "Pairwise Kendall tau, importance heatmap"
+
+  - phase_id: cross_analysis_a6
+    script: cross_analysis_a6_coverage.py
+    launcher: launch_cross_analysis_a6.py
+    description: "A6: Coverage gap geographic overlap"
+    per_scenario: false
+    depends_on: [prithvi_embeddings, hydrology_fetch]
+
+    packages:
+      - scipy
+      - numpy
+      - pandas
+      - pyarrow
+
+    s3_artifacts:
+      - key: "results/s035/prithvi_embeddings/{scenario}_prithvi_embeddings.parquet"
+        description: "Prithvi embeddings (HLS/fallback source column)"
+        per_scenario: true
+      - key: assembled_parquet
+        description: "Event features (lat/lon for geographic characterization)"
+        per_scenario: true
+
+    outputs:
+      - key: "results/s035/cross_analysis/a6_coverage_gap_overlap.json"
+        description: "Fisher exact test, Jaccard index per scenario"
+
 # ── Verification Gates ────────────────────────────────────────────────
 # Machine-readable gate definitions.  Full prose and commands in VERIFY.md.
 # Each gate lists checks with pass_criteria.  Automated verification
