@@ -55,6 +55,15 @@ BUCKET = "swarm-floodrsct-data"
 MODEL_PREFIX = "model/prithvi_eo2/weights"
 OUTPUT_PREFIX = "results/s035/prithvi_embeddings"
 
+# Scenario name -> S3 event_features prefix (abbreviated names on S3)
+SCENARIO_PREFIX = {
+    "houston": "houston",
+    "nyc": "nyc",
+    "new_orleans": "no",
+    "riverside_coachella": "rc",
+    "southwest_florida": "swfl",
+}
+
 # Prithvi-EO-2.0 config (from config.json on S3)
 PRITHVI_BANDS = ["B02", "B03", "B04", "B05", "B06", "B07"]
 PRITHVI_MEAN = [1087.0, 1342.0, 1433.0, 2734.0, 1958.0, 1363.0]
@@ -345,7 +354,8 @@ def main() -> None:
     # ---------------------------------------------------------------
     # 1. Load ZCTA centroids
     # ---------------------------------------------------------------
-    features_key = f"processed/{scenario}/{scenario}_event_features.parquet"
+    s3_prefix = SCENARIO_PREFIX.get(scenario, scenario)
+    features_key = f"processed/{scenario}/{s3_prefix}_event_features.parquet"
     local_features = work_dir / "event_features.parquet"
     log.info("Downloading %s", features_key)
     s3.download_file(BUCKET, features_key, str(local_features))
