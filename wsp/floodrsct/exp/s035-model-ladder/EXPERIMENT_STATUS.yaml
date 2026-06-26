@@ -647,7 +647,8 @@ phases:
     status: LAUNCHED
     doe_id: DOE-XA1
     launched: '2026-06-26'
-    job_id: s035-cross-a1-prithvi-20260626-204710
+    job_id: s035-cross-a1-prithvi-20260626-205316
+    v1_job_id: s035-cross-a1-prithvi-20260626-204710
     depends_on: [r0_baseline, prithvi_embeddings]
     code: jobs/cross_analysis_a1_prithvi.py
     launcher: scripts/launch_cross_analysis_a1.py
@@ -658,9 +659,11 @@ phases:
       Prithvi vs Tabular predictive utility test. PCA + HistGBDT retrain,
       paired t-test on R2 delta. Descriptive CCA.
   cross_analysis_a3:
-    status: LAUNCHED
+    status: COMPLETED
     doe_id: DOE-XA3
     launched: '2026-06-26'
+    verified: '2026-06-26'
+    verification_method: s3_ls
     job_id: s035-cross-a3-transfer-20260626-204651
     depends_on: [r0_baseline, event_distance_matrix]
     code: jobs/cross_analysis_a3_transfer.py
@@ -675,7 +678,8 @@ phases:
     status: LAUNCHED
     doe_id: DOE-XA4
     launched: '2026-06-26'
-    job_id: s035-cross-a4-importance-20260626-204700
+    job_id: s035-cross-a4-importance-20260626-205327
+    v1_job_id: s035-cross-a4-importance-20260626-204700
     depends_on: [r0_baseline]
     code: jobs/cross_analysis_a4_importance.py
     launcher: scripts/launch_cross_analysis_a4.py
@@ -689,7 +693,8 @@ phases:
     status: LAUNCHED
     doe_id: DOE-XA6
     launched: '2026-06-26'
-    job_id: s035-cross-a6-coverage-20260626-204720
+    job_id: s035-cross-a6-coverage-20260626-205337
+    v1_job_id: s035-cross-a6-coverage-20260626-204720
     depends_on: [prithvi_embeddings, hydrology_fetch]
     code: jobs/cross_analysis_a6_coverage.py
     launcher: scripts/launch_cross_analysis_a6.py
