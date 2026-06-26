@@ -311,10 +311,10 @@ def main() -> None:
                         np.mean([m["r2"] for m in all_metrics[sc]]) -
                         np.mean(sanity_r2.get(sc, [0]))
                     )),
-                    "pass": abs(
+                    "pass": bool(abs(
                         np.mean([m["r2"] for m in all_metrics[sc]]) -
                         np.mean(sanity_r2.get(sc, [0]))
-                    ) <= 0.01 if sc in sanity_r2 else None,
+                    ) <= 0.01) if sc in sanity_r2 else None,
                 }
                 for sc in SCENARIOS
             },
