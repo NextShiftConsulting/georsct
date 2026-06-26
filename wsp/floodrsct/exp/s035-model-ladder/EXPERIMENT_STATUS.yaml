@@ -644,9 +644,11 @@ phases:
       (needs discriminative Gate 3B at tract resolution).
   # ── Cross-Analysis Battery (DOE v2.0) ─────────────────────────────────
   cross_analysis_a1:
-    status: LAUNCHED
+    status: COMPLETED
     doe_id: DOE-XA1
     launched: '2026-06-26'
+    verified: '2026-06-26'
+    verification_method: s3_ls
     job_id: s035-cross-a1-prithvi-20260626-205316
     v1_job_id: s035-cross-a1-prithvi-20260626-204710
     depends_on: [r0_baseline, prithvi_embeddings]
@@ -655,6 +657,7 @@ phases:
     doe_spec: DOE_cross_analysis.md
     artifact_keys:
     - results/s035/cross_analysis/a1_prithvi_utility.json
+    result: FAIL - Prithvi embeddings add no predictive value (0/5 scenarios improve R2)
     notes: >
       Prithvi vs Tabular predictive utility test. PCA + HistGBDT retrain,
       paired t-test on R2 delta. Descriptive CCA.
@@ -675,24 +678,31 @@ phases:
       5x5 cross-scenario transfer matrix. Partial Spearman correlation
       between transfer R2 and Wasserstein distance controlling for n_events.
   cross_analysis_a4:
-    status: LAUNCHED
+    status: COMPLETED
     doe_id: DOE-XA4
     launched: '2026-06-26'
-    job_id: s035-cross-a4-importance-20260626-205327
+    verified: '2026-06-26'
+    verification_method: s3_ls
+    job_id: s035-cross-a4-importance-20260626-205917
     v1_job_id: s035-cross-a4-importance-20260626-204700
+    v2_job_id: s035-cross-a4-importance-20260626-205327
     depends_on: [r0_baseline]
     code: jobs/cross_analysis_a4_importance.py
     launcher: scripts/launch_cross_analysis_a4.py
     doe_spec: DOE_cross_analysis.md
     artifact_keys:
     - results/s035/cross_analysis/a4_feature_importance_stability.json
+    result: FAIL - Kendall tau range [-0.206, 0.323], 0/10 pairs > 0.40; only nfip_hist_freq universal
     notes: >
       Feature importance stability across 5 scenarios. Retrain HistGBDT,
-      extract importances, pairwise Kendall's tau.
+      extract importances, pairwise Kendall's tau. 3 launches (v1 permutation
+      fallback, v2 numpy bool_ coercion, v3 success).
   cross_analysis_a6:
-    status: LAUNCHED
+    status: COMPLETED
     doe_id: DOE-XA6
     launched: '2026-06-26'
+    verified: '2026-06-26'
+    verification_method: s3_ls
     job_id: s035-cross-a6-coverage-20260626-205337
     v1_job_id: s035-cross-a6-coverage-20260626-204720
     depends_on: [prithvi_embeddings, hydrology_fetch]
@@ -701,6 +711,7 @@ phases:
     doe_spec: DOE_cross_analysis.md
     artifact_keys:
     - results/s035/cross_analysis/a6_coverage_gap_overlap.json
+    result: PASS - 3/5 scenarios significant overlap (Fisher p<0.006); NYC Jaccard=0.75
     notes: >
       Coverage gap geographic overlap. Fisher's exact test on
       Prithvi/hydrology missingness contingency table.
