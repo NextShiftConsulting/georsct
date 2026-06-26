@@ -642,6 +642,55 @@ phases:
     notes: >
       ADR-012 gate-fail-morph-regate loop. Blocked on DOE-C3
       (needs discriminative Gate 3B at tract resolution).
+  # ── Cross-Analysis Battery (DOE v2.0) ─────────────────────────────────
+  cross_analysis_a1:
+    status: DESIGNED
+    doe_id: DOE-XA1
+    depends_on: [r0_baseline, prithvi_embeddings]
+    code: jobs/cross_analysis_a1_prithvi.py
+    launcher: scripts/launch_cross_analysis_a1.py
+    doe_spec: DOE_cross_analysis.md
+    artifact_keys:
+    - results/s035/cross_analysis/a1_prithvi_utility.json
+    notes: >
+      Prithvi vs Tabular predictive utility test. PCA + HistGBDT retrain,
+      paired t-test on R2 delta. Descriptive CCA.
+  cross_analysis_a3:
+    status: DESIGNED
+    doe_id: DOE-XA3
+    depends_on: [r0_baseline, event_distance_matrix]
+    code: jobs/cross_analysis_a3_transfer.py
+    launcher: scripts/launch_cross_analysis_a3.py
+    doe_spec: DOE_cross_analysis.md
+    artifact_keys:
+    - results/s035/cross_analysis/a3_transfer_matrix.json
+    notes: >
+      5x5 cross-scenario transfer matrix. Partial Spearman correlation
+      between transfer R2 and Wasserstein distance controlling for n_events.
+  cross_analysis_a4:
+    status: DESIGNED
+    doe_id: DOE-XA4
+    depends_on: [r0_baseline]
+    code: jobs/cross_analysis_a4_importance.py
+    launcher: scripts/launch_cross_analysis_a4.py
+    doe_spec: DOE_cross_analysis.md
+    artifact_keys:
+    - results/s035/cross_analysis/a4_feature_importance_stability.json
+    notes: >
+      Feature importance stability across 5 scenarios. Retrain HistGBDT,
+      extract importances, pairwise Kendall's tau.
+  cross_analysis_a6:
+    status: DESIGNED
+    doe_id: DOE-XA6
+    depends_on: [prithvi_embeddings, hydrology_fetch]
+    code: jobs/cross_analysis_a6_coverage.py
+    launcher: scripts/launch_cross_analysis_a6.py
+    doe_spec: DOE_cross_analysis.md
+    artifact_keys:
+    - results/s035/cross_analysis/a6_coverage_gap_overlap.json
+    notes: >
+      Coverage gap geographic overlap. Fisher's exact test on
+      Prithvi/hydrology missingness contingency table.
 
 paper_claims:
   sec_7_1_variance_stack:
