@@ -327,7 +327,7 @@ phases:
       '
   # ── S038: Prithvi-EO-2.0 Embeddings ────────────────────────────────
   prithvi_embeddings:
-    status: LAUNCHED
+    status: COMPLETED
     doe_id: S038
     launched: '2026-06-25'
     completed: '2026-06-26'
@@ -360,11 +360,11 @@ phases:
     - results/s035/prithvi_embeddings/southwest_florida_prithvi_embeddings.parquet
     - results/s035/prithvi_embeddings/southwest_florida_prithvi_meta.json
     notes: >
-      v2 re-run (029b59a): mean-pooled patch tokens (not CLS), NaN fallback,
-      CMR retry with backoff, chip quality validation, zcta_id hardcoded.
-      v1 had CLS token (near-degenerate, cosine > 0.99) and zero-chip fallback
-      (indistinguishable from real HLS). v1 coverage: Houston 99.5%, NYC 100%,
-      New Orleans 50%, Riverside 65.9%, SW Florida 73%.
+      v2 (029b59a): mean-pooled patch tokens, NaN fallback, CMR retry, chip
+      quality validation. Cosine spread 10-50x wider than v1 CLS (0.41-1.00
+      vs 0.99-1.00). Coverage: Houston 95.8%, NYC 95.6%, New Orleans 87.1%,
+      Riverside 90.6%, SW Florida 96.2%. All >60% quality gate.
+      v1 had CLS (near-degenerate) + zero-chip fallback (invisible poison).
 
   # ── Floodcaster Diagnostic Stories (DOE locked 2026-06-11) ──────────
   construct_divergence:
