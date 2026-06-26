@@ -493,16 +493,17 @@ phases:
     - results/s035/adversarial_reconstruct_riverside_coachella.json
     - results/s035/adversarial_reconstruct_new_orleans.json
     notes: >
-      kappa=0.0 pin was a stale note -- geometry_kappa.json on S3 since
-      2026-06-05, certificates have real kappa_compat values (0.80-0.85).
-      Graded corruption ladder: 5 levels x 25 seeds = 125 refits per scenario.
-      ml.m5.2xlarge (8 vCPU, 32 GB). Fixed upload_json_result bug (missing BUCKET).
-    commit: b1cf473a08a1
+      3/5 completed (houston, swfl, new_orleans): all INCONCLUSIVE because
+      R0 has no spatial-lag features (lag_cols=[]), so W-corruption has zero
+      effect on predictions. kappa_reconstruct=1.0 across all levels.
+      Gate 3B baseline=EXECUTE for all 3. NYC+Riverside relaunched after
+      fixing NaN target bug (bb07f23). Waiting for completion.
+    commit: bb07f23333ff
     job_ids:
     - s035-adversarial-houston-20260625-212846
     - s035-adversarial-southwes-20260625-212855
-    - s035-adversarial-nyc-20260625-212903
-    - s035-adversarial-riversid-20260625-212910
+    - s035-adversarial-nyc-20260626-133840
+    - s035-adversarial-riversid-20260626-133850
     - s035-adversarial-new-orle-20260625-212949
     contract: floodcaster_story_doe.yaml
   # ── DOE-C2a through C4: Floodcaster engine experiments ──────────────
