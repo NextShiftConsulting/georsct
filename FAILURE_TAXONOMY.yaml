@@ -1,0 +1,67 @@
+# FAILURE_TAXONOMY.yaml — georsct
+# Domain-specific gate adaptation declaration (ADR-057)
+# This file documents intentional divergences from canonical rsct-core gate evaluation.
+
+package: georsct
+domain: geospatial_flood_assessment
+canonical_reference: rsct-core.gates.evaluate_gates
+
+# NOTE: gate_triage.py gate LOGIC is canonical copy-paste (Category B — to be fixed).
+# ThresholdPreset adapter below is the legitimate domain adaptation (Category A).
+# After Phase 2 fix, gate logic will delegate to rsct-core; thresholds stay here.
+
+execution_model: sequential_early_exit
+# Same as canonical.
+
+vocabulary:
+  # Uses canonical internal vocabulary (string values, no enum)
+  EXECUTE: "All gates pass — spatial analysis reliable"
+  REJECT: "Gate 1 integrity failure — noise saturated"
+  BLOCK: "Gate 2 consensus failure — coherence too low or absent"
+  RE_ENCODE: "Gate 3/3B admissibility failure — kappa below oobleck or r_bar below threshold"
+  REPAIR: "Gate 4 grounding failure — kappa_L below threshold"
+
+threshold_presets:
+  GEOSPATIAL_CONUS27:
+    description: "Relaxed thresholds for CONUS 27-scenario flood assessment"
+    divergences:
+      c_min: 0.30  # Canonical: 0.40 — relaxed for spatial coherence variability
+      gate_2_require_coherence: false  # Canonical: true — legacy path for scenarios without coherence
+      kappa_base: 0.22  # Canonical: 0.50 — lower bar for geospatial substrate quality
+      lambda_turbulence: 0.0  # Canonical: 0.40 — flat threshold (no sigma dependency)
+      enable_gate_3b: false  # Canonical: true — prior calibration disabled
+      kappa_L_min: 0.15  # Canonical: 0.30 — relaxed grounding for spatial data
+
+  UNIVERSAL:
+    description: "Matches canonical rsct-core thresholds exactly"
+    divergences: none  # All values match canonical
+
+  STRICT:
+    description: "Tightened thresholds for high-stakes flood assessment"
+    divergences:
+      N_thr: 0.35  # Canonical: 0.50 — stricter noise tolerance
+      alpha_min: 0.50  # Canonical: 0.30 — higher purity requirement
+      c_min: 0.50  # Canonical: 0.40 — higher coherence bar
+      kappa_base: 0.60  # Canonical: 0.50 — higher admissibility
+      kappa_L_min: 0.50  # Canonical: 0.30 — much stricter grounding
+
+delegation:
+  calls_rsct_core: []  # Currently none (gate logic is copy-paste — Phase 2 fix pending)
+  reimplements:
+    - gate_evaluation  # Copy-paste of canonical — TO BE FIXED (delegate to rsct-core)
+    - simplex_derivation  # experiment_cert.py — TO BE FIXED (import from rsct-core)
+    - sigma_computation  # experiment_cert.py — TO BE FIXED (import from rsct-core)
+  adapts:
+    - threshold_configuration  # ThresholdPreset with GEOSPATIAL_CONUS27 — KEEP (domain config)
+  reason: >
+    Geospatial flood assessment requires domain-specific thresholds
+    (relaxed coherence, lower kappa bar, disabled Gate 3B) but the
+    gate evaluation logic itself is canonical. After Phase 2 fix,
+    gate logic delegates to rsct-core with geospatial ThresholdPreset
+    as configuration.
+
+files:
+  gate_logic: georsct/healthcheck/layers/gate_triage.py  # Category B — fix pending
+  thresholds: georsct/ports/threshold_source.py  # Category A — keep
+  presets: georsct/ports/static_thresholds.py  # Category A — keep
+  experiment: rsct/experiment_cert.py  # Category B — fix pending
