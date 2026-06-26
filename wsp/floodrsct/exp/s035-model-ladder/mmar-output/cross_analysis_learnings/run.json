@@ -1,0 +1,137 @@
+{
+  "out_dir": "wsp\\floodrsct\\exp\\s035-model-ladder\\mmar-output\\cross_analysis_learnings",
+  "reviewers": [
+    "claude",
+    "deepseek-r1",
+    "gpt-oss",
+    "kimi",
+    "nemotron"
+  ],
+  "synthesizer": "claude",
+  "mock_dir": null,
+  "stage1": {
+    "gpt-oss": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 10.16544119999162,
+      "error": null
+    },
+    "kimi": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 14.03143890001229,
+      "error": null
+    },
+    "deepseek-r1": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 136.21703770000022,
+      "error": null
+    },
+    "nemotron": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 162.23452699999325,
+      "error": null
+    },
+    "claude": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 287.1234118999855,
+      "error": null
+    }
+  },
+  "stage2": {
+    "claude__on__gpt-oss": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 5.22709230001783,
+      "error": null
+    },
+    "kimi__on__claude": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 5.612017700012075,
+      "error": null
+    },
+    "nemotron__on__gpt-oss": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 13.252209500002209,
+      "error": null
+    },
+    "kimi__on__deepseek-r1": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 15.395636000001105,
+      "error": null
+    },
+    "nemotron__on__claude": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 25.19981750001898,
+      "error": null
+    },
+    "gpt-oss__on__kimi": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 28.51812140000402,
+      "error": null
+    },
+    "gpt-oss__on__deepseek-r1": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 28.976301499991678,
+      "error": null
+    },
+    "gpt-oss__on__claude": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 29.35173749999376,
+      "error": null
+    },
+    "claude__on__deepseek-r1": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 36.437280999991344,
+      "error": null
+    },
+    "claude__on__nemotron": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 38.90295120002702,
+      "error": null
+    },
+    "kimi__on__nemotron": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 45.53473070001928,
+      "error": null
+    },
+    "nemotron__on__deepseek-r1": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 72.5978313999949,
+      "error": null
+    },
+    "deepseek-r1__on__kimi": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 79.7713664000039,
+      "error": null
+    },
+    "deepseek-r1__on__claude": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 141.18727510000463,
+      "error": null
+    },
+    "deepseek-r1__on__nemotron": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 158.69168119999813,
+      "error": null
+    }
+  },
+  "wall_clock_sec": 624.101680599997
+}
