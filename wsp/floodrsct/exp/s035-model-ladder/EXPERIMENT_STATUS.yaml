@@ -481,9 +481,12 @@ phases:
       Nowcast only -- SAR forbidden in forecast arm.
     contract: floodcaster_story_doe.yaml
   kappa_reconstruct:
-    status: LAUNCHED
+    status: COMPLETED
     doe_id: DOE-R1
     launched: '2026-06-25'
+    completed: '2026-06-26'
+    verified: '2026-06-26'
+    verification_method: s3_ls
     code: jobs/adversarial_reconstruct.py
     launcher: scripts/launch_adversarial_reconstruct.py
     artifact_keys:
@@ -492,12 +495,14 @@ phases:
     - results/s035/adversarial_reconstruct_nyc.json
     - results/s035/adversarial_reconstruct_riverside_coachella.json
     - results/s035/adversarial_reconstruct_new_orleans.json
+    verdict: INCONCLUSIVE
     notes: >
-      3/5 completed (houston, swfl, new_orleans): all INCONCLUSIVE because
-      R0 has no spatial-lag features (lag_cols=[]), so W-corruption has zero
-      effect on predictions. kappa_reconstruct=1.0 across all levels.
-      Gate 3B baseline=EXECUTE for all 3. NYC+Riverside relaunched after
-      fixing NaN target bug (bb07f23). Waiting for completion.
+      All 5 scenarios: INCONCLUSIVE. R0 has no spatial-lag features
+      (lag_cols=[]), so W-corruption has zero effect on predictions.
+      kappa_reconstruct=1.0 across all levels for all scenarios.
+      Gate 3B baseline=EXECUTE for all 5 (topology supports the task).
+      Expected null result at R0 — Gate 3B promotion test needs R1/R2.
+      NYC dropped 211/844 NaN-target rows; Riverside dropped NaN rows too.
     commit: bb07f23333ff
     job_ids:
     - s035-adversarial-houston-20260625-212846
