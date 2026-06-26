@@ -125,7 +125,16 @@ def _extract_importances(
         )
         model.fit(X_train, y_train)
 
-        importances_per_fold.append(model.feature_importances_)
+        # sklearn HistGBDT: feature_importances_ may not exist on older versions.
+        # Use permutation_importance as a robust fallback.
+        if hasattr(model, "feature_importances_"):
+            importances_per_fold.append(model.feature_importances_)
+        else:
+            from sklearn.inspection import permutation_importance
+            perm = permutation_importance(
+                model, X_test, y_test, n_repeats=5, random_state=SEED, n_jobs=-1,
+            )
+            importances_per_fold.append(perm.importances_mean)
 
         from sklearn.metrics import r2_score, mean_squared_error
         y_pred = model.predict(X_test)

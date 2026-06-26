@@ -40,13 +40,16 @@ def _load_prithvi_coverage(s3, scenario: str) -> set[str]:
     key = f"results/s035/prithvi_embeddings/{scenario}_prithvi_embeddings.parquet"
     resp = s3.get_object(Bucket=BUCKET, Key=key)
     prithvi = pd.read_parquet(io.BytesIO(resp["Body"].read()))
+    # Prithvi parquet uses "zcta" not "zcta_id"
+    if "zcta" in prithvi.columns and "zcta_id" not in prithvi.columns:
+        prithvi = prithvi.rename(columns={"zcta": "zcta_id"})
     prithvi["zcta_id"] = prithvi["zcta_id"].astype(str)
 
     if "source" in prithvi.columns:
         hls_zctas = set(prithvi[prithvi["source"] == "hls"]["zcta_id"].unique())
     else:
         # No source column: assume all are HLS
-        emb_cols = [c for c in prithvi.columns if c.startswith("emb_")]
+        emb_cols = [c for c in prithvi.columns if c.startswith("prithvi_emb_") or c.startswith("emb_")]
         valid = prithvi[prithvi[emb_cols].notna().all(axis=1)]
         hls_zctas = set(valid["zcta_id"].unique())
 

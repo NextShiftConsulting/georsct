@@ -86,6 +86,9 @@ def _load_prithvi(s3, scenario: str) -> pd.DataFrame:
     key = f"results/s035/prithvi_embeddings/{scenario}_prithvi_embeddings.parquet"
     resp = s3.get_object(Bucket=BUCKET, Key=key)
     prithvi = pd.read_parquet(io.BytesIO(resp["Body"].read()))
+    # Prithvi parquet uses "zcta" not "zcta_id"
+    if "zcta" in prithvi.columns and "zcta_id" not in prithvi.columns:
+        prithvi = prithvi.rename(columns={"zcta": "zcta_id"})
     prithvi["zcta_id"] = prithvi["zcta_id"].astype(str)
 
     # Filter: HLS source only (drop fallback_no_data rows which have NaN embeddings)
@@ -95,7 +98,7 @@ def _load_prithvi(s3, scenario: str) -> pd.DataFrame:
         log.info("  Prithvi %s: %d -> %d after HLS filter", scenario, n_before, len(prithvi))
 
     # Identify embedding columns (emb_0, emb_1, ..., emb_1023)
-    emb_cols = [c for c in prithvi.columns if c.startswith("emb_")]
+    emb_cols = [c for c in prithvi.columns if c.startswith("prithvi_emb_") or c.startswith("emb_")]
     if not emb_cols:
         raise ValueError(f"No embedding columns found in Prithvi parquet for {scenario}")
 
