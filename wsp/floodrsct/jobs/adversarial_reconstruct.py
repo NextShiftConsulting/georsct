@@ -352,6 +352,18 @@ def _neighbor_dict_to_csr(
     return _row_normalize(W)
 
 
+def _subset_csr(
+    W: sparse.csr_matrix,
+    old_order: list[str],
+    new_order: list[str],
+) -> sparse.csr_matrix:
+    """Extract submatrix of W for regions in new_order (subset of old_order)."""
+    old_idx = {r: i for i, r in enumerate(old_order)}
+    keep = [old_idx[r] for r in new_order if r in old_idx]
+    W_sub = W[np.ix_(keep, keep)]
+    return _row_normalize(sparse.csr_matrix(W_sub))
+
+
 # =========================================================================
 # Graded permutation (self-loop-safe)
 # =========================================================================
@@ -894,6 +906,33 @@ def run_adversarial_harness(args: argparse.Namespace) -> dict:
         )
 
     ensure_columns(df, args.spatial_lag_cols, "spatial-lag-cols in data")
+
+    # Drop rows with NaN target (degenerate scenarios like NYC/Riverside)
+    nan_target = df[args.target].isna()
+    if nan_target.any():
+        n_drop = int(nan_target.sum())
+        log.warning("Dropping %d/%d rows with NaN target '%s'",
+                    n_drop, len(df), args.target)
+        df = df[~nan_target].reset_index(drop=True)
+        if len(df) < 20:
+            raise RuntimeError(
+                f"Only {len(df)} rows remain after dropping NaN target -- "
+                f"scenario too degenerate for adversarial harness"
+            )
+        # Recompute region_order, coords, and W after dropping NaN rows
+        old_region_order = region_order
+        region_order = sorted(df[args.region_id].astype(str).unique())
+        if len(region_order) < len(old_region_order):
+            # Rebuild coords array for surviving regions
+            old_idx = {r: i for i, r in enumerate(old_region_order)}
+            new_coords = np.zeros((len(region_order), 2), dtype=np.float64)
+            for i, r in enumerate(region_order):
+                if r in old_idx:
+                    new_coords[i] = coords[old_idx[r]]
+            coords = new_coords
+            # Rebuild W matrices with new region_order
+            W_geo = _subset_csr(W_geo, old_region_order, region_order)
+            W_lag = W_geo.copy()
 
     out_dir = args.out_dir or Path(f"artifacts/adversarial_{args.scenario or 'local'}")
     out_dir.mkdir(parents=True, exist_ok=True)
