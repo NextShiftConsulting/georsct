@@ -325,6 +325,42 @@ phases:
       (p=0.594, d=-0.249). H7=4/11. H6/H8=INSUFFICIENT_DATA.
 
       '
+  # ── S038: Prithvi-EO-2.0 Embeddings ────────────────────────────────
+  prithvi_embeddings:
+    status: STALE
+    doe_id: S038
+    launched: '2026-06-25'
+    completed: '2026-06-26'
+    verified: '2026-06-26'
+    verification_method: s3_ls
+    code: jobs/extract_prithvi_embeddings.py
+    launcher: scripts/launch_extract_prithvi_embeddings.py
+    depends_on: event_building
+    job_ids:
+    - s035-prithvi-embed-houston-20260625-182948
+    - s035-prithvi-embed-nyc-20260625-202832
+    - s035-prithvi-embed-new-orleans-20260626-134045
+    - s035-prithvi-embed-riverside-coachella-20260626-134053
+    - s035-prithvi-embed-southwest-florida-20260626-134100
+    artifact_keys:
+    - results/s035/prithvi_embeddings/houston_prithvi_embeddings.parquet
+    - results/s035/prithvi_embeddings/houston_prithvi_meta.json
+    - results/s035/prithvi_embeddings/nyc_prithvi_embeddings.parquet
+    - results/s035/prithvi_embeddings/nyc_prithvi_meta.json
+    - results/s035/prithvi_embeddings/new_orleans_prithvi_embeddings.parquet
+    - results/s035/prithvi_embeddings/new_orleans_prithvi_meta.json
+    - results/s035/prithvi_embeddings/riverside_coachella_prithvi_embeddings.parquet
+    - results/s035/prithvi_embeddings/riverside_coachella_prithvi_meta.json
+    - results/s035/prithvi_embeddings/southwest_florida_prithvi_embeddings.parquet
+    - results/s035/prithvi_embeddings/southwest_florida_prithvi_meta.json
+    notes: >
+      STALE: v1 used CLS token (near-degenerate, cosine > 0.99 across all pairs)
+      and zero-chip fallback (indistinguishable from real HLS embeddings).
+      Code fixed: mean-pooled patch tokens, NaN fallback, CMR retry, chip
+      quality validation. Needs re-run with fixed code.
+      v1 coverage: Houston 99.5%, NYC 100%, New Orleans 50%,
+      Riverside 65.9%, SW Florida 73%.
+
   # ── Floodcaster Diagnostic Stories (DOE locked 2026-06-11) ──────────
   construct_divergence:
     status: COMPLETED

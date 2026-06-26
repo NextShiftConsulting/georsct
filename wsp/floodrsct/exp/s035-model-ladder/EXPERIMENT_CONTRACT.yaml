@@ -98,6 +98,54 @@ feature_counts:
 
 phases:
 
+  # ── Prithvi-EO-2.0 Embedding Extraction (S038) ─────────────────────────
+  # Per-ZCTA satellite imagery embeddings from Prithvi foundation model.
+  # Mean-pooled patch tokens (not CLS) for spatial discrimination.
+  # Fallback ZCTAs (no HLS coverage) get NaN embeddings.
+  - phase_id: prithvi_embeddings
+    script: extract_prithvi_embeddings.py
+    launcher: launch_extract_prithvi_embeddings.py
+    description: "S038: Extract Prithvi-EO-2.0 embeddings from HLS satellite imagery per ZCTA"
+    per_scenario: true
+    depends_on: [event_building]
+
+    packages:
+      - torch
+      - rasterio
+      - pyproj
+      - numpy
+      - pandas
+      - pyarrow
+      - requests
+
+    features:
+      required:
+        - zcta_id
+        - latitude
+        - longitude
+
+    s3_artifacts:
+      - key: "model/prithvi_eo2/weights/Prithvi_EO_V2_300M_TL.pt"
+        description: "Prithvi-EO-2.0 300M checkpoint"
+      - key: "model/prithvi_eo2/weights/config.json"
+        description: "Prithvi model config"
+      - key: "model/prithvi_eo2/weights/prithvi_mae.py"
+        description: "Prithvi model definition"
+
+    outputs:
+      - key: "results/s035/prithvi_embeddings/{scenario}_prithvi_embeddings.parquet"
+        description: "1024-dim mean-pooled patch embeddings per ZCTA"
+        columns: [zcta, prithvi_emb_0..prithvi_emb_1023, source]
+      - key: "results/s035/prithvi_embeddings/{scenario}_prithvi_meta.json"
+        description: "Extraction metadata with coverage and quality stats"
+
+    quality_gates:
+      min_hls_coverage_pct: 60
+      embed_dim: 1024
+      pooling: mean_patch
+      fallback_value: NaN
+      max_fallback_pct: 40
+
   # ── Phase 0.5: Geometry Kappa (pre-training) ──────────────────────────
   # Computes kappa from problem geometry ONLY.  Zero dependency on RSN,
   # fold metrics, predictions, residuals, or model scores.

@@ -7,8 +7,9 @@ Pipeline:
     2. Query NASA LP DAAC CMR for HLS tiles covering each centroid
     3. Download 6-band HLS chips (224x224 at 30m resolution)
     4. Run Prithvi encoder (no masking) on batches
-    5. Extract CLS token (1024-dim) as per-ZCTA embedding
-    6. Upload embeddings parquet to S3
+    5. Mean-pool patch tokens (1024-dim) as per-ZCTA embedding
+    6. Quality validation (norms, cosine discrimination, NaN/Inf)
+    7. Upload embeddings parquet + metadata JSON to S3
 
 Inputs:
     s3://swarm-floodrsct-data/processed/{scenario}/{scenario}_event_features.parquet
@@ -28,7 +29,7 @@ import logging
 import os
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed  # noqa: F401
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -87,19 +88,24 @@ S30_BAND_MAP = {
     "B12": 5,  # SWIR2 (B07 in Prithvi = B12 in S30)
 }
 
-# Fallback: use zeros if HLS is unavailable (with flag in metadata)
-FALLBACK_TO_ZEROS = True
+# Fallback: ZCTAs without HLS data get NaN embeddings (not zeros).
+# Running zero chips through the encoder produces valid-looking vectors
+# that are indistinguishable from real HLS embeddings by norm or cosine.
 
 
 # ---------------------------------------------------------------------------
 # HLS tile discovery and download
 # ---------------------------------------------------------------------------
 
+CMR_MAX_RETRIES = 3
+CMR_BACKOFF = [5, 15, 30]  # seconds between retries
+
+
 def find_hls_granule(lat: float, lon: float, max_cloud: int = 30) -> dict | None:
     """Find a recent, low-cloud HLS granule covering the given lat/lon.
 
     Searches Sentinel-2 HLS (S30) first (more frequent), falls back to
-    Landsat HLS (L30).
+    Landsat HLS (L30). Retries transient failures with backoff.
 
     Returns dict with granule_id and download links, or None if not found.
     """
@@ -118,13 +124,22 @@ def find_hls_granule(lat: float, lon: float, max_cloud: int = 30) -> dict | None
             "page_size": 5,
         }
 
-        try:
-            resp = requests.get(CMR_URL, params=params, timeout=30)
-            resp.raise_for_status()
-            entries = resp.json().get("feed", {}).get("entry", [])
-        except Exception as e:
-            log.warning("CMR query failed for (%.4f, %.4f) %s: %s", lat, lon, label, e)
-            continue
+        entries = None
+        for attempt in range(CMR_MAX_RETRIES):
+            try:
+                resp = requests.get(CMR_URL, params=params, timeout=30)
+                resp.raise_for_status()
+                entries = resp.json().get("feed", {}).get("entry", [])
+                break
+            except Exception as e:
+                if attempt < CMR_MAX_RETRIES - 1:
+                    wait = CMR_BACKOFF[attempt]
+                    log.warning("CMR retry %d/%d for (%.4f, %.4f) %s: %s (wait %ds)",
+                                attempt + 1, CMR_MAX_RETRIES, lat, lon, label, e, wait)
+                    time.sleep(wait)
+                else:
+                    log.warning("CMR exhausted retries for (%.4f, %.4f) %s: %s",
+                                lat, lon, label, e)
 
         if not entries:
             continue
@@ -221,17 +236,19 @@ def download_hls_chip(
                 log.warning("Failed to read window for %s: %s", band_name, e)
                 return None
 
+    # Reject chips where >50% of pixels are nodata (value 0 pre-normalization)
+    nodata_frac = (chip == 0).mean()
+    if nodata_frac > 0.5:
+        log.warning("Chip for granule %s has %.0f%% nodata pixels -- rejecting",
+                    granule["granule_id"], nodata_frac * 100)
+        return None
+
     # Normalize using Prithvi stats
     mean = np.array(PRITHVI_MEAN, dtype=np.float32).reshape(6, 1, 1)
     std = np.array(PRITHVI_STD, dtype=np.float32).reshape(6, 1, 1)
     chip = (chip - mean) / std
 
     return chip
-
-
-def make_fallback_chip() -> np.ndarray:
-    """Return a zero chip (already normalized) for ZCTAs without HLS coverage."""
-    return np.zeros((6, CHIP_SIZE, CHIP_SIZE), dtype=np.float32)
 
 
 # ---------------------------------------------------------------------------
@@ -298,7 +315,7 @@ def extract_embeddings(
     """Run Prithvi encoder on (N, 6, 224, 224) chips, return (N, 1024) embeddings.
 
     Uses forward with mask_ratio=0 (no masking) to get full sequence,
-    then takes CLS token as the embedding.
+    then mean-pools patch tokens (excluding CLS) for spatial discrimination.
     """
     n = len(chips)
     embed_dim = encoder.embed_dim
@@ -314,9 +331,11 @@ def extract_embeddings(
         # x shape: (batch, 1 + num_patches, embed_dim) -- CLS at position 0
         x, _, _ = encoder(batch, mask_ratio=0.0)
 
-        # CLS token embedding
-        cls_emb = x[:, 0, :].cpu().numpy()
-        embeddings[start:end] = cls_emb
+        # Mean-pool patch tokens (skip CLS at position 0).
+        # CLS token is dominated by architectural bias (cosine > 0.99 for all
+        # pairs). Patch token mean captures spatial land-cover variation.
+        patch_emb = x[:, 1:, :].mean(dim=1).cpu().numpy()
+        embeddings[start:end] = patch_emb
 
         if (start // batch_size) % 10 == 0:
             log.info("  Encoded %d/%d chips", end, n)
@@ -362,13 +381,11 @@ def main() -> None:
     df = pd.read_parquet(local_features)
 
     # Deduplicate to unique ZCTAs (event_features has one row per ZCTA-event)
-    if "zcta" in df.columns:
-        zcta_col = "zcta"
-    elif "ZCTA5CE20" in df.columns:
-        zcta_col = "ZCTA5CE20"
-    else:
-        zcta_col = df.columns[0]
-        log.warning("Guessing ZCTA column: %s", zcta_col)
+    zcta_col = "zcta_id"
+    if zcta_col not in df.columns:
+        log.error("ABORT: expected column '%s' not found. Columns: %s",
+                  zcta_col, list(df.columns[:10]))
+        sys.exit(1)
 
     zctas = df.drop_duplicates(subset=[zcta_col])[[zcta_col, "latitude", "longitude"]].copy()
     zctas = zctas.dropna(subset=["latitude", "longitude"]).reset_index(drop=True)
@@ -414,10 +431,11 @@ def main() -> None:
 
     chips = np.zeros((n_zctas, 6, CHIP_SIZE, CHIP_SIZE), dtype=np.float32)
     hls_meta = []
+    fallback_indices = []  # track which rows are fallback
     n_hls_ok = 0
     n_fallback = 0
 
-    for i, row in zctas.iterrows():
+    for idx, (i, row) in enumerate(zctas.iterrows()):
         zcta_id = str(row[zcta_col])
         lat, lon = float(row["latitude"]), float(row["longitude"])
         zcta_chip_dir = chips_dir / zcta_id
@@ -428,7 +446,7 @@ def main() -> None:
             chip = download_hls_chip(granule, lat, lon, zcta_chip_dir,
                                      earthdata_token=earthdata_token)
             if chip is not None:
-                chips[i] = chip
+                chips[idx] = chip
                 n_hls_ok += 1
                 hls_meta.append({
                     "zcta": zcta_id,
@@ -442,19 +460,16 @@ def main() -> None:
                              n_hls_ok + n_fallback, n_zctas, n_hls_ok, n_fallback)
                 continue
 
-        # Fallback: zero chip
-        if FALLBACK_TO_ZEROS:
-            chips[i] = make_fallback_chip()
-            n_fallback += 1
-            hls_meta.append({
-                "zcta": zcta_id,
-                "source": "fallback_zeros",
-                "granule_id": None,
-                "collection": None,
-                "cloud_cover": None,
-            })
-        else:
-            log.warning("No HLS data for ZCTA %s (%.4f, %.4f) -- skipping", zcta_id, lat, lon)
+        # Fallback: leave chip as zeros (will be replaced with NaN embeddings)
+        n_fallback += 1
+        fallback_indices.append(idx)
+        hls_meta.append({
+            "zcta": zcta_id,
+            "source": "fallback_no_data",
+            "granule_id": None,
+            "collection": None,
+            "cloud_cover": None,
+        })
 
     log.info("HLS fetch complete: %d OK, %d fallback, %d total",
              n_hls_ok, n_fallback, n_zctas)
@@ -480,8 +495,44 @@ def main() -> None:
     log.info("Embedding extraction complete: %d ZCTAs, %.1f s (%.2f s/ZCTA)",
              n_zctas, elapsed, elapsed / max(n_zctas, 1))
 
+    # Set fallback rows to NaN so downstream can distinguish them.
+    # Running zero chips through the encoder produces valid-looking vectors
+    # (norm ~23.7, cosine ~0.99 with real HLS) that poison downstream models.
+    if fallback_indices:
+        embeddings[fallback_indices] = np.nan
+        log.info("Set %d fallback rows to NaN (indices: %s...)",
+                 len(fallback_indices),
+                 str(fallback_indices[:5]))
+
     # ---------------------------------------------------------------
-    # 5. Build output dataframe and upload
+    # 5. Quality validation
+    # ---------------------------------------------------------------
+    hls_mask = np.ones(n_zctas, dtype=bool)
+    hls_mask[fallback_indices] = False
+    hls_emb = embeddings[hls_mask]
+
+    n_nan = int(np.isnan(hls_emb).any(axis=1).sum())
+    n_inf = int(np.isinf(hls_emb).any(axis=1).sum())
+    if n_nan > 0 or n_inf > 0:
+        log.error("QUALITY: %d NaN rows, %d Inf rows in HLS embeddings", n_nan, n_inf)
+
+    norms = np.linalg.norm(hls_emb, axis=1)
+    log.info("QUALITY: HLS embedding norms: min=%.2f, max=%.2f, mean=%.2f, std=%.4f",
+             norms.min(), norms.max(), norms.mean(), norms.std())
+
+    # Check for near-duplicate embeddings (discrimination)
+    if len(hls_emb) > 1:
+        normed = hls_emb / (norms[:, None] + 1e-10)
+        # Sample pairwise cosine (full matrix too expensive for large N)
+        sample_n = min(50, len(normed))
+        sample = normed[:sample_n]
+        cos_matrix = sample @ sample.T
+        upper = cos_matrix[np.triu_indices(sample_n, k=1)]
+        log.info("QUALITY: pairwise cosine (n=%d): min=%.4f, max=%.4f, mean=%.4f",
+                 sample_n, upper.min(), upper.max(), upper.mean())
+
+    # ---------------------------------------------------------------
+    # 6. Build output dataframe and upload
     # ---------------------------------------------------------------
     # Embedding columns: prithvi_emb_0 ... prithvi_emb_1023
     emb_cols = [f"prithvi_emb_{i}" for i in range(embeddings.shape[1])]
@@ -510,11 +561,20 @@ def main() -> None:
         "n_fallback": n_fallback,
         "fallback_pct": round(100 * n_fallback / max(n_zctas, 1), 1),
         "embed_dim": int(embeddings.shape[1]),
+        "pooling": "mean_patch",
         "model": "Prithvi-EO-2.0-300M-TL",
         "device": device,
         "extraction_time_s": round(elapsed, 1),
         "max_cloud_cover": args.max_cloud,
         "created_at": datetime.now(timezone.utc).isoformat(),
+        "quality": {
+            "hls_norm_min": round(float(norms.min()), 2) if len(norms) > 0 else None,
+            "hls_norm_max": round(float(norms.max()), 2) if len(norms) > 0 else None,
+            "hls_norm_mean": round(float(norms.mean()), 2) if len(norms) > 0 else None,
+            "n_nan_hls_rows": n_nan,
+            "n_inf_hls_rows": n_inf,
+            "fallback_value": "NaN",
+        },
         "hls_coverage": [m for m in hls_meta if m["source"] == "hls"],
     }
     meta_s3_key = f"{OUTPUT_PREFIX}/{scenario}_prithvi_meta.json"
