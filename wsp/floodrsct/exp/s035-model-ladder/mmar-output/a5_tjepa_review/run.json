@@ -1,0 +1,112 @@
+{
+  "out_dir": "wsp\\floodrsct\\exp\\s035-model-ladder\\mmar-output\\a5_tjepa_review",
+  "reviewers": [
+    "claude",
+    "deepseek-r1",
+    "kimi",
+    "nemotron"
+  ],
+  "synthesizer": "claude",
+  "mock_dir": null,
+  "stage1": {
+    "kimi": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 6.846730999997817,
+      "error": null
+    },
+    "nemotron": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 88.70155750002596,
+      "error": null
+    },
+    "deepseek-r1": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 124.4902843000018,
+      "error": null
+    },
+    "claude": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 205.51580259998445,
+      "error": null
+    }
+  },
+  "stage2": {
+    "kimi__on__deepseek-r1": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 10.05567470000824,
+      "error": null
+    },
+    "kimi__on__claude": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 14.754083600011654,
+      "error": null
+    },
+    "claude__on__kimi": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 19.161402999976417,
+      "error": null
+    },
+    "kimi__on__nemotron": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 25.103554699977394,
+      "error": null
+    },
+    "nemotron__on__kimi": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 26.636098899994977,
+      "error": null
+    },
+    "claude__on__nemotron": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 33.66472520001116,
+      "error": null
+    },
+    "deepseek-r1__on__kimi": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 55.34552539998549,
+      "error": null
+    },
+    "deepseek-r1__on__nemotron": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 77.32677019998664,
+      "error": null
+    },
+    "deepseek-r1__on__claude": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 81.45652380000683,
+      "error": null
+    },
+    "nemotron__on__deepseek-r1": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 105.61983160002274,
+      "error": null
+    },
+    "nemotron__on__claude": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 110.27763150000828,
+      "error": null
+    },
+    "claude__on__deepseek-r1": {
+      "ok": true,
+      "stderr": "",
+      "duration_sec": 151.0401617999887,
+      "error": null
+    }
+  },
+  "wall_clock_sec": 515.756579399982
+}

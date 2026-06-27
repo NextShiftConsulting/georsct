@@ -144,4 +144,4 @@ in dense urban cores where both cloud cover and flat terrain degrade extraction.
 | A3 | Transfer works | FAIL | Findings are metro-specific, not generalizable |
 | A4 | Feature stability | FAIL | Importance rankings scenario-dependent; only NFIP freq universal |
 | A6 | Coverage overlap | PASS | Disclosure: systematic urban coverage gaps |
-| A5 | TJEPA fusion | BLOCKED | Deferred: no TJEPA latents available |
+| A5 | TJEPA fusion | CANCELLED | Moot by transitivity: Prithvi redundant with R0, TJEPA is f(R0) |

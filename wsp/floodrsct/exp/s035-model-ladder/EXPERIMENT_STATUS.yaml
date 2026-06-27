@@ -715,6 +715,20 @@ phases:
     notes: >
       Coverage gap geographic overlap. Fisher's exact test on
       Prithvi/hydrology missingness contingency table.
+  cross_analysis_a5:
+    status: CANCELLED
+    doe_id: DOE-XA5
+    cancelled: '2026-06-26'
+    depends_on: [prithvi_embeddings, s037_tjepa]
+    doe_spec: DOE_cross_analysis.md
+    result: >
+      CANCELLED - A1 FAIL triggers DOE gate condition (fusion moot when Prithvi
+      adds no value). TJEPA is a function of R0 features; Prithvi redundant with
+      R0 by A1; fusion redundant by transitivity. MMAR 4-model unanimous.
+      Additional design flaw: dimensionality mismatch (1024 vs 128) in hypotheses.
+    notes: >
+      Prithvi-TJEPA representation fusion probe. Never launched.
+      See paper_commentary/a5_tjepa_status.md for full writeup.
 
 paper_claims:
   sec_7_1_variance_stack:
