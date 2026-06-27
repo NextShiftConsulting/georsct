@@ -730,9 +730,12 @@ phases:
       Prithvi-TJEPA representation fusion probe. Never launched.
       See paper_commentary/a5_tjepa_status.md for full writeup.
   cross_analysis_a7:
-    status: LAUNCHED
+    status: COMPLETED
     doe_id: DOE-XA7
     launched: '2026-06-26'
+    completed: '2026-06-27'
+    verified: '2026-06-27'
+    verification_method: s3_ls
     job_id: s035-cross-a7-nfip-ablation-20260627-021411
     depends_on: [r0_baseline, cross_analysis_a3, cross_analysis_a4]
     code: jobs/cross_analysis_a7_nfip_ablation.py
@@ -740,10 +743,16 @@ phases:
     doe_spec: DOE_cross_analysis.md
     artifact_keys:
     - results/s035/cross_analysis/a7_nfip_ablation.json
+    result: >
+      MIXED - Removing NFIP costs mean -10.6% within-R2 (Houston -29.2%,
+      NYC +14.9%, Riverside 0%). Stability improves (mean tau 0.075->0.109).
+      Transfer improves (positive pairs 2/20->5/20, mean R2 -5.91->-1.98).
+      Circularity confirmed: NFIP encodes metro-specific insurance patterns.
     notes: >
       NFIP feature ablation. Retrain R0 without nfip_historical_frequency
-      and nfip_historical_severity. Compare within-R2, importance stability
-      (Kendall tau), and cross-scenario transfer.
+      and nfip_historical_severity. NYC R2 improves without NFIP (confounder
+      removal). Riverside unchanged (zero NFIP importance). Transfer gains
+      are diffuse: 5 weak positive pairs replace 2 strong ones.
 
 paper_claims:
   sec_7_1_variance_stack:

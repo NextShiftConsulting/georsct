@@ -150,13 +150,19 @@ Reviewers split on interpretation:
 3. Insurance market penetration and claims-filing behavior (administrative — confound)
 
 Temporal gating (using only pre-event historical data) prevents direct data leakage
-but does not resolve the deeper confound. The paper should:
-- Acknowledge the circularity explicitly
-- Run the model with and without NFIP features to quantify dependence
-- Frame NFIP history as a "ceiling predictor" — it sets the upper bound but
-  conflates mechanism with measurement
-- Note that for novel events in un-insured areas, NFIP history is unavailable,
-  making the non-NFIP features the operationally relevant ones
+but does not resolve the deeper confound.
+
+**A7 NFIP Ablation Results (2026-06-27) — Empirical resolution:**
+- Removing NFIP costs mean -10.6% R2 but **NYC improves by +14.9%** — NFIP was
+  actively confounding NYC predictions (insurance penetration != flood exposure)
+- Importance stability improves (mean tau 0.075 -> 0.109)
+- Transfer doubles (2/20 -> 5/20 positive pairs)
+- **Verdict**: NFIP is a metro-specific ceiling predictor that trades within-scenario
+  accuracy for transferability. The paper should:
+  - Present both full and ablated results as a paired analysis
+  - Frame NFIP as "ceiling predictor" with explicit circularity disclosure
+  - Note that the ablated model is operationally relevant for un-insured areas
+  - Highlight NYC as evidence of confounding (removing predictor improves model)
 
 ---
 
@@ -216,10 +222,21 @@ The paper should distinguish these two failure modes clearly.
      similarity, and importance similarity is a proxy for regime similarity.
    - Paper-worthy as a descriptive finding with the coastal-only caveat.
 
-2. **NFIP-ablated importance**: LAUNCHED as A7 (job s035-cross-a7-nfip-ablation-20260627-021411).
-   Retrain R0 excluding nfip_historical_frequency and nfip_historical_severity.
-   Tests: (a) within-scenario R2 delta, (b) importance stability change,
-   (c) transfer matrix change.
+2. **NFIP-ablated importance**: DONE (2026-06-27). A7 completed.
+   - H_A7_1: Mean R2 delta = -0.106. Houston (-0.292) and NOLA (-0.322)
+     lose most; NYC *gains* +0.149 (NFIP was a confounder); Riverside
+     unchanged (NFIP importance was zero).
+   - H_A7_2: Stability IMPROVES (mean tau 0.075 -> 0.109). NFIP was
+     absorbing signal differently per metro, destabilizing rankings.
+   - H_A7_3: Transfer IMPROVES (2/20 -> 5/20 positive pairs; mean R2
+     -5.91 -> -1.98). NFIP creates metro-specific overfitting.
+   - **Circularity verdict**: NFIP is a ceiling predictor that trades
+     within-scenario accuracy for transferability. It encodes insurance
+     market patterns, not universal flood physics. The non-NFIP model is
+     operationally relevant for un-insured or newly-mapped areas.
+   - NYC improvement is the strongest evidence of confounding: removing
+     a "predictor" makes the model better, meaning the feature was
+     importing noise (insurance penetration artifacts).
 
 3. **Coverage gap impact quantification**: Compare R0 performance on gap vs.
    non-gap ZCTAs within each scenario. If gap ZCTAs have systematically worse
