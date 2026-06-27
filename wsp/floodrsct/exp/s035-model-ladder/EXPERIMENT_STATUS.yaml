@@ -730,8 +730,10 @@ phases:
       Prithvi-TJEPA representation fusion probe. Never launched.
       See paper_commentary/a5_tjepa_status.md for full writeup.
   cross_analysis_a7:
-    status: DESIGNED
+    status: LAUNCHED
     doe_id: DOE-XA7
+    launched: '2026-06-26'
+    job_id: s035-cross-a7-nfip-ablation-20260627-021411
     depends_on: [r0_baseline, cross_analysis_a3, cross_analysis_a4]
     code: jobs/cross_analysis_a7_nfip_ablation.py
     launcher: scripts/launch_cross_analysis_a7.py
