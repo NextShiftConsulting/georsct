@@ -203,14 +203,23 @@ The paper should distinguish these two failure modes clearly.
 
 ### Immediate (computable from existing artifacts, no new SageMaker jobs)
 
-1. **Tau-transfer correlation test**: Correlate the A4 Kendall tau matrix with the
-   A3 transfer R2 matrix. If scenarios with similar importance rankings transfer
-   better, this validates regime similarity as the mechanism. Pearson/Spearman on
-   the 10 off-diagonal pairs.
+1. **Tau-transfer correlation test**: DONE (2026-06-26). Correlate the A4 Kendall
+   tau matrix with the A3 transfer R2 matrix (bidirectional average).
+   - All 10 pairs: Spearman rho=0.38, p=0.28 — not significant. Riverside's
+     catastrophic transfer R2 values (-17 to -23 average) dominate the variance.
+   - Coastal-only (4 metros, 6 pairs): Spearman rho=0.71, p=0.11 — strong
+     positive trend but n=6 is too small for significance.
+   - Interpretation: Within coastal flood regimes, scenarios with more similar
+     feature importance rankings DO transfer better. But the relationship breaks
+     down when arid inland (Riverside) is included. This is consistent with the
+     regime heterogeneity finding — transferability is governed by flood regime
+     similarity, and importance similarity is a proxy for regime similarity.
+   - Paper-worthy as a descriptive finding with the coastal-only caveat.
 
-2. **NFIP-ablated importance**: Retrain R0 excluding nfip_historical_frequency and
-   nfip_historical_severity. Does the importance structure become MORE stable across
-   scenarios when the circular predictor is removed? Does transfer improve?
+2. **NFIP-ablated importance**: LAUNCHED as A7 (job s035-cross-a7-nfip-ablation-20260627-021411).
+   Retrain R0 excluding nfip_historical_frequency and nfip_historical_severity.
+   Tests: (a) within-scenario R2 delta, (b) importance stability change,
+   (c) transfer matrix change.
 
 3. **Coverage gap impact quantification**: Compare R0 performance on gap vs.
    non-gap ZCTAs within each scenario. If gap ZCTAs have systematically worse
