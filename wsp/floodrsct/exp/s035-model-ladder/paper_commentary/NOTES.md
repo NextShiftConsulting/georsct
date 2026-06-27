@@ -140,19 +140,33 @@ All artifacts at `s3://swarm-floodrsct-data/results/s035/cross_analysis/`.
 
 ---
 
-## 6. Remaining Work
+## 6. Next Steps
 
-### Computable now (no new SageMaker)
-- [ ] Coverage gap impact quantification (R0 accuracy on gap vs non-gap ZCTAs)
-- [ ] Generate paper figures from existing JSON artifacts
+### Priority 1: Coverage gap impact quantification (no new SageMaker)
+Compare R0 prediction accuracy on gap ZCTAs (missing Prithvi and/or hydrology)
+vs non-gap ZCTAs within each scenario. If gap ZCTAs have systematically worse
+predictions, the coverage limitation has measurable fairness impact. Computable
+from existing R0 fold predictions + A6 gap flags. Addresses A6 PASS with a
+"so what?" quantification.
 
-### Future work (section 9)
-- [ ] Regime clustering (Wasserstein inter-scenario distances)
-- [ ] Hierarchical model (shared base + scenario-specific heads)
-- [ ] Patch-level Prithvi (attention-pooled, sub-ZCTA grain)
-- [ ] Causal NFIP validation (instrumental variables)
-- [ ] Multi-temporal Prithvi (pre/post-event difference)
-- [ ] Transfer with domain adaptation
+### Priority 2: A2 kappa_reconstruct at R1/R2 (new SageMaker job)
+R0 was null (no spatial-lag features, W-corruption had zero effect,
+kappa_reconstruct=1.0 everywhere). R1 has spatial-lag features (W-lag columns)
+so the adversarial reconstruction test becomes meaningful. Tests whether the
+model is genuinely using topological information or just memorizing spatial
+autocorrelation. Needs a new launcher + job script targeting R1/R2 levels.
 
-### Not started (from DOE)
-- [ ] A2: kappa_reconstruct at R1/R2 levels (R0 was null because no spatial-lag features)
+### Priority 3: Paper figure generation (local, no SageMaker)
+Turn the JSON artifacts into publication-ready figures:
+- A3 transfer heatmap (5x5, diverging colormap, positive pairs highlighted)
+- A4 importance profiles (radar or grouped bar, 5 scenarios)
+- A7 transfer improvement (side-by-side heatmaps or delta heatmap)
+- A7 within-R2 bar chart (full vs ablated, grouped by scenario)
+
+### Future work (section 9 of paper)
+- Regime clustering (Wasserstein inter-scenario distances)
+- Hierarchical model (shared base + scenario-specific heads)
+- Patch-level Prithvi (attention-pooled, sub-ZCTA grain)
+- Causal NFIP validation (instrumental variables)
+- Multi-temporal Prithvi (pre/post-event difference)
+- Transfer with domain adaptation
