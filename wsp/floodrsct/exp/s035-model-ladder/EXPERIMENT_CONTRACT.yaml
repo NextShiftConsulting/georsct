@@ -1442,6 +1442,32 @@ phases:
       - key: "results/s035/cross_analysis/a6_coverage_gap_overlap.json"
         description: "Fisher exact test, Jaccard index per scenario"
 
+  - phase_id: cross_analysis_a7
+    script: cross_analysis_a7_nfip_ablation.py
+    launcher: launch_cross_analysis_a7.py
+    description: "A7: NFIP feature ablation — circularity disambiguation"
+    per_scenario: false
+    depends_on: [r0_baseline, cross_analysis_a3, cross_analysis_a4]
+
+    packages:
+      - scikit-learn
+      - scipy
+      - numpy
+      - pandas
+      - pyarrow
+
+    s3_artifacts:
+      - key: assembled_parquet
+        description: "Event features for all 5 scenarios"
+        per_scenario: true
+      - key: "folds/{scenario}_folds.parquet"
+        description: "Frozen spatial-blocked fold assignments"
+        per_scenario: true
+
+    outputs:
+      - key: "results/s035/cross_analysis/a7_nfip_ablation.json"
+        description: "Full vs ablated: within-R2, importance tau, transfer matrix"
+
 # ── Verification Gates ────────────────────────────────────────────────
 # Machine-readable gate definitions.  Full prose and commands in VERIFY.md.
 # Each gate lists checks with pass_criteria.  Automated verification

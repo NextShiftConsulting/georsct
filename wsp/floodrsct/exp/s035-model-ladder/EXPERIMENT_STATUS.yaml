@@ -729,6 +729,19 @@ phases:
     notes: >
       Prithvi-TJEPA representation fusion probe. Never launched.
       See paper_commentary/a5_tjepa_status.md for full writeup.
+  cross_analysis_a7:
+    status: DESIGNED
+    doe_id: DOE-XA7
+    depends_on: [r0_baseline, cross_analysis_a3, cross_analysis_a4]
+    code: jobs/cross_analysis_a7_nfip_ablation.py
+    launcher: scripts/launch_cross_analysis_a7.py
+    doe_spec: DOE_cross_analysis.md
+    artifact_keys:
+    - results/s035/cross_analysis/a7_nfip_ablation.json
+    notes: >
+      NFIP feature ablation. Retrain R0 without nfip_historical_frequency
+      and nfip_historical_severity. Compare within-R2, importance stability
+      (Kendall tau), and cross-scenario transfer.
 
 paper_claims:
   sec_7_1_variance_stack:
