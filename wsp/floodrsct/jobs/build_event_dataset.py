@@ -816,10 +816,11 @@ def _mrms_spatial_aggregate(s3, file_keys: list[str], zcta_ids: list[str],
 # ---------------------------------------------------------------------------
 
 def aggregate_hwm(s3, event: str, zcta_ids: list[str]) -> pd.DataFrame:
-    # Check both locations: pre-uploaded S3 parquets and fetch_surge_hwm output
-    hwm = s3_read(s3, f"raw/usgs_stn/{event}_hwm.parquet")
+    # Check fetch_surge_hwm output first (state-filtered, verified),
+    # then fall back to legacy pre-uploaded parquets.
+    hwm = s3_read(s3, f"raw/surge_estimates/{event}/hwm_{event}.parquet")
     if hwm is None or hwm.empty:
-        hwm = s3_read(s3, f"raw/surge_estimates/{event}/hwm_{event}.parquet")
+        hwm = s3_read(s3, f"raw/usgs_stn/{event}_hwm.parquet")
     empty = pd.DataFrame({"zcta_id": zcta_ids, "hwm_count": 0,
                            "hwm_max_elev_ft": np.nan, "obs_has_hwm": False})
     if hwm is None or hwm.empty:
@@ -1397,7 +1398,7 @@ def build_riverside_coachella(s3, cfg: dict) -> pd.DataFrame:
     jrc_water   = build_jrc_water_features(s3, rc_zctas)
     burn_scars  = build_burn_scar_features(s3, rc_zctas)
     catchments  = build_catchment_features(s3, rc_zctas, vpu="18")
-    elevation   = build_elevation_features(s3, rc_zctas, "riverside_coachella")
+    elevation   = build_elevation_features(s3, rc_zctas, "socal")
     deltares    = build_deltares_depth_features(s3, rc_zctas)
     hydrology   = build_hydrology_features(s3, rc_zctas)
     buildings   = build_building_features(s3, rc_zctas)

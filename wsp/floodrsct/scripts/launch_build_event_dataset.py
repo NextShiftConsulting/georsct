@@ -23,8 +23,11 @@ Deployment Resource Review (8 dimensions)
               southwest_florida, riverside_coachella). ml.m5.2xlarge for nyc.
 6. Volume:    50 GB. Grib2 streamed from S3. NLCD .tif: 1.15 GB download.
               Parquet output: <100 MB. Peak ~3 GB.
-7. pip:       geopandas pyogrio rasterio cfgrib xarray eccodes scikit-learn xgboost.
+7. pip:       geopandas pyogrio rasterio cfgrib xarray eccodes scikit-learn xgboost
+              pystac-client planetary-computer.
               rasterio required for NLCD raster read (cropland_pct, impervious_pct).
+              pystac-client + planetary-computer required for floodcaster STAC
+              extraction (Deltares depth, JRC water, DEM hydrology, Sentinel-1 SAR).
 8. pre_install: None when NLCD .tif exists on S3. gdal-bin only needed if
               falling back to .img format (--nlcd-img-fallback flag).
 """
@@ -82,7 +85,7 @@ def main() -> None:
         job_args=["--scenario", args.scenario],
         instance_type=instance_type,
         volume_size_gb=100 if needs_img_fallback else 50,
-        pip_packages="geopandas pyogrio rasterio cfgrib xarray eccodes scikit-learn xgboost netCDF4",
+        pip_packages="geopandas pyogrio rasterio cfgrib xarray eccodes scikit-learn xgboost netCDF4 pystac-client planetary-computer",
         pre_install_cmd=pre_install,
         dry_run=args.dry_run,
     )

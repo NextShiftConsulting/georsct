@@ -46,6 +46,8 @@ PAGE_SIZE = 1000
 SCENARIO_STATES = {
     "new_orleans": ["Louisiana"],
     "nyc": ["New York", "New Jersey"],
+    "houston": ["Texas"],
+    "southwest_florida": ["Florida"],
 }
 
 # USACE district / county keywords for filtering to scenario metro area
@@ -54,6 +56,10 @@ SCENARIO_KEYWORDS = {
                     "New Orleans", "Lake Pontchartrain"],
     "nyc": ["Jamaica", "Newtown", "Coney Island", "Hudson", "Passaic", "Hackensack",
             "New York", "New Jersey"],
+    "houston": ["Harris", "Fort Bend", "Montgomery", "Galveston", "Brazoria", "Chambers",
+                "Addicks", "Barker", "Brays Bayou", "Buffalo Bayou", "Houston"],
+    "southwest_florida": ["Lee", "Collier", "Charlotte", "Sarasota", "Manatee", "DeSoto",
+                          "Caloosahatchee", "Fort Myers", "Cape Coral"],
 }
 
 # Fields to retrieve from NLD2 Leveed_Areas
@@ -149,7 +155,8 @@ def upload(df: pd.DataFrame, s3_key: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--scenario", required=True, choices=["new_orleans", "nyc", "all"])
+    parser.add_argument("--scenario", required=True,
+                        choices=list(SCENARIO_STATES.keys()) + ["all"])
     args = parser.parse_args()
 
     scenarios = list(SCENARIO_STATES.keys()) if args.scenario == "all" else [args.scenario]
