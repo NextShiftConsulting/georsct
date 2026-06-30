@@ -11,7 +11,9 @@ from _launcher_base import launch_processing_job, make_job_name
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--scenario", required=True, choices=["new_orleans", "nyc", "all"])
+    parser.add_argument("--scenario", required=True,
+                        choices=["new_orleans", "nyc", "houston",
+                                 "southwest_florida", "all"])
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
