@@ -1,25 +1,29 @@
 #!/usr/bin/env python3
 """
-compute_rsct_certificates.py -- RSCT certificate generation for GeoRSCT.
+compute_rsct_certificates.py -- RSCT certificate sidecar + demos.
+
+Thin CLI over rsct.experiment_cert.certify_experiment_cell() and
+yrsn_controlplane.SequentialGatekeeper. No hand-rolled RSN, oobleck,
+or gate logic -- delegates to the canonical packages.
 
 Three modes:
-  --collapse    Eval-geometry score-collapse demo: show how R/S/N simplex
-                collapses when geometry kappa degrades.
-  --certificate Certificate sidecar generator: produce ReadinessCertificate
-                JSON per (scenario, target) cell.
-  --sweep       Inflation-vs-sigma sweep: vary inflation factor and measure
-                sigma_geo (turbulence) across all 27 (scenario, target) cells.
+  --collapse    Score-collapse demo: R/S/N vs geometry kappa gradient.
+  --certificate Certificate sidecar per (scenario, target) cell.
+  --sweep       Inflation-vs-sigma sweep: vary sigma multiplier and
+                show how oobleck threshold changes decisions.
 
-All three modes call the same build_certificate() pipeline:
-  1. Load scenario parquet + adjacency + crosswalk from S3
-  2. Compute geometry kappa (spatial_connectivity, support_coverage,
-     scale_stability, admin_alignment)
-  3. Run Ridge CV to get fold metrics -> R, S_sup, N
-  4. Compute sigma_geo from fold metric std
-  5. Build ReadinessCertificate with oobleck-calibrated kappa_compat
+Data pipeline:
+  1. Load pre-computed results from S3 (r0_{scenario}.json from Phase 1)
+  2. Load pre-computed geometry_kappa.json from Phase 0.5
+  3. Call certify_experiment_cell() for RSN + alpha/omega/tau/sigma
+  4. Call SequentialGatekeeper.evaluate() for enforcement decision
+  5. Emit JSON sidecar per mode
 
-Inputs:  assembled parquets, adjacency, crosswalk, folds (all on S3)
-Outputs: JSON results uploaded to s3://swarm-floodrsct-data/results/s035/
+If pre-computed results are not available for a cell, falls back to
+inline Ridge/LogisticRegression CV to produce fold metrics.
+
+Inputs:  r0_*.json, geometry_kappa.json, assembled parquets (all on S3)
+Outputs: rsct_{collapse,certificates,sweep}.json on S3
 
 Usage:
     python compute_rsct_certificates.py --collapse --upload
@@ -31,25 +35,38 @@ import argparse
 import io
 import json
 import logging
-import math
 import sys
-from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
-from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import LogisticRegressionCV, RidgeCV
-from sklearn.model_selection import cross_val_score
-from sklearn.preprocessing import StandardScaler
 
 sys.path.insert(0, str(Path(__file__).parent))
 from _coverage_common import (
     BUCKET, SCENARIOS, get_s3_client, load_processed_parquet, load_crosswalk,
 )
 from _s3_result import upload_json_result
-from generate_folds import generate_folds
+
+# rsct service layer -- canonical RSN + certificate
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from rsct.experiment_cert import certify_experiment_cell
+
+# yrsn controlplane -- canonical gate evaluation
+try:
+    from yrsn_controlplane import (
+        PRESET_GEOSPATIAL_CONUS27 as _CFG,
+        CPGatekeeperInput,
+        SequentialGatekeeper,
+        EnforcementDecision,
+        tau_to_gear,
+    )
+    _GATEKEEPER = SequentialGatekeeper(_CFG)
+    _HAS_CONTROLPLANE = True
+except ImportError:
+    _HAS_CONTROLPLANE = False
+    _GATEKEEPER = None
+    _CFG = None
 
 logging.basicConfig(
     level=logging.INFO,
@@ -70,6 +87,11 @@ TARGETS = [
     ("obs_has_hwm",           "classification", None),
 ]
 
+PRIMARY_METRIC = {
+    "regression": "r2",
+    "classification": "roc_auc",
+}
+
 R0_FEATURES = [
     "flood_pct_zone_a", "flood_pct_zone_x", "flood_pct_zone_x500",
     "elevation_m_msl", "slope_mean_pct", "twi_twi",
@@ -84,172 +106,114 @@ R0_FEATURES = [
     "impervious_pct", "cropland_pct",
 ]
 
-# Oobleck threshold parameters (ADR-023: sigmoidal, not linear)
-KAPPA_BASE = 0.4
-DELTA_KAPPA = 0.3
-STEEPNESS = 8.0
-SIGMA_C = 0.3
-
 
 # ---------------------------------------------------------------------------
-# Geometry measurements
+# Data loading
 # ---------------------------------------------------------------------------
 
-def compute_spatial_connectivity(adj_df: pd.DataFrame,
-                                  scenario_zctas: set) -> float:
-    """Fraction of ZCTAs with at least one neighbor."""
-    if adj_df is None or adj_df.empty:
-        return 0.0
-    cols = adj_df.columns.tolist()
-    src, dst = cols[0], cols[1]
-    connected = set()
-    for _, row in adj_df.iterrows():
-        s, d = str(row[src]), str(row[dst])
-        if s in scenario_zctas and d in scenario_zctas:
-            connected.update([s, d])
-    return len(connected) / max(len(scenario_zctas), 1)
+def _load_json(s3, key: str) -> dict | None:
+    try:
+        resp = s3.get_object(Bucket=BUCKET, Key=key)
+        return json.loads(resp["Body"].read().decode())
+    except Exception:
+        return None
 
 
-def compute_support_coverage(df: pd.DataFrame, target: str,
-                              features: list) -> float:
-    """Feature non-null rate for rows where target is present."""
-    if target not in df.columns:
-        return 0.0
-    sub = df.loc[df[target].notna(), [f for f in features if f in df.columns]]
-    if sub.empty:
-        return 0.0
-    return float(sub.notna().mean().mean())
-
-
-def compute_scale_stability(df: pd.DataFrame, crosswalk: pd.DataFrame,
-                             features: list) -> float:
-    """Between-county / total variance ratio."""
-    if crosswalk is None or crosswalk.empty:
-        return 0.5
-    df2 = df.copy()
-    df2["zcta_id"] = df2["zcta_id"].astype(str)
-    xwalk = crosswalk[["zcta_id", "county_fips"]].drop_duplicates().copy()
-    xwalk["zcta_id"] = xwalk["zcta_id"].astype(str)
-    merged = df2.merge(xwalk, on="zcta_id", how="left")
-    ratios = []
-    for col in features:
-        if col not in merged.columns:
+def _load_adjacency(s3) -> pd.DataFrame:
+    """Load ZCTA adjacency edge list from S3."""
+    for key in [
+        "raw/geocertdb2026/zcta_adjacency.parquet",
+        "raw/geocert/zcta_adjacency.parquet",
+    ]:
+        try:
+            resp = s3.get_object(Bucket=BUCKET, Key=key)
+            buf = io.BytesIO(resp["Body"].read())
+            return pd.read_parquet(buf)
+        except Exception:
             continue
-        vals = merged[[col, "county_fips"]].dropna()
-        if len(vals) < 10:
-            continue
-        total_var = vals[col].var()
-        if total_var < 1e-12:
-            continue
-        between_var = vals.groupby("county_fips")[col].mean().var()
-        ratios.append(between_var / total_var)
-    return float(np.clip(np.mean(ratios), 0.0, 1.0)) if ratios else 0.5
+    log.warning("zcta_adjacency.parquet not found; connectivity will be 0")
+    return pd.DataFrame()
 
 
-def compute_admin_alignment(df: pd.DataFrame, crosswalk: pd.DataFrame) -> float:
-    """1 - fraction of ZCTAs spanning multiple counties."""
-    if crosswalk is None or crosswalk.empty:
-        return 0.5
-    xwalk = crosswalk[["zcta_id", "county_fips"]].drop_duplicates()
-    xwalk["zcta_id"] = xwalk["zcta_id"].astype(str)
-    zctas_in_scenario = set(df["zcta_id"].astype(str))
-    xwalk = xwalk[xwalk["zcta_id"].isin(zctas_in_scenario)]
-    multi = xwalk.groupby("zcta_id")["county_fips"].nunique()
-    frac_multi = (multi > 1).mean()
-    return float(1.0 - frac_multi)
+def _load_geometry_kappa(s3) -> dict:
+    """Load Phase 0.5 geometry kappa, indexed by (scenario, target)."""
+    data = _load_json(s3, f"{RESULTS_PREFIX}/geometry_kappa.json")
+    if not data:
+        log.warning(
+            "geometry_kappa.json not found -- run compute_geometry_kappa.py "
+            "first. kappa_geom will default to None."
+        )
+        return {}
+    index = {}
+    for cell in data.get("cells", []):
+        key = (cell["scenario"], cell["target"])
+        index[key] = cell
+    log.info("Loaded geometry kappa for %d cells", len(index))
+    return index
 
 
-def compute_kappa_geom(spatial_conn: float, support_cov: float,
-                        scale_stab: float, admin_align: float) -> float:
-    """Mean of available geometry terms (NaN-safe)."""
-    terms = np.array([spatial_conn, support_cov, scale_stab, admin_align], dtype=float)
-    finite = terms[np.isfinite(terms)]
-    if len(finite) == 0:
-        return 0.0
-    return float(np.mean(finite))
+def _load_r0_results(s3, scenario: str) -> dict | None:
+    """Load Phase 1 R0 results for a scenario."""
+    return _load_json(s3, f"{RESULTS_PREFIX}/r0_{scenario}.json")
 
 
-# ---------------------------------------------------------------------------
-# Oobleck threshold (ADR-023: sigmoidal)
-# ---------------------------------------------------------------------------
+def _extract_fold_metrics(
+    results: dict, target: str, split: str, solver: str,
+) -> list[float]:
+    """Extract per-fold primary metric values from a results JSON."""
+    runs = results.get("runs", [])
+    task_type = None
+    for r in runs:
+        if r["target"] == target:
+            task_type = r.get("task")
+            break
+    if not task_type:
+        return []
 
-def oobleck_kappa_req(sigma: float) -> float:
-    """Sigmoidal kappa requirement as function of turbulence."""
-    return KAPPA_BASE + DELTA_KAPPA / (1.0 + math.exp(-STEEPNESS * (sigma - SIGMA_C)))
+    metric_name = PRIMARY_METRIC.get(task_type)
+    if not metric_name:
+        return []
 
-
-# ---------------------------------------------------------------------------
-# RSN simplex from fold metrics
-# ---------------------------------------------------------------------------
-
-def compute_rsn_from_folds(fold_scores: list) -> dict:
-    """Compute R, S_sup, N from cross-validation fold scores.
-
-    R = clipped mean score (relevance proxy).  Negative R2 is legitimate
-        (model worse than predicting mean) -- clipped to 0.
-    S_sup = stability from fold variance, independent of mean.
-        tau = 1/(1+std) gives a [0,1] stability even when R=0.
-    N = 1 - R - S_sup (noise/residual).
-    sigma = std of fold scores (turbulence input for oobleck).
-    """
-    arr = np.array(fold_scores, dtype=float)
-    arr = arr[np.isfinite(arr)]
-    if len(arr) < 2:
-        return {"R": 0.0, "S_sup": 0.0, "N": 1.0, "sigma": 1.0, "n_folds": 0}
-
-    mu = float(np.mean(arr))
-    std = float(np.std(arr, ddof=1))
-
-    # R: clip negative R2 to 0 (model worse than mean predictor)
-    R = float(np.clip(mu, 0.0, 1.0))
-
-    # S_sup: fold stability via tau = 1/(1+std), independent of sign of mu.
-    # This gives meaningful stability even when R=0 (negative R2).
-    tau = 1.0 / (1.0 + std)
-    S_sup = float(np.clip(tau, 0.0, 1.0 - R))
-
-    N = float(np.clip(1.0 - R - S_sup, 0.0, 1.0))
-
-    return {"R": R, "S_sup": S_sup, "N": N, "sigma": std, "n_folds": len(arr)}
+    vals = []
+    for r in runs:
+        if (r["target"] == target and r["split"] == split
+                and r["solver"] == solver):
+            v = r["metrics"].get(metric_name)
+            if v is not None:
+                vals.append(float(v))
+    return vals
 
 
 # ---------------------------------------------------------------------------
-# Certificate builder
+# Fallback: inline CV when pre-computed results are not available
 # ---------------------------------------------------------------------------
 
-def build_certificate(
-    df: pd.DataFrame,
+def _fallback_cv(
+    s3,
+    scenario: str,
     target: str,
     task_type: str,
-    transform: str,
-    adj_df: pd.DataFrame,
-    crosswalk: pd.DataFrame,
-    scenario: str,
-    inflation: float = 1.0,
-) -> dict:
-    """Build a ReadinessCertificate for one (scenario, target) cell.
+    transform: str | None,
+) -> tuple[list[float], list[float]]:
+    """Run inline Ridge/LogisticRegression CV as fallback.
 
-    Args:
-        inflation: Multiplicative factor applied to sigma for sweep mode.
-                   1.0 = no inflation.
+    Returns (spatial_folds, random_folds). Since we don't have spatial-blocked
+    folds here, spatial_folds = random_folds = standard 5-fold CV scores.
+    S_sup will be 0 (no random-spatial gap computable).
     """
+    from sklearn.linear_model import LogisticRegressionCV, RidgeCV
+    from sklearn.model_selection import cross_val_score
+    from sklearn.preprocessing import StandardScaler
+
+    df = load_processed_parquet(s3, scenario)
     features = [f for f in R0_FEATURES if f in df.columns]
-    zctas = set(df["zcta_id"].astype(str))
 
-    # Geometry kappa
-    sp_conn = compute_spatial_connectivity(adj_df, zctas)
-    sup_cov = compute_support_coverage(df, target, features)
-    sc_stab = compute_scale_stability(df, crosswalk, features)
-    ad_algn = compute_admin_alignment(df, crosswalk)
-    kappa_geom = compute_kappa_geom(sp_conn, sup_cov, sc_stab, ad_algn)
-
-    # Prepare data for Ridge CV
     if target not in df.columns:
-        return _missing_cert(scenario, target, "target column missing", kappa_geom)
+        return [], []
 
     sub = df[features + [target]].dropna()
     if len(sub) < 20:
-        return _missing_cert(scenario, target, "insufficient data (n<%d)" % len(sub), kappa_geom)
+        return [], []
 
     X = sub[features].values
     y = sub[target].values.copy()
@@ -257,21 +221,15 @@ def build_certificate(
     if transform == "log1p":
         y = np.log1p(np.clip(y, 0, None))
 
-    # Standardize
     scaler = StandardScaler()
     X = scaler.fit_transform(X)
 
-    # 5-fold CV: Ridge for regression, LogisticRegression for classification
     try:
         if task_type == "classification":
             n_pos = int(y.sum())
             n_neg = len(y) - n_pos
             if n_pos < 5 or n_neg < 5:
-                return _missing_cert(
-                    scenario, target,
-                    "class imbalance (pos=%d, neg=%d)" % (n_pos, n_neg),
-                    kappa_geom,
-                )
+                return [], []
             model = LogisticRegressionCV(
                 Cs=[0.01, 0.1, 1.0, 10.0, 100.0],
                 max_iter=1000, solver="lbfgs",
@@ -280,71 +238,119 @@ def build_certificate(
         else:
             model = RidgeCV(alphas=[0.01, 0.1, 1.0, 10.0, 100.0])
             scoring = "r2"
+
         fold_scores = cross_val_score(model, X, y, cv=5, scoring=scoring,
                                        n_jobs=-1)
+        return fold_scores.tolist(), fold_scores.tolist()
     except Exception as e:
-        return _missing_cert(scenario, target, "CV failed: %s" % str(e), kappa_geom)
+        log.warning("Fallback CV failed for %s/%s: %s", scenario, target, e)
+        return [], []
 
-    # RSN from folds
-    rsn = compute_rsn_from_folds(fold_scores.tolist())
-    sigma = rsn["sigma"] * inflation
 
-    # kappa_compat = R*(1-N), clamped
-    kappa_compat = float(np.clip(rsn["R"] * (1.0 - rsn["N"]), 0.0, 1.0))
+# ---------------------------------------------------------------------------
+# Certificate builder using rsct.experiment_cert
+# ---------------------------------------------------------------------------
 
-    # Oobleck threshold
-    kappa_req = oobleck_kappa_req(sigma)
+def build_certificate(
+    s3,
+    scenario: str,
+    target: str,
+    task_type: str,
+    transform: str | None,
+    r0_results: dict | None,
+    geometry_index: dict,
+    sigma_inflation: float = 1.0,
+) -> dict:
+    """Build certificate for one (scenario, target) cell.
 
-    # Public decision
-    if rsn["R"] < 0.3:
-        decision = "REFUSE"
-    elif kappa_compat < kappa_req:
-        decision = "CAUTION"
+    Uses certify_experiment_cell() from rsct.experiment_cert and
+    SequentialGatekeeper from yrsn_controlplane.
+    """
+    # Extract fold metrics from pre-computed results or fallback to CV
+    if r0_results:
+        spatial_folds = _extract_fold_metrics(
+            r0_results, target, "spatial_blocked", "histgbdt",
+        )
+        random_folds = _extract_fold_metrics(
+            r0_results, target, "random", "histgbdt",
+        )
     else:
-        decision = "EXECUTE"
+        spatial_folds, random_folds = [], []
 
-    return {
+    # Fallback to inline CV if no pre-computed results
+    used_fallback = False
+    if not spatial_folds:
+        log.info("No pre-computed results for %s/%s, using fallback CV",
+                 scenario, target)
+        spatial_folds, random_folds = _fallback_cv(
+            s3, scenario, target, task_type, transform,
+        )
+        used_fallback = True
+
+    spatial_metric = float(np.mean(spatial_folds)) if spatial_folds else None
+    random_metric = float(np.mean(random_folds)) if random_folds else None
+
+    # Geometry kappa from Phase 0.5
+    geom_cell = geometry_index.get((scenario, target), {})
+    kappa_geom = geom_cell.get("kappa_geom")
+
+    # Delegate to rsct service layer for RSN + alpha/omega/tau/sigma
+    cert = certify_experiment_cell(
+        spatial_metric=spatial_metric,
+        random_metric=random_metric,
+        task_type=task_type,
+        fold_metrics=spatial_folds,
+        kappa_geom=kappa_geom,
+    )
+
+    # Apply sigma inflation for sweep mode
+    sigma = cert.sigma * sigma_inflation
+
+    # Gate evaluation via controlplane (if available)
+    gate_decision = None
+    gear = None
+    if _HAS_CONTROLPLANE and spatial_metric is not None:
+        try:
+            gate_input = CPGatekeeperInput(
+                alpha=cert.alpha,
+                kappa_compat=cert.kappa_compat,
+                sigma=sigma,
+                source_mode="proxy",
+                evidence={
+                    "R": cert.R,
+                    "S_sup": cert.S_sup,
+                    "N": cert.N,
+                    "omega": cert.omega,
+                    "noise_admissibility": cert.N,
+                    "proxy_domain": "geospatial_tabular",
+                },
+            )
+            gate_result = _GATEKEEPER.evaluate(gate_input)
+            gate_decision = gate_result.decision.value
+            gear = tau_to_gear(cert.tau).value
+        except Exception as e:
+            log.warning("Gatekeeper failed for %s/%s: %s", scenario, target, e)
+
+    result = cert.to_dict()
+    result.update({
         "scenario": scenario,
         "target": target,
         "task_type": task_type,
-        "transform": transform,
-        "n_samples": len(sub),
-        "n_features": len(features),
-        "fold_scores": fold_scores.tolist(),
-        "R": rsn["R"],
-        "S_sup": rsn["S_sup"],
-        "N": rsn["N"],
-        "sigma": sigma,
-        "inflation": inflation,
-        "kappa_compat": kappa_compat,
-        "kappa_geom": kappa_geom,
-        "kappa_req": kappa_req,
-        "public_decision": decision,
-        "geometry": {
-            "spatial_connectivity": sp_conn,
-            "support_coverage": sup_cov,
-            "scale_stability": sc_stab,
-            "admin_alignment": ad_algn,
+        "sigma_inflated": sigma,
+        "sigma_inflation": sigma_inflation,
+        "gate_decision": gate_decision,
+        "gear": gear,
+        "used_fallback_cv": used_fallback,
+        "fold_scores": spatial_folds,
+        "geometry": geom_cell.get("geometry") or {
+            "spatial_connectivity": geom_cell.get("spatial_connectivity"),
+            "support_coverage": geom_cell.get("support_coverage"),
+            "scale_stability": geom_cell.get("scale_stability"),
+            "admin_alignment": geom_cell.get("admin_alignment"),
         },
-        "simplex_valid": abs(rsn["R"] + rsn["S_sup"] + rsn["N"] - 1.0) < 1e-6,
-    }
+    })
 
-
-def _missing_cert(scenario: str, target: str, reason: str,
-                   kappa_geom: float) -> dict:
-    """Return a certificate stub for missing/insufficient data."""
-    return {
-        "scenario": scenario,
-        "target": target,
-        "R": 0.0, "S_sup": 0.0, "N": 1.0,
-        "sigma": float("nan"),
-        "kappa_compat": 0.0,
-        "kappa_geom": kappa_geom,
-        "kappa_req": float("nan"),
-        "public_decision": "REFUSE",
-        "missing_reason": reason,
-        "simplex_valid": True,
-    }
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -352,35 +358,37 @@ def _missing_cert(scenario: str, target: str, reason: str,
 # ---------------------------------------------------------------------------
 
 def run_collapse(s3, upload: bool) -> None:
-    """Score-collapse demo: show R/S/N simplex vs geometry kappa."""
+    """Score-collapse demo: R/S/N simplex vs geometry kappa gradient."""
     log.info("=== COLLAPSE MODE ===")
-    crosswalk = load_crosswalk(s3)
-    adj_df = _load_adjacency(s3)
+    geometry_index = _load_geometry_kappa(s3)
 
     results = []
     for scenario in MODELABLE:
-        df = load_processed_parquet(s3, scenario)
+        r0 = _load_r0_results(s3, scenario)
         for target, task_type, transform in TARGETS:
-            cert = build_certificate(df, target, task_type, transform,
-                                      adj_df, crosswalk, scenario)
+            cert = build_certificate(
+                s3, scenario, target, task_type, transform,
+                r0, geometry_index,
+            )
             results.append(cert)
             log.info(
-                "%s / %s: R=%.3f S_sup=%.3f N=%.3f kappa_geom=%.3f "
-                "kappa_compat=%.3f -> %s",
+                "%s / %s: R=%.3f S_sup=%.3f N=%.3f kappa_geom=%s "
+                "kappa_compat=%.3f gate=%s",
                 scenario, target,
                 cert["R"], cert["S_sup"], cert["N"],
-                cert.get("kappa_geom", 0),
+                "%.3f" % cert["kappa_geom"] if cert.get("kappa_geom") is not None else "null",
                 cert.get("kappa_compat", 0),
-                cert["public_decision"],
+                cert.get("gate_decision", "N/A"),
             )
 
     # Sort by kappa_geom to show collapse gradient
-    results.sort(key=lambda c: c.get("kappa_geom", 0))
+    results.sort(key=lambda c: c.get("kappa_geom") or 0)
 
     payload = {
         "mode": "collapse",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "description": "Score-collapse demo: R/S/N vs geometry kappa gradient",
+        "controlplane_available": _HAS_CONTROLPLANE,
         "n_cells": len(results),
         "cells": results,
     }
@@ -397,45 +405,46 @@ def run_collapse(s3, upload: bool) -> None:
 # ---------------------------------------------------------------------------
 
 def run_certificate(s3, upload: bool) -> None:
-    """Generate ReadinessCertificate sidecar per (scenario, target)."""
+    """Certificate sidecar per (scenario, target)."""
     log.info("=== CERTIFICATE MODE ===")
-    crosswalk = load_crosswalk(s3)
-    adj_df = _load_adjacency(s3)
+    geometry_index = _load_geometry_kappa(s3)
 
     all_certs = {}
     for scenario in MODELABLE:
-        df = load_processed_parquet(s3, scenario)
+        r0 = _load_r0_results(s3, scenario)
         scenario_certs = []
         for target, task_type, transform in TARGETS:
-            cert = build_certificate(df, target, task_type, transform,
-                                      adj_df, crosswalk, scenario)
+            cert = build_certificate(
+                s3, scenario, target, task_type, transform,
+                r0, geometry_index,
+            )
             scenario_certs.append(cert)
             log.info(
-                "CERT %s/%s: decision=%s R=%.3f kappa_compat=%.3f",
-                scenario, target, cert["public_decision"],
-                cert["R"], cert.get("kappa_compat", 0),
+                "CERT %s/%s: R=%.3f alpha=%.3f omega=%.3f "
+                "kappa_compat=%.3f tau=%.3f gate=%s",
+                scenario, target,
+                cert["R"], cert["alpha"], cert["omega"],
+                cert.get("kappa_compat", 0), cert.get("tau", 0),
+                cert.get("gate_decision", "N/A"),
             )
         all_certs[scenario] = scenario_certs
+
+    # Flatten for summary stats
+    flat = [c for certs in all_certs.values() for c in certs]
 
     payload = {
         "mode": "certificate",
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "description": "ReadinessCertificate sidecar per (scenario, target)",
+        "description": "RSCT certificate sidecar per (scenario, target)",
+        "controlplane_available": _HAS_CONTROLPLANE,
         "scenarios": all_certs,
         "summary": {
-            "total_cells": sum(len(v) for v in all_certs.values()),
-            "execute": sum(
-                1 for certs in all_certs.values()
-                for c in certs if c["public_decision"] == "EXECUTE"
-            ),
-            "caution": sum(
-                1 for certs in all_certs.values()
-                for c in certs if c["public_decision"] == "CAUTION"
-            ),
-            "refuse": sum(
-                1 for certs in all_certs.values()
-                for c in certs if c["public_decision"] == "REFUSE"
-            ),
+            "total_cells": len(flat),
+            "gate_decisions": {
+                d: sum(1 for c in flat if c.get("gate_decision") == d)
+                for d in set(c.get("gate_decision") for c in flat)
+            },
+            "yrsn_available": flat[0].get("yrsn_available", False) if flat else False,
         },
     }
 
@@ -453,54 +462,58 @@ def run_certificate(s3, upload: bool) -> None:
 def run_sweep(s3, upload: bool) -> None:
     """Inflation-vs-sigma sweep across all cells."""
     log.info("=== SWEEP MODE ===")
-    crosswalk = load_crosswalk(s3)
-    adj_df = _load_adjacency(s3)
+    geometry_index = _load_geometry_kappa(s3)
 
     inflations = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 5.0]
     sweep_results = []
 
     for scenario in MODELABLE:
-        df = load_processed_parquet(s3, scenario)
+        r0 = _load_r0_results(s3, scenario)
         for target, task_type, transform in TARGETS:
             row = {"scenario": scenario, "target": target, "points": []}
             for inf in inflations:
                 cert = build_certificate(
-                    df, target, task_type, transform,
-                    adj_df, crosswalk, scenario,
-                    inflation=inf,
+                    s3, scenario, target, task_type, transform,
+                    r0, geometry_index,
+                    sigma_inflation=inf,
                 )
                 row["points"].append({
                     "inflation": inf,
                     "sigma": cert.get("sigma"),
-                    "kappa_compat": cert.get("kappa_compat"),
-                    "kappa_req": cert.get("kappa_req"),
+                    "sigma_inflated": cert.get("sigma_inflated"),
                     "R": cert["R"],
                     "S_sup": cert["S_sup"],
                     "N": cert["N"],
-                    "public_decision": cert["public_decision"],
+                    "kappa_compat": cert.get("kappa_compat"),
+                    "alpha": cert.get("alpha"),
+                    "omega": cert.get("omega"),
+                    "tau": cert.get("tau"),
+                    "gate_decision": cert.get("gate_decision"),
+                    "gear": cert.get("gear"),
                 })
             sweep_results.append(row)
             base = row["points"][2]  # inflation=1.0
             log.info(
                 "SWEEP %s/%s: base sigma=%.4f, decisions=%s",
                 scenario, target,
-                base.get("sigma", float("nan")),
-                [p["public_decision"] for p in row["points"]],
+                base.get("sigma") or 0,
+                [p["gate_decision"] for p in row["points"]],
             )
 
     payload = {
         "mode": "sweep",
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "description": "Inflation-vs-sigma_geo sweep across 15 (scenario, target) cells",
+        "description": "Inflation-vs-sigma sweep across cells",
+        "controlplane_available": _HAS_CONTROLPLANE,
+        "controlplane_config": {
+            "kappa_base": _CFG.kappa_base if _CFG else None,
+            "sigma_thr": _CFG.sigma_thr if _CFG else None,
+            "N_thr": _CFG.N_thr if _CFG else None,
+            "alpha_min": _CFG.alpha_min if _CFG else None,
+        },
         "inflations": inflations,
         "n_cells": len(sweep_results),
         "cells": sweep_results,
-        "oobleck_params": {
-            "kappa_base": KAPPA_BASE,
-            "delta_kappa": DELTA_KAPPA,
-            "steepness": STEEPNESS,
-            "sigma_c": SIGMA_C,
-        },
     }
 
     if upload:
@@ -511,32 +524,12 @@ def run_sweep(s3, upload: bool) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Shared data loaders
-# ---------------------------------------------------------------------------
-
-def _load_adjacency(s3) -> pd.DataFrame:
-    """Load ZCTA adjacency edge list from S3."""
-    for key in [
-        "raw/geocertdb2026/zcta_adjacency.parquet",
-        "raw/geocert/zcta_adjacency.parquet",
-    ]:
-        try:
-            resp = s3.get_object(Bucket=BUCKET, Key=key)
-            buf = io.BytesIO(resp["Body"].read())
-            return pd.read_parquet(buf)
-        except Exception:
-            continue
-    log.warning("zcta_adjacency.parquet not found on S3; connectivity will be 0")
-    return pd.DataFrame()
-
-
-# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="RSCT certificate generation for GeoRSCT"
+        description="RSCT certificate sidecar + demos (uses rsct + yrsn_controlplane)"
     )
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--collapse", action="store_true",
@@ -559,6 +552,7 @@ def main() -> None:
         log.info("[DRY RUN] Scenarios: %s", MODELABLE)
         log.info("[DRY RUN] Targets: %s", [t[0] for t in TARGETS])
         log.info("[DRY RUN] Upload: %s", args.upload)
+        log.info("[DRY RUN] controlplane available: %s", _HAS_CONTROLPLANE)
         return
 
     s3 = get_s3_client()
