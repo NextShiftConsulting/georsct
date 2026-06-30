@@ -40,7 +40,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import RidgeCV
+from sklearn.linear_model import LogisticRegressionCV, RidgeCV
 from sklearn.model_selection import cross_val_score
 from sklearn.preprocessing import StandardScaler
 
@@ -161,8 +161,12 @@ def compute_admin_alignment(df: pd.DataFrame, crosswalk: pd.DataFrame) -> float:
 
 def compute_kappa_geom(spatial_conn: float, support_cov: float,
                         scale_stab: float, admin_align: float) -> float:
-    """Mean of four geometry terms."""
-    return float(np.mean([spatial_conn, support_cov, scale_stab, admin_align]))
+    """Mean of available geometry terms (NaN-safe)."""
+    terms = np.array([spatial_conn, support_cov, scale_stab, admin_align], dtype=float)
+    finite = terms[np.isfinite(terms)]
+    if len(finite) == 0:
+        return 0.0
+    return float(np.mean(finite))
 
 
 # ---------------------------------------------------------------------------
@@ -181,10 +185,12 @@ def oobleck_kappa_req(sigma: float) -> float:
 def compute_rsn_from_folds(fold_scores: list) -> dict:
     """Compute R, S_sup, N from cross-validation fold scores.
 
-    R = clipped mean score (relevance proxy)
-    S_sup = 1 - CV (stability proxy)
-    N = 1 - R - S_sup (noise proxy)
-    sigma = std of fold scores
+    R = clipped mean score (relevance proxy).  Negative R2 is legitimate
+        (model worse than predicting mean) -- clipped to 0.
+    S_sup = stability from fold variance, independent of mean.
+        tau = 1/(1+std) gives a [0,1] stability even when R=0.
+    N = 1 - R - S_sup (noise/residual).
+    sigma = std of fold scores (turbulence input for oobleck).
     """
     arr = np.array(fold_scores, dtype=float)
     arr = arr[np.isfinite(arr)]
@@ -193,11 +199,15 @@ def compute_rsn_from_folds(fold_scores: list) -> dict:
 
     mu = float(np.mean(arr))
     std = float(np.std(arr, ddof=1))
-    cv = std / max(abs(mu), 1e-12)
 
-    # Clamp to simplex
+    # R: clip negative R2 to 0 (model worse than mean predictor)
     R = float(np.clip(mu, 0.0, 1.0))
-    S_sup = float(np.clip(1.0 - cv, 0.0, 1.0 - R))
+
+    # S_sup: fold stability via tau = 1/(1+std), independent of sign of mu.
+    # This gives meaningful stability even when R=0 (negative R2).
+    tau = 1.0 / (1.0 + std)
+    S_sup = float(np.clip(tau, 0.0, 1.0 - R))
+
     N = float(np.clip(1.0 - R - S_sup, 0.0, 1.0))
 
     return {"R": R, "S_sup": S_sup, "N": N, "sigma": std, "n_folds": len(arr)}
@@ -251,11 +261,26 @@ def build_certificate(
     scaler = StandardScaler()
     X = scaler.fit_transform(X)
 
-    # Ridge CV with 5-fold
-    scoring = "r2" if task_type == "regression" else "roc_auc"
+    # 5-fold CV: Ridge for regression, LogisticRegression for classification
     try:
-        ridge = RidgeCV(alphas=[0.01, 0.1, 1.0, 10.0, 100.0])
-        fold_scores = cross_val_score(ridge, X, y, cv=5, scoring=scoring,
+        if task_type == "classification":
+            n_pos = int(y.sum())
+            n_neg = len(y) - n_pos
+            if n_pos < 5 or n_neg < 5:
+                return _missing_cert(
+                    scenario, target,
+                    "class imbalance (pos=%d, neg=%d)" % (n_pos, n_neg),
+                    kappa_geom,
+                )
+            model = LogisticRegressionCV(
+                Cs=[0.01, 0.1, 1.0, 10.0, 100.0],
+                max_iter=1000, solver="lbfgs",
+            )
+            scoring = "roc_auc"
+        else:
+            model = RidgeCV(alphas=[0.01, 0.1, 1.0, 10.0, 100.0])
+            scoring = "r2"
+        fold_scores = cross_val_score(model, X, y, cv=5, scoring=scoring,
                                        n_jobs=-1)
     except Exception as e:
         return _missing_cert(scenario, target, "CV failed: %s" % str(e), kappa_geom)
