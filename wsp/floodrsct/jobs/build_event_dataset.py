@@ -2089,7 +2089,7 @@ def build_jrc_water_features(s3, zcta_ids: list[str]) -> pd.DataFrame:
                 on="zcta_id", how="left",
             )
             hit_rate = out["jrc_occurrence_mean"].notna().mean()
-            if hit_rate > 0.5:
+            if hit_rate > 0.1:
                 out["_fs_jrc_occurrence_mean"] = np.where(
                     out["jrc_occurrence_mean"].notna(), "present", _FS_MISSING,
                 )
@@ -2201,7 +2201,7 @@ def build_deltares_depth_features(s3, zcta_ids: list[str]) -> pd.DataFrame:
                 on="zcta_id", how="left",
             )
             hit_rate = out["deltares_depth_ft_rp100"].notna().mean()
-            if hit_rate > 0.5:
+            if hit_rate > 0.1:
                 out["_fs_deltares_depth_ft_rp100"] = np.where(
                     out["deltares_depth_ft_rp100"].notna(), "present", _FS_MISSING,
                 )
@@ -2307,7 +2307,7 @@ def build_hydrology_features(s3, zcta_ids: list[str], scenario: str = "shared") 
                     on="zcta_id", how="left",
                 )
                 hit_rate = out["hand_mean_m"].notna().mean()
-                if hit_rate > 0.5:
+                if hit_rate > 0.1:
                     out["_fs_hand_mean_m"] = np.where(
                         out["hand_mean_m"].notna(), "present", _FS_MISSING,
                     )
@@ -2427,7 +2427,7 @@ def build_sentinel1_event_features(
                 on="zcta_id", how="left",
             )
             hit_rate = out["sar_water_pct"].notna().mean()
-            if hit_rate > 0.5:
+            if hit_rate > 0.1:
                 out["_fs_sar_water_pct"] = np.where(
                     out["sar_water_pct"].notna(), "present", _FS_MISSING,
                 )
