@@ -231,9 +231,80 @@ EXPECTED_RAW_COLUMNS = {
     "aggregate_hwm": {
         "file_pattern": "raw/surge_estimates/",
         "required_columns": ["latitude", "longitude", "elev_ft"],
+        "geography_columns": {"lat": "latitude", "lon": "longitude"},
         "note": "Also checks raw/usgs_stn/ as fallback path. Builder uses elev_ft directly.",
     },
 }
+
+# Scenario bounding boxes (generous) for geography validation.
+# Catches wrong-geography data early (e.g. Harvey HWM from Vermont instead of Texas).
+# Values are (min_lat, max_lat, min_lon, max_lon).
+SCENARIO_BBOXES = {
+    "houston":              (28.5, 31.0, -96.5, -93.5),
+    "new_orleans":          (29.0, 31.0, -91.0, -88.5),
+    "nyc":                  (40.0, 41.5, -74.5, -73.0),
+    "riverside_coachella":  (33.0, 34.5, -117.5, -115.0),
+    "southwest_florida":    (25.5, 28.0, -83.0, -80.5),
+}
+
+
+def _check_geography(
+    s3, parquet_key: str, geo_cols: dict, bbox: tuple,
+    feature_name: str, scenario: str,
+) -> "ValidationResult | None":
+    """Validate that spatial data falls within the scenario bounding box.
+
+    Returns a FAIL result if >50% of records are outside the bbox,
+    a WARN if >10% are outside, or None if all looks good.
+    """
+    min_lat, max_lat, min_lon, max_lon = bbox
+    lat_col = geo_cols["lat"]
+    lon_col = geo_cols["lon"]
+
+    try:
+        buf = BytesIO()
+        s3.download_fileobj(BUCKET, parquet_key, buf)
+        buf.seek(0)
+        df = pd.read_parquet(buf, columns=[lat_col, lon_col])
+    except Exception:
+        return None  # can't read -- skip this check
+
+    if df.empty:
+        return None
+
+    df = df.dropna(subset=[lat_col, lon_col])
+    if df.empty:
+        return None
+
+    outside = (
+        (df[lat_col] < min_lat) | (df[lat_col] > max_lat) |
+        (df[lon_col] < min_lon) | (df[lon_col] > max_lon)
+    )
+    outside_pct = outside.mean()
+
+    if outside_pct > 0.50:
+        return ValidationResult(
+            feature=feature_name, layer=1, status=Status.FAIL,
+            message=(
+                f"GEOGRAPHY: {outside_pct:.0%} of records outside {scenario} bbox "
+                f"-- wrong data source?"
+            ),
+            details={
+                "outside_pct": float(outside_pct),
+                "bbox": bbox,
+                "sample_lats": df[lat_col].head(5).tolist(),
+                "sample_lons": df[lon_col].head(5).tolist(),
+            },
+        )
+    if outside_pct > 0.10:
+        return ValidationResult(
+            feature=feature_name, layer=1, status=Status.WARN,
+            message=(
+                f"GEOGRAPHY: {outside_pct:.0%} of records outside {scenario} bbox"
+            ),
+            details={"outside_pct": float(outside_pct), "bbox": bbox},
+        )
+    return None
 
 
 # Scenario events and output keys are sourced from the scenario registry
@@ -375,6 +446,22 @@ def validate_layer1(
                     ))
                     continue
 
+        # Check 2b: geography validation for spatial datasets
+        # Catches wrong-geography data (e.g. Harvey HWM from VT/MA instead of TX).
+        # Only runs on parquets that have lat/lon columns.
+        if cols is not None and build_fn in EXPECTED_RAW_COLUMNS:
+            spec = EXPECTED_RAW_COLUMNS[build_fn]
+            geo_cols = spec.get("geography_columns")
+            geo_bbox = SCENARIO_BBOXES.get(scenario)
+            if geo_cols and geo_bbox and parquet_path:
+                geo_result = _check_geography(
+                    s3, parquet_path, geo_cols, geo_bbox, name, scenario
+                )
+                if geo_result:
+                    results.append(geo_result)
+                    if geo_result.status == Status.FAIL:
+                        continue
+
         # Check 3: file size guard (catch HTML stubs, placeholders, empty files)
         if file_count > 0:
             all_objects = []
@@ -427,6 +514,22 @@ COVERAGE_THRESHOLDS = {
     "impervious_pct": 0.80,
     "elevation_m_msl": 0.90,
     "elevation_mean_m": 0.90,
+    # Floodcaster STAC-derived features (invariant, should be complete)
+    # Gap found 2026-06-30: these were ALL NaN for 4/5 scenarios because
+    # pystac-client and planetary-computer were missing from pip_packages.
+    # Adding coverage thresholds ensures this is caught by Layer 2.
+    "deltares_depth_ft_rp100": 0.50,
+    "deltares_inundation_pct_rp100": 0.50,
+    "hand_mean_m": 0.50,
+    "twi_mean": 0.50,
+    "gfi_mean": 0.50,
+    "spi_mean": 0.50,
+    "sar_water_pct": 0.05,           # sparse: depends on SAR acquisition timing
+    # Levee features
+    "levee_condition_rating": 0.01,   # sparse: only ZCTAs near levees
+    # Building features
+    "building_count": 0.50,
+    "building_area_sqm_mean": 0.50,
 }
 
 # Plausibility bounds: (min, max) for physical quantities

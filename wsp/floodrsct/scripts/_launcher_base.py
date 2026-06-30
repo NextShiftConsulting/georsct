@@ -243,6 +243,32 @@ def _resource_audit(
             "Oversized volumes waste startup time." % volume_size_gb
         )
 
+    # --- Dim 7b: Wheel dependency cross-check ---
+    # Ecosystem wheels are installed with --no-deps. If the job script
+    # imports from a wheel that needs packages not in pip_packages and not
+    # in the base image, those imports will silently fail.
+    # Check floodcaster specifically (root cause of 2026-06-30 STAC gap).
+    if pip_packages and script_path.exists():
+        code = script_path.read_text(encoding="utf-8", errors="replace")
+        if "floodcaster" in code:
+            # These are floodcaster's runtime deps that are NOT in the
+            # PyTorch base image. Each must appear in pip_packages.
+            _FC_REQUIRED_DEPS = {
+                "pystac-client": "pystac_client",   # STAC access
+                "planetary-computer": "planetary_computer",  # PC token signing
+                "rasterio": "rasterio",              # raster I/O
+                "geopandas": "geopandas",            # spatial joins
+            }
+            pip_set = set(pip_packages.split())
+            for pip_name, import_name in _FC_REQUIRED_DEPS.items():
+                if pip_name not in pip_set:
+                    warnings.append(
+                        "PIP: Job imports floodcaster but pip_packages is "
+                        "missing '%s'. Ecosystem wheels are installed with "
+                        "--no-deps, so this import will fail silently."
+                        % pip_name
+                    )
+
     # --- Dim 9: Timeout ---
     if timeout_s > 14400:
         warnings.append(
