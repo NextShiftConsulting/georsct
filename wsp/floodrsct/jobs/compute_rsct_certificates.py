@@ -311,20 +311,39 @@ def build_certificate(
     gear = None
     if _HAS_CONTROLPLANE and spatial_metric is not None:
         try:
-            gate_input = CPGatekeeperInput(
-                alpha=cert.alpha,
-                kappa_compat=cert.kappa_compat,
-                sigma=sigma,
-                source_mode="proxy",
-                evidence={
-                    "R": cert.R,
-                    "S_sup": cert.S_sup,
-                    "N": cert.N,
-                    "omega": cert.omega,
-                    "noise_admissibility": cert.N,
-                    "proxy_domain": "geospatial_tabular",
-                },
-            )
+            # Vendored wheel 0.1.0 uses kappa_gate; source renamed to
+            # kappa_compat. Try both to survive wheel rebuild.
+            kappa_val = cert.kappa_compat
+            try:
+                gate_input = CPGatekeeperInput(
+                    alpha=cert.alpha,
+                    kappa_gate=kappa_val,
+                    sigma=sigma,
+                    source_mode="proxy",
+                    evidence={
+                        "R": cert.R,
+                        "S_sup": cert.S_sup,
+                        "N": cert.N,
+                        "omega": cert.omega,
+                        "noise_admissibility": cert.N,
+                        "proxy_domain": "geospatial_tabular",
+                    },
+                )
+            except TypeError:
+                gate_input = CPGatekeeperInput(
+                    alpha=cert.alpha,
+                    kappa_compat=kappa_val,
+                    sigma=sigma,
+                    source_mode="proxy",
+                    evidence={
+                        "R": cert.R,
+                        "S_sup": cert.S_sup,
+                        "N": cert.N,
+                        "omega": cert.omega,
+                        "noise_admissibility": cert.N,
+                        "proxy_domain": "geospatial_tabular",
+                    },
+                )
             gate_result = _GATEKEEPER.evaluate(gate_input)
             gate_decision = gate_result.decision.value
             gear = tau_to_gear(cert.tau).value
