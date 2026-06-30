@@ -87,6 +87,14 @@ TARGETS = [
     ("obs_has_hwm",           "classification", None),
 ]
 
+# Valid (scenario, target) cells per EXPERIMENT_CONTRACT.yaml v1.2.
+# Cells outside this map are degenerate (single-class or missing data).
+VALID_CELLS = {
+    "obs_nfip_event_claims": MODELABLE,  # all 5
+    "obs_has_311":           ["houston", "nyc", "new_orleans"],
+    "obs_has_hwm":           ["nyc", "southwest_florida"],
+}
+
 PRIMARY_METRIC = {
     "regression": "r2",
     "classification": "roc_auc",
@@ -385,6 +393,9 @@ def run_collapse(s3, upload: bool) -> None:
     for scenario in MODELABLE:
         r0 = _load_r0_results(s3, scenario)
         for target, task_type, transform in TARGETS:
+            if scenario not in VALID_CELLS.get(target, []):
+                log.info("SKIP %s/%s (not in valid cell matrix)", scenario, target)
+                continue
             cert = build_certificate(
                 s3, scenario, target, task_type, transform,
                 r0, geometry_index,
@@ -433,6 +444,9 @@ def run_certificate(s3, upload: bool) -> None:
         r0 = _load_r0_results(s3, scenario)
         scenario_certs = []
         for target, task_type, transform in TARGETS:
+            if scenario not in VALID_CELLS.get(target, []):
+                log.info("SKIP %s/%s (not in valid cell matrix)", scenario, target)
+                continue
             cert = build_certificate(
                 s3, scenario, target, task_type, transform,
                 r0, geometry_index,
@@ -489,6 +503,9 @@ def run_sweep(s3, upload: bool) -> None:
     for scenario in MODELABLE:
         r0 = _load_r0_results(s3, scenario)
         for target, task_type, transform in TARGETS:
+            if scenario not in VALID_CELLS.get(target, []):
+                log.info("SKIP %s/%s (not in valid cell matrix)", scenario, target)
+                continue
             row = {"scenario": scenario, "target": target, "points": []}
             for inf in inflations:
                 cert = build_certificate(
@@ -565,11 +582,18 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.dry_run:
+        n_valid = sum(
+            len(scenarios) for scenarios in VALID_CELLS.values()
+        )
         log.info("[DRY RUN] Mode: %s",
                  "collapse" if args.collapse else
                  "certificate" if args.certificate else "sweep")
         log.info("[DRY RUN] Scenarios: %s", MODELABLE)
         log.info("[DRY RUN] Targets: %s", [t[0] for t in TARGETS])
+        log.info("[DRY RUN] Valid cells: %d (of %d possible)",
+                 n_valid, len(MODELABLE) * len(TARGETS))
+        for target, scenarios in VALID_CELLS.items():
+            log.info("[DRY RUN]   %s: %s", target, scenarios)
         log.info("[DRY RUN] Upload: %s", args.upload)
         log.info("[DRY RUN] controlplane available: %s", _HAS_CONTROLPLANE)
         return
