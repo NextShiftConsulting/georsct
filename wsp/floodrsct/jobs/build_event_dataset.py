@@ -56,6 +56,62 @@ log = logging.getLogger(__name__)
 BUCKET = "swarm-floodrsct-data"
 
 
+# ---------------------------------------------------------------------------
+# Subprocess isolation for STAC/rasterio calls
+# ---------------------------------------------------------------------------
+# pip-installed rasterio bundles GDAL linked against curl 8.x, but the
+# PyTorch SageMaker base image ships system curl 7.x.  Any rasterio call
+# that opens a remote URL via VSICURL causes a SIGSEGV from ABI mismatch.
+# We run all floodcaster STAC extraction in a child process so a segfault
+# kills the child -- not the main job.  The caller gets NaN gracefully.
+
+def _run_in_subprocess(func_module: str, func_name: str,
+                       args_df: pd.DataFrame, id_col: str,
+                       extra_kwargs: dict | None = None,
+                       timeout: int = 600) -> pd.DataFrame | None:
+    """Run a floodcaster extraction function in a child process.
+
+    Returns the result DataFrame, or None if the child crashes (segfault).
+    """
+    import multiprocessing as mp
+    import tempfile
+
+    extra_kwargs = extra_kwargs or {}
+
+    def _worker(in_path, out_path, mod, fn, kw):
+        import importlib
+        df = pd.read_parquet(in_path)
+        m = importlib.import_module(mod)
+        f = getattr(m, fn)
+        result = f(df, id_col=id_col, **kw)
+        result.to_parquet(out_path, index=False)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        in_path = os.path.join(tmpdir, "input.parquet")
+        out_path = os.path.join(tmpdir, "output.parquet")
+        args_df.to_parquet(in_path, index=False)
+
+        proc = mp.Process(
+            target=_worker,
+            args=(in_path, out_path, func_module, func_name, extra_kwargs),
+        )
+        proc.start()
+        proc.join(timeout=timeout)
+
+        if proc.exitcode != 0:
+            code = proc.exitcode if proc.exitcode is not None else -1
+            log.warning(
+                "_run_in_subprocess[%s.%s]: child exited with code %d "
+                "(segfault=%s); returning None",
+                func_module, func_name, code, code == -11 or code == 139,
+            )
+            if proc.is_alive():
+                proc.kill()
+            return None
+
+        return pd.read_parquet(out_path)
+
+
 def _list_s3_keys(s3, prefix: str) -> list[dict]:
     """Paginated list_objects_v2. Returns all Contents dicts under prefix."""
     paginator = s3.get_paginator("list_objects_v2")
@@ -2067,8 +2123,13 @@ def build_jrc_water_features(s3, zcta_ids: list[str]) -> pd.DataFrame:
 
     # --- Extract from Planetary Computer via floodcaster ---
     try:
-        from floodcaster.stac import jrc_centroid_occurrence
-        extracted = jrc_centroid_occurrence(centroids, id_col="zcta_id")
+        extracted = _run_in_subprocess(
+            "floodcaster.stac", "jrc_centroid_occurrence",
+            centroids, id_col="zcta_id", timeout=600,
+        )
+        if extracted is None:
+            log.warning("build_jrc_water_features: STAC extraction crashed (segfault); returning NaN")
+            return empty
     except Exception as e:
         log.warning("build_jrc_water_features: STAC extraction failed: %s", e)
         return empty
@@ -2174,10 +2235,14 @@ def build_deltares_depth_features(s3, zcta_ids: list[str]) -> pd.DataFrame:
 
     # --- Extract from Planetary Computer via floodcaster ---
     try:
-        from floodcaster.batch import deltares_centroid_depth
-        extracted = deltares_centroid_depth(
-            centroids, id_col="zcta_id", return_periods=rps,
+        extracted = _run_in_subprocess(
+            "floodcaster.batch", "deltares_centroid_depth",
+            centroids, id_col="zcta_id",
+            extra_kwargs={"return_periods": rps}, timeout=600,
         )
+        if extracted is None:
+            log.warning("build_deltares_depth_features: STAC extraction crashed (segfault); returning NaN")
+            return empty
     except Exception as e:
         log.warning("build_deltares_depth_features: STAC extraction failed: %s", e)
         return empty
@@ -2275,9 +2340,15 @@ def build_hydrology_features(s3, zcta_ids: list[str], scenario: str = "shared") 
         return empty
 
     # --- Extract from Planetary Computer via floodcaster ---
+    # Runs in subprocess to survive GDAL/curl segfault (see module docstring).
     try:
-        from floodcaster.batch import hydrology_centroid_stats
-        extracted = hydrology_centroid_stats(centroids, id_col="zcta_id")
+        extracted = _run_in_subprocess(
+            "floodcaster.batch", "hydrology_centroid_stats",
+            centroids, id_col="zcta_id", timeout=600,
+        )
+        if extracted is None:
+            log.warning("build_hydrology_features: STAC extraction crashed (segfault); returning NaN")
+            return empty
     except Exception as e:
         log.warning("build_hydrology_features: extraction failed: %s", e)
         return empty
@@ -2389,49 +2460,16 @@ def build_sentinel1_event_features(
         return empty
 
     # --- Extract from Planetary Computer via floodcaster ---
-    # Run in a child process to isolate GDAL/curl segfaults (exit 139).
-    # pip-installed rasterio bundles GDAL linked against curl 8.x, but
-    # the PyTorch base image ships system curl 7.x.  When rasterio opens
-    # a remote COG via VSICURL the ABI mismatch causes SIGSEGV.  A child
-    # process lets us detect the crash and return NaN gracefully.
     try:
-        import multiprocessing as mp
-        import tempfile
-
-        def _sar_worker(centroids_path, out_path, start, end):
-            """Run in child process so segfault doesn't kill main."""
-            _cdf = pd.read_parquet(centroids_path)
-            from floodcaster.batch import sentinel1_centroid_inundation
-            result = sentinel1_centroid_inundation(
-                _cdf, id_col="zcta_id",
-                event_start=start, event_end=end,
-            )
-            result.to_parquet(out_path, index=False)
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            c_path = os.path.join(tmpdir, "centroids.parquet")
-            o_path = os.path.join(tmpdir, "sar_result.parquet")
-            centroids.to_parquet(c_path, index=False)
-
-            proc = mp.Process(
-                target=_sar_worker,
-                args=(c_path, o_path, peak[0], peak[1]),
-            )
-            proc.start()
-            proc.join(timeout=600)  # 10 min max
-
-            if proc.exitcode != 0:
-                code = proc.exitcode if proc.exitcode is not None else -1
-                log.warning(
-                    "build_sentinel1_event_features[%s]: child process "
-                    "exited with code %d (segfault=%s); returning NaN",
-                    event_key, code, code == -11 or code == 139,
-                )
-                if proc.is_alive():
-                    proc.kill()
-                return empty
-
-            extracted = pd.read_parquet(o_path)
+        extracted = _run_in_subprocess(
+            "floodcaster.batch", "sentinel1_centroid_inundation",
+            centroids, id_col="zcta_id",
+            extra_kwargs={"event_start": peak[0], "event_end": peak[1]},
+            timeout=600,
+        )
+        if extracted is None:
+            log.warning("build_sentinel1_event_features[%s]: STAC extraction crashed (segfault); returning NaN", event_key)
+            return empty
     except Exception as e:
         log.warning("build_sentinel1_event_features[%s]: extraction failed: %s", event_key, e)
         return empty
