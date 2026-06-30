@@ -2389,12 +2389,49 @@ def build_sentinel1_event_features(
         return empty
 
     # --- Extract from Planetary Computer via floodcaster ---
+    # Run in a child process to isolate GDAL/curl segfaults (exit 139).
+    # pip-installed rasterio bundles GDAL linked against curl 8.x, but
+    # the PyTorch base image ships system curl 7.x.  When rasterio opens
+    # a remote COG via VSICURL the ABI mismatch causes SIGSEGV.  A child
+    # process lets us detect the crash and return NaN gracefully.
     try:
-        from floodcaster.batch import sentinel1_centroid_inundation
-        extracted = sentinel1_centroid_inundation(
-            centroids, id_col="zcta_id",
-            event_start=peak[0], event_end=peak[1],
-        )
+        import multiprocessing as mp
+        import tempfile
+
+        def _sar_worker(centroids_path, out_path, start, end):
+            """Run in child process so segfault doesn't kill main."""
+            _cdf = pd.read_parquet(centroids_path)
+            from floodcaster.batch import sentinel1_centroid_inundation
+            result = sentinel1_centroid_inundation(
+                _cdf, id_col="zcta_id",
+                event_start=start, event_end=end,
+            )
+            result.to_parquet(out_path, index=False)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            c_path = os.path.join(tmpdir, "centroids.parquet")
+            o_path = os.path.join(tmpdir, "sar_result.parquet")
+            centroids.to_parquet(c_path, index=False)
+
+            proc = mp.Process(
+                target=_sar_worker,
+                args=(c_path, o_path, peak[0], peak[1]),
+            )
+            proc.start()
+            proc.join(timeout=600)  # 10 min max
+
+            if proc.exitcode != 0:
+                code = proc.exitcode if proc.exitcode is not None else -1
+                log.warning(
+                    "build_sentinel1_event_features[%s]: child process "
+                    "exited with code %d (segfault=%s); returning NaN",
+                    event_key, code, code == -11 or code == 139,
+                )
+                if proc.is_alive():
+                    proc.kill()
+                return empty
+
+            extracted = pd.read_parquet(o_path)
     except Exception as e:
         log.warning("build_sentinel1_event_features[%s]: extraction failed: %s", event_key, e)
         return empty
