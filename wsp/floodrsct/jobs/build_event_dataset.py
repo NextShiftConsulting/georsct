@@ -866,13 +866,52 @@ def aggregate_hwm(s3, event: str, zcta_ids: list[str]) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
-# 311 reports (Houston / NYC)
+# 311 reports (Houston / NYC / New Orleans)
 # ---------------------------------------------------------------------------
 
+def _assign_zcta_by_proximity(
+    s3, reports: pd.DataFrame, zcta_ids: list[str],
+) -> pd.DataFrame:
+    """Assign ZCTA to geocoded 311 records by nearest centroid (< 5 km)."""
+    geo = s3_read(s3, "raw/geocertdb2026/zcta_features_labels.parquet")
+    if geo is None or "latitude" not in geo.columns:
+        return reports
+    geo = geo[geo["zcta_id"].isin(zcta_ids)][["zcta_id", "latitude", "longitude"]].dropna()
+    if geo.empty:
+        return reports
+
+    valid = reports.dropna(subset=["latitude", "longitude"]).copy()
+    if valid.empty:
+        return reports
+
+    assigned_zctas = []
+    geo_lat = np.radians(geo["latitude"].values)
+    geo_lon = np.radians(geo["longitude"].values)
+    for _, row in valid.iterrows():
+        rlat = np.radians(row["latitude"])
+        rlon = np.radians(row["longitude"])
+        dlat = geo_lat - rlat
+        dlon = geo_lon - rlon
+        a = (np.sin(dlat / 2) ** 2 +
+             np.cos(rlat) * np.cos(geo_lat) * np.sin(dlon / 2) ** 2)
+        dist = 6371.0 * 2 * np.arcsin(np.sqrt(a))
+        idx = dist.argmin()
+        if dist[idx] <= 5.0:
+            assigned_zctas.append(geo.iloc[idx]["zcta_id"])
+        else:
+            assigned_zctas.append(None)
+
+    valid["zcta_id"] = assigned_zctas
+    valid = valid.dropna(subset=["zcta_id"])
+    return valid
+
+
 def aggregate_311(s3, source: str, event: str, zcta_ids: list[str]) -> pd.DataFrame:
-    """source: 'houston' or 'nyc'"""
+    """source: 'houston', 'nyc', or 'new_orleans'"""
     if source == "houston":
         key = f"raw/houston_311/{event}_311.parquet"
+    elif source == "new_orleans":
+        key = f"raw/nola_311/{event}_flooding_311.parquet"
     else:
         key = f"raw/nyc_311/{event}_flooding_311.parquet"
 
@@ -881,6 +920,11 @@ def aggregate_311(s3, source: str, event: str, zcta_ids: list[str]) -> pd.DataFr
                            "obs_has_311": False})
     if reports is None or reports.empty:
         return empty
+
+    # NOLA current dataset (2jgv-pqrq) has lat/lon but no ZIP column.
+    # Assign to nearest ZCTA by centroid distance if zcta_id is missing.
+    if "zcta_id" not in reports.columns and source == "new_orleans":
+        reports = _assign_zcta_by_proximity(s3, reports, zcta_ids)
 
     if "zcta_id" not in reports.columns:
         return empty
@@ -1221,6 +1265,7 @@ def build_new_orleans(s3, cfg: dict) -> pd.DataFrame:
         mrms   = aggregate_mrms_rainfall(s3, s3_key, no_zctas)
         tides  = aggregate_tides(s3, "raw/noaa_tides/", s3_key, no_zctas)
         hwm    = aggregate_hwm(s3, s3_key, no_zctas)
+        s311   = aggregate_311(s3, "new_orleans", event_name, no_zctas)
         nfip   = load_nfip_event_claims(s3, ev["dr"], no_zctas)
         storm  = compute_storm_proximity(s3, ev["storm_id"], ev["peak_window"], no_zctas)
         slosh  = build_slosh_features(s3, s3_key, no_zctas)
@@ -1232,7 +1277,7 @@ def build_new_orleans(s3, cfg: dict) -> pd.DataFrame:
 
         base = pd.DataFrame({"zcta_id": no_zctas, "event": event_name,
                               "scenario": "new_orleans"})
-        base = _safe_merge_parts(base, [nwis, mrms, tides, hwm, nfip, storm,
+        base = _safe_merge_parts(base, [nwis, mrms, tides, hwm, s311, nfip, storm,
                                         slosh, sar_ev, impervious, cropland, jrc_water,
                                         levee_feats, elevation, coastal_dist,
                                         pump_op, deltares, hydrology,

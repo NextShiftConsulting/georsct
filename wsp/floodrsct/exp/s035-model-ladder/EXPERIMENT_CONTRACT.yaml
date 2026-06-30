@@ -48,22 +48,35 @@ targets:
     metric: r2
     role: primary
     scenarios: [houston, southwest_florida, nyc, riverside_coachella, new_orleans]
+    note: "Riverside sparse (50% NaN, max=20). All others fully populated."
 
   - column: obs_has_311
     task: binary_classification
     transform: none
     metric: roc_auc
     role: secondary
-    scenarios: [houston, nyc]
-    note: "Derived from complaints_311_count > 0"
+    scenarios: [houston, nyc, new_orleans]
+    note: >
+      Derived from flood_311_count > 0. Houston (ArcGIS) and NYC (Socrata)
+      fetched at scaffold time. New Orleans (Socrata data.nola.gov) added
+      2026-06-30 via fetch_nola_311.py; covers isaac2012 (42 records),
+      barry2019 (676), ida2021 (107). katrina2005 predates the 311 portal.
+      Riverside and SW Florida lack public 311 open data APIs.
 
   - column: obs_has_hwm
     task: binary_classification
     transform: none
     metric: roc_auc
     role: validation
-    scenarios: [houston, new_orleans]
-    note: "Derived from hwm_count > 0. NOLA has STN marks for all 4 events."
+    scenarios: [nyc, southwest_florida]
+    note: >
+      Derived from hwm_count > 0 via USGS STN sensor network.
+      NYC: 99 True / 745 False (11.7% positive rate, usable).
+      SW Florida: 29 True / 616 False (4.5% positive rate, usable).
+      Houston: 0 True / 648 False (no HWM marks within 5 km of any ZCTA centroid).
+      Riverside: 1 True / 171 False (degenerate).
+      New Orleans: 1 True / 263 False (degenerate).
+      Degenerate scenarios excluded — R0 training skips targets with nunique < 2.
 
 # ── Canonical Feature Counts ──────────────────────────────────────────
 # Approximate counts by level.  Exact counts vary by scenario (1-3

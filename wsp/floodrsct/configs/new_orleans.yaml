@@ -72,6 +72,21 @@ nws_lmrfc_url: "https://www.weather.gov/lmrfc"
 # Populated from hand-coded evidence/no_pump_stations_ida2021.csv
 pump_station_evidence: "evidence/no_pump_stations_ida2021.csv"
 
+# 311 Service Requests (Data.NOLA.gov Socrata)
+# Two datasets with different schemas cover all post-2012 events:
+#   3iz8-nghx: Historic (2012-2018) — issue_type, zip_code
+#   2jgv-pqrq: Current (2012-present) — request_type, lat/lon (no ZIP)
+nola_311:
+  historic_dataset_id: "3iz8-nghx"
+  current_dataset_id: "2jgv-pqrq"
+  historic_flood_types:
+    - "Street Flooding/Drainage"
+    - "Catch Basin Maintenance"
+  current_flood_types:
+    - "Drainage"
+    - "Roads/Drainage"
+  note: "katrina2005 predates the portal; no 311 data available for that event."
+
 regime:
   type: "compound_surge_pluvial"
   spatial_autocorrelation_range_km: 25  # levee-protected basin scale
