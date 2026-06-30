@@ -1168,7 +1168,7 @@ def build_houston(s3, cfg: dict) -> pd.DataFrame:
     levees     = build_levee_features(s3, harris_zctas, "houston")
     elevation  = build_elevation_features(s3, harris_zctas, "houston")
     deltares   = build_deltares_depth_features(s3, harris_zctas)
-    hydrology  = build_hydrology_features(s3, harris_zctas)
+    hydrology  = build_hydrology_features(s3, harris_zctas, "houston")
     buildings  = build_building_features(s3, harris_zctas)
     depressions = build_depression_features(s3, harris_zctas)
     # drainage_capacity_status: operational — not available from public archive
@@ -1231,7 +1231,7 @@ def build_new_orleans(s3, cfg: dict) -> pd.DataFrame:
     elevation    = build_elevation_features(s3, no_zctas, "new_orleans")
     coastal_dist = build_coastal_distance_features(s3, no_zctas)
     deltares     = build_deltares_depth_features(s3, no_zctas)
-    hydrology    = build_hydrology_features(s3, no_zctas)
+    hydrology    = build_hydrology_features(s3, no_zctas, "new_orleans")
     buildings    = build_building_features(s3, no_zctas)
     depressions  = build_depression_features(s3, no_zctas)
     # pump_station_status: operational (Ida 2021 partially hand-coded)
@@ -1324,7 +1324,7 @@ def build_nyc(s3, cfg: dict) -> pd.DataFrame:
     sewer_feats  = build_sewershed_features(s3, nyc_zctas)
     subway_feats = build_subway_features(s3, nyc_zctas)
     deltares     = build_deltares_depth_features(s3, nyc_zctas)
-    hydrology    = build_hydrology_features(s3, nyc_zctas)
+    hydrology    = build_hydrology_features(s3, nyc_zctas, "nyc")
     buildings    = build_building_features(s3, nyc_zctas)
     depressions  = build_depression_features(s3, nyc_zctas)
     subway_evidence = _load_local_evidence("/opt/ml/processing/input/evidence/nyc_subway_flooding_ida2021.csv")
@@ -1400,7 +1400,7 @@ def build_riverside_coachella(s3, cfg: dict) -> pd.DataFrame:
     catchments  = build_catchment_features(s3, rc_zctas, vpu="18")
     elevation   = build_elevation_features(s3, rc_zctas, "socal")
     deltares    = build_deltares_depth_features(s3, rc_zctas)
-    hydrology   = build_hydrology_features(s3, rc_zctas)
+    hydrology   = build_hydrology_features(s3, rc_zctas, "riverside_coachella")
     buildings   = build_building_features(s3, rc_zctas)
     depressions = build_depression_features(s3, rc_zctas)
     # road_access_status: operational — not available from public archive
@@ -1469,7 +1469,7 @@ def build_southwest_florida(s3, cfg: dict) -> pd.DataFrame:
     coastal_dist    = build_coastal_distance_features(s3, swfl_zctas)
     levee_feats     = build_levee_features(s3, swfl_zctas, "southwest_florida")
     deltares        = build_deltares_depth_features(s3, swfl_zctas)
-    hydrology       = build_hydrology_features(s3, swfl_zctas)
+    hydrology       = build_hydrology_features(s3, swfl_zctas, "southwest_florida")
     buildings       = build_building_features(s3, swfl_zctas)
     depressions     = build_depression_features(s3, swfl_zctas)
     # evacuation_route_status: operational — not available from public archive
@@ -2209,14 +2209,15 @@ def build_deltares_depth_features(s3, zcta_ids: list[str]) -> pd.DataFrame:
     return out
 
 
-def build_hydrology_features(s3, zcta_ids: list[str]) -> pd.DataFrame:
+def build_hydrology_features(s3, zcta_ids: list[str], scenario: str = "shared") -> pd.DataFrame:
     """Derive DEM-based hydrology stats per ZCTA from Planetary Computer.
 
     Uses floodcaster.batch.hydrology_centroid_stats to fetch Copernicus DEM
     and compute HAND, TWI, GFI, and SPI within ~1 km of each ZCTA centroid.
 
-    Cache-first: checks for pre-computed parquet at
-    s3://{BUCKET}/{_HYDROLOGY_CACHE_KEY} before extraction.
+    Cache-first: checks for scenario-specific pre-computed parquet at
+    s3://{BUCKET}/processed/shared/zcta_hydrology_{scenario}.parquet,
+    then falls back to the global cache at {_HYDROLOGY_CACHE_KEY}.
 
     Returns DataFrame with columns:
         zcta_id, hand_mean_m, twi_mean, gfi_mean, spi_mean,
@@ -2229,24 +2230,26 @@ def build_hydrology_features(s3, zcta_ids: list[str]) -> pd.DataFrame:
         empty[col] = np.nan
     empty["_fs_hand_mean_m"] = _FS_MISSING
 
-    # --- Cache lookup ---
-    try:
-        cached = s3_read(s3, _HYDROLOGY_CACHE_KEY)
-        if cached is not None and "zcta_id" in cached.columns:
-            cached["zcta_id"] = cached["zcta_id"].astype(str)
-            out = pd.DataFrame({"zcta_id": zcta_ids}).merge(
-                cached[[c for c in cached.columns if c in ["zcta_id"] + data_cols]],
-                on="zcta_id", how="left",
-            )
-            hit_rate = out["hand_mean_m"].notna().mean()
-            if hit_rate > 0.5:
-                out["_fs_hand_mean_m"] = np.where(
-                    out["hand_mean_m"].notna(), "present", _FS_MISSING,
+    # --- Cache lookup (scenario-specific first, then global fallback) ---
+    scenario_cache_key = f"processed/shared/zcta_hydrology_{scenario}.parquet"
+    for cache_key in [scenario_cache_key, _HYDROLOGY_CACHE_KEY]:
+        try:
+            cached = s3_read(s3, cache_key)
+            if cached is not None and "zcta_id" in cached.columns:
+                cached["zcta_id"] = cached["zcta_id"].astype(str)
+                out = pd.DataFrame({"zcta_id": zcta_ids}).merge(
+                    cached[[c for c in cached.columns if c in ["zcta_id"] + data_cols]],
+                    on="zcta_id", how="left",
                 )
-                log.info("build_hydrology_features: cache hit (%.0f%% coverage)", hit_rate * 100)
-                return out
-    except Exception as e:
-        log.info("build_hydrology_features: no cache (%s), extracting from STAC", e)
+                hit_rate = out["hand_mean_m"].notna().mean()
+                if hit_rate > 0.5:
+                    out["_fs_hand_mean_m"] = np.where(
+                        out["hand_mean_m"].notna(), "present", _FS_MISSING,
+                    )
+                    log.info("build_hydrology_features: cache hit at %s (%.0f%% coverage)", cache_key, hit_rate * 100)
+                    return out
+        except Exception as e:
+            log.info("build_hydrology_features: cache %s not available (%s)", cache_key, e)
 
     # --- Load ZCTA centroids ---
     static_key = "raw/geocertdb2026/zcta_features_labels.parquet"
