@@ -256,10 +256,12 @@ def _resource_audit(
             #   4 metric arrays (float64): 4 x 895 = 3580 MB
             #   _trace_downstream_vectorized: 5 arrays (int32): 5 x 448 = 2240 MB
             #   GFI calls trace again: +2240 MB
+            #   DEM conditioning (pit fill + flat resolution):
+            #     DEM copy (895) + seed (895) + dist_transform (895) = 2685 MB
             #   Python/numpy/GC overhead: ~1000 MB
             # D8 drops may not be GC'd before next phase starts in same worker.
             per_worker_gb = (895 + 896 + 7160 + 112 + 895 + 448
-                             + 3580 + 2240 + 2240 + 1000) / 1024
+                             + 3580 + 2240 + 2240 + 2685 + 1000) / 1024
             total_gb = per_worker_gb * n_workers
             headroom = ram_gb * 0.70  # 30% reserved for OS + Python parent
 
