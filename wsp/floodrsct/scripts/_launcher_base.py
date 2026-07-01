@@ -251,16 +251,19 @@ def _resource_audit(
             "Oversized volumes waste startup time." % volume_size_gb
         )
 
-    # --- Dim 7b: Wheel dependency cross-check ---
+    # --- Dim 7b: Wheel dependency cross-check (HARD BLOCK) ---
     # Ecosystem wheels are installed with --no-deps. If the job script
     # imports from a wheel that needs packages not in pip_packages and not
-    # in the base image, those imports will silently fail.
-    # Check floodcaster specifically (root cause of 2026-06-30 STAC gap).
+    # in the base image, those imports will fail at runtime.
+    # Check floodcaster specifically (root cause of 2026-06-30 STAC gap
+    # AND 2026-07-01 planetary_computer import crash on all 5 scenarios).
     if pip_packages and script_path.exists():
         code = script_path.read_text(encoding="utf-8", errors="replace")
         if "floodcaster" in code:
             # These are floodcaster's runtime deps that are NOT in the
             # PyTorch base image. Each must appear in pip_packages.
+            # Even if the job only uses floodcaster.hydrology, the wheel's
+            # __init__.py imports these transitively.
             _FC_REQUIRED_DEPS = {
                 "pystac-client": "pystac_client",   # STAC access
                 "planetary-computer": "planetary_computer",  # PC token signing
@@ -270,10 +273,11 @@ def _resource_audit(
             pip_set = set(pip_packages.split())
             for pip_name, import_name in _FC_REQUIRED_DEPS.items():
                 if pip_name not in pip_set:
-                    warnings.append(
+                    blockers.append(
                         "PIP: Job imports floodcaster but pip_packages is "
                         "missing '%s'. Ecosystem wheels are installed with "
-                        "--no-deps, so this import will fail silently."
+                        "--no-deps, so this WILL fail at runtime. "
+                        "LAUNCH BLOCKED until dep is added."
                         % pip_name
                     )
 
