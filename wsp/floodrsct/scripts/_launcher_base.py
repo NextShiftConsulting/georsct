@@ -295,8 +295,9 @@ def _resource_audit(
     print("  3. Thread     : %s" % (
         "parallelism detected" if (script_path.exists() and any(
             kw in script_path.read_text(encoding="utf-8", errors="replace")
-            for kw in ["n_jobs", "Parallel(", "Pool("]
-        )) else "SERIAL (single-threaded)"
+            for kw in ["n_jobs", "Parallel(", "Pool(", "ThreadPool(",
+                       "multiprocessing", "concurrent.futures"]
+        )) else "SERIAL (single-threaded) ** WILL BLOCK LAUNCH **"
     ))
     print("  4. Image      : %s" % image_label)
     print("  5. Instance   : %s" % instance_type)
