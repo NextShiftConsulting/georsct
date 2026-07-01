@@ -203,13 +203,18 @@ def _process_tile(tif_path: str, centroids: pd.DataFrame,
         col_px = int((lon - transform.c) / transform.a)
         row_px = int((lat - transform.f) / transform.e)
 
-        # Sample in a 5x5 window (~50m at 10m resolution) for mean
-        half = 2
+        # Sample windows: HAND/GFI are sparse on flat terrain (only pixels
+        # draining to identified streams get values -- 0.3-10% on Houston).
+        # Use a wider 101x101 window (~1km) for stream-dependent metrics
+        # to capture nearby resolved values. TWI/SPI are dense (every pixel
+        # has slope/flow), so a 5x5 window (~50m) is fine.
         values = {}
         for metric_name, arr in metrics.items():
             if arr is None:
                 values[metric_name] = np.nan
                 continue
+            # Stream-dependent metrics need wider search radius
+            half = 50 if metric_name in ("hand", "gfi") else 2
             r_lo = max(0, row_px - half)
             r_hi = min(arr.shape[0], row_px + half + 1)
             c_lo = max(0, col_px - half)
