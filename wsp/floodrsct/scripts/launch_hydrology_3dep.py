@@ -25,9 +25,10 @@ Deployment Resource Review (9 dimensions)
 7. pip:       rasterio (local .tif read), geopandas, pyogrio.
               floodcaster wheel provides hydrology module.
 8. pre_install: None.
-9. Timeout:   28800s (8h). GFI dominates at 60-100 min/tile. SWFL worst
-              case: 47 tiles, ~20 active, ceil(20/8)=3 batches x 105 min
-              = ~5.25h. 8h provides margin for GFI outlier tiles.
+9. Timeout:   7200s (2h). After vectorization (2026-07-01), per-tile
+              time dropped from ~105 min to ~2-5 min. SWFL worst case:
+              47 tiles, ~20 active, ceil(20/8)=3 batches x 5 min = ~15 min.
+              2h provides generous margin.
 """
 
 import argparse
@@ -61,7 +62,7 @@ def main() -> None:
             instance_type="ml.m7i.8xlarge",
             volume_size_gb=50,
             pip_packages="rasterio geopandas pyogrio planetary-computer pystac-client",
-            timeout_s=28800,
+            timeout_s=7200,
             dry_run=args.dry_run,
         )
 

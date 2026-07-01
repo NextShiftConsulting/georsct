@@ -140,6 +140,7 @@ def _process_tile(tif_path: str, centroids: pd.DataFrame,
     """
     import rasterio
     from floodcaster.hydrology import (
+        compute_d8_flow_direction,
         compute_flow_accumulation,
         compute_hand,
         compute_twi,
@@ -164,21 +165,26 @@ def _process_tile(tif_path: str, centroids: pd.DataFrame,
         log.info("  Tile %s: 0 centroids in bounds, skipping", tile_name)
         return pd.DataFrame(columns=["zcta_id"] + OUTPUT_COLUMNS[1:])
 
-    log.info("  Tile %s: %d centroids, computing flow accumulation...",
+    log.info("  Tile %s: %d centroids, computing D8 flow direction...",
              tile_name, len(in_tile))
 
-    # Compute shared flow accumulation (reused by all 4 metrics)
+    # Compute D8 flow direction ONCE -- passed to all downstream functions
     t0 = time.time()
-    flow_acc = compute_flow_accumulation(tif_path)
+    fdir = compute_d8_flow_direction(tif_path)
+    log.info("  Tile %s: fdir done (%.1fs)", tile_name, time.time() - t0)
+
+    # Compute flow accumulation (reuses fdir)
+    t0 = time.time()
+    flow_acc = compute_flow_accumulation(tif_path, fdir=fdir)
     log.info("  Tile %s: flow_acc done (%.1fs)", tile_name, time.time() - t0)
 
-    # Compute each metric
+    # Compute each metric -- fdir passed through to avoid recomputation
     metrics = {}
     for name, fn, kwargs in [
-        ("hand", compute_hand, {"flow_acc": flow_acc, "stream_threshold": stream_threshold}),
+        ("hand", compute_hand, {"flow_acc": flow_acc, "fdir": fdir, "stream_threshold": stream_threshold}),
         ("twi", compute_twi, {"flow_acc": flow_acc}),
         ("spi", compute_spi, {"flow_acc": flow_acc}),
-        ("gfi", compute_gfi, {"flow_acc": flow_acc, "stream_threshold": stream_threshold}),
+        ("gfi", compute_gfi, {"flow_acc": flow_acc, "fdir": fdir, "stream_threshold": stream_threshold}),
     ]:
         try:
             t1 = time.time()

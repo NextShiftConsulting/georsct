@@ -281,6 +281,46 @@ def _resource_audit(
                         % pip_name
                     )
 
+    # --- Dim 7c: Import smoke test (HARD BLOCK) ---
+    # Actually try importing the job's key packages locally.
+    # Catches transitive import failures that static pip_packages checks miss
+    # (e.g. floodcaster.__init__.py importing planetary_computer even when
+    # only floodcaster.hydrology is used by the job).
+    if script_path.exists():
+        code = script_path.read_text(encoding="utf-8", errors="replace")
+        # Extract "from X import ..." and "import X" statements
+        import re
+        import_lines = re.findall(
+            r'^\s*(?:from\s+([\w.]+)\s+import|import\s+([\w.]+))',
+            code, re.MULTILINE,
+        )
+        modules_to_test = set()
+        for from_mod, import_mod in import_lines:
+            mod = from_mod or import_mod
+            # Only test ecosystem/project packages, not stdlib
+            top = mod.split(".")[0]
+            if top in ("floodcaster", "georsct", "rsct", "yrsn"):
+                modules_to_test.add(mod)
+        if modules_to_test:
+            import subprocess as _sp
+            for mod in sorted(modules_to_test):
+                try:
+                    result = _sp.run(
+                        [sys.executable, "-c", f"import {mod}"],
+                        capture_output=True, text=True, timeout=30,
+                    )
+                    if result.returncode != 0:
+                        blockers.append(
+                            "IMPORT: 'import %s' failed locally. "
+                            "This WILL fail on SageMaker too. "
+                            "Fix the import or add missing deps. "
+                            "Error: %s" % (mod, result.stderr.strip()[:200])
+                        )
+                except Exception as e:
+                    warnings.append(
+                        "IMPORT: Could not verify 'import %s': %s" % (mod, e)
+                    )
+
     # --- Dim 9: Timeout ---
     if timeout_s > 14400:
         warnings.append(
@@ -308,7 +348,16 @@ def _resource_audit(
     print("  4. Image      : %s" % image_label)
     print("  5. Instance   : %s" % instance_type)
     print("  6. Volume     : %d GB" % volume_size_gb)
-    print("  7. Pip        : %s" % (pip_packages or "(base only)"))
+    print("  7a. Pip       : %s" % (pip_packages or "(base only)"))
+    print("  7b. Wheel deps: %s" % (
+        "floodcaster deps checked" if (script_path.exists() and "floodcaster"
+        in script_path.read_text(encoding="utf-8", errors="replace"))
+        else "n/a"
+    ))
+    print("  7c. Import    : %s" % (
+        "%d ecosystem modules verified" % len(modules_to_test)
+        if modules_to_test else "no ecosystem imports"
+    ))
     print("  8. Pre-install: (none)")
     print("  9. Timeout    : %ds (%.1fh)" % (timeout_s, timeout_s / 3600))
 
