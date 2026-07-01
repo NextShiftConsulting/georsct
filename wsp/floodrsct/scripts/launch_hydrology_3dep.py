@@ -59,7 +59,7 @@ def main() -> None:
             job_args=["--scenario", scenario, "--upload"],
             instance_type="ml.m7i.8xlarge",
             volume_size_gb=50,
-            pip_packages="rasterio geopandas pyogrio",
+            pip_packages="rasterio geopandas pyogrio planetary-computer pystac-client",
             timeout_s=14400,
             dry_run=args.dry_run,
         )
