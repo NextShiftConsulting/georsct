@@ -180,6 +180,7 @@ def _train_histgbdt(X_train, y_train, X_test, y_test, task: str) -> tuple:
     if task == "classification":
         model = HistGradientBoostingClassifier(
             max_iter=200, max_depth=6, learning_rate=0.1, random_state=SEED,
+            n_jobs=-1,
         )
         model.fit(X_train, y_train)
         y_pred_proba = model.predict_proba(X_test)[:, 1]
@@ -189,6 +190,7 @@ def _train_histgbdt(X_train, y_train, X_test, y_test, task: str) -> tuple:
     else:
         model = HistGradientBoostingRegressor(
             max_iter=200, max_depth=6, learning_rate=0.1, random_state=SEED,
+            n_jobs=-1,
         )
         model.fit(X_train, y_train)
         y_pred = model.predict(X_test)
