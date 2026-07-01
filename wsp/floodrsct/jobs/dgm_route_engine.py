@@ -60,6 +60,32 @@ DECISION_TO_ROUTE: dict[str, FloodcasterRoute] = {
     "REJECT": "Suppress",
 }
 
+# Decisions that legitimately have no dedicated route and SHOULD escalate.
+# Distinguished from a bug (wrong string type) that also produces "Escalate"
+# via a .get default — the .get default conflates those two cases.
+_DELIBERATE_ESCALATE: frozenset[str] = frozenset({"WARN", "FALLBACK"})
+
+
+def _route_for(decision: str) -> FloodcasterRoute:
+    """Deterministic route lookup. Raises on unmapped decisions instead of
+    silently falling to 'Escalate'.
+
+    The old pattern `.get(result.decision, "Escalate")` is a silent-failure
+    machine: str(EnforcementDecision.EXECUTE) == "EnforcementDecision.EXECUTE"
+    misses every key and silently routes everything to Escalate. This
+    separates 'real Escalate' from 'bug wearing an Escalate costume'.
+    """
+    if decision in DECISION_TO_ROUTE:
+        return DECISION_TO_ROUTE[decision]
+    if decision in _DELIBERATE_ESCALATE:
+        return "Escalate"
+    raise ValueError(
+        f"Unmapped decision {decision!r} has no route. If this looks like "
+        f"'EnforcementDecision.EXECUTE', the bridging code used str(enum) "
+        f"instead of enum.value. Add {decision!r} to DECISION_TO_ROUTE "
+        f"explicitly if it is a real new decision."
+    )
+
 
 # ---------------------------------------------------------------------------
 # Certificate construction from tier1 claim grades
@@ -153,7 +179,7 @@ def route_from_claims(
     """
     cert = cert_from_claims(claims)
     result = evaluate_gates(cert, preset)
-    return DECISION_TO_ROUTE.get(result.decision, "Escalate")
+    return _route_for(result.decision)
 
 
 def route_from_cert(
@@ -162,7 +188,7 @@ def route_from_cert(
 ) -> FloodcasterRoute:
     """Compute Floodcaster route from a pre-built certificate dict."""
     result = evaluate_gates(cert, preset)
-    return DECISION_TO_ROUTE.get(result.decision, "Escalate")
+    return _route_for(result.decision)
 
 
 # ---------------------------------------------------------------------------

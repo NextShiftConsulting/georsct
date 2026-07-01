@@ -81,8 +81,8 @@ class TestClassifyHealth:
 
 class TestNextSteps:
     def test_reject_combined_n_and_alpha(self):
-        """Gate 1 REJECT emits N_FLOOR_BREACH_AND_ALPHA_LOW (both failed)."""
-        gate = _gate("REJECT", "GATE_1_INTEGRITY", "N_FLOOR_BREACH_AND_ALPHA_LOW")
+        """Gate 1 REJECT emits gate_1_noise_above_threshold (both failed)."""
+        gate = _gate("REJECT", "GATE_1_INTEGRITY", "gate_1_noise_above_threshold")
         steps = _generate_next_steps(gate, None, None, None)
         assert len(steps) > 0, "Gate 1 REJECT must produce next-step guidance"
         assert any("noise" in s.lower() for s in steps)
@@ -95,7 +95,7 @@ class TestNextSteps:
 
     def test_re_encode(self):
         gate = _gate("RE_ENCODE", "GATE_3_ADMISSIBILITY")
-        gate.gate_evidence = {"gate_3": {"sigma": 0.40}}
+        gate.gate_evidence = {"gate_3_admissibility": {"sigma": 0.40}}
         steps = _generate_next_steps(gate, None, None, None)
         assert any("RE_ENCODE" in s for s in steps)
 

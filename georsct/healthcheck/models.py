@@ -6,6 +6,51 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
+# ---------------------------------------------------------------------------
+# Decision-string contract (protects dgm routing, health_card branches,
+# serialization — all from one check at construction time).
+#
+# The landmine: str(EnforcementDecision.EXECUTE) == "EnforcementDecision.EXECUTE"
+# which silently misses every dict key and == comparison. .value is safe;
+# str() is the bomb. coerce_decision catches it at GateResult construction
+# so no caller ever sees a non-canonical string.
+# ---------------------------------------------------------------------------
+
+CANONICAL_DECISIONS: frozenset[str] = frozenset({
+    "EXECUTE", "REJECT", "BLOCK", "RE_ENCODE", "REPAIR", "WARN", "FALLBACK",
+})
+
+
+class DecisionContractError(ValueError):
+    """A GateResult.decision that is not a bare canonical string."""
+
+
+def coerce_decision(value: Any) -> str:
+    """Coerce any decision-ish value to a bare canonical string, or raise.
+
+    Safe inputs:
+        EnforcementDecision.EXECUTE  -> "EXECUTE"   (via .value)
+        "EXECUTE"                    -> "EXECUTE"
+
+    Rejected inputs:
+        "EnforcementDecision.EXECUTE" -> RAISE (the str(enum) bomb)
+        None / unknown token          -> RAISE
+    """
+    val = getattr(value, "value", value)
+    if not isinstance(val, str):
+        raise DecisionContractError(
+            f"decision must resolve to str, got {type(val).__name__}: {val!r}"
+        )
+    if val not in CANONICAL_DECISIONS:
+        raise DecisionContractError(
+            f"decision {val!r} not in canonical vocabulary "
+            f"{sorted(CANONICAL_DECISIONS)}. If this looks like "
+            f"'EnforcementDecision.EXECUTE', someone used str(enum) "
+            f"instead of enum.value."
+        )
+    return val
+
+
 @dataclass(frozen=True)
 class CellKey:
     scenario: str
@@ -21,11 +66,19 @@ class CellKey:
 
 @dataclass
 class GateResult:
-    """Layer 1: gate replay (authoritative)."""
+    """Layer 1: gate replay (authoritative).
+
+    decision is validated at construction to be a bare canonical string.
+    A raw enum, str(enum), or unknown token raises DecisionContractError
+    here — loudly, once — instead of silently misrouting downstream.
+    """
     decision: str
     gate_reached: str
     gate_evidence: dict[str, Any]
     sub_signal: str | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "decision", coerce_decision(self.decision))
 
 
 @dataclass

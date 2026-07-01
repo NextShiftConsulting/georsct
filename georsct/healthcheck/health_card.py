@@ -91,7 +91,7 @@ def _generate_next_steps(
 
     # Gate failures
     if gate.decision == "REJECT":
-        if gate.sub_signal == "N_FLOOR_BREACH_AND_ALPHA_LOW":
+        if gate.sub_signal == "gate_1_noise_above_threshold":
             steps.append(
                 "Noise saturation with low alpha -- both noise floor "
                 "and discriminative quality failed; verify target has "
@@ -105,7 +105,7 @@ def _generate_next_steps(
     elif gate.decision == "RE_ENCODE":
         steps.append(
             f"Gate 3 RE_ENCODE -- kappa below Oobleck threshold at "
-            f"sigma={gate.gate_evidence.get('gate_3', {}).get('sigma', '?')}; "
+            f"sigma={gate.gate_evidence.get('gate_3_admissibility', {}).get('sigma', '?')}; "
             f"reduce spatial instability or improve compatibility"
         )
     elif gate.decision == "REPAIR":
