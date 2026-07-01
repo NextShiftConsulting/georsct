@@ -186,13 +186,16 @@ def _resource_audit(
     pip_packages: str | None,
     image_uri: str | None,
     timeout_s: int,
-) -> list[str]:
-    """9-dimension resource audit. Returns list of warnings (empty = clean).
+) -> tuple[list[str], list[str]]:
+    """9-dimension resource audit. Returns (warnings, blockers).
+
+    Blockers are hard stops -- the launch MUST NOT proceed.
+    Warnings are informational -- review recommended but not blocking.
 
     Dimensions checked:
       1. Memory   -- data size vs instance RAM
       2. Cache    -- (informational only)
-      3. Thread   -- parallelism keywords vs instance vCPUs
+      3. Thread   -- parallelism keywords vs instance vCPUs (BLOCKS if serial on multi-core)
       4. Image    -- which base image
       5. Instance -- type and specs
       6. Volume   -- EBS sizing
@@ -201,9 +204,10 @@ def _resource_audit(
       9. Timeout  -- max runtime
     """
     warnings: list[str] = []
+    blockers: list[str] = []
     vcpus, ram_gb = _INSTANCE_SPECS.get(instance_type, (0, 0))
 
-    # --- Dim 3: Thread audit ---
+    # --- Dim 3: Thread audit (HARD BLOCK) ---
     script_path = JOBS_DIR / job_script
     if script_path.exists():
         code = script_path.read_text(encoding="utf-8", errors="replace")
@@ -212,10 +216,12 @@ def _resource_audit(
             "multiprocessing", "concurrent.futures",
         ])
         if not has_parallel and vcpus > 1:
-            warnings.append(
+            blockers.append(
                 "THREAD: No parallelism detected in %s but instance "
                 "has %d vCPUs -- %d cores will be idle. "
-                "Add joblib.Parallel or n_jobs=-1." % (job_script, vcpus, vcpus - 1)
+                "Add ProcessPoolExecutor, joblib.Parallel, or n_jobs=-1. "
+                "LAUNCH BLOCKED until parallelism is added or instance "
+                "is downgraded to ml.m5.large (2 vCPU)." % (job_script, vcpus, vcpus - 1)
             )
         if has_parallel and vcpus <= 1:
             warnings.append(
@@ -299,17 +305,21 @@ def _resource_audit(
     print("  8. Pre-install: (none)")
     print("  9. Timeout    : %ds (%.1fh)" % (timeout_s, timeout_s / 3600))
 
+    if blockers:
+        print("-" * 64)
+        for b in blockers:
+            print("  BLOCK: %s" % b)
     if warnings:
         print("-" * 64)
         for w in warnings:
             print("  WARN: %s" % w)
-    else:
+    if not blockers and not warnings:
         print("-" * 64)
         print("  ALL CLEAR")
     print("=" * 64)
     print()
 
-    return warnings
+    return warnings, blockers
 
 
 def launch_processing_job(
@@ -366,7 +376,7 @@ def launch_processing_job(
 
     # Resource audit (9 dimensions)
     timeout_s = 7200
-    audit_warnings = _resource_audit(
+    audit_warnings, audit_blockers = _resource_audit(
         job_script=job_script,
         instance_type=instance_type,
         volume_size_gb=volume_size_gb,
@@ -374,6 +384,14 @@ def launch_processing_job(
         image_uri=image_uri,
         timeout_s=timeout_s,
     )
+    if audit_blockers:
+        log.error("Resource audit BLOCKED launch with %d issue(s):", len(audit_blockers))
+        for b in audit_blockers:
+            log.error("  BLOCK: %s", b)
+        if not dry_run:
+            sys.exit(1)
+        else:
+            log.error("[DRY RUN] Launch would be BLOCKED. Fix before real launch.")
     if audit_warnings and not dry_run:
         log.warning("Resource audit has %d warning(s). Review above.", len(audit_warnings))
 
