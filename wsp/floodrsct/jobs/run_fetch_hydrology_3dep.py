@@ -300,7 +300,10 @@ def extract_scenario(s3, scenario: str, upload: bool, dry_run: bool) -> dict:
     # Memory budget: 128 GB (ml.m5.8xlarge). Per tile peak: ~8 GB (DEM
     # 900 MB + flow_dir 900 MB + flow_acc 900 MB + 4 metric arrays 3.6 GB
     # + Python/numpy overhead). 128/8 = 16 safe workers, use 8 for headroom.
-    n_workers = min(8, len(tif_keys), os.cpu_count() or 1)
+    # Vectorized hydrology creates ~15 GB peak per worker (DEM + fdir +
+    # flow_acc + 4 metrics + 2x downstream trace arrays at 450 MB each).
+    # 4 workers x 15 GB = 60 GB, fits 128 GB with 50% headroom.
+    n_workers = min(4, len(tif_keys), os.cpu_count() or 1)
     log.info("%s: processing %d tiles with %d parallel workers",
              scenario, len(tif_keys), n_workers)
 
