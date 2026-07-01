@@ -496,6 +496,29 @@ def extract_scenario(s3, scenario: str, upload: bool, dry_run: bool) -> dict:
         combined["gfi_mean"] = np.nan
         combined["spi_mean"] = np.nan
 
+    # 8b. Coastal HAND proxy: for ZCTAs still missing HAND after OWP +
+    # 3DEP hybrid fill, use DEM elevation as proxy.
+    #
+    # Physical basis: HAND = height above nearest drainage. For coastal
+    # ZCTAs the nearest drainage is the ocean at 0m MSL, so
+    # HAND_coastal = max(elevation_msl, 0). OWP doesn't model coastal
+    # drainage (Manhattan, Staten Island, Long Island drain directly to
+    # ocean), but elevation above sea level IS the HAND for these areas.
+    n_missing = combined["hand_mean_m"].isna().sum()
+    if n_missing > 0:
+        log.info("Filling %d missing HAND values with coastal elevation proxy", n_missing)
+        elev_col = "target_elevation"
+        if elev_col in static.columns:
+            elev_lookup = static.set_index("zcta_id")[elev_col]
+            missing_mask = combined["hand_mean_m"].isna()
+            filled = combined.loc[missing_mask, "zcta_id"].map(elev_lookup).clip(lower=0)
+            n_filled = filled.notna().sum()
+            combined.loc[missing_mask, "hand_mean_m"] = filled.values
+            log.info("Coastal proxy: filled %d/%d missing ZCTAs from elevation",
+                     n_filled, n_missing)
+        else:
+            log.warning("No %s column in static features; cannot fill coastal HAND", elev_col)
+
     combined = combined[OUTPUT_COLUMNS]
 
     n_total = len(combined)
@@ -513,12 +536,11 @@ def extract_scenario(s3, scenario: str, upload: bool, dry_run: bool) -> dict:
     # killed NOLA (91.9% HAND) and SWFL (96.7% HAND) because flat coastal
     # terrain produces sparse GFI.
     #
-    # OWP HAND coverage threshold is 0.30 (not 0.50) because coastal ZCTAs
-    # (Manhattan, Staten Island, Long Island, etc.) drain directly to the
-    # ocean and are outside OWP's inland drainage network. 37.9% coverage
-    # for NYC reflects a data limitation, not a quality failure.
+    # Coverage threshold stays at 0.50. Coastal ZCTAs missing OWP HAND
+    # are filled with DEM elevation proxy (step 8b), so all scenarios
+    # should clear this gate.
 
-    HAND_COVERAGE_THRESHOLD = 0.30
+    HAND_COVERAGE_THRESHOLD = 0.50
     HAND_BOUNDS = (0, 200)  # meters
 
     contract_fails = []
