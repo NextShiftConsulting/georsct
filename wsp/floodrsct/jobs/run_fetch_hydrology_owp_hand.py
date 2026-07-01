@@ -335,7 +335,10 @@ def extract_scenario(s3, scenario: str, upload: bool, dry_run: bool) -> dict:
     zcta_col = next((c for c in static.columns if "zcta" in c.lower()), None)
     lat_col = next((c for c in static.columns if "lat" in c.lower()), None)
     lon_col = next((c for c in static.columns if "lon" in c.lower() or "lng" in c.lower()), None)
-    static = static[[zcta_col, lat_col, lon_col]].rename(
+    keep_cols = [zcta_col, lat_col, lon_col]
+    if "target_elevation" in static.columns:
+        keep_cols.append("target_elevation")
+    static = static[keep_cols].rename(
         columns={zcta_col: "zcta_id", lat_col: "lat", lon_col: "lon"},
     )
     static["zcta_id"] = static["zcta_id"].astype(str)
