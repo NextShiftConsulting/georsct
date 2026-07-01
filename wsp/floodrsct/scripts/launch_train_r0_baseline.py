@@ -4,8 +4,8 @@
 Single SageMaker job: generates folds, trains HistGBDT + Ridge on R0 features
 across 3 targets x 3 splits. Uploads folds parquet + results JSON.
 
-Resource: ml.m5.xlarge (4 vCPU, 16 GB). Job is CPU-bound sklearn on ~400 rows,
-finishes in <5 min. Extra headroom for pip install + data load.
+Resource: ml.m5.large (2 vCPU, 8 GB). Job is CPU-bound sklearn on ~400 rows,
+finishes in <5 min. No parallelism needed at this scale.
 """
 
 import argparse
@@ -36,7 +36,7 @@ def main() -> None:
         job_name=job_name,
         job_script="train_r0_baseline.py",
         job_args=["--scenario", args.scenario, "--upload"],
-        instance_type="ml.m5.xlarge",
+        instance_type="ml.m5.large",
         volume_size_gb=10,
         pip_packages="scikit-learn scipy",
         extra_files=extra,
