@@ -247,10 +247,13 @@ def _mosaic_hand_rasters(tif_paths: list[str], output_path: str) -> str:
     for ds in datasets:
         ds.close()
 
-    # OWP HAND is int16 with nodata = -32768 (or sometimes 0 for water).
-    # Convert to float32, set nodata pixels to NaN.
+    # OWP HAND is int16. nodata = 32767 (verified from tile headers).
+    # Values are in millimeters. 0 = drainage/water cells.
+    # Convert to float32 meters, set nodata + drainage to NaN.
     mosaic = mosaic_arr[0].astype(np.float32)
-    mosaic[mosaic <= 0] = np.nan  # -32768 (nodata) and 0 (water/drain) -> NaN
+    mosaic[mosaic >= 32767] = np.nan  # nodata sentinel
+    mosaic[mosaic == 0] = np.nan      # drainage/water cells
+    mosaic = mosaic / 1000.0          # mm -> meters
 
     # Write mosaic
     profile = {
