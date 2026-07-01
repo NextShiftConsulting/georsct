@@ -81,8 +81,8 @@ class TestClassifyHealth:
 
 class TestNextSteps:
     def test_reject_combined_n_and_alpha(self):
-        """Gate 1 REJECT emits gate_1_noise_above_threshold (both failed)."""
-        gate = _gate("REJECT", "GATE_1_INTEGRITY", "gate_1_noise_above_threshold")
+        """Gate 1 REJECT emits N_FLOOR_BREACH (both failed)."""
+        gate = _gate("REJECT", "GATE_1_INTEGRITY", "N_FLOOR_BREACH")
         steps = _generate_next_steps(gate, None, None, None)
         assert len(steps) > 0, "Gate 1 REJECT must produce next-step guidance"
         assert any("noise" in s.lower() for s in steps)

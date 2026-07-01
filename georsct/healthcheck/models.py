@@ -102,14 +102,15 @@ class GateResult:
         if self.domain_explanation:
             return self.domain_explanation
         if self.sub_signal:
-            # "gate_1_noise_above_threshold" -> "noise above threshold"
+            # GateSubSignal values: "N_FLOOR_BREACH" -> "n floor breach"
+            # Legacy ad-hoc strings: "gate_1_noise_above_threshold" -> "noise above threshold"
             key = self.sub_signal
             for prefix in ("gate_1_", "gate_1b_", "gate_2_", "gate_3_",
                            "gate_3b_", "gate_4_", "gate_5_", "defense_"):
                 if key.startswith(prefix):
                     key = key[len(prefix):]
                     break
-            return key.replace("_", " ")
+            return key.replace("_", " ").lower()
         return None
 
 

@@ -28,7 +28,7 @@ class TestGate1Integrity:
         result = evaluate_gates(cert, P)
         assert result.decision == "REJECT"
         assert result.gate_reached == "GATE_1_INTEGRITY"
-        assert result.sub_signal == "gate_1_noise_above_threshold"
+        assert result.sub_signal == "N_FLOOR_BREACH"
 
     def test_pass_high_noise_but_good_alpha(self):
         """N > N_thr but alpha >= alpha_min -> OR passes."""
@@ -131,7 +131,7 @@ class TestGate2Consensus:
         cert = make_cert(alpha=0.50, N=0.30)
         result = evaluate_gates(cert, u)
         assert result.decision == "BLOCK"
-        assert result.sub_signal == "gate_2_coherence_below_threshold"
+        assert result.sub_signal == "COHERENCE_ABSENT"
 
 
 class TestGate3Admissibility:
@@ -193,7 +193,7 @@ class TestGate3Admissibility:
         )
         result = evaluate_gates(cert, P)
         assert result.decision == "RE_ENCODE"
-        assert result.sub_signal == "gate_3_landauer_gray_zone_sigma_tiebreaker"
+        assert result.sub_signal == "KAPPA_LANDAUER_FAIL"
 
     def test_landauer_above_kappa_req_passes(self):
         sigma = 0.20
@@ -214,7 +214,7 @@ class TestGate4Grounding:
         result = evaluate_gates(cert, P)
         assert result.decision == "REPAIR"
         assert result.gate_reached == "GATE_4_GROUNDING"
-        assert result.sub_signal == "gate_4_low_grounding_below_threshold"
+        assert result.sub_signal == "KAPPA_L_BELOW_THRESHOLD"
 
 
 class TestAllPass:

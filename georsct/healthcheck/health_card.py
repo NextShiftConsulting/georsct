@@ -91,7 +91,7 @@ def _generate_next_steps(
 
     # Gate failures
     if gate.decision == "REJECT":
-        if gate.sub_signal == "gate_1_noise_above_threshold":
+        if gate.sub_signal == "N_FLOOR_BREACH":
             steps.append(
                 "Noise saturation with low alpha -- both noise floor "
                 "and discriminative quality failed; verify target has "
