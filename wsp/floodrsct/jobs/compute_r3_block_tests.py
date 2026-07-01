@@ -74,6 +74,8 @@ R0_FEATURES = [
     "nfip_historical_frequency", "nfip_historical_severity",
     "hifld_nearest_hospital_km", "hifld_n_hospitals",
     "population", "impervious_pct", "cropland_pct",
+    # Hydrology (OWP HAND + 3DEP zonal stats)
+    "hand_mean_m", "twi_mean", "gfi_mean", "spi_mean",
 ]
 
 R1_UNIVERSAL = [

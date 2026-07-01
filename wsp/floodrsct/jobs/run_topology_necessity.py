@@ -102,6 +102,11 @@ R0_FEATURES = [
     "population",
     "impervious_pct",
     "cropland_pct",
+    # Hydrology (OWP HAND + 3DEP zonal stats)
+    "hand_mean_m",
+    "twi_mean",
+    "gfi_mean",
+    "spi_mean",
 ]
 
 TARGET_COL = "obs_nfip_event_claims"

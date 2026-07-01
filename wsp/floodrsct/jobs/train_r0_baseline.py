@@ -106,6 +106,11 @@ R0_FEATURES = [
     # Land cover (NLCD 2021)
     "impervious_pct",
     "cropland_pct",
+    # Hydrology (OWP HAND + 3DEP zonal stats)
+    "hand_mean_m",
+    "twi_mean",
+    "gfi_mean",
+    "spi_mean",
     # NOTE: storm_min_dist_km and storm_landfall_category moved to R2
     # (event-level features, not static). See DOE_R2_temporal.md.
 ]
