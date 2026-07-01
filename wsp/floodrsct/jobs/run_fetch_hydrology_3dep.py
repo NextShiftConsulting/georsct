@@ -355,9 +355,9 @@ def extract_scenario(s3, scenario: str, upload: bool, dry_run: bool) -> dict:
 
     if upload:
         upload_json_result(
-            s3, result,
+            s3, BUCKET,
             f"results/s035/hydrology_3dep_{scenario}.json",
-            BUCKET,
+            result,
         )
 
     return result
