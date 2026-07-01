@@ -92,8 +92,25 @@ class GateResult:
 
     @property
     def gate_reason(self) -> str | None:
-        """Domain explanation if available, otherwise machine key."""
-        return self.domain_explanation or self.sub_signal
+        """Domain explanation > humanized machine key > None.
+
+        Three tiers:
+        1. domain_explanation — set by domain adapter (static map, RAG, SME agent)
+        2. humanized sub_signal — strip gate prefix, replace underscores
+        3. None — all gates passed, nothing to explain
+        """
+        if self.domain_explanation:
+            return self.domain_explanation
+        if self.sub_signal:
+            # "gate_1_noise_above_threshold" -> "noise above threshold"
+            key = self.sub_signal
+            for prefix in ("gate_1_", "gate_1b_", "gate_2_", "gate_3_",
+                           "gate_3b_", "gate_4_", "gate_5_", "defense_"):
+                if key.startswith(prefix):
+                    key = key[len(prefix):]
+                    break
+            return key.replace("_", " ")
+        return None
 
 
 @dataclass
