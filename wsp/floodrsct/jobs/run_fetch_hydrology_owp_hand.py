@@ -136,12 +136,16 @@ def _load_huc8_polygons(s3, tmpdir: str) -> "gpd.GeoDataFrame":
     """
     import geopandas as gpd
 
-    # Try cached parquet first
-    cached = s3_read_parquet(s3, WBD_CACHE_KEY)
-    if cached is not None and "geometry" in cached.columns:
-        log.info("Loaded HUC8 polygons from cache: %d rows", len(cached))
-        gdf = gpd.GeoDataFrame(cached, geometry="geometry", crs="EPSG:4326")
+    # Try cached GeoParquet first (must use gpd.read_parquet, not pd)
+    try:
+        obj = s3.get_object(Bucket=BUCKET, Key=WBD_CACHE_KEY)
+        gdf = gpd.read_parquet(io.BytesIO(obj["Body"].read()))
+        log.info("Loaded HUC8 polygons from cache: %d rows", len(gdf))
+        if gdf.crs is None:
+            gdf = gdf.set_crs("EPSG:4326")
         return gdf
+    except Exception as e:
+        log.info("HUC8 cache miss (%s), will download from USGS", e)
 
     # Download WBD from USGS (large file ~1.5 GB zipped)
     log.info("HUC8 cache not found. Downloading WBD from USGS...")
