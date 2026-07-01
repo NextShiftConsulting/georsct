@@ -285,25 +285,38 @@ def extract_scenario(s3, scenario: str, upload: bool, dry_run: bool) -> dict:
 
     log.info("%s: %d centroids loaded", scenario, len(centroids))
 
-    # 3. Download tiles and process
+    # 3. Download all tiles, then process in parallel
+    # Memory budget: 64 GB. Per tile peak: ~5.4 GB (DEM + flow_acc + 4 metrics).
+    # Safe concurrency: 64/5.4 ~ 10, use 8 for headroom.
+    n_workers = min(8, len(tif_keys), os.cpu_count() or 1)
+    log.info("%s: processing %d tiles with %d parallel workers",
+             scenario, len(tif_keys), n_workers)
+
     all_results = []
     with tempfile.TemporaryDirectory() as tmpdir:
+        # Download all tiles first (I/O bound, fast)
+        local_paths = []
         for i, key in enumerate(tif_keys):
             fname = Path(key).name
             local_path = os.path.join(tmpdir, fname)
-
             log.info("Downloading tile %d/%d: %s", i + 1, len(tif_keys), fname)
             s3.download_file(BUCKET, key, local_path)
+            local_paths.append(local_path)
 
-            try:
-                tile_result = _process_tile(local_path, centroids)
-                if not tile_result.empty:
-                    all_results.append(tile_result)
-            except Exception as e:
-                log.warning("Tile %s failed: %s", fname, e)
-
-            # Remove tile to save disk space
-            os.unlink(local_path)
+        # Process tiles in parallel (CPU bound)
+        with ProcessPoolExecutor(max_workers=n_workers) as pool:
+            futures = {
+                pool.submit(_process_tile, path, centroids): Path(path).stem
+                for path in local_paths
+            }
+            for future in futures:
+                tile_name = futures[future]
+                try:
+                    tile_result = future.result()
+                    if not tile_result.empty:
+                        all_results.append(tile_result)
+                except Exception as e:
+                    log.warning("Tile %s failed: %s", tile_name, e)
 
     if not all_results:
         log.error("%s: no results from any tile", scenario)

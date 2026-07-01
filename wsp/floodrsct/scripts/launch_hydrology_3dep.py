@@ -8,13 +8,12 @@ This fixes two issues:
 
 Deployment Resource Review (9 dimensions)
 ------------------------------------------
-1. Memory:    ml.m5.4xlarge (64 GB). Largest object: one 3DEP 1x1-degree tile
-              at 10m = 10800x10800 float64 = ~900 MB. Flow accumulation same
-              size. 4 metric arrays per tile = ~3.6 GB peak. Serial tile
-              processing, so only 1 tile in memory at a time.
+1. Memory:    ml.m5.4xlarge (64 GB). Per tile peak: ~5.4 GB (DEM 900 MB +
+              flow_acc 900 MB + 4 metric arrays 3.6 GB). 8 parallel workers
+              = ~43 GB peak. Fits with headroom.
 2. Cache:     No S3 cache dependency. Writes new cache on completion.
-3. Threads:   Serial tile processing (1 tile at a time). Flow accumulation
-              is single-threaded numpy topological sort.
+3. Threads:   ProcessPoolExecutor with 8 workers (64 GB / 5.4 GB per tile).
+              Each worker runs single-threaded numpy flow accumulation.
 4. Image:     PyTorch 2.5.1 CPU. rasterio for local .tif read only (no
               remote VSICURL). floodcaster.hydrology for compute (numpy).
 5. Instance:  ml.m5.4xlarge (16 vCPU, 64 GB). Need memory headroom for
