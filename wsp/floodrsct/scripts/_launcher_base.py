@@ -62,6 +62,7 @@ CONFIGS_DIR = SERIES_DIR / "configs"
 ALLOWED_INSTANCES = frozenset({
     "ml.m5.large", "ml.m5.xlarge", "ml.m5.2xlarge",
     "ml.m5.4xlarge", "ml.m5.8xlarge",
+    "ml.m7i.8xlarge",
 })
 
 
@@ -176,6 +177,7 @@ _INSTANCE_SPECS = {
     "ml.m5.2xlarge":  (8,  32),
     "ml.m5.4xlarge": (16,  64),
     "ml.m5.8xlarge": (32, 128),
+    "ml.m7i.8xlarge": (32, 128),
 }
 
 
@@ -338,6 +340,7 @@ def launch_processing_job(
     phase_id: str | None = None,
     scenario: str | None = None,
     allow_instance_override: bool = False,
+    timeout_s: int = 7200,
 ) -> str:
     """Upload code and launch a SageMaker Processing job.
 
@@ -376,7 +379,6 @@ def launch_processing_job(
             log.warning("[DRY RUN] PREFLIGHT FAILED. Fix before real launch.")
 
     # Resource audit (9 dimensions)
-    timeout_s = 7200
     audit_warnings, audit_blockers = _resource_audit(
         job_script=job_script,
         instance_type=instance_type,

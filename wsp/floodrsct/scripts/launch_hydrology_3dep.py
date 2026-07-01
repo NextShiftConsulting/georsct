@@ -8,23 +8,25 @@ This fixes two issues:
 
 Deployment Resource Review (9 dimensions)
 ------------------------------------------
-1. Memory:    ml.m5.4xlarge (64 GB). Per tile peak: ~8 GB (DEM 900 MB +
+1. Memory:    ml.m7i.8xlarge (128 GB). Per tile peak: ~8 GB (DEM 900 MB +
               flow_dir 900 MB + flow_acc 900 MB + 4 metrics 3.6 GB +
-              Python/numpy overhead). 4 workers = ~32 GB peak. Fits.
-              8 workers OOM'd on SWFL (47 tiles, many with centroids).
+              Python/numpy overhead). 8 workers = ~64 GB peak. Fits
+              with 50% headroom. (m5.4xlarge OOM'd on SWFL with 8 workers.)
 2. Cache:     No S3 cache dependency. Writes new cache on completion.
-3. Threads:   ProcessPoolExecutor with 4 workers (64 GB / 8 GB per tile).
+3. Threads:   ProcessPoolExecutor with 8 workers (128 GB / 8 GB per tile).
               Each worker runs single-threaded numpy flow accumulation.
 4. Image:     PyTorch 2.5.1 CPU. rasterio for local .tif read only (no
               remote VSICURL). floodcaster.hydrology for compute (numpy).
-5. Instance:  ml.m5.4xlarge (16 vCPU, 64 GB). Need memory headroom for
-              large tiles (SWFL has 47 tiles, processed serially).
-6. Volume:    50 GB. Largest tile ~500 MB. One tile downloaded at a time,
-              deleted after processing. Peak disk: ~1 GB.
+5. Instance:  ml.m7i.8xlarge (32 vCPU, 128 GB). Upgraded from m5.4xlarge
+              after OOM on SWFL (47 tiles). 8 workers saturate 8/32 cores.
+              m7i chosen over m5: processing quota=5, m5.8xlarge had 0.
+6. Volume:    50 GB. All tiles downloaded up front (~500 MB each, 47 tiles
+              for SWFL = ~23 GB). Fits within 50 GB.
 7. pip:       rasterio (local .tif read), geopandas, pyogrio.
               floodcaster wheel provides hydrology module.
 8. pre_install: None.
-9. Timeout:   7200s (2h). Per-scenario launch (47 tiles x ~2 min = ~1.5h max).
+9. Timeout:   14400s (4h). SWFL worst case: 47 tiles, ~20 with centroids,
+              ~30 min each serial / ~8 min with 8 workers = ~50 min.
 """
 
 import argparse
@@ -55,9 +57,10 @@ def main() -> None:
             job_name=job_name,
             job_script="run_fetch_hydrology_3dep.py",
             job_args=["--scenario", scenario, "--upload"],
-            instance_type="ml.m5.4xlarge",
+            instance_type="ml.m7i.8xlarge",
             volume_size_gb=50,
             pip_packages="rasterio geopandas pyogrio",
+            timeout_s=14400,
             dry_run=args.dry_run,
         )
 

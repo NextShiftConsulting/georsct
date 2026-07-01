@@ -286,11 +286,10 @@ def extract_scenario(s3, scenario: str, upload: bool, dry_run: bool) -> dict:
     log.info("%s: %d centroids loaded", scenario, len(centroids))
 
     # 3. Download all tiles, then process in parallel
-    # Memory budget: 64 GB. Per tile peak: ~6.3 GB (DEM 900 MB + flow_dir
-    # 900 MB + flow_acc 900 MB + 4 metric arrays 3.6 GB). With Python/numpy
-    # overhead actual peak is ~8 GB per worker. Safe: 64/8 = 8, but tiles
-    # are also on disk (~500 MB each). Use 4 workers for safety.
-    n_workers = min(4, len(tif_keys), os.cpu_count() or 1)
+    # Memory budget: 128 GB (ml.m5.8xlarge). Per tile peak: ~8 GB (DEM
+    # 900 MB + flow_dir 900 MB + flow_acc 900 MB + 4 metric arrays 3.6 GB
+    # + Python/numpy overhead). 128/8 = 16 safe workers, use 8 for headroom.
+    n_workers = min(8, len(tif_keys), os.cpu_count() or 1)
     log.info("%s: processing %d tiles with %d parallel workers",
              scenario, len(tif_keys), n_workers)
 
