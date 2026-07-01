@@ -71,14 +71,29 @@ class GateResult:
     decision is validated at construction to be a bare canonical string.
     A raw enum, str(enum), or unknown token raises DecisionContractError
     here — loudly, once — instead of silently misrouting downstream.
+
+    sub_signal is the machine-readable key from the controlplane
+    (e.g. "gate_1_noise_above_threshold").
+
+    domain_explanation is the handoff slot for domain-specific
+    human-readable interpretation. When a domain adapter is configured,
+    it fills this from sub_signal + gate_evidence using whatever
+    strategy fits (static map, RAG, SME agent). If None, consumers
+    fall back to sub_signal.
     """
     decision: str
     gate_reached: str
     gate_evidence: dict[str, Any]
     sub_signal: str | None = None
+    domain_explanation: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "decision", coerce_decision(self.decision))
+
+    @property
+    def gate_reason(self) -> str | None:
+        """Domain explanation if available, otherwise machine key."""
+        return self.domain_explanation or self.sub_signal
 
 
 @dataclass
