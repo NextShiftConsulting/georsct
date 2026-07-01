@@ -722,28 +722,33 @@ features:
     temporal_class: slow_drift
     scenarios: all
     source_type: derived
-    source_dataset: copernicus_dem_glo30
-    raw_s3_path: (fetched live from Planetary Computer STAC API)
-    processed_s3_path: processed/shared/zcta_hydrology.parquet
+    source_dataset: usgs_3dep_1_3_arcsecond
+    raw_s3_path: raw/dem/3dep/v1/{scenario}/
+    processed_s3_path: processed/shared/zcta_hydrology_{scenario}.parquet
     build_function: build_hydrology_features
     output_column: hand_mean_m
+    plausibility_bounds: [0, 200]
+    coverage_threshold: 0.50
     missing_behavior: "NaN — field_status = missing_source_data"
     field_status_behavior: missing_source_data
     version_target: v24.009
     notes: >
       Height Above Nearest Drainage (HAND) in meters. Mean within ~1 km
       of ZCTA centroid. Lower HAND = closer to drainage = higher flood risk.
-      Computed from Copernicus DEM via floodcaster.hydrology.compute_hand.
+      Computed from USGS 3DEP 1/3 arc-second DEM via floodcaster.hydrology.
+      Switched from Copernicus DEM/STAC to local 3DEP tiles 2026-07-01.
 
   - feature_name: twi_mean
     temporal_class: slow_drift
     scenarios: all
     source_type: derived
-    source_dataset: copernicus_dem_glo30
-    raw_s3_path: (fetched live from Planetary Computer STAC API)
-    processed_s3_path: processed/shared/zcta_hydrology.parquet
+    source_dataset: usgs_3dep_1_3_arcsecond
+    raw_s3_path: raw/dem/3dep/v1/{scenario}/
+    processed_s3_path: processed/shared/zcta_hydrology_{scenario}.parquet
     build_function: build_hydrology_features
     output_column: twi_mean
+    plausibility_bounds: [0, 30]
+    coverage_threshold: 0.50
     missing_behavior: "NaN — field_status = missing_source_data"
     field_status_behavior: missing_source_data
     version_target: v24.009
@@ -755,11 +760,13 @@ features:
     temporal_class: slow_drift
     scenarios: all
     source_type: derived
-    source_dataset: copernicus_dem_glo30
-    raw_s3_path: (fetched live from Planetary Computer STAC API)
-    processed_s3_path: processed/shared/zcta_hydrology.parquet
+    source_dataset: usgs_3dep_1_3_arcsecond
+    raw_s3_path: raw/dem/3dep/v1/{scenario}/
+    processed_s3_path: processed/shared/zcta_hydrology_{scenario}.parquet
     build_function: build_hydrology_features
     output_column: gfi_mean
+    plausibility_bounds: [-5, 10]
+    coverage_threshold: 0.50
     missing_behavior: "NaN — field_status = missing_source_data"
     field_status_behavior: missing_source_data
     version_target: v24.009
@@ -771,11 +778,13 @@ features:
     temporal_class: slow_drift
     scenarios: all
     source_type: derived
-    source_dataset: copernicus_dem_glo30
-    raw_s3_path: (fetched live from Planetary Computer STAC API)
-    processed_s3_path: processed/shared/zcta_hydrology.parquet
+    source_dataset: usgs_3dep_1_3_arcsecond
+    raw_s3_path: raw/dem/3dep/v1/{scenario}/
+    processed_s3_path: processed/shared/zcta_hydrology_{scenario}.parquet
     build_function: build_hydrology_features
     output_column: spi_mean
+    plausibility_bounds: [-15, 20]
+    coverage_threshold: 0.50
     missing_behavior: "NaN — field_status = missing_source_data"
     field_status_behavior: missing_source_data
     version_target: v24.009

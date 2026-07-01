@@ -349,7 +349,60 @@ def extract_scenario(s3, scenario: str, upload: bool, dry_run: bool) -> dict:
     log.info("%s: %d/%d ZCTAs with HAND data (%.1f%% coverage)",
              scenario, n_with_hand, n_total, coverage * 100)
 
-    # 5. Upload
+    # 5. Contract validation BEFORE upload -- reject bad data at source
+    from _validate_contract import (
+        COVERAGE_THRESHOLDS, PLAUSIBILITY_BOUNDS, Status,
+    )
+
+    # Hydrology plausibility bounds (not yet in FEATURE_CONTRACT.yaml)
+    HYDRO_BOUNDS = {
+        "hand_mean_m": (0, 200),     # meters above drainage; >200 is suspect
+        "twi_mean": (0, 30),         # dimensionless; typical 2-25
+        "gfi_mean": (-5, 10),        # log ratio; typical -3 to 7
+        "spi_mean": (-15, 20),       # log(area * tan(slope)); typical -10 to 15
+    }
+
+    contract_fails = []
+    for col in ["hand_mean_m", "twi_mean", "gfi_mean", "spi_mean"]:
+        non_null = combined[col].notna().mean()
+        threshold = COVERAGE_THRESHOLDS.get(col, 0.50)
+        if non_null < threshold:
+            msg = "%s: %.1f%% non-null < %.0f%% threshold" % (
+                col, non_null * 100, threshold * 100)
+            log.error("CONTRACT FAIL: %s", msg)
+            contract_fails.append(msg)
+        else:
+            log.info("CONTRACT PASS: %s %.1f%% non-null >= %.0f%%",
+                     col, non_null * 100, threshold * 100)
+
+        # Plausibility bounds
+        lo, hi = HYDRO_BOUNDS.get(col, (None, None))
+        if lo is not None:
+            vals = combined[col].dropna()
+            if len(vals) > 0:
+                below = (vals < lo).sum()
+                above = (vals > hi).sum()
+                if below > 0 or above > 0:
+                    msg = "%s: %d below %.0f, %d above %.0f (range: %.2f to %.2f)" % (
+                        col, below, lo, above, hi, vals.min(), vals.max())
+                    log.warning("CONTRACT WARN: %s", msg)
+
+    if contract_fails:
+        log.error("%s: CONTRACT BLOCKED -- %d coverage failures. "
+                  "Data NOT uploaded.", scenario, len(contract_fails))
+        elapsed = time.time() - t0
+        return {
+            "scenario": scenario,
+            "status": "CONTRACT_FAIL",
+            "contract_fails": contract_fails,
+            "n_tiles": len(tif_keys),
+            "n_zctas": n_total,
+            "n_with_hand": int(n_with_hand),
+            "coverage_pct": round(coverage * 100, 1),
+            "elapsed_s": round(elapsed, 1),
+        }
+
+    # 6. Upload (only after contract passes)
     if upload:
         out_key = HYDROLOGY_KEY_TEMPLATE.format(scenario=scenario)
         s3_write_parquet(s3, combined, out_key)
