@@ -219,8 +219,11 @@ def _process_tile(tif_path: str, centroids: pd.DataFrame,
             if arr is None:
                 values[metric_name] = np.nan
                 continue
-            # Stream-dependent metrics need wider search radius
-            half = 50 if metric_name in ("hand", "gfi") else 2
+            # Stream-dependent metrics need wider search radius.
+            # HAND/GFI are sparse on flat terrain (Houston bayou spacing
+            # ~5-10 km); 50px (~500m) missed 90% of ZCTAs. 500px (~5 km)
+            # reaches across inter-bayou flats to find resolved drainage.
+            half = 500 if metric_name in ("hand", "gfi") else 2
             r_lo = max(0, row_px - half)
             r_hi = min(arr.shape[0], row_px + half + 1)
             c_lo = max(0, col_px - half)
