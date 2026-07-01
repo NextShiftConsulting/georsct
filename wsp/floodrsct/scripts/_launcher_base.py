@@ -233,12 +233,56 @@ def _resource_audit(
     else:
         warnings.append("THREAD: Job script %s not found locally for audit." % job_script)
 
-    # --- Dim 1: Memory (heuristic) ---
-    if ram_gb > 32:
-        warnings.append(
-            "MEMORY: Instance %s has %d GB RAM. Most s035 jobs need "
-            "<8 GB. Consider a smaller instance." % (instance_type, ram_gb)
-        )
+    # --- Dim 1: Memory budget (HARD BLOCK for known workloads) ---
+    # For jobs with ProcessPoolExecutor, compute actual per-worker memory
+    # from array allocations and cross-check against instance RAM.
+    if script_path.exists() and ram_gb > 0:
+        code = script_path.read_text(encoding="utf-8", errors="replace")
+        # Extract worker count from min(N, ...) pattern
+        import re as _re
+        worker_match = _re.search(r'n_workers\s*=\s*min\(\s*(\d+)', code)
+        n_workers = int(worker_match.group(1)) if worker_match else 1
+
+        # Estimate per-worker memory for raster jobs processing 10812x10812 tiles
+        # Each float64 array at 10812x10812 = ~895 MB
+        if "10812" in code or "compute_flow_accumulation" in code or "compute_hand" in code:
+            # Known arrays per worker (peak during D8 flow direction):
+            #   DEM (float64): 895 MB
+            #   padded DEM (float64, +2 border): 896 MB
+            #   drops (8 x rows x cols float64): 8 x 895 = 7160 MB  <-- dominates
+            #   fdir (int8): 112 MB
+            #   flow_acc (float64): 895 MB
+            #   in_degree (int32): 448 MB
+            #   4 metric arrays (float64): 4 x 895 = 3580 MB
+            #   _trace_downstream_vectorized: 5 arrays (int32): 5 x 448 = 2240 MB
+            #   GFI calls trace again: +2240 MB
+            #   Python/numpy/GC overhead: ~1000 MB
+            # D8 drops may not be GC'd before next phase starts in same worker.
+            per_worker_gb = (895 + 896 + 7160 + 112 + 895 + 448
+                             + 3580 + 2240 + 2240 + 1000) / 1024
+            total_gb = per_worker_gb * n_workers
+            headroom = ram_gb * 0.70  # 30% reserved for OS + Python parent
+
+            if total_gb > headroom:
+                blockers.append(
+                    "MEMORY: %d workers x %.1f GB/worker = %.0f GB > %.0f GB "
+                    "usable (70%% of %d GB). Reduce n_workers to %d or use a "
+                    "larger instance. LAUNCH BLOCKED."
+                    % (n_workers, per_worker_gb, total_gb, headroom,
+                       ram_gb, int(headroom / per_worker_gb))
+                )
+            else:
+                warnings.append(
+                    "MEMORY: %d workers x %.1f GB/worker = %.0f GB of %.0f GB "
+                    "usable (%.0f%% utilization)."
+                    % (n_workers, per_worker_gb, total_gb, headroom,
+                       total_gb / headroom * 100)
+                )
+        elif ram_gb > 32:
+            warnings.append(
+                "MEMORY: Instance %s has %d GB RAM. Most s035 jobs need "
+                "<8 GB. Consider a smaller instance." % (instance_type, ram_gb)
+            )
 
     # --- Dim 5: Instance summary ---
     if vcpus == 0:
