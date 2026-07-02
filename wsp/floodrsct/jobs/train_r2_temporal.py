@@ -369,6 +369,27 @@ def _check_target(df: pd.DataFrame, col: str, task: str) -> bool:
 # Solvers: IDENTICAL to R0/R1 (same hyperparams, same code)
 # ---------------------------------------------------------------------------
 
+def _drop_constant_cols(X_train, X_test):
+    """Drop columns with <= 1 distinct non-NaN value in X_train.
+
+    sklearn HistGBDT's binning step calls sliding_window_view(distinct, 2)
+    which requires at least 2 distinct values per feature.  Per-fold wlag
+    recomputation can produce all-NaN or single-value columns for specific
+    folds.  Ridge's StandardScaler handles this silently; HistGBDT does not.
+    """
+    keep = []
+    for j in range(X_train.shape[1]):
+        col = X_train[:, j]
+        n_unique = len(np.unique(col[~np.isnan(col)]))
+        if n_unique >= 2:
+            keep.append(j)
+    if len(keep) == X_train.shape[1]:
+        return X_train, X_test, len(keep)
+    dropped = X_train.shape[1] - len(keep)
+    log.info("    Dropped %d constant/single-value columns for histgbdt", dropped)
+    return X_train[:, keep], X_test[:, keep], len(keep)
+
+
 def _train_histgbdt(X_train, y_train, X_test, y_test, task: str,
                     train_status=None) -> tuple:
     """Train HistGradientBoosting and return (predictions, metrics).
@@ -379,21 +400,22 @@ def _train_histgbdt(X_train, y_train, X_test, y_test, task: str,
         HistGradientBoostingRegressor,
         HistGradientBoostingClassifier,
     )
+    X_tr, X_te, _ = _drop_constant_cols(X_train, X_test)
     if task == "classification":
         model = HistGradientBoostingClassifier(
             max_iter=200, max_depth=6, learning_rate=0.1, random_state=SEED,
         )
-        model.fit(X_train, y_train)
-        y_pred_proba = model.predict_proba(X_test)[:, 1]
-        y_pred = model.predict(X_test)
+        model.fit(X_tr, y_train)
+        y_pred_proba = model.predict_proba(X_te)[:, 1]
+        y_pred = model.predict(X_te)
         metrics = _classification_metrics(y_test, y_pred, y_pred_proba, train_status)
         return y_pred_proba, metrics
     else:
         model = HistGradientBoostingRegressor(
             max_iter=200, max_depth=6, learning_rate=0.1, random_state=SEED,
         )
-        model.fit(X_train, y_train)
-        y_pred = model.predict(X_test)
+        model.fit(X_tr, y_train)
+        y_pred = model.predict(X_te)
         metrics = _regression_metrics(y_test, y_pred)
         return y_pred, metrics
 
