@@ -46,6 +46,9 @@ from _coverage_common import (
     BUCKET, SCENARIOS, get_s3_client, load_processed_parquet, load_crosswalk,
     load_adjacency,
 )
+from georsct.evaluation.metric_eligibility import (
+    training_eligibility, score_fold, TrainingStatus,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -210,6 +213,8 @@ class RunResult:
     features_from_r1_supplement: int
     wlag_nan_rates: dict  # {wlag_col: frac_nan_in_test_rows} per recomputed wlag
     timestamp: str
+    eligibility_status: str = "ELIGIBLE"
+    class_support: dict | None = None
 
 
 def _load_r1_supplement(s3, scenario: str) -> pd.DataFrame:
@@ -315,7 +320,8 @@ def _check_target(df: pd.DataFrame, col: str, task: str) -> bool:
 # Solvers: IDENTICAL to R0 (same hyperparams, same code)
 # ---------------------------------------------------------------------------
 
-def _train_histgbdt(X_train, y_train, X_test, y_test, task: str) -> tuple:
+def _train_histgbdt(X_train, y_train, X_test, y_test, task: str,
+                    train_status=None) -> tuple:
     from sklearn.ensemble import (
         HistGradientBoostingRegressor,
         HistGradientBoostingClassifier,
@@ -327,7 +333,7 @@ def _train_histgbdt(X_train, y_train, X_test, y_test, task: str) -> tuple:
         model.fit(X_train, y_train)
         y_pred_proba = model.predict_proba(X_test)[:, 1]
         y_pred = model.predict(X_test)
-        metrics = _classification_metrics(y_test, y_pred, y_pred_proba)
+        metrics = _classification_metrics(y_test, y_pred, y_pred_proba, train_status)
         return y_pred_proba, metrics
     else:
         model = HistGradientBoostingRegressor(
@@ -339,7 +345,8 @@ def _train_histgbdt(X_train, y_train, X_test, y_test, task: str) -> tuple:
         return y_pred, metrics
 
 
-def _train_ridge(X_train, y_train, X_test, y_test, task: str) -> tuple:
+def _train_ridge(X_train, y_train, X_test, y_test, task: str,
+                 train_status=None) -> tuple:
     from sklearn.impute import SimpleImputer
     from sklearn.linear_model import Ridge, RidgeClassifier
     from sklearn.pipeline import Pipeline
@@ -354,7 +361,7 @@ def _train_ridge(X_train, y_train, X_test, y_test, task: str) -> tuple:
         pipe.fit(X_train, y_train)
         y_pred = pipe.predict(X_test)
         y_score = pipe.decision_function(X_test)
-        metrics = _classification_metrics(y_test, y_pred, y_score)
+        metrics = _classification_metrics(y_test, y_pred, y_score, train_status)
         return y_score, metrics
     else:
         pipe = Pipeline([
@@ -366,6 +373,22 @@ def _train_ridge(X_train, y_train, X_test, y_test, task: str) -> tuple:
         y_pred = pipe.predict(X_test)
         metrics = _regression_metrics(y_test, y_pred)
         return y_pred, metrics
+
+
+def _class_support(y_train: np.ndarray, y_test: np.ndarray) -> dict:
+    """Return class counts for audit trail."""
+    train_vals, train_counts = np.unique(y_train, return_counts=True)
+    test_vals, test_counts = np.unique(y_test, return_counts=True)
+    result = {
+        "train_counts": {str(k): int(v) for k, v in zip(train_vals, train_counts)},
+        "test_counts": {str(k): int(v) for k, v in zip(test_vals, test_counts)},
+    }
+    if set(train_vals).union(test_vals).issubset({0, 0.0, 1, 1.0}):
+        result["train_positive"] = int(np.sum(y_train == 1))
+        result["train_negative"] = int(np.sum(y_train == 0))
+        result["test_positive"] = int(np.sum(y_test == 1))
+        result["test_negative"] = int(np.sum(y_test == 0))
+    return result
 
 
 def _nan_to_none(v: float) -> float | None:
@@ -382,29 +405,21 @@ def _regression_metrics(y_true, y_pred) -> dict:
     }
 
 
-def _classification_metrics(y_true, y_pred, y_score) -> dict:
-    from sklearn.metrics import accuracy_score, roc_auc_score, f1_score
-    m = {
-        "accuracy": float(accuracy_score(y_true, y_pred)),
-        "f1": float(f1_score(y_true, y_pred, zero_division=0)),
-    }
-    try:
-        auc = float(roc_auc_score(y_true, y_score))
-        # Newer sklearn returns nan instead of raising ValueError
-        # when only one class is present in y_true
-        m["roc_auc"] = None if np.isnan(auc) else auc
-    except ValueError:
-        m["roc_auc"] = None
-    return m
+def _classification_metrics(y_true, y_pred, y_score, train_status=None) -> dict:
+    """Score a classification fold using per-metric eligibility gate."""
+    ts = train_status or TrainingStatus.ELIGIBLE
+    _, metrics = score_fold(y_pred, y_true, y_score, fold_training_status=ts)
+    return metrics
 
 
-def _naive_baseline(y_train, y_test, task: str) -> dict:
+def _naive_baseline(y_train, y_test, task: str, train_status=None) -> dict:
     if task == "classification":
         majority = int(np.round(y_train.mean()))
         y_naive = np.full_like(y_test, majority)
         return _classification_metrics(
             y_test, y_naive,
             np.full_like(y_test, y_train.mean(), dtype=float),
+            train_status,
         )
     else:
         mean_pred = np.full_like(y_test, y_train.mean(), dtype=float)
@@ -571,12 +586,42 @@ def run_split(
         if len(X_test) == 0 or len(X_train) == 0:
             log.warning("Empty fold %s in split %s, skipping", fold_id, split_name)
             continue
-        if len(np.unique(y_train)) < 2 and task == "classification":
-            log.warning("No target variation in train fold %s, skipping", fold_id)
+
+        # Before-fit gate: can the solver learn on this fold?
+        eligibility = "ELIGIBLE"
+        if task == "classification":
+            eligibility = training_eligibility(y_train).value
+
+        if eligibility != "ELIGIBLE":
+            log.warning("Degenerate fold %s/%s: %s", split_name, fold_id, eligibility)
+            null_metrics = {
+                name: {"status": eligibility, "value": None}
+                for name in ["accuracy", "recall", "f1", "jaccard", "dice",
+                             "mcc", "balanced_accuracy", "roc_auc", "auc_pr"]
+            }
+            results.append(RunResult(
+                scenario=scenario,
+                target=target_col,
+                task=task,
+                solver=solver_name,
+                split=split_name,
+                fold=str(fold_id),
+                n_train=int(train_mask.sum()),
+                n_test=int(test_mask.sum()),
+                metrics=null_metrics,
+                naive_baseline={},
+                features_used=len(features),
+                features_from_r1_supplement=r1_supp_count,
+                wlag_nan_rates=fold_nan_rates,
+                timestamp=ts,
+                eligibility_status=eligibility,
+                class_support=_class_support(y_train, y_test),
+            ))
             continue
 
-        y_pred, metrics = solver_fn(X_train, y_train, X_test, y_test, task)
-        naive = _naive_baseline(y_train, y_test, task)
+        train_status = TrainingStatus(eligibility)
+        y_pred, metrics = solver_fn(X_train, y_train, X_test, y_test, task, train_status)
+        naive = _naive_baseline(y_train, y_test, task, train_status)
 
         results.append(RunResult(
             scenario=scenario,
@@ -593,6 +638,8 @@ def run_split(
             features_from_r1_supplement=r1_supp_count,
             wlag_nan_rates=fold_nan_rates,
             timestamp=ts,
+            eligibility_status="ELIGIBLE",
+            class_support=_class_support(y_train, y_test) if task == "classification" else None,
         ))
 
         # Save per-row predictions for spatial_blocked (kappa diagnostics)
