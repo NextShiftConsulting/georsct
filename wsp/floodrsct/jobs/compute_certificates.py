@@ -173,7 +173,14 @@ def _extract_fold_metrics(
         if (r["target"] == target and r["split"] == split
                 and r["solver"] == solver):
             v = r["metrics"].get(metric_name)
-            if v is not None:
+            if v is None:
+                continue
+            # New schema: {status, value} dict; old schema: bare float
+            if isinstance(v, dict):
+                if v.get("status") != "MEASURED" or v.get("value") is None:
+                    continue
+                vals.append(float(v["value"]))
+            else:
                 vals.append(float(v))
     return vals
 
