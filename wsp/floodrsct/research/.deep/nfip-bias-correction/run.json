@@ -1,0 +1,27 @@
+{
+  "timestamp": "2026-07-02T12:00:00Z",
+  "query": "How to statistically correct for known biases in NFIP claims data when using it as a proxy for actual flood damage at ZCTA level",
+  "sub_questions": [
+    "What statistical methods exist to correct for insurance selection bias (non-random who-has-insurance) in damage estimation?",
+    "How do actuarial science and catastrophe modeling handle known undercounting in claims data?",
+    "Has anyone published NFIP penetration rate estimates at sub-county resolution (ZIP, census tract, block group)?",
+    "What methods exist for detecting and adjusting for structural breaks in insurance claims time series?",
+    "Are there published bias correction frameworks for combining multiple biased damage sources (NFIP + FEMA IA + SBA) into a less-biased composite?"
+  ],
+  "sources_consulted": 42,
+  "sources_fully_read": 24,
+  "sources_abstract_only": 12,
+  "sources_blocked": 6,
+  "confidence": "MEDIUM",
+  "gaps": [
+    "No published application of Heckman/IPW to NFIP selection bias for damage estimation at ZCTA level",
+    "Private flood insurance market share data unavailable at sub-state geographic resolution",
+    "No published composite framework combining NFIP + FEMA IA + SBA into bias-corrected damage estimate",
+    "Cat model adjustment factors (AIR, RMS) are proprietary and not published at ZCTA resolution",
+    "NFIP data quality issues (71% missing documentation, 50% PIVOT errors) affect reliability of any correction"
+  ],
+  "timeout_requested": "not specified",
+  "duration_seconds": 300,
+  "completed": true,
+  "model": "claude-opus-4-6"
+}

@@ -1,0 +1,43 @@
+experiment: s040a-nfip-bias-correction
+last_updated: '2026-07-02'
+s3_bucket: swarm-floodrsct-data
+parent_experiment: s035-model-ladder
+
+phases:
+  data_fetch_ia:
+    status: DESIGNED
+    description: Pull FEMA IA registrations for C7 Bayesian fusion
+    job_script: jobs/s040a_bias_correction/fetch_openfema_ia.py
+    launcher: scripts/launch_s040a_fetch_ia.py
+    depends_on: []
+
+  data_fetch_policies:
+    status: DESIGNED
+    description: Pull NFIP policy counts for C2 IPW penetration rates
+    job_script: jobs/s040a_bias_correction/fetch_openfema_policies.py
+    launcher: scripts/launch_s040a_fetch_policies.py
+    depends_on: []
+
+  build_c4:
+    status: DESIGNED
+    description: Build C4 event-corrected claims (Katrina/Sandy fraud filter)
+    job_script: jobs/s040a_bias_correction/build_c4_event_corrected.py
+    launcher: scripts/launch_s040a_build_c4.py
+    depends_on: []
+    notes: Reads existing raw/openfema/ claims, no new data pull needed
+
+  ablation_c0:
+    status: DESIGNED
+    description: Certificate baseline on raw NFIP claims
+    depends_on: []
+    notes: Uses existing s035 assembled features with obs_nfip_event_claims
+
+  ablation_c4:
+    status: DESIGNED
+    description: Certificate after event-specific fraud exclusion
+    depends_on: [build_c4]
+
+  ablation_c7:
+    status: DESIGNED
+    description: Certificate after Bayesian multi-source fusion
+    depends_on: [data_fetch_ia, ablation_c4]

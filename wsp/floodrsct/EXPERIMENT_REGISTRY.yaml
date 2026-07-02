@@ -164,6 +164,49 @@ experiments:
         yellow: 0
         red: 0
 
+  - series_id: s040a
+    active: true
+    title: "S040a-NFIP-Bias-Correction: Certificate-Instrumented Ablation of 7-Layer NFIP Correction Pipeline"
+    target: "NeurIPS 2026 (V6 paper supplementary)"
+    directory: "C:/Users/marti/github/georsct/wsp/floodrsct/exp/s040a-nfip-bias-correction"
+    status_file: "exp/s040a-nfip-bias-correction/EXPERIMENT_STATUS.yaml"
+    contract_file: null
+    launchers: "scripts/launch_s040a_*.py"
+    jobs: "jobs/s040a_bias_correction/"
+
+    phase_status:
+      total_phases: 6
+      completed: 0
+      in_progress: 0
+      designed: 6
+      blocked: 0
+      last_audit: "2026-07-02"
+
+    hypotheses:
+      count: 10
+      primary: "P1 -- C4 event exclusion unblocks Gate 1 (noise ceiling) for Katrina/Sandy DRs"
+      gate: "P2 -- C7 Bayesian fusion shifts binding constraint from Gate 1 to Gate 2+"
+
+    scenarios:
+      - houston
+      - southwest_florida
+      - nyc
+      - riverside_coachella
+      - new_orleans
+
+    s3_bucket: swarm-floodrsct-data
+    s3_prefix: results/s040a/
+
+    blockers: []
+
+    paper:
+      venue: NeurIPS
+      version: V6
+      claim_status:
+        green: 0
+        yellow: 0
+        red: 0
+
 # ===========================================================================
 # Adding a new experiment:
 # 1. Copy the template above
