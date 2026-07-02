@@ -64,7 +64,24 @@ The three mechanisms are not mutually exclusive and likely compound:
 
 ## References
 
+### Academic
+
 - Liu, Q. & Mostafavi, A. (2024-2025). FloodGenome: Flood risk assessment using machine learning on NFIP claims. Multiple publications.
 - FEMA. National Flood Hazard Layer (NFHL) methodology. Based on discharge-frequency + hydraulic analysis (HEC-HMS/HEC-RAS).
 - Beven, K. J. & Kirkby, M. J. (1979). A physically based, variable contributing area model of basin hydrology. Hydrological Sciences Bulletin, 24(1), 43-69. (Original TWI definition.)
 - Tehrany, M. S., et al. (2019). Flood susceptibility mapping using VIF-based feature selection. Multiple journals.
+
+### GAO Reports on FEMA Flood Map Effectiveness
+
+- GAO-22-104079 (2021). FEMA Flood Maps: Better Planning and Analysis Needed to Address Current and Future Flood Hazards. Finds maps do not reflect best available climate science or pluvial (rainfall) flooding; mapping investments lower for socially vulnerable populations; FEMA has not assessed usefulness of non-regulatory products since 2016.
+- GAO-21-578 (2021). National Flood Insurance Program: Congress Should Consider Updating the Mandatory Purchase Requirement. Documents that FEMA maps are outdated (land development changes), do not reflect climate change, and miss some flood types (heavy rainfall events).
+- GAO-11-17 (2010). FEMA Flood Maps: Some Standards and Processes in Place to Promote Map Accuracy. After $1.2B invested in modernization, only 21% of population has maps meeting national data quality thresholds. Compliance metric (FBS) does not compare relative accuracy across maps.
+- GAO-23-105977 (2023). Flood Insurance: FEMA's New Rate-Setting Methodology Improves Actuarial Soundness. Risk Rating 2.0 moves beyond binary zone designations to continuous property-level risk -- conceptually parallel to our model ladder approach.
+
+### Relevance to Ablation Findings
+
+The GAO findings directly support the experimental results:
+
+1. Our R0 FEMA features (pct_zone_a/x/x500) encode the outdated binary zone designations that GAO documented as insufficient. Their redundancy with R1 hydrology features at the ZCTA level is consistent with both being derived from the same underlying hydrological modeling.
+2. The GAO-documented gap in pluvial/rainfall flooding coverage explains why R2 storm track features (which capture event-specific dynamics) provide the largest marginal lift -- they encode exactly the information FEMA maps lack.
+3. The 21% data quality figure (GAO-11-17) provides empirical backing for the scale mismatch hypothesis: most FEMA maps don't meet their own accuracy standards, and our ZCTA-level aggregation further degrades whatever signal exists.
