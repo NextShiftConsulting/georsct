@@ -322,6 +322,10 @@ def _check_target(df: pd.DataFrame, col: str, task: str) -> bool:
 
 def _train_histgbdt(X_train, y_train, X_test, y_test, task: str,
                     train_status=None) -> tuple:
+    """Train HistGradientBoosting and return (predictions, metrics).
+
+    Parallelism: HistGBDT uses OpenMP internally; n_jobs requires sklearn>=1.4.
+    """
     from sklearn.ensemble import (
         HistGradientBoostingRegressor,
         HistGradientBoostingClassifier,
