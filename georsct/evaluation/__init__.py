@@ -8,9 +8,11 @@ from .metric_eligibility import (
     training_eligibility, classify_fold, score_fold,
     all_metrics, confusion, roc_auc, auc_pr,
 )
+from .aggregate import aggregate_by_status
 
 __all__ = [
     "TrainingStatus", "MetricStatus",
     "training_eligibility", "classify_fold", "score_fold",
     "all_metrics", "confusion", "roc_auc", "auc_pr",
+    "aggregate_by_status",
 ]
