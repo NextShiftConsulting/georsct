@@ -77,6 +77,9 @@ mmar-output/
 # Model archives
 MODELS.zip
 
+# Tests (internal only)
+tests/
+
 # Claude session data
 .claude/
 
