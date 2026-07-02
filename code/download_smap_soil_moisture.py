@@ -42,11 +42,15 @@ CMR_URL = (
     "&page_size=1"
 )
 
-BEARER_TOKEN = (
-    "eyJ0eXAiOiJKV1QiLCJvcmlnaW4iOiJFYXJ0aGRhdGEgTG9naW4iLCJzaWciOiJlZGxqd3RwdWJrZXlfb3BzIiwiYWxnIjoiUlMyNTYifQ"
-    ".eyJ0eXBlIjoiVXNlciIsInVpZCI6InJlYWxydWR5bWFydGluIiwiZXhwIjoxNzg1Mjc5ODk2LCJpYXQiOjE3ODAwOTU4OTYsImlzcyI6Imh0dHBzOi8vdXJzLmVhcnRoZGF0YS5uYXNhLmdvdiIsImlkZW50aXR5X3Byb3ZpZGVyIjoiZWRsX29wcyIsImFjciI6ImVkbCIsImFzc3VyYW5jZV9sZXZlbCI6M30"
-    ".GOglnVukgQji6NjN3Tkf5qrj3GK1F4ZtkFvaEkfNrPbz8-AjwSt0ZEn6UvPAw8vBo1W7sYcZruL5ZYZw7M8Rgi3mugLWUPpJwgTcPCg2XxOGK6Pq2yDZWpko6tHmR_Ggu1-Z3r3Hwji3G53UaDj3Ja3rAXM0EUSkrKt-T0XmkYgFCCMRi7WlQF7GpGXcZEpFQPdWiCy1rsdTB9asbFLroLfimTVhQNSqHXcmosZmHAwJwEAaRMegk29bhYbUbweRhRxGGOqrhGCOBkAmtpuvSuE0AobdzGmT5QOgGi0MS9p8ZOWk7GfK1Nj1F1WOynBpQWyoTPkqOdEsIGJTDubYYQ"
-)
+def _get_bearer_token() -> str:
+    from swarm_auth import get_credential
+    token = get_credential("NASA_EARTHDATA_TOKEN")
+    if not token:
+        raise RuntimeError(
+            "NASA_EARTHDATA_TOKEN not found. "
+            "Add it to ~/github/swarm-it-auth/keys/.env"
+        )
+    return token
 
 S3_BUCKET = "swarm-floodrsct-data"
 S3_PREFIX = "raw/smap_soil_moisture/v008"
@@ -64,7 +68,7 @@ EVENTS = {
 # ---------------------------------------------------------------------------
 def build_session() -> requests.Session:
     session = requests.Session()
-    session.headers.update({"Authorization": f"Bearer {BEARER_TOKEN}"})
+    session.headers.update({"Authorization": f"Bearer {_get_bearer_token()}"})
     session.rebuild_auth = lambda prepared_request, response: None  # type: ignore[method-assign]
     return session
 

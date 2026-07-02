@@ -80,6 +80,9 @@ MODELS.zip
 # Tests (internal only)
 tests/
 
+# PAR review artifacts
+.par/
+
 # Claude session data
 .claude/
 
