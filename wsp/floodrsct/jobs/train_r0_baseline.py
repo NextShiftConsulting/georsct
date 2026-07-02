@@ -718,6 +718,37 @@ def main() -> None:
     for status, count in sorted(eligibility_counts.items()):
         print(f"    {status}: {count}")
 
+    # --- Stamp eligibility onto folds parquet ---
+    # Build lookup: (target, split, fold_id) -> eligibility_status
+    # Only classification targets can be ineligible; regression is always ELIGIBLE.
+    elig_lookup = {}
+    for r in all_results:
+        if r.task == "classification":
+            elig_lookup[(r.target, r.split, r.fold)] = r.eligibility_status
+
+    # For each classification target x split, map each row's fold_id to its eligibility.
+    for target_col, task, _ in TARGETS:
+        if task != "classification":
+            continue
+        for split_name, fold_col in active_splits.items():
+            if fold_col not in folds_df.columns:
+                continue
+            col_name = f"elig_{target_col}_{split_name}"
+            folds_df[col_name] = folds_df[fold_col].astype(str).map(
+                lambda fid, t=target_col, s=split_name: elig_lookup.get((t, s, fid))
+            )
+            counts = folds_df[col_name].value_counts().to_dict()
+            log.info("Eligibility column %s: %s", col_name, counts)
+
+    # Re-upload folds with eligibility columns
+    if args.upload and not args.folds_key:
+        buf = io.BytesIO()
+        folds_df.to_parquet(buf, index=False)
+        buf.seek(0)
+        fold_key = f"folds/{scenario}_folds.parquet"
+        s3.put_object(Bucket=BUCKET, Key=fold_key, Body=buf.read())
+        log.info("Re-uploaded folds with eligibility columns to s3://%s/%s", BUCKET, fold_key)
+
     # --- Upload results ---
     output_prefix = args.output_prefix
     level_tag = "r0_random" if args.random_features else "r0"
