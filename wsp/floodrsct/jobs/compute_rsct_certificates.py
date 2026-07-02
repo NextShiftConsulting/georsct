@@ -169,8 +169,13 @@ def _load_r0_results(s3, scenario: str) -> dict | None:
 
 def _extract_fold_metrics(
     results: dict, target: str, split: str, solver: str,
-) -> list[float]:
-    """Extract per-fold primary metric values from a results JSON."""
+) -> tuple[list[float], dict]:
+    """Extract per-fold primary metric values from a results JSON.
+
+    Returns (fold_values, eligibility_info) where eligibility_info contains:
+      eligible_count, abstained_count, abstention_reasons.
+    Only ELIGIBLE folds with non-null metrics are included in fold_values.
+    """
     runs = results.get("runs", [])
     task_type = None
     for r in runs:
@@ -178,20 +183,35 @@ def _extract_fold_metrics(
             task_type = r.get("task")
             break
     if not task_type:
-        return []
+        return [], {"eligible_count": 0, "abstained_count": 0, "abstention_reasons": {}}
 
     metric_name = PRIMARY_METRIC.get(task_type)
     if not metric_name:
-        return []
+        return [], {"eligible_count": 0, "abstained_count": 0, "abstention_reasons": {}}
 
     vals = []
+    eligible = 0
+    abstained = 0
+    reasons = {}
     for r in runs:
         if (r["target"] == target and r["split"] == split
                 and r["solver"] == solver):
+            status = r.get("eligibility_status", "ELIGIBLE")
+            if status != "ELIGIBLE":
+                abstained += 1
+                reasons[status] = reasons.get(status, 0) + 1
+                continue
+            eligible += 1
             v = r["metrics"].get(metric_name)
             if v is not None:
                 vals.append(float(v))
-    return vals
+
+    info = {
+        "eligible_count": eligible,
+        "abstained_count": abstained,
+        "abstention_reasons": reasons,
+    }
+    return vals, info
 
 
 # ---------------------------------------------------------------------------
@@ -277,13 +297,26 @@ def build_certificate(
     SequentialGatekeeper from yrsn_controlplane.
     """
     # Extract fold metrics from pre-computed results or fallback to CV
+    eligibility_info = {}
     if r0_results:
-        spatial_folds = _extract_fold_metrics(
+        spatial_folds, spatial_elig = _extract_fold_metrics(
             r0_results, target, "spatial_blocked", "histgbdt",
         )
-        random_folds = _extract_fold_metrics(
+        random_folds, random_elig = _extract_fold_metrics(
             r0_results, target, "random", "histgbdt",
         )
+        eligibility_info = {
+            "spatial": spatial_elig,
+            "random": random_elig,
+        }
+        # Log abstentions if any
+        if spatial_elig["abstained_count"] > 0:
+            log.info(
+                "%s/%s: %d spatial folds abstained (%s)",
+                scenario, target,
+                spatial_elig["abstained_count"],
+                spatial_elig["abstention_reasons"],
+            )
     else:
         spatial_folds, random_folds = [], []
 
@@ -371,6 +404,7 @@ def build_certificate(
         "gear": gear,
         "used_fallback_cv": used_fallback,
         "fold_scores": spatial_folds,
+        "fold_eligibility": eligibility_info,
         "geometry": geom_cell.get("geometry") or {
             "spatial_connectivity": geom_cell.get("spatial_connectivity"),
             "support_coverage": geom_cell.get("support_coverage"),

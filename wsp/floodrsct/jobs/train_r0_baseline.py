@@ -144,6 +144,42 @@ class RunResult:
     naive_baseline: dict
     features_used: int
     timestamp: str
+    eligibility_status: str = "ELIGIBLE"
+    class_support: dict | None = None
+
+
+# ---------------------------------------------------------------------------
+# Fold eligibility gate (evaluation hygiene)
+# ---------------------------------------------------------------------------
+
+def classify_fold_eligibility(
+    y_train: np.ndarray, y_test: np.ndarray, task: str,
+) -> str:
+    """Classify whether a fold produces meaningful metrics.
+
+    Returns one of:
+      ELIGIBLE                 -- both classes present in train and test
+      SKIP_NOT_CLASSIFICATION  -- regression task (always eligible)
+      SKIP_TRAIN_SINGLE_CLASS  -- train fold has only one class
+      SKIP_TEST_SINGLE_CLASS   -- test fold has only one class
+    """
+    if task != "classification":
+        return "ELIGIBLE"
+    if len(np.unique(y_train)) < 2:
+        return "SKIP_TRAIN_SINGLE_CLASS"
+    if len(np.unique(y_test)) < 2:
+        return "SKIP_TEST_SINGLE_CLASS"
+    return "ELIGIBLE"
+
+
+def _class_support(y_train: np.ndarray, y_test: np.ndarray) -> dict:
+    """Return class counts for audit trail."""
+    return {
+        "train_positive": int(np.sum(y_train == 1)),
+        "train_negative": int(np.sum(y_train == 0)),
+        "test_positive": int(np.sum(y_test == 1)),
+        "test_negative": int(np.sum(y_test == 0)),
+    }
 
 
 def _available_features(df: pd.DataFrame) -> list[str]:
@@ -244,18 +280,42 @@ def _regression_metrics(y_true, y_pred) -> dict:
 
 
 def _classification_metrics(y_true, y_pred, y_score) -> dict:
-    from sklearn.metrics import accuracy_score, roc_auc_score, f1_score
+    from sklearn.metrics import (
+        accuracy_score, roc_auc_score, f1_score,
+        precision_score, recall_score, balanced_accuracy_score,
+        average_precision_score,
+    )
+
+    # Defense-in-depth: refuse to score single-class test folds.
+    # The fold eligibility gate should catch this upstream, but if
+    # a degenerate fold reaches here, return null metrics -- never
+    # accuracy=1.0/f1=0.0 which looks like a valid measurement.
+    if len(np.unique(y_true)) < 2:
+        return {
+            "accuracy": None, "f1": None, "roc_auc": None,
+            "precision": None, "recall": None,
+            "balanced_accuracy": None, "auprc": None,
+            "metric_status": "REFUSED_SINGLE_CLASS",
+        }
+
     m = {
-        "accuracy": float(accuracy_score(y_true, y_pred)),
-        "f1": float(f1_score(y_true, y_pred, zero_division=0)),
+        "accuracy": _nan_to_none(float(accuracy_score(y_true, y_pred))),
+        "f1": _nan_to_none(float(f1_score(y_true, y_pred, zero_division=0))),
+        "precision": _nan_to_none(float(precision_score(y_true, y_pred, zero_division=0))),
+        "recall": _nan_to_none(float(recall_score(y_true, y_pred, zero_division=0))),
+        "balanced_accuracy": _nan_to_none(float(balanced_accuracy_score(y_true, y_pred))),
     }
     try:
         auc = float(roc_auc_score(y_true, y_score))
-        # Newer sklearn returns nan instead of raising ValueError
-        # when only one class is present in y_true
         m["roc_auc"] = None if np.isnan(auc) else auc
     except ValueError:
-        m["roc_auc"] = None  # single class in test fold
+        m["roc_auc"] = None
+    try:
+        ap = float(average_precision_score(y_true, y_score))
+        m["auprc"] = None if np.isnan(ap) else ap
+    except ValueError:
+        m["auprc"] = None
+    m["metric_status"] = "MEASURED"
     return m
 
 
@@ -336,9 +396,41 @@ def run_split(
             log.warning("Empty fold %s in split %s, skipping", fold_id, split_name)
             continue
 
-        # Check target variation in train
-        if len(np.unique(y_train)) < 2 and task == "classification":
-            log.warning("No target variation in train fold %s, skipping", fold_id)
+        # Eligibility gate: check both train and test class support
+        eligibility = classify_fold_eligibility(y_train, y_test, task)
+
+        if eligibility != "ELIGIBLE":
+            log.warning(
+                "Degenerate fold %s/%s: %s  "
+                "train_classes=%s test_classes=%s",
+                split_name, fold_id, eligibility,
+                np.unique(y_train).tolist(),
+                np.unique(y_test).tolist(),
+            )
+            # Emit abstention record -- every attempted fold produces a record
+            null_metrics = {
+                "accuracy": None, "f1": None, "roc_auc": None,
+                "precision": None, "recall": None,
+                "balanced_accuracy": None, "auprc": None,
+            } if task == "classification" else {
+                "rmse": None, "mae": None, "r2": None,
+            }
+            results.append(RunResult(
+                scenario=scenario,
+                target=target_col,
+                task=task,
+                solver=solver_name,
+                split=split_name,
+                fold=str(fold_id),
+                n_train=int(train_mask.sum()),
+                n_test=int(test_mask.sum()),
+                metrics=null_metrics,
+                naive_baseline={},
+                features_used=len(features),
+                timestamp=ts,
+                eligibility_status=eligibility,
+                class_support=_class_support(y_train, y_test),
+            ))
             continue
 
         y_pred, metrics = solver_fn(X_train, y_train, X_test, y_test, task)
@@ -357,6 +449,8 @@ def run_split(
             naive_baseline=naive,
             features_used=len(features),
             timestamp=ts,
+            eligibility_status="ELIGIBLE",
+            class_support=_class_support(y_train, y_test) if task == "classification" else None,
         ))
 
         # Save per-row predictions for spatial_blocked (kappa diagnostics)
@@ -540,11 +634,28 @@ def main() -> None:
     summary_rows = []
     for r in all_results:
         primary = "roc_auc" if r.task == "classification" else "rmse"
-        naive_primary = r.naive_baseline.get(primary)
         model_primary = r.metrics.get(primary)
 
+        if r.eligibility_status != "ELIGIBLE":
+            summary_rows.append({
+                "target": r.target,
+                "solver": r.solver,
+                "split": r.split,
+                "fold": r.fold,
+                "metric": primary,
+                "model_value": None,
+                "naive_value": None,
+                "skill_ratio": None,
+                "n_train": r.n_train,
+                "n_test": r.n_test,
+                "eligibility": r.eligibility_status,
+            })
+            continue
+
+        naive_primary = r.naive_baseline.get(primary)
+
         if r.task == "regression" and naive_primary and naive_primary > 0:
-            skill_ratio = model_primary / naive_primary
+            skill_ratio = model_primary / naive_primary if model_primary else None
         elif r.task == "classification" and naive_primary is not None:
             skill_ratio = model_primary  # AUC is absolute
         else:
@@ -561,11 +672,26 @@ def main() -> None:
             "skill_ratio": skill_ratio,
             "n_train": r.n_train,
             "n_test": r.n_test,
+            "eligibility": "ELIGIBLE",
         })
 
     if summary_rows:
         summary_df = pd.DataFrame(summary_rows)
         print(summary_df.to_string(index=False))
+
+    # --- Eligibility summary ---
+    eligibility_counts = {}
+    for r in all_results:
+        eligibility_counts[r.eligibility_status] = (
+            eligibility_counts.get(r.eligibility_status, 0) + 1
+        )
+    n_eligible = eligibility_counts.get("ELIGIBLE", 0)
+    n_abstained = len(all_results) - n_eligible
+
+    print(f"\n  Eligibility: {n_eligible} eligible, {n_abstained} abstained "
+          f"(of {len(all_results)} total)")
+    for status, count in sorted(eligibility_counts.items()):
+        print(f"    {status}: {count}")
 
     # --- Upload results ---
     output_prefix = args.output_prefix
@@ -582,6 +708,12 @@ def main() -> None:
         "features_missing": missing,
         "fold_metadata": fold_meta,
         "output_prefix": output_prefix,
+        "eligibility_summary": {
+            "total_attempted": len(all_results),
+            "eligible": n_eligible,
+            "abstained": n_abstained,
+            "breakdown": eligibility_counts,
+        },
         "runs": [asdict(r) for r in all_results],
     }
 
