@@ -44,10 +44,10 @@ CMR_URL = (
 
 def _get_bearer_token() -> str:
     from swarm_auth import get_credential
-    token = get_credential("NASA_EARTHDATA_TOKEN")
+    token = get_credential("EARTHDATA_TOKEN")
     if not token:
         raise RuntimeError(
-            "NASA_EARTHDATA_TOKEN not found. "
+            "EARTHDATA_TOKEN not found. "
             "Add it to ~/github/swarm-it-auth/keys/.env"
         )
     return token
