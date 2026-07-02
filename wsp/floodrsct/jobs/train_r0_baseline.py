@@ -158,8 +158,8 @@ def classify_fold_eligibility(
     """Classify whether a fold produces meaningful metrics.
 
     Returns one of:
-      ELIGIBLE                 -- both classes present in train and test
-      SKIP_NOT_CLASSIFICATION  -- regression task (always eligible)
+      ELIGIBLE                 -- regression (always), or classification
+                                  with both classes in train and test
       SKIP_TRAIN_SINGLE_CLASS  -- train fold has only one class
       SKIP_TEST_SINGLE_CLASS   -- test fold has only one class
     """
@@ -173,13 +173,24 @@ def classify_fold_eligibility(
 
 
 def _class_support(y_train: np.ndarray, y_test: np.ndarray) -> dict:
-    """Return class counts for audit trail."""
-    return {
-        "train_positive": int(np.sum(y_train == 1)),
-        "train_negative": int(np.sum(y_train == 0)),
-        "test_positive": int(np.sum(y_test == 1)),
-        "test_negative": int(np.sum(y_test == 0)),
+    """Return class counts for audit trail.
+
+    Uses generic value->count mapping (works for any label encoding),
+    plus positive/negative convenience fields for binary targets.
+    """
+    train_vals, train_counts = np.unique(y_train, return_counts=True)
+    test_vals, test_counts = np.unique(y_test, return_counts=True)
+    result = {
+        "train_counts": {str(k): int(v) for k, v in zip(train_vals, train_counts)},
+        "test_counts": {str(k): int(v) for k, v in zip(test_vals, test_counts)},
     }
+    # Convenience fields for binary targets
+    if set(train_vals).union(test_vals).issubset({0, 0.0, 1, 1.0}):
+        result["train_positive"] = int(np.sum(y_train == 1))
+        result["train_negative"] = int(np.sum(y_train == 0))
+        result["test_positive"] = int(np.sum(y_test == 1))
+        result["test_negative"] = int(np.sum(y_test == 0))
+    return result
 
 
 def _available_features(df: pd.DataFrame) -> list[str]:
@@ -392,8 +403,31 @@ def run_split(
         X_train, y_train = X_all[train_mask], y_all[train_mask]
         X_test, y_test = X_all[test_mask], y_all[test_mask]
 
-        if len(X_test) == 0 or len(X_train) == 0:
-            log.warning("Empty fold %s in split %s, skipping", fold_id, split_name)
+        if len(X_train) == 0 or len(X_test) == 0:
+            empty_status = "SKIP_EMPTY_TRAIN" if len(X_train) == 0 else "SKIP_EMPTY_TEST"
+            log.warning("Empty fold %s/%s: %s", split_name, fold_id, empty_status)
+            null_metrics = {
+                "accuracy": None, "f1": None, "roc_auc": None,
+                "precision": None, "recall": None,
+                "balanced_accuracy": None, "auprc": None,
+            } if task == "classification" else {
+                "rmse": None, "mae": None, "r2": None,
+            }
+            results.append(RunResult(
+                scenario=scenario,
+                target=target_col,
+                task=task,
+                solver=solver_name,
+                split=split_name,
+                fold=str(fold_id),
+                n_train=int(train_mask.sum()),
+                n_test=int(test_mask.sum()),
+                metrics=null_metrics,
+                naive_baseline={},
+                features_used=len(features),
+                timestamp=ts,
+                eligibility_status=empty_status,
+            ))
             continue
 
         # Eligibility gate: check both train and test class support
@@ -654,8 +688,8 @@ def main() -> None:
 
         naive_primary = r.naive_baseline.get(primary)
 
-        if r.task == "regression" and naive_primary and naive_primary > 0:
-            skill_ratio = model_primary / naive_primary if model_primary else None
+        if r.task == "regression" and model_primary is not None and naive_primary not in (None, 0):
+            skill_ratio = model_primary / naive_primary
         elif r.task == "classification" and naive_primary is not None:
             skill_ratio = model_primary  # AUC is absolute
         else:

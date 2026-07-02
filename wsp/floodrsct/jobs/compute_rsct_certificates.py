@@ -100,6 +100,11 @@ PRIMARY_METRIC = {
     "classification": "roc_auc",
 }
 
+# Minimum number of folds with measured (non-null) primary metric
+# required to produce a certificate. Below this, the cell is
+# ABSTAIN_INSUFFICIENT_FOLDS.
+MIN_VALID_FOLDS = 2
+
 R0_FEATURES = [
     "flood_pct_zone_a", "flood_pct_zone_x", "flood_pct_zone_x500",
     "elevation_m_msl", "slope_mean_pct", "twi_twi",
@@ -196,7 +201,7 @@ def _extract_fold_metrics(
     for r in runs:
         if (r["target"] == target and r["split"] == split
                 and r["solver"] == solver):
-            status = r.get("eligibility_status", "ELIGIBLE")
+            status = r.get("eligibility_status", "LEGACY_UNVERIFIED")
             if status != "ELIGIBLE":
                 abstained += 1
                 reasons[status] = reasons.get(status, 0) + 1
@@ -208,6 +213,7 @@ def _extract_fold_metrics(
 
     info = {
         "eligible_count": eligible,
+        "measured_count": len(vals),
         "abstained_count": abstained,
         "abstention_reasons": reasons,
     }
@@ -332,6 +338,25 @@ def build_certificate(
 
     spatial_metric = float(np.mean(spatial_folds)) if spatial_folds else None
     random_metric = float(np.mean(random_folds)) if random_folds else None
+
+    # Refuse cells with too few measured folds
+    if len(spatial_folds) < MIN_VALID_FOLDS:
+        log.warning(
+            "ABSTAIN %s/%s: only %d measured spatial folds (need >= %d)",
+            scenario, target, len(spatial_folds), MIN_VALID_FOLDS,
+        )
+        return {
+            "scenario": scenario,
+            "target": target,
+            "task_type": task_type,
+            "certificate_status": "ABSTAIN_INSUFFICIENT_FOLDS",
+            "measured_folds": len(spatial_folds),
+            "min_required": MIN_VALID_FOLDS,
+            "fold_eligibility": eligibility_info,
+            "R": None, "S_sup": None, "N": None,
+            "alpha": None, "omega": None, "tau": None, "sigma": None,
+            "kappa_compat": None, "gate_decision": None, "gear": None,
+        }
 
     # Geometry kappa from Phase 0.5
     geom_cell = geometry_index.get((scenario, target), {})
