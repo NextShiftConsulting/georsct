@@ -570,7 +570,7 @@ def launch_processing_job(
         "echo '--- Verifying key packages ---'\n"
         "python -c \"import georsct; print('georsct OK:', georsct.__file__)\" || echo 'FAIL: georsct not importable'\n"
         "cd /opt/ml/processing/input/code\n"
-        f"python -u {job_script} {args_str}\n"
+        f"python -u {Path(job_script).name} {args_str}\n"
     )
     _upload_bootstrap(code_prefix, bootstrap)
 

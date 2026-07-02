@@ -5,46 +5,24 @@ fetch_openfema_policies.py -- Pull NFIP policy counts for IPW penetration rates.
 Used by C2 (Inverse Probability Weighting): penetration_rate = claims / policies
 gives the propensity score for IPW correction of selection bias in NFIP claims.
 
-Pulls:
-  FimaNfipPolicies (v1)
-    - Active policy counts by ZIP + flood zone
-    - policyCount, crsClassCode, floodZone, propertyState
-    - Filtered to states in s035 scenarios
-
 Outputs:
   s3://swarm-floodrsct-data/raw/openfema/s040a/nfip_policies_{state}.parquet
-
-NOTE: New directory (s040a/) -- does NOT overwrite existing raw/openfema/ data.
 """
 
-import logging
-import sys
-import time
-from pathlib import Path
+import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-import boto3
-from swarm_auth import get_aws_credentials
 import pandas as pd
-import requests
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)],
-    force=True,
-)
-logging.getLogger("botocore.credentials").setLevel(logging.WARNING)
+from _openfema import S035_STATES, BUCKET, fetch_paginated, setup_logging
+from _s3_utils import get_s3, upload_parquet
+
+setup_logging()
+
+import logging
 log = logging.getLogger(__name__)
 
-BUCKET = "swarm-floodrsct-data"
-OPENFEMA_BASE = "https://www.fema.gov/api/open/v1"
-PAGE_SIZE = 10_000
-RETRY_DELAY = 10
-MAX_RETRIES = 3
-
-# States from s035 scenarios
-S035_STATES = ["TX", "LA", "NY", "FL", "CA"]
-
+POLICY_ENDPOINT = "FimaNfipPolicies"
 POLICY_SELECT_FIELDS = (
     "propertyState,reportedZipCode,floodZone,"
     "policyCount,crsClassCode,policyEffectiveDate,"
@@ -54,56 +32,19 @@ POLICY_SELECT_FIELDS = (
 )
 
 
-def get_json(url: str, params: dict) -> dict:
-    for attempt in range(1, MAX_RETRIES + 1):
-        try:
-            resp = requests.get(url, params=params, timeout=120)
-            resp.raise_for_status()
-            return resp.json()
-        except requests.RequestException as e:
-            log.warning("Attempt %d/%d failed: %s", attempt, MAX_RETRIES, e)
-            if attempt < MAX_RETRIES:
-                time.sleep(RETRY_DELAY)
-    raise RuntimeError(f"All retries exhausted for {url}")
-
-
 def fetch_policies(state: str) -> pd.DataFrame:
-    """Paginated pull of NFIP policies for a given state."""
-    url = f"{OPENFEMA_BASE}/FimaNfipPolicies"
-    filter_str = f"propertyState eq '{state}'"
-    offset = 0
-    all_records = []
-
-    while True:
-        params = {
-            "$filter": filter_str,
-            "$top": PAGE_SIZE,
-            "$skip": offset,
-            "$format": "json",
-            "$select": POLICY_SELECT_FIELDS,
-        }
-        data = get_json(url, params)
-        dataset_key = "FimaNfipPolicies"
-        records = data.get(dataset_key, [])
-        if not records:
-            break
-        all_records.extend(records)
-        log.info(
-            "%s policies: fetched %d so far (offset %d)",
-            state, len(all_records), offset,
-        )
-        if len(records) < PAGE_SIZE:
-            break
-        offset += PAGE_SIZE
-        time.sleep(0.5)
-
-    if not all_records:
+    """Pull NFIP policies for one state."""
+    records = fetch_paginated(
+        endpoint=POLICY_ENDPOINT,
+        filter_str=f"propertyState eq '{state}'",
+        select_fields=POLICY_SELECT_FIELDS,
+    )
+    if not records:
         log.warning("No NFIP policies for state %s", state)
         return pd.DataFrame()
 
-    df = pd.DataFrame(all_records)
+    df = pd.DataFrame(records)
 
-    # Rename ZIP to zcta_id for downstream join compatibility
     if "reportedZipCode" in df.columns:
         df = df.rename(columns={"reportedZipCode": "zcta_id"})
         df["zcta_id"] = df["zcta_id"].astype(str).str.zfill(5)
@@ -112,23 +53,32 @@ def fetch_policies(state: str) -> pd.DataFrame:
     return df
 
 
-def upload(df: pd.DataFrame, s3_key: str) -> None:
-    _aws = get_aws_credentials()
-    _aws.pop("region_name", None)
-    s3 = boto3.client("s3", region_name="us-east-1", **_aws)
-    local = f"/tmp/{Path(s3_key).name}"
-    df.to_parquet(local, index=False)
-    s3.upload_file(local, BUCKET, s3_key)
-    log.info("Uploaded %d rows to s3://%s/%s", len(df), BUCKET, s3_key)
+def _fetch_and_upload(state: str) -> str:
+    """Fetch NFIP policies for one state and upload to S3."""
+    log.info("Fetching NFIP policies for %s", state)
+    df = fetch_policies(state)
+    if not df.empty:
+        s3_key = f"raw/openfema/s040a/nfip_policies_{state}.parquet"
+        upload_parquet(get_s3(), df, BUCKET, s3_key)
+        return f"{state}: {len(df)} rows"
+    return f"{state}: empty"
 
 
 def main() -> None:
-    for state in S035_STATES:
-        log.info("Fetching NFIP policies for %s", state)
-        pol_df = fetch_policies(state)
-        if not pol_df.empty:
-            s3_key = f"raw/openfema/s040a/nfip_policies_{state}.parquet"
-            upload(pol_df, s3_key)
+    max_workers = max(2, os.cpu_count() or 2)
+    log.info("Launching with %d workers, cpu_count=%d", max_workers, os.cpu_count() or 0)
+
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = {
+            pool.submit(_fetch_and_upload, s): s
+            for s in S035_STATES
+        }
+        for future in as_completed(futures):
+            state = futures[future]
+            try:
+                log.info("Done: %s", future.result())
+            except Exception as exc:
+                log.error("%s failed: %s", state, exc)
 
     log.info("fetch_openfema_policies complete")
 

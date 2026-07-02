@@ -29,6 +29,8 @@ def main() -> None:
         job_script="s040a_bias_correction/fetch_openfema_policies.py",
         job_args=[],
         instance_type="ml.m5.large",
+        volume_size_gb=10,
+        phase_id="data_fetch_policies",
         dry_run=args.dry_run,
     )
 

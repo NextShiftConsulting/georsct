@@ -29,6 +29,8 @@ def main() -> None:
         job_script="s040a_bias_correction/build_c4_event_corrected.py",
         job_args=[],
         instance_type="ml.m5.large",
+        volume_size_gb=10,
+        phase_id="build_c4",
         dry_run=args.dry_run,
     )
 
