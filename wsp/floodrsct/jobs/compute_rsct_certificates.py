@@ -201,6 +201,24 @@ def _load_r0_results(s3, scenario: str) -> dict | None:
     return _load_json(s3, f"{RESULTS_PREFIX}/r0_{scenario}.json")
 
 
+def _extract_metric_value(metrics: dict, metric_name: str):
+    """Extract a metric value from either schema.
+
+    New schema (per-metric status): metrics[name] = {"status": ..., "value": ...}
+    Old schema (flat):              metrics[name] = float | None
+    """
+    raw = metrics.get(metric_name)
+    if raw is None:
+        return None
+    if isinstance(raw, dict):
+        # New per-metric status schema
+        if raw.get("status") not in ("MEASURED", "MEASURED_FALSE_ALARM_ONLY"):
+            return None
+        return raw.get("value")
+    # Old flat schema or regression
+    return raw
+
+
 def _extract_fold_metrics(
     results: dict, target: str, split: str, solver: str,
 ) -> tuple[list[float], dict]:
@@ -208,7 +226,9 @@ def _extract_fold_metrics(
 
     Returns (fold_values, eligibility_info) where eligibility_info contains:
       eligible_count, abstained_count, abstention_reasons.
-    Only ELIGIBLE folds with non-null metrics are included in fold_values.
+
+    Handles both old flat schema (metrics[name] = value) and new per-metric
+    status schema (metrics[name] = {status, value}).
     """
     runs = results.get("runs", [])
     task_type = None
@@ -236,7 +256,7 @@ def _extract_fold_metrics(
                 reasons[status] = reasons.get(status, 0) + 1
                 continue
             eligible += 1
-            v = r["metrics"].get(metric_name)
+            v = _extract_metric_value(r["metrics"], metric_name)
             if v is not None:
                 vals.append(float(v))
 

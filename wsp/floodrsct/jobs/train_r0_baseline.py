@@ -38,6 +38,12 @@ from _s3_result import upload_json_result
 from _validate_contract import check_causal_boundary
 from generate_folds import generate_folds
 
+# Metric eligibility gate (georsct.evaluation)
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+from georsct.evaluation.metric_eligibility import (
+    training_eligibility, score_fold, TrainingStatus,
+)
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
@@ -155,21 +161,20 @@ class RunResult:
 def classify_fold_eligibility(
     y_train: np.ndarray, y_test: np.ndarray, task: str,
 ) -> str:
-    """Classify whether a fold produces meaningful metrics.
+    """Classify whether a fold can be trained at all.
+
+    For classification: delegates to training_eligibility() from
+    georsct.evaluation.metric_eligibility (before-fit gate).
+    Test-side eligibility is now per-metric (after-fit gate via score_fold).
 
     Returns one of:
       ELIGIBLE                 -- regression (always), or classification
-                                  with both classes in train and test
+                                  with both classes in train
       SKIP_TRAIN_SINGLE_CLASS  -- train fold has only one class
-      SKIP_TEST_SINGLE_CLASS   -- test fold has only one class
     """
     if task != "classification":
         return "ELIGIBLE"
-    if len(np.unique(y_train)) < 2:
-        return "SKIP_TRAIN_SINGLE_CLASS"
-    if len(np.unique(y_test)) < 2:
-        return "SKIP_TEST_SINGLE_CLASS"
-    return "ELIGIBLE"
+    return training_eligibility(y_train).value
 
 
 def _class_support(y_train: np.ndarray, y_test: np.ndarray) -> dict:
@@ -217,7 +222,8 @@ def _check_target(df: pd.DataFrame, col: str, task: str) -> bool:
     return True
 
 
-def _train_histgbdt(X_train, y_train, X_test, y_test, task: str) -> tuple:
+def _train_histgbdt(X_train, y_train, X_test, y_test, task: str,
+                    train_status=None) -> tuple:
     """Train HistGradientBoosting and return (predictions, metrics).
 
     Parallelism: HistGBDT uses OpenMP internally; n_jobs requires sklearn>=1.4.
@@ -234,7 +240,7 @@ def _train_histgbdt(X_train, y_train, X_test, y_test, task: str) -> tuple:
         model.fit(X_train, y_train)
         y_pred_proba = model.predict_proba(X_test)[:, 1]
         y_pred = model.predict(X_test)
-        metrics = _classification_metrics(y_test, y_pred, y_pred_proba)
+        metrics = _classification_metrics(y_test, y_pred, y_pred_proba, train_status)
         return y_pred_proba, metrics
     else:
         model = HistGradientBoostingRegressor(
@@ -246,7 +252,8 @@ def _train_histgbdt(X_train, y_train, X_test, y_test, task: str) -> tuple:
         return y_pred, metrics
 
 
-def _train_ridge(X_train, y_train, X_test, y_test, task: str) -> tuple:
+def _train_ridge(X_train, y_train, X_test, y_test, task: str,
+                 train_status=None) -> tuple:
     """Train Ridge pipeline (impute + scale + model) and return (predictions, metrics)."""
     from sklearn.impute import SimpleImputer
     from sklearn.linear_model import Ridge, RidgeClassifier
@@ -263,7 +270,7 @@ def _train_ridge(X_train, y_train, X_test, y_test, task: str) -> tuple:
         y_pred = pipe.predict(X_test)
         # RidgeClassifier has decision_function, not predict_proba
         y_score = pipe.decision_function(X_test)
-        metrics = _classification_metrics(y_test, y_pred, y_score)
+        metrics = _classification_metrics(y_test, y_pred, y_score, train_status)
         return y_score, metrics
     else:
         pipe = Pipeline([
@@ -291,52 +298,31 @@ def _regression_metrics(y_true, y_pred) -> dict:
     }
 
 
-def _classification_metrics(y_true, y_pred, y_score) -> dict:
-    from sklearn.metrics import (
-        accuracy_score, roc_auc_score, f1_score,
-        precision_score, recall_score, balanced_accuracy_score,
-        average_precision_score,
-    )
+def _classification_metrics(y_true, y_pred, y_score, train_status=None) -> dict:
+    """Score a classification fold using per-metric eligibility gate.
 
-    # Defense-in-depth: refuse to score single-class test folds.
-    # The fold eligibility gate should catch this upstream, but if
-    # a degenerate fold reaches here, return null metrics -- never
-    # accuracy=1.0/f1=0.0 which looks like a valid measurement.
-    if len(np.unique(y_true)) < 2:
-        return {
-            "accuracy": None, "f1": None, "roc_auc": None,
-            "precision": None, "recall": None,
-            "balanced_accuracy": None, "auprc": None,
-            "metric_status": "REFUSED_SINGLE_CLASS",
-        }
+    Returns {metric_name: {status, value}} via score_fold from
+    georsct.evaluation.metric_eligibility. Each metric carries its own
+    eligibility status (MEASURED, SKIP_EMPTY_UNION, etc.).
 
-    m = {
-        "accuracy": _nan_to_none(float(accuracy_score(y_true, y_pred))),
-        "f1": _nan_to_none(float(f1_score(y_true, y_pred, zero_division=0))),
-        "precision": _nan_to_none(float(precision_score(y_true, y_pred, zero_division=0))),
-        "recall": _nan_to_none(float(recall_score(y_true, y_pred, zero_division=0))),
-        "balanced_accuracy": _nan_to_none(float(balanced_accuracy_score(y_true, y_pred))),
-    }
-    try:
-        auc = float(roc_auc_score(y_true, y_score))
-        m["roc_auc"] = None if np.isnan(auc) else auc
-    except ValueError:
-        m["roc_auc"] = None
-    try:
-        ap = float(average_precision_score(y_true, y_score))
-        m["auprc"] = None if np.isnan(ap) else ap
-    except ValueError:
-        m["auprc"] = None
-    m["metric_status"] = "MEASURED"
-    return m
+    train_status is the upstream training_eligibility() verdict, carried
+    through unchanged.
+    """
+    ts = train_status or TrainingStatus.ELIGIBLE
+    _, metrics = score_fold(y_pred, y_true, y_score, fold_training_status=ts)
+    return metrics
 
 
-def _naive_baseline(y_train, y_test, task: str) -> dict:
+def _naive_baseline(y_train, y_test, task: str, train_status=None) -> dict:
     """Compute naive baseline: mean predictor (regression) or majority class (classification)."""
     if task == "classification":
         majority = int(np.round(y_train.mean()))
         y_naive = np.full_like(y_test, majority)
-        return _classification_metrics(y_test, y_naive, np.full_like(y_test, y_train.mean(), dtype=float))
+        return _classification_metrics(
+            y_test, y_naive,
+            np.full_like(y_test, y_train.mean(), dtype=float),
+            train_status,
+        )
     else:
         mean_pred = np.full_like(y_test, y_train.mean(), dtype=float)
         return _regression_metrics(y_test, mean_pred)
@@ -407,13 +393,14 @@ def run_split(
         if len(X_train) == 0 or len(X_test) == 0:
             empty_status = "SKIP_EMPTY_TRAIN" if len(X_train) == 0 else "SKIP_EMPTY_TEST"
             log.warning("Empty fold %s/%s: %s", split_name, fold_id, empty_status)
-            null_metrics = {
-                "accuracy": None, "f1": None, "roc_auc": None,
-                "precision": None, "recall": None,
-                "balanced_accuracy": None, "auprc": None,
-            } if task == "classification" else {
-                "rmse": None, "mae": None, "r2": None,
-            }
+            if task == "classification":
+                null_metrics = {
+                    name: {"status": empty_status, "value": None}
+                    for name in ["accuracy", "recall", "f1", "jaccard", "dice",
+                                 "mcc", "balanced_accuracy", "roc_auc", "auc_pr"]
+                }
+            else:
+                null_metrics = {"rmse": None, "mae": None, "r2": None}
             results.append(RunResult(
                 scenario=scenario,
                 target=target_col,
@@ -431,25 +418,26 @@ def run_split(
             ))
             continue
 
-        # Eligibility gate: check both train and test class support
+        # Before-fit gate: can the solver learn on this fold?
+        # Test-side eligibility is now per-metric (handled by score_fold after fit).
         eligibility = classify_fold_eligibility(y_train, y_test, task)
 
         if eligibility != "ELIGIBLE":
             log.warning(
                 "Degenerate fold %s/%s: %s  "
-                "train_classes=%s test_classes=%s",
+                "train_classes=%s",
                 split_name, fold_id, eligibility,
                 np.unique(y_train).tolist(),
-                np.unique(y_test).tolist(),
             )
-            # Emit abstention record -- every attempted fold produces a record
-            null_metrics = {
-                "accuracy": None, "f1": None, "roc_auc": None,
-                "precision": None, "recall": None,
-                "balanced_accuracy": None, "auprc": None,
-            } if task == "classification" else {
-                "rmse": None, "mae": None, "r2": None,
-            }
+            # Abstention: can't train, so all metrics are null
+            if task == "classification":
+                null_metrics = {
+                    name: {"status": eligibility, "value": None}
+                    for name in ["accuracy", "recall", "f1", "jaccard", "dice",
+                                 "mcc", "balanced_accuracy", "roc_auc", "auc_pr"]
+                }
+            else:
+                null_metrics = {"rmse": None, "mae": None, "r2": None}
             results.append(RunResult(
                 scenario=scenario,
                 target=target_col,
@@ -468,8 +456,12 @@ def run_split(
             ))
             continue
 
-        y_pred, metrics = solver_fn(X_train, y_train, X_test, y_test, task)
-        naive = _naive_baseline(y_train, y_test, task)
+        # Train + after-fit gate: per-metric eligibility via score_fold
+        train_status = TrainingStatus(eligibility)
+        y_pred, metrics = solver_fn(
+            X_train, y_train, X_test, y_test, task, train_status,
+        )
+        naive = _naive_baseline(y_train, y_test, task, train_status)
 
         results.append(RunResult(
             scenario=scenario,

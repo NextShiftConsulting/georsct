@@ -1,36 +1,40 @@
 #!/usr/bin/env python3
 """
-metric_eligibility.py  (GeoRSCT)
+metric_eligibility.py  (GeoRSCT / georsct.evaluation)
 
-Corrected metric-specific eligibility gate.
+Metric-specific eligibility gate. Answers ONE question: which metrics can this
+fold report HONESTLY? Metric *selection* policy (which metric is primary) is a
+certificate-level decision and deliberately does NOT live here.
 
-Adopts the RIGHT part of the review (eligibility is per-metric; split training
-status from metric status; never let empty-union score 1.0) and fixes the WRONG
-part (that Jaccard changes usability relative to F1 -- it does not).
+Two eligibility FAMILIES -- the real "changes what is usable" axis (NOT F1 vs
+Jaccard, which are monotone: J = F1/(2-F1)):
 
-Two eligibility FAMILIES, which is the real "changes what is usable" axis:
+  OVERLAP family    (f1, jaccard, dice, recall): eligible iff union TP+FP+FN>0.
+  RANKING/TN family (roc_auc, auc_pr, mcc, balanced_accuracy): eligible iff BOTH
+                    classes present in test truth; MCC also needs prediction
+                    variance. Stricter -> drops more folds.
 
-  OVERLAP family   (F1, Jaccard/IoU, Dice, recall) :
-      eligible iff union TP+FP+FN > 0.  Identical across the family.
-      Jaccard == monotone(F1); swapping them never changes a ranking.
+Gate composition (single decision authority per axis, cf. ADR-062):
+  BEFORE fit :  training_eligibility(y_train)  -> can the solver learn at all?
+                Call this ONCE upstream (train_r0_baseline). Its verdict is
+                carried through, never recomputed downstream.
+  AFTER fit  :  classify_fold(y_pred, y_true, ...) -> which metrics are reportable?
+                Needs y_pred to separate false-alarm (Case 3) from empty-union
+                (Case 4). Does NOT re-decide training eligibility.
 
-  RANKING/TN family (ROC-AUC, AUC-PR, MCC, balanced acc, specificity) :
-      eligible iff BOTH classes present in test truth (MCC also needs
-      prediction variance). STRICTER -> drops more folds.
-
-So the metric that would actually change your picture is NOT Jaccard-vs-F1.
-It is overlap-family vs ranking-family. The ranking family asks a different
-(often better for rare events, e.g. AUC-PR) question but costs you folds in
-New Orleans / Riverside -- the opposite of rescuing them.
-
-Reason codes are a typed Enum (per your ADR-025 / ADR-034 discipline), not
-free-text strings.
+Reason codes are a typed Enum (ADR-025 / ADR-034), not free-text.
+Dependency surface: numpy + scipy. (pandas only under __main__.)
 """
 from __future__ import annotations
 import numpy as np
-import pandas as pd
 from enum import Enum
 from scipy.stats import rankdata
+
+__all__ = [
+    "TrainingStatus", "MetricStatus",
+    "training_eligibility", "classify_fold", "score_fold",
+    "all_metrics", "confusion", "roc_auc", "auc_pr",
+]
 
 
 class TrainingStatus(str, Enum):
@@ -39,18 +43,20 @@ class TrainingStatus(str, Enum):
 
 
 class MetricStatus(str, Enum):
-    MEASURED = "MEASURED"
-    NOT_PRIMARY = "NOT_PRIMARY"                       # accuracy: defined but TN-inflated
+    MEASURED = "MEASURED"                            # computable and honest
     SKIP_TEST_SINGLE_CLASS = "SKIP_TEST_SINGLE_CLASS"  # ranking/TN family
     SKIP_NO_PREDICTION_VARIANCE = "SKIP_NO_PREDICTION_VARIANCE"  # MCC extra requirement
-    SKIP_EMPTY_UNION = "SKIP_EMPTY_UNION"             # overlap family, Case 4
-    MEASURED_FALSE_ALARM_ONLY = "MEASURED_FALSE_ALARM_ONLY"  # Case 3: truth all-neg, pred+
+    SKIP_EMPTY_UNION = "SKIP_EMPTY_UNION"            # overlap family, no truth & no pred
+    MEASURED_FALSE_ALARM_ONLY = "MEASURED_FALSE_ALARM_ONLY"  # truth all-neg, model fires
+
+
+_MEASURED = (MetricStatus.MEASURED, MetricStatus.MEASURED_FALSE_ALARM_ONLY)
 
 
 # --------------------------------------------------------------------------- #
 # Metric values (NaN on degeneracy).                                          #
 # --------------------------------------------------------------------------- #
-def _confusion(y_true, y_pred):
+def confusion(y_true, y_pred):
     y_true = np.asarray(y_true).astype(int)
     y_pred = np.asarray(y_pred).astype(int)
     tp = int(np.sum((y_true == 1) & (y_pred == 1)))
@@ -61,32 +67,32 @@ def _confusion(y_true, y_pred):
 
 
 def roc_auc(y_true, y_score):
-    y_true = np.asarray(y_true)
+    y_true = np.asarray(y_true).astype(int)
     n_pos, n_neg = int(y_true.sum()), int((1 - y_true).sum())
     if n_pos == 0 or n_neg == 0:
         return np.nan
     r = rankdata(y_score)
-    return (r[y_true == 1].sum() - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg)
+    return float((r[y_true == 1].sum() - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg))
 
 
 def auc_pr(y_true, y_score):
-    y_true = np.asarray(y_true)
+    y_true = np.asarray(y_true).astype(int)
     n_pos = int(y_true.sum())
     if n_pos == 0:
         return np.nan
-    order = np.argsort(-np.asarray(y_score))
+    order = np.argsort(-np.asarray(y_score, float))
     yt = y_true[order]
     tp = np.cumsum(yt); fp = np.cumsum(1 - yt)
     precision = tp / np.maximum(tp + fp, 1)
     recall = tp / n_pos
     recall = np.concatenate([[0.0], recall])
     precision = np.concatenate([[1.0], precision])
-    trap = getattr(np, "trapezoid", getattr(np, "trapz", None))
+    trap = getattr(np, "trapezoid", None) or getattr(np, "trapz", None)
     return float(trap(precision, recall))
 
 
 def all_metrics(y_true, y_pred, y_score=None):
-    tp, fp, tn, fn = _confusion(y_true, y_pred)
+    tp, fp, tn, fn = confusion(y_true, y_pred)
     f1_den = 2 * tp + fp + fn
     jac_den = tp + fp + fn
     mcc_den = np.sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn))
@@ -96,111 +102,99 @@ def all_metrics(y_true, y_pred, y_score=None):
         accuracy=(tp + tn) / max(tp + fp + tn + fn, 1),
         recall=rec,
         f1=(2 * tp / f1_den) if f1_den else np.nan,
-        jaccard=(tp / jac_den) if jac_den else np.nan,
-        dice=(2 * tp / f1_den) if f1_den else np.nan,          # == F1
+        jaccard=(tp / jac_den) if jac_den else np.nan,   # == f1/(2-f1); IoU
+        dice=(2 * tp / f1_den) if f1_den else np.nan,     # == f1
         mcc=((tp * tn - fp * fn) / mcc_den) if mcc_den else np.nan,
-        balanced_accuracy=np.nanmean([rec, tnr]),
+        balanced_accuracy=float(np.nanmean([rec, tnr])),
         roc_auc=roc_auc(y_true, y_score) if y_score is not None else np.nan,
         auc_pr=auc_pr(y_true, y_score) if y_score is not None else np.nan,
     )
 
 
 # --------------------------------------------------------------------------- #
-# The gate: fold_training_status + per-metric eligibility with typed codes.    #
+# BEFORE-fit gate: single source of truth. Decided once, never recomputed.     #
 # --------------------------------------------------------------------------- #
-def classify_fold(y_train, y_pred, y_true, y_score=None):
+def training_eligibility(y_train) -> TrainingStatus:
+    """Can the solver learn a classifier on this fold? Call ONCE upstream."""
     y_train = np.asarray(y_train).astype(int)
+    return (TrainingStatus.ELIGIBLE if len(np.unique(y_train)) == 2
+            else TrainingStatus.SKIP_TRAIN_SINGLE_CLASS)
+
+
+# --------------------------------------------------------------------------- #
+# AFTER-fit gate: which metrics are reportable? (Does not touch training.)     #
+# --------------------------------------------------------------------------- #
+def classify_fold(y_pred, y_true, y_score=None) -> dict:
+    """Per-metric eligibility for a fitted fold. Returns {metric: MetricStatus}."""
     y_true = np.asarray(y_true).astype(int)
     y_pred = np.asarray(y_pred).astype(int)
 
-    train_status = (TrainingStatus.ELIGIBLE
-                    if len(np.unique(y_train)) == 2
-                    else TrainingStatus.SKIP_TRAIN_SINGLE_CLASS)
-
-    tp, fp, tn, fn = _confusion(y_true, y_pred)
+    tp, fp, tn, fn = confusion(y_true, y_pred)
     truth_both = (tp + fn > 0) and (tn + fp > 0)
     pred_both = (tp + fp > 0) and (tn + fn > 0)
     union = tp + fp + fn
     truth_has_pos = (tp + fn) > 0
 
-    def overlap_status():
+    def overlap():
         if union == 0:
-            return MetricStatus.SKIP_EMPTY_UNION            # Case 4
+            return MetricStatus.SKIP_EMPTY_UNION
         if not truth_has_pos:
-            return MetricStatus.MEASURED_FALSE_ALARM_ONLY   # Case 3: score is 0, but flag it
+            return MetricStatus.MEASURED_FALSE_ALARM_ONLY
         return MetricStatus.MEASURED
 
-    ranking_status = (MetricStatus.MEASURED if truth_both
-                      else MetricStatus.SKIP_TEST_SINGLE_CLASS)
+    ranking = MetricStatus.MEASURED if truth_both else MetricStatus.SKIP_TEST_SINGLE_CLASS
+    mcc = (MetricStatus.MEASURED if (truth_both and pred_both)
+           else (MetricStatus.SKIP_TEST_SINGLE_CLASS if not truth_both
+                 else MetricStatus.SKIP_NO_PREDICTION_VARIANCE))
+    has_score = y_score is not None
 
-    mcc_status = (MetricStatus.MEASURED if (truth_both and pred_both)
-                  else (MetricStatus.SKIP_TEST_SINGLE_CLASS if not truth_both
-                        else MetricStatus.SKIP_NO_PREDICTION_VARIANCE))
-
-    elig = {
-        "accuracy": MetricStatus.NOT_PRIMARY,
-        "f1": overlap_status(),
-        "jaccard": overlap_status(),      # identical to f1 by construction
-        "dice": overlap_status(),
-        "recall": overlap_status(),
-        "mcc": mcc_status,
-        "balanced_accuracy": ranking_status,
-        "roc_auc": ranking_status if y_score is not None else MetricStatus.SKIP_TEST_SINGLE_CLASS,
-        "auc_pr": (MetricStatus.MEASURED if truth_has_pos and y_score is not None
+    return {
+        # accuracy is always computable; whether it is PRIMARY is a certificate
+        # policy decision, not an eligibility gate -> MEASURED here.
+        "accuracy": MetricStatus.MEASURED,
+        "f1": overlap(),
+        "jaccard": overlap(),
+        "dice": overlap(),
+        "recall": overlap(),
+        "mcc": mcc,
+        "balanced_accuracy": ranking,
+        "roc_auc": ranking if has_score else MetricStatus.SKIP_TEST_SINGLE_CLASS,
+        "auc_pr": (MetricStatus.MEASURED if (truth_has_pos and has_score)
                    else MetricStatus.SKIP_TEST_SINGLE_CLASS),
     }
-    return train_status, elig
 
 
-def score_fold(y_train, y_pred, y_true, y_score=None):
-    """Return only the metrics this fold is eligible to report, with statuses."""
-    train_status, elig = classify_fold(y_train, y_pred, y_true, y_score)
+def score_fold(y_pred, y_true, y_score=None, fold_training_status=None, ndigits=4):
+    """Report eligible metrics with per-metric status.
+
+    `fold_training_status` is the upstream training_eligibility() verdict, carried
+    through unchanged (single decision authority). It is NOT recomputed here.
+    Returns (fold_training_status_value_or_None, {metric: {status, value}}).
+    """
+    elig = classify_fold(y_pred, y_true, y_score)
     vals = all_metrics(y_true, y_pred, y_score)
     out = {}
     for name, status in elig.items():
-        measured = status in (MetricStatus.MEASURED,
-                              MetricStatus.MEASURED_FALSE_ALARM_ONLY,
-                              MetricStatus.NOT_PRIMARY)
+        v = vals[name]
+        measured = status in _MEASURED and v == v      # v==v filters NaN
         out[name] = dict(status=status.value,
-                         value=(round(float(vals[name]), 4)
-                                if measured and vals[name] == vals[name] else None))
-    return train_status.value, out
+                         value=round(float(v), ndigits) if measured else None)
+    ts = getattr(fold_training_status, "value", fold_training_status)
+    return ts, out
 
 
 # --------------------------------------------------------------------------- #
-# Demonstration + equivalence checks.                                         #
+# Demo (pandas only here).                                                     #
 # --------------------------------------------------------------------------- #
-def _fold(y_true, y_pred, y_score, y_train=(0, 1)):
-    return dict(y_train=np.array(y_train), y_true=np.array(y_true),
-                y_pred=np.array(y_pred), y_score=np.array(y_score, float))
-
-
 if __name__ == "__main__":
+    import pandas as pd
     pd.set_option("display.width", 140)
-    rng = np.random.default_rng(0)
 
-    # ---- equivalence: F1 and Jaccard get IDENTICAL statuses over random folds
-    same_status = True
-    mono_ok = True
-    for _ in range(3000):
-        n = rng.integers(20, 200)
-        p = rng.uniform(0.0, 0.4)
-        yt = (rng.random(n) < p).astype(int)
-        ys = np.clip(0.15 * yt + rng.normal(0.3, 0.25, n), 0, 1)
-        yp = (ys > rng.uniform(0.3, 0.7)).astype(int)
-        _, e = classify_fold([0, 1], yp, yt, ys)
-        if e["f1"] != e["jaccard"]:
-            same_status = False
-        m = all_metrics(yt, yp, ys)
-        if m["f1"] == m["f1"] and m["jaccard"] == m["jaccard"]:
-            if abs(m["jaccard"] - m["f1"] / (2 - m["f1"])) > 1e-9:
-                mono_ok = False
-    print("EQUIVALENCE CHECK (3000 random folds)")
-    print(f"  F1 and Jaccard identical eligibility status : {same_status}")
-    print(f"  Jaccard == F1/(2-F1) wherever both defined   : {mono_ok}")
-    print("  => within the overlap family, metric choice cannot change a ranking.\n")
+    def _fold(y_true, y_pred, y_score):
+        return dict(y_pred=np.array(y_pred), y_true=np.array(y_true),
+                    y_score=np.array(y_score, float),
+                    fold_training_status=training_eligibility([0, 1]))
 
-    # ---- the four canonical folds, run through the gate
     folds = {
         "healthy (both classes, good model)": _fold(
             [0,0,0,1,1,0,1,0,0,1], [0,0,1,1,1,0,1,0,0,0],
@@ -216,6 +210,6 @@ if __name__ == "__main__":
         ts, out = score_fold(**f)
         print("=" * 92)
         print(f"{name}   [training={ts}]")
-        row = {k: (f"{v['value']}" if v["value"] is not None else v["status"])
+        row = {k: (v["value"] if v["value"] is not None else v["status"])
                for k, v in out.items()}
         print(pd.Series(row).to_string())

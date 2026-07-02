@@ -15,6 +15,8 @@ import numpy as np
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent))
+# Add georsct package root for metric_eligibility import
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from train_r0_baseline import (
     classify_fold_eligibility,
     _class_support,
@@ -45,10 +47,12 @@ class TestClassifyFoldEligibility:
         y_test = np.array([0, 1])
         assert classify_fold_eligibility(y_train, y_test, "classification") == "SKIP_TRAIN_SINGLE_CLASS"
 
-    def test_test_single_class(self):
+    def test_test_single_class_now_eligible(self):
+        """Test-side single-class is now per-metric (after-fit gate), not a fold-level skip."""
         y_train = np.array([0, 0, 1, 1])
         y_test = np.array([0, 0, 0])
-        assert classify_fold_eligibility(y_train, y_test, "classification") == "SKIP_TEST_SINGLE_CLASS"
+        # Training gate passes -- test-side is handled per-metric by score_fold
+        assert classify_fold_eligibility(y_train, y_test, "classification") == "ELIGIBLE"
 
     def test_both_single_class_reports_train_first(self):
         """When both are single-class, train-side is caught first."""
@@ -56,30 +60,35 @@ class TestClassifyFoldEligibility:
         y_test = np.array([1, 1, 1])
         assert classify_fold_eligibility(y_train, y_test, "classification") == "SKIP_TRAIN_SINGLE_CLASS"
 
-    def test_single_element_test_fold(self):
+    def test_single_element_test_fold_now_eligible(self):
+        """Single-element test fold with valid training is ELIGIBLE (per-metric gate handles it)."""
         y_train = np.array([0, 0, 1, 1])
         y_test = np.array([0])
-        assert classify_fold_eligibility(y_train, y_test, "classification") == "SKIP_TEST_SINGLE_CLASS"
+        assert classify_fold_eligibility(y_train, y_test, "classification") == "ELIGIBLE"
 
 
 # ---------------------------------------------------------------------------
 # _classification_metrics defense-in-depth
 # ---------------------------------------------------------------------------
 
-class TestClassificationMetricsRefusal:
+class TestClassificationMetricsPerMetric:
+    """Tests for per-metric {status, value} schema from score_fold."""
 
-    def test_refuses_single_class_y_true(self):
+    def test_single_class_truth_gets_per_metric_status(self):
+        """All-negative truth: overlap SKIP_EMPTY_UNION, ranking SKIP_TEST_SINGLE_CLASS."""
         y_true = np.array([0, 0, 0, 0])
         y_pred = np.array([0, 0, 0, 0])
         y_score = np.array([0.1, 0.2, 0.3, 0.1])
         m = _classification_metrics(y_true, y_pred, y_score)
 
-        assert m["metric_status"] == "REFUSED_SINGLE_CLASS"
-        assert m["accuracy"] is None
-        assert m["f1"] is None
-        assert m["roc_auc"] is None
-        assert m["precision"] is None
-        assert m["recall"] is None
+        # Per-metric status -- no blanket REFUSED
+        assert m["f1"]["status"] == "SKIP_EMPTY_UNION"
+        assert m["f1"]["value"] is None
+        assert m["roc_auc"]["status"] == "SKIP_TEST_SINGLE_CLASS"
+        assert m["roc_auc"]["value"] is None
+        # Accuracy is always measurable
+        assert m["accuracy"]["status"] == "MEASURED"
+        assert m["accuracy"]["value"] == 1.0
 
     def test_no_accuracy_1_f1_0_on_degenerate(self):
         """The specific pattern that triggered this fix must never appear."""
@@ -88,8 +97,9 @@ class TestClassificationMetricsRefusal:
         y_score = np.array([0.1, 0.2, 0.1, 0.15, 0.05])
         m = _classification_metrics(y_true, y_pred, y_score)
 
-        # Must NOT produce the misleading pattern
-        assert not (m.get("accuracy") == 1.0 and m.get("f1") == 0.0)
+        # f1 is never reported as 0.0 for empty union -- it's null
+        assert m["f1"]["value"] is None
+        # accuracy is reported but f1 is not, so misleading pattern is impossible
 
     def test_valid_binary_produces_measured(self):
         y_true = np.array([0, 0, 1, 1, 0, 1])
@@ -97,11 +107,16 @@ class TestClassificationMetricsRefusal:
         y_score = np.array([0.1, 0.2, 0.8, 0.4, 0.3, 0.9])
         m = _classification_metrics(y_true, y_pred, y_score)
 
-        assert m["metric_status"] == "MEASURED"
-        assert m["accuracy"] is not None
-        assert m["f1"] is not None
-        assert m["roc_auc"] is not None
-        assert m["balanced_accuracy"] is not None
+        assert m["accuracy"]["status"] == "MEASURED"
+        assert m["accuracy"]["value"] is not None
+        assert m["f1"]["status"] == "MEASURED"
+        assert m["f1"]["value"] is not None
+        assert m["roc_auc"]["status"] == "MEASURED"
+        assert m["roc_auc"]["value"] is not None
+        assert m["balanced_accuracy"]["status"] == "MEASURED"
+        # New metrics present
+        assert m["jaccard"]["status"] == "MEASURED"
+        assert m["mcc"]["status"] == "MEASURED"
 
 
 # ---------------------------------------------------------------------------
@@ -172,11 +187,15 @@ class TestRunResultSerialization:
             fold="beryl2024",
             n_train=300,
             n_test=50,
-            metrics={"accuracy": None, "f1": None, "roc_auc": None},
+            metrics={
+                name: {"status": "SKIP_TRAIN_SINGLE_CLASS", "value": None}
+                for name in ["accuracy", "recall", "f1", "jaccard", "dice",
+                             "mcc", "balanced_accuracy", "roc_auc", "auc_pr"]
+            },
             naive_baseline={},
             features_used=33,
             timestamp="2026-07-01T00:00:00Z",
-            eligibility_status="SKIP_TEST_SINGLE_CLASS",
+            eligibility_status="SKIP_TRAIN_SINGLE_CLASS",
             class_support={
                 "train_counts": {"0.0": 280, "1.0": 20},
                 "test_counts": {"0.0": 50},
@@ -191,9 +210,9 @@ class TestRunResultSerialization:
         s = json.dumps(d, default=str)
         parsed = json.loads(s)
 
-        assert parsed["eligibility_status"] == "SKIP_TEST_SINGLE_CLASS"
-        assert parsed["metrics"]["accuracy"] is None
-        assert parsed["metrics"]["f1"] is None
+        assert parsed["eligibility_status"] == "SKIP_TRAIN_SINGLE_CLASS"
+        assert parsed["metrics"]["accuracy"]["value"] is None
+        assert parsed["metrics"]["f1"]["value"] is None
         assert parsed["class_support"]["test_positive"] == 0
 
 
