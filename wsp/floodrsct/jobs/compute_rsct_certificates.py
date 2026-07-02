@@ -105,6 +105,35 @@ PRIMARY_METRIC = {
 # ABSTAIN_INSUFFICIENT_FOLDS.
 MIN_VALID_FOLDS = 2
 
+# Evaluation support thresholds.
+# These classify how trustworthy a cell's certificate is based on
+# how many folds were eligible vs abstained.
+EVAL_ELIGIBLE_PASS = 10        # eligible folds >= this = PASS
+EVAL_ELIGIBLE_WARN = 5         # eligible folds >= this = WARN_LOW_SUPPORT
+EVAL_ABSTENTION_WARN = 0.50    # abstention rate > this = WARN even if count ok
+
+
+def classify_evaluation_status(
+    eligible: int, abstained: int,
+) -> str:
+    """Classify cell-level evaluation support strength.
+
+    Returns:
+      PASS              -- enough eligible folds, low abstention
+      WARN_LOW_SUPPORT  -- enough to run but fragile
+      FAIL_EVAL_SUPPORT -- too few eligible folds for meaningful certificate
+    """
+    total = eligible + abstained
+    if total == 0:
+        return "FAIL_EVAL_SUPPORT"
+    abstention_rate = abstained / total
+
+    if eligible >= EVAL_ELIGIBLE_PASS and abstention_rate <= EVAL_ABSTENTION_WARN:
+        return "PASS"
+    if eligible >= EVAL_ELIGIBLE_WARN:
+        return "WARN_LOW_SUPPORT"
+    return "FAIL_EVAL_SUPPORT"
+
 R0_FEATURES = [
     "flood_pct_zone_a", "flood_pct_zone_x", "flood_pct_zone_x500",
     "elevation_m_msl", "slope_mean_pct", "twi_twi",
@@ -418,11 +447,44 @@ def build_certificate(
         except Exception as e:
             log.warning("Gatekeeper failed for %s/%s: %s", scenario, target, e)
 
+    # Classify evaluation support strength from R0 eligibility
+    if eligibility_info and "spatial" in eligibility_info:
+        sp = eligibility_info["spatial"]
+        eval_eligible = sp.get("eligible_count", 0)
+        eval_abstained = sp.get("abstained_count", 0)
+    else:
+        # Fallback CV or missing eligibility -- count measured folds
+        eval_eligible = len(spatial_folds)
+        eval_abstained = 0
+    eval_total = eval_eligible + eval_abstained
+    evaluation_status = classify_evaluation_status(eval_eligible, eval_abstained)
+
+    if evaluation_status != "PASS":
+        log.warning(
+            "%s/%s evaluation_status=%s (eligible=%d, abstained=%d, rate=%.0f%%)",
+            scenario, target, evaluation_status,
+            eval_eligible, eval_abstained,
+            (eval_abstained / eval_total * 100) if eval_total else 0,
+        )
+
     result = cert.to_dict()
     result.update({
         "scenario": scenario,
         "target": target,
         "task_type": task_type,
+        "certificate_status": "MEASURED",
+        "evaluation_status": evaluation_status,
+        "evaluation_support": {
+            "attempted_folds": eval_total,
+            "eligible_folds": eval_eligible,
+            "abstained_folds": eval_abstained,
+            "measured_folds": len(spatial_folds),
+            "abstention_rate": round(eval_abstained / eval_total, 3) if eval_total else None,
+            "abstention_reasons": (
+                eligibility_info.get("spatial", {}).get("abstention_reasons", {})
+                if eligibility_info else {}
+            ),
+        },
         "sigma_inflated": sigma,
         "sigma_inflation": sigma_inflation,
         "gate_decision": gate_decision,
@@ -513,18 +575,27 @@ def run_certificate(s3, upload: bool) -> None:
                 r0, geometry_index,
             )
             scenario_certs.append(cert)
-            log.info(
-                "CERT %s/%s: R=%.3f alpha=%.3f omega=%.3f "
-                "kappa_compat=%.3f tau=%.3f gate=%s",
-                scenario, target,
-                cert["R"], cert["alpha"], cert["omega"],
-                cert.get("kappa_compat", 0), cert.get("tau", 0),
-                cert.get("gate_decision", "N/A"),
-            )
+            # Skip log for abstained cells (no R/S/N)
+            if cert.get("certificate_status") == "ABSTAIN_INSUFFICIENT_FOLDS":
+                log.info(
+                    "CERT %s/%s: ABSTAIN (insufficient folds)",
+                    scenario, target,
+                )
+            else:
+                log.info(
+                    "CERT %s/%s: R=%.3f alpha=%.3f omega=%.3f "
+                    "kappa_compat=%.3f tau=%.3f gate=%s eval=%s",
+                    scenario, target,
+                    cert["R"], cert["alpha"], cert["omega"],
+                    cert.get("kappa_compat", 0), cert.get("tau", 0),
+                    cert.get("gate_decision", "N/A"),
+                    cert.get("evaluation_status", "N/A"),
+                )
         all_certs[scenario] = scenario_certs
 
     # Flatten for summary stats
     flat = [c for certs in all_certs.values() for c in certs]
+    measured = [c for c in flat if c.get("certificate_status") != "ABSTAIN_INSUFFICIENT_FOLDS"]
 
     payload = {
         "mode": "certificate",
@@ -534,9 +605,15 @@ def run_certificate(s3, upload: bool) -> None:
         "scenarios": all_certs,
         "summary": {
             "total_cells": len(flat),
+            "measured_cells": len(measured),
+            "abstained_cells": len(flat) - len(measured),
             "gate_decisions": {
-                d: sum(1 for c in flat if c.get("gate_decision") == d)
-                for d in set(c.get("gate_decision") for c in flat)
+                d: sum(1 for c in measured if c.get("gate_decision") == d)
+                for d in set(c.get("gate_decision") for c in measured)
+            },
+            "evaluation_status": {
+                s: sum(1 for c in flat if c.get("evaluation_status") == s)
+                for s in set(c.get("evaluation_status") for c in flat)
             },
             "yrsn_available": flat[0].get("yrsn_available", False) if flat else False,
         },
