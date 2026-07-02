@@ -20,7 +20,7 @@ Diagnostics:
     (high correlation → architectural diversity is insufficient)
 
 Usage:
-    from apps.geo_cert.models.ceiling.task_residual_floor_estimator import TRFEstimator
+    from georsct.evaluation.trf_estimator import TRFEstimator
 
     estimator = TRFEstimator.from_oof_dir("C:/tmp/oof_predictions/")
     results = estimator.estimate()

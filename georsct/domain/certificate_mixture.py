@@ -24,7 +24,7 @@ Output: one YRSNCertificate per (zcta, task) representing the blended view,
 plus the per-model weights used and the blended R, S, N values.
 
 Usage:
-    from apps.geo_cert.certificates.mixture import CertificateMixer
+    from georsct.domain.certificate_mixture import CertificateMixer
 
     mixer = CertificateMixer(cert_rows)
     blended = mixer.blend_all()
@@ -40,7 +40,7 @@ import pandas as pd
 
 from yrsn.core.certificates import YRSNCertificate
 
-from apps.geo_cert.certificates.issuer import GeoCertRow, _make_cert, _clamp
+from georsct.domain.certificate_issuer import GeoCertRow, _make_cert, _clamp
 
 log = logging.getLogger(__name__)
 

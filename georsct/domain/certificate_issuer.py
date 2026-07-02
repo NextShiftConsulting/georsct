@@ -14,7 +14,7 @@ Two certificate modes per (zcta, task, model):
 Emits frozen YRSNCertificate instances from the yrsn core package.
 
 Usage:
-    from apps.geo_cert.certificates.issuer import GeoCertIssuer
+    from georsct.domain.certificate_issuer import GeoCertIssuer
 
     issuer = GeoCertIssuer(trf_table, oof_df)
     certs = issuer.issue_all()

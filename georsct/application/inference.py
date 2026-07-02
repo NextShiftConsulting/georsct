@@ -6,7 +6,7 @@ PCA models: pure numpy inference from JSON artifacts (no ML deps).
 GNN models: reconstruct GraphSAGE from JSON weights (requires torch).
 
 Usage:
-    from apps.geo_cert.inference import GeoCertModel
+    from georsct.application.inference import GeoCertModel
 
     # PCA models — single ZCTA or batch, no setup needed
     model = GeoCertModel.from_s3("geo_cert_pca32_v1")

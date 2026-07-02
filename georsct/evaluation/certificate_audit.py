@@ -20,7 +20,7 @@ Three audit checks:
    should treat the TRF bound as optimistic.
 
 Usage:
-    from apps.geo_cert.certificates.audit import CertificateAuditor
+    from georsct.evaluation.certificate_audit import CertificateAuditor
 
     auditor = CertificateAuditor(ceiling_report, cert_rows)
     findings = auditor.audit()
@@ -33,8 +33,8 @@ from typing import Optional
 
 import numpy as np
 
-from apps.geo_cert.certificates.issuer import GeoCertRow
-from apps.geo_cert.models.ceiling.task_residual_floor_estimator import (
+from georsct.domain.certificate_issuer import GeoCertRow
+from georsct.evaluation.trf_estimator import (
     CeilingEstimateReport,
     TaskCeilingResult,
 )
