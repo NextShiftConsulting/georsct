@@ -24,6 +24,7 @@ import io
 import json
 import logging
 import sys
+import traceback
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -419,6 +420,18 @@ def _nan_to_none(v: float) -> float | None:
     return None if (np.isnan(v) or np.isinf(v)) else v
 
 
+def _metric_value(m) -> float | None:
+    """Extract numeric value from a metric that may be a dict or scalar.
+
+    score_fold returns {status, value} dicts; legacy code returns bare floats.
+    """
+    if m is None:
+        return None
+    if isinstance(m, dict):
+        return m.get("value")
+    return m
+
+
 def _regression_metrics(y_true, y_pred) -> dict:
     from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
     return {
@@ -518,41 +531,67 @@ def run_split(
         test_mask = merged[fold_col] == fold_id
         train_mask = ~test_mask
 
-        # Per-fold wlag recomputation (DOE leakage protocol)
-        fold_nan_rates: dict[str, float] = {}
-        for col_idx, wlag_col, source_col in perfold_wlag_indices:
-            wlag_safe = _recompute_wlag_per_fold(
-                merged, train_mask, test_mask, neighbors, source_col,
-            )
-            test_vals = wlag_safe[test_mask].values
-            test_n = len(test_vals)
-            test_nan = int(np.isnan(test_vals).sum())
-            nan_frac = test_nan / test_n if test_n > 0 else 0.0
-            fold_nan_rates[wlag_col] = round(nan_frac, 4)
-            if test_nan > 0:
-                log.info("    fold %s %s: %d/%d test rows NaN (%.1f%%)",
-                         fold_id, wlag_col, test_nan, test_n, 100.0 * nan_frac)
-            X_all[:, col_idx] = wlag_safe.values.astype(np.float32)
+        try:
+            # Per-fold wlag recomputation (DOE leakage protocol)
+            fold_nan_rates: dict[str, float] = {}
+            for col_idx, wlag_col, source_col in perfold_wlag_indices:
+                wlag_safe = _recompute_wlag_per_fold(
+                    merged, train_mask, test_mask, neighbors, source_col,
+                )
+                test_vals = wlag_safe[test_mask].values
+                test_n = len(test_vals)
+                test_nan = int(np.isnan(test_vals).sum())
+                nan_frac = test_nan / test_n if test_n > 0 else 0.0
+                fold_nan_rates[wlag_col] = round(nan_frac, 4)
+                if test_nan > 0:
+                    log.info("    fold %s %s: %d/%d test rows NaN (%.1f%%)",
+                             fold_id, wlag_col, test_nan, test_n, 100.0 * nan_frac)
+                X_all[:, col_idx] = wlag_safe.values.astype(np.float32)
 
-        X_train, y_train = X_all[train_mask], y_all[train_mask]
-        X_test, y_test = X_all[test_mask], y_all[test_mask]
+            X_train, y_train = X_all[train_mask], y_all[train_mask]
+            X_test, y_test = X_all[test_mask], y_all[test_mask]
 
-        if len(X_test) == 0 or len(X_train) == 0:
-            log.warning("Empty fold %s in split %s, skipping", fold_id, split_name)
-            continue
+            if len(X_test) == 0 or len(X_train) == 0:
+                log.warning("Empty fold %s in split %s, skipping", fold_id, split_name)
+                continue
 
-        # Before-fit gate: can the solver learn on this fold?
-        eligibility = "ELIGIBLE"
-        if task == "classification":
-            eligibility = training_eligibility(y_train).value
+            # Before-fit gate: can the solver learn on this fold?
+            eligibility = "ELIGIBLE"
+            if task == "classification":
+                eligibility = training_eligibility(y_train).value
 
-        if eligibility != "ELIGIBLE":
-            log.warning("Degenerate fold %s/%s: %s", split_name, fold_id, eligibility)
-            null_metrics = {
-                name: {"status": eligibility, "value": None}
-                for name in ["accuracy", "recall", "f1", "jaccard", "dice",
-                             "mcc", "balanced_accuracy", "roc_auc", "auc_pr"]
-            }
+            if eligibility != "ELIGIBLE":
+                log.warning("Degenerate fold %s/%s: %s", split_name, fold_id, eligibility)
+                null_metrics = {
+                    name: {"status": eligibility, "value": None}
+                    for name in ["accuracy", "recall", "f1", "jaccard", "dice",
+                                 "mcc", "balanced_accuracy", "roc_auc", "auc_pr"]
+                }
+                results.append(RunResult(
+                    scenario=scenario,
+                    target=target_col,
+                    task=task,
+                    solver=solver_name,
+                    split=split_name,
+                    fold=str(fold_id),
+                    n_train=int(train_mask.sum()),
+                    n_test=int(test_mask.sum()),
+                    metrics=null_metrics,
+                    naive_baseline={},
+                    features_used=len(features),
+                    features_from_r1_supplement=r1_supp_count,
+                    features_from_r2_supplement=r2_supp_count,
+                    wlag_nan_rates=fold_nan_rates,
+                    timestamp=ts,
+                    eligibility_status=eligibility,
+                    class_support=_class_support(y_train, y_test),
+                ))
+                continue
+
+            train_status = TrainingStatus(eligibility)
+            y_pred, metrics = solver_fn(X_train, y_train, X_test, y_test, task, train_status)
+            naive = _naive_baseline(y_train, y_test, task, train_status)
+
             results.append(RunResult(
                 scenario=scenario,
                 target=target_col,
@@ -562,41 +601,20 @@ def run_split(
                 fold=str(fold_id),
                 n_train=int(train_mask.sum()),
                 n_test=int(test_mask.sum()),
-                metrics=null_metrics,
-                naive_baseline={},
+                metrics=metrics,
+                naive_baseline=naive,
                 features_used=len(features),
                 features_from_r1_supplement=r1_supp_count,
                 features_from_r2_supplement=r2_supp_count,
                 wlag_nan_rates=fold_nan_rates,
                 timestamp=ts,
-                eligibility_status=eligibility,
-                class_support=_class_support(y_train, y_test),
+                eligibility_status="ELIGIBLE",
+                class_support=_class_support(y_train, y_test) if task == "classification" else None,
             ))
+        except Exception as fold_err:
+            log.error("    fold %s FAILED: %s", fold_id, fold_err)
+            log.error("    %s", traceback.format_exc())
             continue
-
-        train_status = TrainingStatus(eligibility)
-        y_pred, metrics = solver_fn(X_train, y_train, X_test, y_test, task, train_status)
-        naive = _naive_baseline(y_train, y_test, task, train_status)
-
-        results.append(RunResult(
-            scenario=scenario,
-            target=target_col,
-            task=task,
-            solver=solver_name,
-            split=split_name,
-            fold=str(fold_id),
-            n_train=int(train_mask.sum()),
-            n_test=int(test_mask.sum()),
-            metrics=metrics,
-            naive_baseline=naive,
-            features_used=len(features),
-            features_from_r1_supplement=r1_supp_count,
-            features_from_r2_supplement=r2_supp_count,
-            wlag_nan_rates=fold_nan_rates,
-            timestamp=ts,
-            eligibility_status="ELIGIBLE",
-            class_support=_class_support(y_train, y_test) if task == "classification" else None,
-        ))
 
         if prediction_rows is not None and "blocked" in split_name:
             test_idx = merged.index[test_mask]
@@ -783,13 +801,15 @@ def main() -> None:
                     all_results.extend(results)
                     if results:
                         primary = "roc_auc" if task == "classification" else "rmse"
-                        vals = [r.metrics.get(primary) for r in results
-                                if r.metrics.get(primary) is not None]
+                        vals = [v for r in results
+                               for v in [_metric_value(r.metrics.get(primary))]
+                               if v is not None]
                         if vals:
                             log.info("    %s: mean=%.4f (n_folds=%d)",
                                      primary, np.mean(vals), len(vals))
                 except Exception as e:
                     log.error("    FAILED: %s", e)
+                    log.error("    %s", traceback.format_exc())
 
     # --- Summary ---
     print(f"\n{'='*60}")

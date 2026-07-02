@@ -23,6 +23,7 @@ import io
 import json
 import logging
 import sys
+import traceback
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -285,6 +286,18 @@ def _train_ridge(X_train, y_train, X_test, y_test, task: str,
 def _nan_to_none(v: float) -> float | None:
     """Convert NaN/Inf to None for JSON-safe serialization."""
     return None if (np.isnan(v) or np.isinf(v)) else v
+
+
+def _metric_value(m) -> float | None:
+    """Extract numeric value from a metric that may be a dict or scalar.
+
+    score_fold returns {status, value} dicts; legacy code returns bare floats.
+    """
+    if m is None:
+        return None
+    if isinstance(m, dict):
+        return m.get("value")
+    return m
 
 
 def _regression_metrics(y_true, y_pred) -> dict:
@@ -643,11 +656,14 @@ def main() -> None:
                     # Summarize
                     if results:
                         primary = "roc_auc" if task == "classification" else "rmse"
-                        vals = [r.metrics.get(primary) for r in results if r.metrics.get(primary) is not None]
+                        vals = [v for r in results
+                               for v in [_metric_value(r.metrics.get(primary))]
+                               if v is not None]
                         if vals:
                             log.info("    %s: mean=%.4f (n_folds=%d)", primary, np.mean(vals), len(vals))
                 except Exception as e:
                     log.error("    FAILED: %s", e)
+                    log.error("    %s", traceback.format_exc())
 
     # --- Summary ---
     print(f"\n{'='*60}")
@@ -659,7 +675,7 @@ def main() -> None:
     summary_rows = []
     for r in all_results:
         primary = "roc_auc" if r.task == "classification" else "rmse"
-        model_primary = r.metrics.get(primary)
+        model_primary = _metric_value(r.metrics.get(primary))
 
         if r.eligibility_status != "ELIGIBLE":
             summary_rows.append({
@@ -677,7 +693,7 @@ def main() -> None:
             })
             continue
 
-        naive_primary = r.naive_baseline.get(primary)
+        naive_primary = _metric_value(r.naive_baseline.get(primary))
 
         if r.task == "regression" and model_primary is not None and naive_primary not in (None, 0):
             skill_ratio = model_primary / naive_primary

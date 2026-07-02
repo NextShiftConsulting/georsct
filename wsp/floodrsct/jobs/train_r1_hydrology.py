@@ -32,6 +32,7 @@ import io
 import json
 import logging
 import sys
+import traceback
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -398,6 +399,18 @@ def _class_support(y_train: np.ndarray, y_test: np.ndarray) -> dict:
 def _nan_to_none(v: float) -> float | None:
     """Convert NaN/Inf to None for JSON-safe serialization."""
     return None if (np.isnan(v) or np.isinf(v)) else v
+
+
+def _metric_value(m) -> float | None:
+    """Extract numeric value from a metric that may be a dict or scalar.
+
+    score_fold returns {status, value} dicts; legacy code returns bare floats.
+    """
+    if m is None:
+        return None
+    if isinstance(m, dict):
+        return m.get("value")
+    return m
 
 
 def _regression_metrics(y_true, y_pred) -> dict:
@@ -837,13 +850,15 @@ def main() -> None:
                     all_results.extend(results)
                     if results:
                         primary = "roc_auc" if task == "classification" else "rmse"
-                        vals = [r.metrics.get(primary) for r in results
-                                if r.metrics.get(primary) is not None]
+                        vals = [v for r in results
+                               for v in [_metric_value(r.metrics.get(primary))]
+                               if v is not None]
                         if vals:
                             log.info("    %s: mean=%.4f (n_folds=%d)",
                                      primary, np.mean(vals), len(vals))
                 except Exception as e:
                     log.error("    FAILED: %s", e)
+                    log.error("    %s", traceback.format_exc())
 
     # --- Summary ---
     print(f"\n{'='*60}")
