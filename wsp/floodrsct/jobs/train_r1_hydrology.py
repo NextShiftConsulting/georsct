@@ -64,6 +64,15 @@ np.random.seed(SEED)
 RESULTS_PREFIX = "results/s035"
 
 # ---------------------------------------------------------------------------
+# R0 feature sub-groups (for FEMA redundancy ablation, DOE_AMENDMENT_001)
+# ---------------------------------------------------------------------------
+R0_FEMA = [
+    "flood_pct_zone_a",
+    "flood_pct_zone_x",
+    "flood_pct_zone_x500",
+]
+
+# ---------------------------------------------------------------------------
 # R0 features (identical to train_r0_baseline.py — DO NOT diverge)
 # ---------------------------------------------------------------------------
 R0_FEATURES = [
@@ -183,6 +192,9 @@ ABLATION_MODES = {
     "no-wlag":        lambda: R0_FEATURES + R1_HYDRO,
     "no-target-lag":  lambda: R0_FEATURES + R1_HYDRO + [f for f in R1_WMATRIX if f != "wlag_nfip_claims"],
     "wlag-only":      lambda: R0_FEATURES + R1_WMATRIX,
+    # FEMA redundancy ablations (DOE_AMENDMENT_001)
+    "no-fema":        lambda: [f for f in R0_FEATURES if f not in R0_FEMA] + R1_HYDRO + [f for f in R1_WMATRIX if f != "wlag_flood_zone_pct"],
+    "hydro-no-fema":  lambda: [f for f in R0_FEATURES if f not in R0_FEMA] + R1_HYDRO,
 }
 
 TARGETS = [

@@ -60,6 +60,25 @@ RESULTS_PREFIX = "results/s035"
 # These do NOT vary by event. Order doesn't matter; missing columns are dropped.
 # See MODELS.md for rationale.
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# R0 feature sub-groups (for ablation)
+# ---------------------------------------------------------------------------
+R0_FEMA = [
+    "flood_pct_zone_a",
+    "flood_pct_zone_x",
+    "flood_pct_zone_x500",
+]
+
+R0_HYDRO_TERRAIN = [
+    "elevation_m_msl",
+    "slope_mean_pct",
+    "twi_twi",
+    "hand_mean_m",
+    "twi_mean",
+    "gfi_mean",
+    "spi_mean",
+]
+
 R0_FEATURES = [
     # Flood zone exposure
     "flood_pct_zone_a",
@@ -119,6 +138,19 @@ R0_FEATURES = [
     # NOTE: storm_min_dist_km and storm_landfall_category moved to R2
     # (event-level features, not static). See DOE_R2_temporal.md.
 ]
+
+# ---------------------------------------------------------------------------
+# R0 ablation modes (DOE_AMENDMENT_001: FEMA redundancy experiments)
+#
+# full:          All R0 features (default, baseline)
+# no-fema:       R0 minus FEMA flood zone features (3 removed)
+# no-r0-hydro:   R0 minus terrain/hydrology features (7 removed)
+# ---------------------------------------------------------------------------
+ABLATION_MODES = {
+    "full":         lambda: R0_FEATURES,
+    "no-fema":      lambda: [f for f in R0_FEATURES if f not in R0_FEMA],
+    "no-r0-hydro":  lambda: [f for f in R0_FEATURES if f not in R0_HYDRO_TERRAIN],
+}
 
 # Targets: (column_name, task_type, transform)
 TARGETS = [
@@ -197,10 +229,11 @@ def _class_support(y_train: np.ndarray, y_test: np.ndarray) -> dict:
     return result
 
 
-def _available_features(df: pd.DataFrame) -> list[str]:
-    """Return R0 features that exist in df and have at least some non-null values."""
+def _available_features(df: pd.DataFrame, feature_list: list[str] | None = None) -> list[str]:
+    """Return features from feature_list that exist in df with non-null values."""
+    candidates = feature_list if feature_list is not None else R0_FEATURES
     available = []
-    for f in R0_FEATURES:
+    for f in candidates:
         if f in df.columns and df[f].notna().any():
             available.append(f)
     return available
@@ -538,6 +571,12 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=SEED)
     parser.add_argument("--upload", action="store_true")
     parser.add_argument(
+        "--ablation", default="full", choices=list(ABLATION_MODES.keys()),
+        help="Feature ablation variant (default: full). "
+             "no-fema: remove FEMA flood zone features. "
+             "no-r0-hydro: remove terrain/hydrology features.",
+    )
+    parser.add_argument(
         "--random-features", action="store_true",
         help="Replace R0 features with same-shape random noise (null ablation)",
     )
@@ -561,12 +600,24 @@ def main() -> None:
 
     s3 = get_s3_client()
     scenario = args.scenario
+    ablation = args.ablation
+
+    # Resolve ablation feature list
+    ablation_features = ABLATION_MODES[ablation]()
+    phase_label = "r0" if ablation == "full" else f"r0_{ablation.replace('-', '_')}"
+
+    # For ablation variants, auto-load existing folds (don't regenerate)
+    if ablation != "full" and not args.folds_key:
+        args.folds_key = f"folds/{scenario}_folds.parquet"
+        log.info("Ablation '%s': loading existing folds from %s", ablation, args.folds_key)
 
     # Hard gate: reject any feature that violates the causal boundary
-    check_causal_boundary(R0_FEATURES)
+    check_causal_boundary(ablation_features)
 
     print(f"\n{'='*60}")
     print(f"  S035 PHASE 1: R0 BASELINE -- {scenario}")
+    if ablation != "full":
+        print(f"  ABLATION: {ablation}")
     print(f"{'='*60}\n")
 
     # --- Load data ---
@@ -640,10 +691,10 @@ def main() -> None:
         ) from exc
 
     # --- Identify usable features ---
-    features = _available_features(df)
-    log.info("R0 features: %d / %d available", len(features), len(R0_FEATURES))
+    features = _available_features(df, ablation_features)
+    log.info("R0 features [%s]: %d / %d available", ablation, len(features), len(ablation_features))
     log.info("  Available: %s", features)
-    missing = [f for f in R0_FEATURES if f not in features]
+    missing = [f for f in ablation_features if f not in features]
     if missing:
         log.info("  Missing: %s", missing)
 
@@ -788,14 +839,20 @@ def main() -> None:
 
     # --- Upload results ---
     output_prefix = args.output_prefix
-    level_tag = "r0_random" if args.random_features else "r0"
+    if args.random_features:
+        level_tag = "r0_random"
+    else:
+        level_tag = phase_label
     results_payload = {
         "experiment": "s035-model-ladder",
-        "phase": "r0_random_ablation" if args.random_features else "r0_baseline",
+        "phase": "r0_random_ablation" if args.random_features else phase_label,
+        "ablation": ablation,
         "scenario": scenario,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "seed": args.seed,
-        "representation": "R0_RANDOM" if args.random_features else "R0",
+        "representation": "R0_RANDOM" if args.random_features else (
+            "R0" if ablation == "full" else f"R0_{ablation}"
+        ),
         "random_features": args.random_features,
         "features_used": features,
         "features_missing": missing,

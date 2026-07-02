@@ -30,7 +30,7 @@ from _launcher_base import launch_processing_job, make_job_name
 SCENARIOS = [
     "houston", "new_orleans", "nyc", "riverside_coachella", "southwest_florida"
 ]
-ABLATIONS = ["full", "no-wlag", "no-target-lag", "wlag-only"]
+ABLATIONS = ["full", "no-wlag", "no-target-lag", "wlag-only", "no-fema", "hydro-no-fema"]
 
 
 def main() -> None:
