@@ -38,8 +38,6 @@ from _s3_result import upload_json_result
 from _validate_contract import check_causal_boundary
 from generate_folds import generate_folds
 
-# Metric eligibility gate (georsct.evaluation)
-sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from georsct.evaluation.metric_eligibility import (
     training_eligibility, score_fold, TrainingStatus,
 )
