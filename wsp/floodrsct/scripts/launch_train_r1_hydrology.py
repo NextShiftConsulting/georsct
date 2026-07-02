@@ -54,7 +54,7 @@ def main() -> None:
         job_name=job_name,
         job_script="train_r1_hydrology.py",
         job_args=job_args,
-        instance_type="ml.m5.xlarge",
+        instance_type="ml.m5.large",
         volume_size_gb=10,
         pip_packages="scikit-learn scipy",
         dry_run=args.dry_run,

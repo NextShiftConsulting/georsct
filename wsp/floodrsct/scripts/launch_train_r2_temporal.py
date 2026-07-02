@@ -40,7 +40,7 @@ def main() -> None:
         job_name=job_name,
         job_script="train_r2_temporal.py",
         job_args=["--scenario", args.scenario, "--upload"],
-        instance_type="ml.m5.xlarge",
+        instance_type="ml.m5.large",
         volume_size_gb=10,
         pip_packages="scikit-learn scipy",
         dry_run=args.dry_run,
