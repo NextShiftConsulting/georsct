@@ -1,0 +1,59 @@
+{
+  "timestamp": "2026-07-02T12:00:00Z",
+  "query": "What remote sensing and modeled flood data products could serve as alternatives or complements to NFIP claims for measuring flood damage/extent at the ZCTA level in the United States?",
+  "sub_questions": [
+    "Sentinel-1 SAR flood mapping (RAPID, Copernicus EMS) - resolution, temporal coverage, latency, access",
+    "NOAA/NWS National Water Model (NWM) Retrospective - resolution, temporal span, outputs, access",
+    "First Street Foundation flood model - coverage, resolution, access restrictions, cost",
+    "MODIS/VIIRS Near Real-Time flood products - resolution, coverage, limitations",
+    "Landsat/Sentinel-2 optical flood mapping - cloud limitations, temporal gaps",
+    "FEMA Hazus model outputs - publicly available vs local runs",
+    "Emerging products (Planet, commercial SAR, AI-based flood mapping)"
+  ],
+  "sources_consulted": 47,
+  "sources_fully_read": 0,
+  "sources_blocked": 4,
+  "sources_blocked_note": "WebFetch tool was denied permission; all research conducted via WebSearch summaries only. Source content was not directly read - findings are based on search result snippets and metadata.",
+  "products_evaluated": 12,
+  "products_evaluated_list": [
+    "Sentinel-1 RAPID Archive",
+    "Copernicus GFM (Global Flood Monitoring)",
+    "Copernicus EMS Rapid Mapping",
+    "NASA OPERA DSWx-S1",
+    "NASA OPERA DSWx-HLS",
+    "NOAA NWM Retrospective + HAND FIM",
+    "First Street Foundation Flood Model",
+    "MODIS/VIIRS NRT Flood Products",
+    "USGS DSWE (Landsat)",
+    "FEMA Hazus",
+    "ICEYE Flood Insights",
+    "NISAR",
+    "Fathom Global Flood Model",
+    "Global Flood Database (Cloud to Street)",
+    "ALTIS (research)"
+  ],
+  "confidence": {
+    "overall": 0.78,
+    "sentinel1_sar": 0.90,
+    "nwm_retrospective": 0.85,
+    "first_street": 0.80,
+    "modis_viirs": 0.85,
+    "optical_mapping": 0.80,
+    "hazus": 0.75,
+    "emerging_products": 0.65,
+    "note": "Confidence reduced because WebFetch was blocked - all findings based on search snippets, not full document reads. Product specifications (resolution, access) are well-established facts from government sources. Commercial product details (ICEYE pricing, Fathom US access) have lower confidence due to limited transparency."
+  },
+  "gaps": [
+    "Could not directly read product documentation pages (WebFetch denied)",
+    "ICEYE pricing and academic access terms remain opaque",
+    "Fathom US commercial pricing not determined",
+    "No quantitative assessment of how well SAR flood extent correlates with NFIP claim amounts at ZCTA level",
+    "NWM FIM coverage map (which HUCs are covered) not obtained",
+    "First Street free data schema (exact columns in zip-code CSVs) not verified",
+    "OPERA DSWx-S1 exact start date of operational production not pinned down",
+    "Pluvial flooding proxy remains a significant unresolved gap across all products"
+  ],
+  "timeout_requested": 1200000,
+  "completed": true,
+  "model": "claude-opus-4-6"
+}

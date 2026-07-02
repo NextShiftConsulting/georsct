@@ -1,0 +1,50 @@
+{
+  "timestamp": "2026-07-02T16:30:00Z",
+  "query": "What government data sources exist as alternatives or complements to NFIP claims data for measuring flood damage at the ZCTA level in the United States?",
+  "sub_questions": [
+    "FEMA Individual Assistance (IA) via OpenFEMA -- volume, spatial resolution, API access, fields, biases",
+    "SBA Disaster Loans -- spatial resolution, format, creditworthiness bias, coverage",
+    "USGS Short-Term Network (STN) High Water Marks -- event count, spatial density, suitability as ZCTA target",
+    "NOAA Storm Events Database -- granularity, reliability, known issues",
+    "HUD CDBG-DR allocations -- granularity, reporting standards",
+    "Any other federal/state data sources that provide flood damage or impact at sub-county resolution"
+  ],
+  "sources_consulted": 24,
+  "sources_fully_read": 16,
+  "sources_blocked": 7,
+  "sources_empty_response": 1,
+  "confidence": "HIGH for source identification, MEDIUM for bias assessment",
+  "gaps": [
+    "SBA disaster loan data portal returned 500 errors; ZIP-level fields unverified",
+    "HUD CDBG-DR QPR spatial resolution unverified (site blocked)",
+    "SHELDUS database access and fields unverified (site blocked)",
+    "USGS STN HWM field schema not retrieved (API returned empty for all tested events)",
+    "State-level damage assessment databases (FL, TX, NC, LA) not investigated",
+    "FEMA Preliminary Damage Assessment data availability not confirmed",
+    "Census Post-Disaster Household Pulse Survey spatial resolution unverified",
+    "NOAA Storm Events format documentation PDF was blocked; fields verified via direct CSV download instead"
+  ],
+  "key_findings": [
+    "FEMA IA registrations (6.4M records) at ZIP/census-block level is the strongest NFIP alternative",
+    "USACE NSI provides per-structure exposure data with flood zones and replacement values",
+    "NOAA Storm Events is county/zone level -- too coarse for ZCTA targets",
+    "USGS STN HWMs are too sparse for ZCTA target variables but excellent for model validation",
+    "HUD CDBG-DR is derivative of FEMA/SBA data and typically grantee-level resolution",
+    "No single source captures total flood damage; multi-source fusion is required"
+  ],
+  "timeout_requested": "20 minutes",
+  "completed": true,
+  "model": "claude-opus-4-6",
+  "api_endpoints_verified": {
+    "openfema_ia_registrants": "https://www.fema.gov/api/open/v1/IndividualAssistanceHousingRegistrantsLargeDisasters",
+    "openfema_housing_owners": "https://www.fema.gov/api/open/v2/HousingAssistanceOwners",
+    "openfema_housing_renters": "https://www.fema.gov/api/open/v2/HousingAssistanceRenters",
+    "openfema_nfip_claims": "https://www.fema.gov/api/open/v2/FimaNfipClaims",
+    "openfema_nfip_policies": "https://www.fema.gov/api/open/v2/FimaNfipPolicies",
+    "openfema_pa_projects": "https://www.fema.gov/api/open/v2/PublicAssistanceFundedProjectsDetails",
+    "openfema_declarations": "https://www.fema.gov/api/open/v2/DisasterDeclarationsSummaries",
+    "usace_nsi": "https://nsi.sec.usace.army.mil/nsiapi/structures",
+    "usgs_stn_events": "https://stn.wim.usgs.gov/STNServices/Events.json",
+    "noaa_storm_events_csv": "https://www.ncei.noaa.gov/pub/data/swdi/stormevents/csvfiles/"
+  }
+}
