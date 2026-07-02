@@ -42,7 +42,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats as sp_stats
 
-from apps.geo_cert.models.ceiling.ceiling_schema import (
+from georsct.evaluation.ceiling_schema import (
     RESIDUAL_CORRELATION_FLAG_THRESHOLD,
     REQUIRED_COLUMNS,
     validate,
