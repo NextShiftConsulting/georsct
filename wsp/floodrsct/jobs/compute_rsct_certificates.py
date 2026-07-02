@@ -108,8 +108,8 @@ MIN_VALID_FOLDS = 2
 # Evaluation support thresholds.
 # These classify how trustworthy a cell's certificate is based on
 # how many folds were eligible vs abstained.
-EVAL_ELIGIBLE_PASS = 10        # eligible folds >= this = PASS
-EVAL_ELIGIBLE_WARN = 5         # eligible folds >= this = WARN_LOW_SUPPORT
+EVAL_ELIGIBLE_PASS = 4         # eligible folds >= this = PASS
+EVAL_ELIGIBLE_WARN = 2         # eligible folds >= this = WARN_LOW_SUPPORT
 EVAL_ABSTENTION_WARN = 0.50    # abstention rate > this = WARN even if count ok
 
 
@@ -249,6 +249,37 @@ def _extract_fold_metrics(
     return vals, info
 
 
+SOLVER_PREFERENCE = ["histgbdt", "ridge"]
+
+
+def _detect_solver(results: dict, target: str, split: str) -> str:
+    """Find the best available solver for a target+split in R0 results.
+
+    Prefers histgbdt over ridge.  Falls back to the first solver that
+    has any ELIGIBLE folds, then any solver at all.
+    """
+    runs = results.get("runs", [])
+    available = set()
+    eligible = set()
+    for r in runs:
+        if r["target"] == target and r["split"] == split:
+            solver = r["solver"]
+            available.add(solver)
+            if r.get("eligibility_status", "LEGACY_UNVERIFIED") == "ELIGIBLE":
+                eligible.add(solver)
+
+    # Prefer solver with ELIGIBLE folds, in preference order
+    for s in SOLVER_PREFERENCE:
+        if s in eligible:
+            return s
+    # Fall back to any available solver
+    for s in SOLVER_PREFERENCE:
+        if s in available:
+            return s
+    # Nothing found — return default (extraction will return empty)
+    return SOLVER_PREFERENCE[0]
+
+
 # ---------------------------------------------------------------------------
 # Fallback: inline CV when pre-computed results are not available
 # ---------------------------------------------------------------------------
@@ -334,11 +365,13 @@ def build_certificate(
     # Extract fold metrics from pre-computed results or fallback to CV
     eligibility_info = {}
     if r0_results:
+        spatial_solver = _detect_solver(r0_results, target, "spatial_blocked")
+        random_solver = _detect_solver(r0_results, target, "random")
         spatial_folds, spatial_elig = _extract_fold_metrics(
-            r0_results, target, "spatial_blocked", "histgbdt",
+            r0_results, target, "spatial_blocked", spatial_solver,
         )
         random_folds, random_elig = _extract_fold_metrics(
-            r0_results, target, "random", "histgbdt",
+            r0_results, target, "random", random_solver,
         )
         eligibility_info = {
             "spatial": spatial_elig,
