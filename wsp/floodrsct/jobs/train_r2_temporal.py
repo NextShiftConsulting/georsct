@@ -13,10 +13,17 @@ R2 adds event-dynamic columns from MRMS hourly rainfall and tide gauges:
   - tide_peak_m: peak water level from nearest tide station
   - surge_rain_lag_h: hours between peak rainfall and peak surge
 
+Supports --ablation flag for temporal feature sub-group ablations:
+  full (default)    R1 + rainfall + storm-track
+  no-storm-track    R1 + rainfall only (isolates rainfall dynamics)
+  no-rainfall       R1 + storm-track only (isolates storm proximity/surge)
+  temporal-only     R0 + all temporal (no R1 hydro/wlag; isolates R2 from R1)
+
 DOE constraint: same folds, same solver hyperparameters, same targets as R0/R1.
 
 Usage:
     python train_r2_temporal.py --scenario houston --upload
+    python train_r2_temporal.py --scenario houston --ablation no-storm-track --upload
 """
 
 import argparse
@@ -157,13 +164,16 @@ R1_HYDRO = R1_UNIVERSAL + R1_SCENARIO_SPECIFIC
 # ---------------------------------------------------------------------------
 # R2 temporal features (from build_r2_features.py)
 # ---------------------------------------------------------------------------
-R2_TEMPORAL = [
+R2_RAINFALL = [
     "peak_1h_mm",
     "peak_3h_mm",
     "peak_6h_mm",
     "storm_duration_h",
     "time_to_peak_h",
     "rainfall_intensity_cv",
+]
+
+R2_STORM_TRACK = [
     "tide_peak_m",
     "surge_rain_lag_h",
     # Storm track features (event-level, moved from R0 where they were mislabeled static)
@@ -171,8 +181,24 @@ R2_TEMPORAL = [
     "storm_landfall_category",
 ]
 
+R2_TEMPORAL = R2_RAINFALL + R2_STORM_TRACK
+
 # R2 = R1 + temporal = R0 + hydro + W-matrix + temporal (DOE invariant)
 R2_FEATURES = R0_FEATURES + R1_HYDRO + R1_WMATRIX + R2_TEMPORAL
+
+# ---------------------------------------------------------------------------
+# R2 ablation modes
+# ---------------------------------------------------------------------------
+# full:            R0 + hydro + W-matrix + rainfall + storm-track (default)
+# no-storm-track:  R2 minus storm track/surge (isolates rainfall dynamics)
+# no-rainfall:     R2 minus rainfall dynamics (isolates storm track/surge)
+# temporal-only:   R0 + temporal only (no R1 hydro/wlag; isolates R2 from R1)
+ABLATION_MODES = {
+    "full":            lambda: R2_FEATURES,
+    "no-storm-track":  lambda: R0_FEATURES + R1_HYDRO + R1_WMATRIX + R2_RAINFALL,
+    "no-rainfall":     lambda: R0_FEATURES + R1_HYDRO + R1_WMATRIX + R2_STORM_TRACK,
+    "temporal-only":   lambda: R0_FEATURES + R2_TEMPORAL,
+}
 
 TARGETS = [
     ("obs_nfip_event_claims", "regression", "log1p"),
@@ -304,15 +330,18 @@ def _recompute_wlag_per_fold(
     return wlag_vals
 
 
-def _available_features(df: pd.DataFrame) -> tuple[list[str], int, int]:
-    """Return R2 features present in df. Track R1 and R2 supplement counts."""
+def _available_features(
+    df: pd.DataFrame, feature_list: list[str] | None = None,
+) -> tuple[list[str], int, int]:
+    """Return features present in df. Track R1 and R2 supplement counts."""
+    candidates = feature_list or R2_FEATURES
     available = []
     r1_supp_names = {"nhd_catchment_area_km2", "levee_nearest_km",
                      "levee_condition_rating", "sewershed_name"}
     r2_supp_names = set(R2_TEMPORAL)
     r1_count = 0
     r2_count = 0
-    for f in R2_FEATURES:
+    for f in candidates:
         if f in df.columns and df[f].notna().any():
             available.append(f)
             if f in r1_supp_names:
@@ -638,6 +667,11 @@ def main() -> None:
         description="Phase 3: R2 temporal event dynamics training"
     )
     parser.add_argument("--scenario", required=True, choices=SCENARIOS)
+    parser.add_argument("--ablation", default="full", choices=list(ABLATION_MODES.keys()),
+        help="Feature ablation variant (default: full). "
+             "no-storm-track: remove storm track/surge. "
+             "no-rainfall: remove rainfall dynamics. "
+             "temporal-only: R0 + temporal only (no R1).")
     parser.add_argument("--seed", type=int, default=SEED)
     parser.add_argument("--upload", action="store_true")
     parser.add_argument(
@@ -659,14 +693,21 @@ def main() -> None:
 
     s3 = get_s3_client()
     scenario = args.scenario
+    ablation = args.ablation
+
+    # Resolve ablation feature list
+    ablation_features = ABLATION_MODES[ablation]()
+    phase_label = "r2" if ablation == "full" else f"r2_{ablation.replace('-', '_')}"
 
     # Hard gate: reject any feature that violates the causal boundary.
     # wlag_nfip_claims is post_event but DOE-approved with per-fold
     # recomputation (Change 13). The leakage gate below enforces this.
-    check_causal_boundary(R2_FEATURES, exempt={"wlag_nfip_claims"})
+    check_causal_boundary(ablation_features, exempt={"wlag_nfip_claims"})
 
     print(f"\n{'='*60}")
     print(f"  S035 PHASE 3: R2 TEMPORAL -- {scenario}")
+    if ablation != "full":
+        print(f"  ABLATION: {ablation}")
     print(f"{'='*60}\n")
 
     # --- Load assembled parquet ---
@@ -753,23 +794,23 @@ def main() -> None:
         neighbors = None
 
     # --- Identify usable features ---
-    features, r1_supp_count, r2_supp_count = _available_features(df)
+    features, r1_supp_count, r2_supp_count = _available_features(df, ablation_features)
     r0_count = sum(1 for f in features if f in R0_FEATURES)
     wlag_count = sum(1 for f in features if f in R1_WMATRIX)
     r1_count = sum(1 for f in features if f in R1_UNIVERSAL + R1_SCENARIO_SPECIFIC)
-    log.info("R2 features: %d total (%d R0 + %d R1-hydro + %d W-matrix + %d R2-temporal)",
-             len(features), r0_count, r1_count, wlag_count, r2_supp_count)
+    log.info("R2 features (%s): %d total (%d R0 + %d R1-hydro + %d W-matrix + %d R2-temporal)",
+             ablation, len(features), r0_count, r1_count, wlag_count, r2_supp_count)
 
     # --- Hard gate: refuse leaky variants without adjacency ---
     if "wlag_nfip_claims" in features and not neighbors:
         raise RuntimeError(
-            "R2 includes wlag_nfip_claims (target spatial lag) from R1's W-matrix, "
+            f"Ablation '{ablation}' includes wlag_nfip_claims (target spatial lag), "
             f"but adjacency/neighbors are unavailable for {scenario}. The pre-computed "
             "wlag leaks test-fold target values into training. Refusing to run. "
             "Provide adjacency to enable per-fold recomputation."
         )
 
-    missing = [f for f in R2_FEATURES if f not in features]
+    missing = [f for f in ablation_features if f not in features]
     if missing:
         log.info("Missing R2 features: %s", missing)
 
@@ -813,7 +854,7 @@ def main() -> None:
 
     # --- Summary ---
     print(f"\n{'='*60}")
-    print(f"  R2 SUMMARY: {scenario}")
+    print(f"  R2 SUMMARY: {scenario} [ablation={ablation}]")
     print(f"  Total runs: {len(all_results)}")
     print(f"  Features: {len(features)} ({r0_count} R0 + {r1_count} R1-hydro + {wlag_count} W-matrix + {r2_supp_count} R2-temporal)")
     print(f"{'='*60}\n")
@@ -822,11 +863,12 @@ def main() -> None:
     output_prefix = args.output_prefix
     results_payload = {
         "experiment": "s035-model-ladder",
-        "phase": "r2_temporal",
+        "phase": phase_label,
         "scenario": scenario,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "seed": args.seed,
-        "representation": "R2",
+        "ablation": ablation,
+        "representation": "R2" if ablation == "full" else f"R2_{ablation}",
         "features_used": features,
         "features_missing": missing,
         "r0_feature_count": r0_count,
@@ -840,7 +882,7 @@ def main() -> None:
     results_json = json.dumps(results_payload, indent=2, default=str)
 
     if args.upload:
-        key = f"{output_prefix}/r2_{scenario}.json"
+        key = f"{output_prefix}/{phase_label}_{scenario}.json"
         upload_json_result(s3, BUCKET, key, results_payload)
 
         if prediction_rows:
@@ -848,12 +890,12 @@ def main() -> None:
             buf = io.BytesIO()
             pred_df.to_parquet(buf, index=False)
             buf.seek(0)
-            pred_key = f"{output_prefix}/r2_{scenario}_predictions.parquet"
+            pred_key = f"{output_prefix}/{phase_label}_{scenario}_predictions.parquet"
             s3.put_object(Bucket=BUCKET, Key=pred_key, Body=buf.getvalue())
             log.info("Uploaded %d prediction rows to s3://%s/%s",
                      len(pred_df), BUCKET, pred_key)
     else:
-        local = f"/tmp/r2_{scenario}.json"
+        local = f"/tmp/{phase_label}_{scenario}.json"
         Path(local).write_text(results_json)
         log.info("Wrote %s", local)
 
