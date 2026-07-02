@@ -29,7 +29,7 @@ import boto3
 import numpy as np
 import pandas as pd
 
-from apps.geo_cert.inference import GeoCertModel
+from georsct.application.inference import GeoCertModel
 from apps.geo_cert.models.ceiling.ceiling_schema import (
     build_oof_rows,
     validate,

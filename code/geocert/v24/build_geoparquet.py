@@ -460,7 +460,7 @@ def main():
     if CROISSANT_PATH.exists():
         log.info("")
         log.info("=== CROISSANT PRE-FLIGHT VALIDATION ===")
-        from validate_croissant import extract_manifest_columns, validate_parquet_against_manifest
+        from georsct.validation.croissant import extract_manifest_columns, validate_parquet_against_manifest
         import json as _json
         with open(CROISSANT_PATH) as _f:
             _croissant = _json.load(_f)
