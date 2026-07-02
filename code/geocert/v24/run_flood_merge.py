@@ -53,7 +53,7 @@ NON_CONUS_PREFIXES = {"02", "15", "60", "66", "69", "72", "78"}
 def _make_s3_client(local: bool):
     """Create S3 client, using nsc-swarm profile when running locally."""
     import boto3
-from swarm_auth import get_aws_credentials
+    from swarm_auth import get_aws_credentials
     if local:
         _aws = get_aws_credentials()
         return boto3.client("s3", **_aws)
