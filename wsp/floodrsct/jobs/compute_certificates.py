@@ -6,6 +6,10 @@ Thin CLI wrapper around rsct.experiment_cert.certify_experiment_cell().
 Loads model results + diagnostics from S3, certifies each cell, uploads
 certificate parquet + JSON.
 
+Parallelism: Certificate computation is numpy-only on <50 rows per
+scenario. Intentionally serial; n_jobs=1 equivalent. Total wall time
+<2 min across all 5 scenarios.
+
 Usage:
     python compute_certificates.py --level r0 --upload
     python compute_certificates.py --level r1 --upload
