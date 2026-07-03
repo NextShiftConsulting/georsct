@@ -64,7 +64,7 @@ Same endpoint. Same response schema. Same audit log format.
                          ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                       swarm-it-api LAYER                            │
-│                       API Gateway → Lambda or ECS                   │
+│                       API Gateway → ECS (prod)                      │
 │                                                                     │
 │  ┌──────────────────────────────────────────────────────────────┐  │
 │  │  Endpoints                                                   │  │
@@ -119,16 +119,18 @@ Same endpoint. Same response schema. Same audit log format.
 ```
 
 The compute primitives that v1 located inside `georsct_kit` now live
-*inside* the API Lambda handlers, not in a separately-installable
-package. The names are the same (`compute_simplex`, `compute_alpha`,
+*inside* the API ECS handlers (Lambda is dormant; ECS is prod — see
+`docs/par-review-s3-pipeline-gaps-20260607.md`), not in a
+separately-installable package. The names are the same (`compute_simplex`, `compute_alpha`,
 …) because the manuscript uses them; the *boundary* is different. A
 client never imports them.
 
 **Naming note on `compute_kappa_compat`:** `swarm-it-adk` already
 exports a function named `compute_kappa` that measures *embedding
-viability* (dim / stable_rank ≥ 50). That is not RSCT certificate
-κ = R*(1-N). The internal API handler is named `compute_kappa_compat`
-to prevent silent semantic collision.
+viability* (dim / stable_rank >= 50). That is not RSCT certificate
+kappa (min of hierarchy kappas per ADR gate-evidence architecture;
+the R*(1-N) proxy is demoted). The internal API handler is named
+`compute_kappa_compat` to prevent silent semantic collision.
 
 ---
 
@@ -359,8 +361,8 @@ Student runs in Colab:
 [swarm-it-adk client — request builder]
    │  HTTP POST /ceiling, public API key
    ▼
-[API Gateway → Lambda]
-   │  Lambda validates request, writes to SQS, returns 202
+[API Gateway → ECS]
+   │  ECS validates request, writes to SQS, returns 202
    ▼
 [SQS → SageMaker Processing Job]
    │  Job runs georsct internal compute (Nystroem KRR + MLP,
@@ -395,7 +397,7 @@ SageMaker fleet, not on the student's Colab VM.
 [swarm-it-adk client — same request builder, different auth key]
    │  HTTP POST /certify/geo
    ▼
-[API Gateway → Lambda]
+[API Gateway → ECS]
    │
    ├── Static features for ZCTA 77002 from Redis (Tier 1)
    │      hit: < 1 ms  /  miss: S3 Select ~50 ms
@@ -419,7 +421,7 @@ SageMaker fleet, not on the student's Colab VM.
 ```
 
 Same endpoint as the tutorial student calls. Same compute functions
-inside the Lambda. The only differences are `include_live_sensors=true`
+inside the ECS handler. The only differences are `include_live_sensors=true`
 and a per-tenant auth key.
 
 ---
@@ -504,7 +506,7 @@ stay light.
 | Source                                                  | Marginal cost per 100-student session |
 |---------------------------------------------------------|---------------------------------------|
 | 15K API calls × $3.50/M (API Gateway)                   | $0.05                                 |
-| Lambda compute (100 ms × 256 MB × 15K requests)         | $0.06                                 |
+| ECS compute (100 ms × 256 MB × 15K requests)            | $0.06                                 |
 | SageMaker Processing for ceiling cache misses (~50 runs × $0.014) | $0.70                       |
 | **Total per tutorial session**                          | **~$0.81**                            |
 
@@ -544,7 +546,7 @@ principle through a Python library that *could* drift between
 deployments. v2 protects it by making the compute path inaccessible
 *except* via the API — there is no parallel path to drift away from.
 
-This change costs the org something real (Lambda + SageMaker minutes
+This change costs the org something real (ECS + SageMaker minutes
 the student VMs previously absorbed for free) and buys something more
 valuable: the impossibility of tutorial materials silently diverging
 from production behavior across the SIGSPATIAL 2027 → 2028 cycle,

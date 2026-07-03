@@ -64,4 +64,4 @@ files:
   gate_logic: georsct/healthcheck/layers/gate_triage.py  # Category B — fix pending
   thresholds: georsct/ports/threshold_source.py  # Category A — keep
   presets: georsct/ports/static_thresholds.py  # Category A — keep
-  experiment: rsct/experiment_cert.py  # Category B — fix pending
+  experiment: georsct/domain/certificate_issuer.py  # Migrated from rsct/experiment_cert.py (removed during restructuring)

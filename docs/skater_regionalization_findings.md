@@ -71,6 +71,6 @@ s3://swarm-floodrsct-data/results/s035/sidecar/robustness/
 
 ## Code
 
-- Regionalization: `data/floodrsct/jobs/compute_spatial_sidecar_regionalize.py`
-- Launcher: `data/floodrsct/scripts/launch_compute_spatial_sidecar_regionalize.py`
-- DOE specification: `data/floodrsct/exp/s035-model-ladder/DOE_spatial_diagnostics.md` §3
+- Regionalization: (removed during restructuring; was `data/floodrsct/jobs/compute_spatial_sidecar_regionalize.py`)
+- Launcher: (removed during restructuring; was `data/floodrsct/scripts/launch_compute_spatial_sidecar_regionalize.py`)
+- DOE specification: (removed during restructuring; was `data/floodrsct/exp/s035-model-ladder/DOE_spatial_diagnostics.md` §3; see `code/` for current scripts)

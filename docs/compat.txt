@@ -152,4 +152,4 @@
   are trustworthy; cross-seed verification is a sanity check.
 
   Data: data/s019d/seed_{42,123,456}/s019d_results.json
-  Script: exp/s019d_posthoc/analyze_compat.py
+  Script: (removed during restructuring; was exp/s019d_posthoc/analyze_compat.py)

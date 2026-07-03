@@ -141,4 +141,4 @@
   kappa and sigma are co-ordered (+0.875, both embedding-driven).
 
   Data: data/s019e/seed_{42,123,456}/s019e_results.json
-  Script: exp/s019d_posthoc/analyze_compat.py (adapt for s019e + alpha)
+  Script: (removed during restructuring; was exp/s019d_posthoc/analyze_compat.py, adapt for s019e + alpha)

@@ -1,7 +1,7 @@
 # Hex Architecture Decision -- floodcaster / georsct
 
 **Date**: 2026-06-03
-**Status**: Deferred (after NeurIPS submission)
+**Status**: Partially implemented (georsct/ package has ports/, adapters/, domain/ layers; data pipeline monolith still in code/)
 **Scope**: Structural refactor of data pipeline from monolith to ports-and-adapters
 
 ---

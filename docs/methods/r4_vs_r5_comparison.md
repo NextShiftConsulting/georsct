@@ -138,17 +138,9 @@ Final:
 - H5 (transfer brittleness): harnesses evolved on Houston transfer poorly to NYC
 
 **Code:**
-- `r5_harness_evolution/protocol.py` — step loop and evolution runner
-- `r5_harness_evolution/harness_schema.py` — HarnessVersion, EditableComponents, CertificateTrajectory
-- `r5_harness_evolution/evolver.py` — evolver prompt and response parsing
-- `r5_harness_evolution/scoring.py` — zone_macro_f1, JudgmentMetrics, Moran's I
-- `r5_harness_evolution/attribution.py` — failure classification and report building
-- `r5_harness_evolution/validators.py` — patch validation (allowlist, held-out leakage)
-- `r5_harness_evolution/apply_patch.py` — JSON Patch application
-- `r5_harness_evolution/splitters.py` — leave-scenario-out splits
-- `r5_harness_evolution/harness_store.py` — versioned artifact persistence
-- `r5_harness_evolution/constants.py` — S3 paths, model lists
-- `r5_harness_evolution/contract.yaml` — experiment contract (pilot status)
+- (removed during restructuring; `r5_harness_evolution/` directory no longer exists)
+- R5 harness evolution code was pilot-status and has not been migrated
+- See `georsct/application/harness.py` for current harness implementation
 
 ---
 
@@ -179,7 +171,8 @@ step tracks whether harness edits are improving representation quality.
 The certificate answers "is this harness edit improving or degrading
 the VLM's reliability?"
 
-Both use `kappa_compat = R * (1 - N)` as the compatibility proxy.
+Both use `kappa_compat` as the compatibility proxy (note: R*(1-N) is
+demoted per gate-evidence architecture; see `georsct/domain/kappa.py`).
 R4 computes it from claim grading counts. R5 computes it from the
 simplex block in `build_rsct_block()` (currently unpopulated in pilot —
 `simplex=None` → warnings).

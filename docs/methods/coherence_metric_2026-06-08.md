@@ -148,11 +148,9 @@ Section 5 (Results) of the NeurIPS/SIGSpatial submission:
 ## Implementation Notes
 
 Two implementations exist:
-1. **Canonical:** `rsct/experiment_cert.py` -- `compute_coherence()`
+1. **Canonical:** `georsct/domain/certificate_issuer.py` -- `compute_coherence()`
    returns `CoherenceResult` dataclass with full audit trail.
-2. **Inline fallback:** `wsp/floodrsct/jobs/compute_certificates.py` --
-   `_compute_coherence_inline()` computes the same metric as a dict,
-   used when the rsct wheel on SageMaker predates the canonical
-   implementation.
-
-The inline version will be removed once the rsct wheel is rebuilt.
+   (Previously `rsct/experiment_cert.py`, removed during restructuring.)
+2. **Inline fallback:** (removed during restructuring; was
+   `wsp/floodrsct/jobs/compute_certificates.py` --
+   `_compute_coherence_inline()`. See `code/` for current scripts.)
