@@ -85,7 +85,7 @@ def _make_cert(R: float, S_sup: float, N: float, omega: float = 1.0) -> YRSNCert
 
     return YRSNCertificate(
         R=round(R, 6),
-        S=round(S_sup, 6),
+        S_sup=round(S_sup, 6),
         N=round(N, 6),
         alpha=round(alpha, 6),
         omega=round(omega, 6),
