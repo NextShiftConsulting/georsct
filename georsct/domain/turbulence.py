@@ -12,5 +12,5 @@ from rsct_spatial.weights.autocorrelation import (  # noqa: F401
     compute_lisa_clusters,
     score_turbulence,
     morans_i,
-    compute_kappa_spatial,
+    compute_spatial_randomness,
 )

@@ -2,8 +2,8 @@
 
 Pure domain math.  No I/O, no S3, no pandas.
 
-Computes Euclidean distance in (forward_score, kappa_spatial,
-kappa_reconstruct) space between per-construct certificates.
+Computes Euclidean distance in (forward_score, spatial_randomness,
+spatial_recoverability) space between per-construct certificates.
 All three axes are clamped to [0, 1] at certificate creation
 (R2 can be negative; Moran's I can exceed |1|), so no rescaling is needed.
 
@@ -44,8 +44,8 @@ class PairwiseDivergence:
     construct_b: ConstructLabel
     euclidean_distance: float
     forward_delta: float
-    kappa_spatial_delta: float
-    kappa_reconstruct_delta: float
+    spatial_randomness_delta: float
+    spatial_recoverability_delta: float
     both_available: bool
 
 
@@ -53,7 +53,7 @@ def compute_certificate_distance(
     a: ConstructCertificate,
     b: ConstructCertificate,
 ) -> PairwiseDivergence:
-    """Euclidean distance in (forward, kappa_spatial, kappa_reconstruct).
+    """Euclidean distance in (forward, spatial_randomness, spatial_recoverability).
 
     Returns NaN distance when either certificate is missing.
     """
@@ -65,14 +65,14 @@ def compute_certificate_distance(
             construct_b=b.construct,
             euclidean_distance=float("nan"),
             forward_delta=float("nan"),
-            kappa_spatial_delta=float("nan"),
-            kappa_reconstruct_delta=float("nan"),
+            spatial_randomness_delta=float("nan"),
+            spatial_recoverability_delta=float("nan"),
             both_available=False,
         )
 
     df = a.forward_score - b.forward_score
-    ds = a.kappa_spatial - b.kappa_spatial
-    dr = a.kappa_reconstruct - b.kappa_reconstruct
+    ds = a.spatial_randomness - b.spatial_randomness
+    dr = a.spatial_recoverability - b.spatial_recoverability
 
     dist = math.sqrt(df * df + ds * ds + dr * dr)
 
@@ -81,8 +81,8 @@ def compute_certificate_distance(
         construct_b=b.construct,
         euclidean_distance=dist,
         forward_delta=df,
-        kappa_spatial_delta=ds,
-        kappa_reconstruct_delta=dr,
+        spatial_randomness_delta=ds,
+        spatial_recoverability_delta=dr,
         both_available=True,
     )
 
@@ -213,14 +213,14 @@ def summarize_divergence(dm: DivergenceMatrix) -> dict:
             "target_column": c.target_column,
             "target_available": c.target_available,
             "forward_score": _safe(c.forward_score),
-            "kappa_spatial": _safe(c.kappa_spatial),
-            "kappa_reconstruct": _safe(c.kappa_reconstruct),
+            "spatial_randomness": _safe(c.spatial_randomness),
+            "spatial_recoverability": _safe(c.spatial_recoverability),
             "morans_i": _safe(c.morans_i),
             "n_regions": c.n_regions,
             "n_observations": c.n_observations,
             "n_finite_targets": c.n_finite_targets,
-            "kappa_reconstruct_source": c.kappa_reconstruct_source,
-            "kappa_spatial_source": c.kappa_spatial_source,
+            "spatial_recoverability_source": c.spatial_recoverability_source,
+            "spatial_randomness_source": c.spatial_randomness_source,
             "warnings": list(c.warnings),
         })
 
@@ -231,8 +231,8 @@ def summarize_divergence(dm: DivergenceMatrix) -> dict:
             "construct_b": p.construct_b.value,
             "euclidean_distance": _safe(p.euclidean_distance),
             "forward_delta": _safe(p.forward_delta),
-            "kappa_spatial_delta": _safe(p.kappa_spatial_delta),
-            "kappa_reconstruct_delta": _safe(p.kappa_reconstruct_delta),
+            "spatial_randomness_delta": _safe(p.spatial_randomness_delta),
+            "spatial_recoverability_delta": _safe(p.spatial_recoverability_delta),
             "both_available": p.both_available,
         })
 

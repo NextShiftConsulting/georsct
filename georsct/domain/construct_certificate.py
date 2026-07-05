@@ -5,7 +5,7 @@ Pure domain objects and computation -- no I/O, no S3, no pandas.
 Each of five flood constructs (JRC, Deltares, FEMA, NFIP, FAST) encodes
 a different aspect of flood risk.  This module defines the typed construct
 labels, the per-construct certificate, and a pure Moran's I implementation
-for kappa_spatial.
+for spatial_randomness.
 
 ADR-020 D8: every kappa value carries provenance.
 ADR-034: typed enums for construct identity.
@@ -67,7 +67,7 @@ CONSTRUCT_TASK_TYPES: dict[ConstructLabel, str] = {
 
 
 # ---------------------------------------------------------------------------
-# kappa_spatial -- pure Moran's I (no pysal dependency)
+# spatial_randomness -- pure Moran's I (no pysal dependency)
 # ---------------------------------------------------------------------------
 
 def _morans_i(
@@ -103,11 +103,11 @@ def _morans_i(
     return (n / s0) * (numer / denom)
 
 
-def compute_kappa_spatial(
+def compute_spatial_randomness(
     residuals_by_region: np.ndarray,
     W_geo: sparse.csr_matrix,
 ) -> tuple[float, float]:
-    """Compute kappa_spatial = 1 - |Moran's I| from region-level residuals.
+    """Compute spatial_randomness = 1 - |Moran's I| from region-level residuals.
 
     ADR-020 D8: returns (NaN, NaN) when data insufficient, never (0.0, 0.0).
 
@@ -116,7 +116,7 @@ def compute_kappa_spatial(
         W_geo: (n_regions, n_regions) row-normalized adjacency.
 
     Returns:
-        (kappa_spatial, morans_i_raw)
+        (spatial_randomness, morans_i_raw)
     """
     I = _morans_i(residuals_by_region, W_geo)
     if not np.isfinite(I):
@@ -129,15 +129,15 @@ def compute_kappa_spatial(
 # Per-construct certificate (ADR-020 D8 provenance)
 # ---------------------------------------------------------------------------
 
-# Default provenance for kappa_reconstruct.
+# Default provenance for spatial_recoverability.
 _KR_PROVENANCE = {
-    "kappa_source": "georsct.domain.kappa_reconstruct",
+    "kappa_source": "georsct.domain.spatial_recoverability",
     "kappa_formula": "1 - excess_crossings / max_possible",
     "kappa_authority": "RSCT-P008",
     "kappa_inputs": ("embeddings", "coords2d"),
 }
 
-# Default provenance for kappa_spatial.
+# Default provenance for spatial_randomness.
 _KS_PROVENANCE = {
     "kappa_source": "georsct.domain.construct_certificate",
     "kappa_formula": "1 - |Moran's I|",
@@ -161,8 +161,8 @@ class ConstructCertificate:
 
     # Scores -- all [0, 1] or NaN (never 0.0 for missing, per ADR-020 D8)
     forward_score: float
-    kappa_spatial: float
-    kappa_reconstruct: float
+    spatial_randomness: float
+    spatial_recoverability: float
     morans_i: float
 
     # Counts
@@ -174,15 +174,15 @@ class ConstructCertificate:
     target_available: bool
 
     # ADR-020 D8: kappa provenance (None on missing certificates)
-    kappa_reconstruct_source: Optional[str] = None
-    kappa_reconstruct_formula: Optional[str] = None
-    kappa_reconstruct_authority: Optional[str] = None
-    kappa_reconstruct_inputs: Optional[tuple[str, ...]] = None
+    spatial_recoverability_source: Optional[str] = None
+    spatial_recoverability_formula: Optional[str] = None
+    spatial_recoverability_authority: Optional[str] = None
+    spatial_recoverability_inputs: Optional[tuple[str, ...]] = None
 
-    kappa_spatial_source: Optional[str] = None
-    kappa_spatial_formula: Optional[str] = None
-    kappa_spatial_authority: Optional[str] = None
-    kappa_spatial_inputs: Optional[tuple[str, ...]] = None
+    spatial_randomness_source: Optional[str] = None
+    spatial_randomness_formula: Optional[str] = None
+    spatial_randomness_authority: Optional[str] = None
+    spatial_randomness_inputs: Optional[tuple[str, ...]] = None
 
     warnings: tuple[str, ...] = ()
 
@@ -192,8 +192,8 @@ class ConstructCertificate:
         construct: ConstructLabel,
         target_column: str,
         forward_score: float,
-        kappa_spatial: float,
-        kappa_reconstruct: float,
+        spatial_randomness: float,
+        spatial_recoverability: float,
         morans_i: float,
         n_regions: int,
         n_observations: int,
@@ -205,21 +205,21 @@ class ConstructCertificate:
             construct=construct,
             target_column=target_column,
             forward_score=forward_score,
-            kappa_spatial=kappa_spatial,
-            kappa_reconstruct=kappa_reconstruct,
+            spatial_randomness=spatial_randomness,
+            spatial_recoverability=spatial_recoverability,
             morans_i=morans_i,
             n_regions=n_regions,
             n_observations=n_observations,
             n_finite_targets=n_finite_targets,
             target_available=True,
-            kappa_reconstruct_source=_KR_PROVENANCE["kappa_source"],
-            kappa_reconstruct_formula=_KR_PROVENANCE["kappa_formula"],
-            kappa_reconstruct_authority=_KR_PROVENANCE["kappa_authority"],
-            kappa_reconstruct_inputs=_KR_PROVENANCE["kappa_inputs"],
-            kappa_spatial_source=_KS_PROVENANCE["kappa_source"],
-            kappa_spatial_formula=_KS_PROVENANCE["kappa_formula"],
-            kappa_spatial_authority=_KS_PROVENANCE["kappa_authority"],
-            kappa_spatial_inputs=_KS_PROVENANCE["kappa_inputs"],
+            spatial_recoverability_source=_KR_PROVENANCE["kappa_source"],
+            spatial_recoverability_formula=_KR_PROVENANCE["kappa_formula"],
+            spatial_recoverability_authority=_KR_PROVENANCE["kappa_authority"],
+            spatial_recoverability_inputs=_KR_PROVENANCE["kappa_inputs"],
+            spatial_randomness_source=_KS_PROVENANCE["kappa_source"],
+            spatial_randomness_formula=_KS_PROVENANCE["kappa_formula"],
+            spatial_randomness_authority=_KS_PROVENANCE["kappa_authority"],
+            spatial_randomness_inputs=_KS_PROVENANCE["kappa_inputs"],
             warnings=warnings,
         )
 
@@ -238,20 +238,20 @@ class ConstructCertificate:
             construct=construct,
             target_column=CONSTRUCT_TARGET_COLUMNS.get(construct, ""),
             forward_score=float("nan"),
-            kappa_spatial=float("nan"),
-            kappa_reconstruct=float("nan"),
+            spatial_randomness=float("nan"),
+            spatial_recoverability=float("nan"),
             morans_i=float("nan"),
             n_regions=0,
             n_observations=0,
             n_finite_targets=0,
             target_available=False,
-            kappa_reconstruct_source=None,
-            kappa_reconstruct_formula=None,
-            kappa_reconstruct_authority=None,
-            kappa_reconstruct_inputs=None,
-            kappa_spatial_source=None,
-            kappa_spatial_formula=None,
-            kappa_spatial_authority=None,
-            kappa_spatial_inputs=None,
+            spatial_recoverability_source=None,
+            spatial_recoverability_formula=None,
+            spatial_recoverability_authority=None,
+            spatial_recoverability_inputs=None,
+            spatial_randomness_source=None,
+            spatial_randomness_formula=None,
+            spatial_randomness_authority=None,
+            spatial_randomness_inputs=None,
             warnings=(reason,),
         )

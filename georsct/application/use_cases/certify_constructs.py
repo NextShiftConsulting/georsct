@@ -20,14 +20,14 @@ from georsct.domain.construct_certificate import (
     CONSTRUCT_TARGET_COLUMNS,
     ConstructCertificate,
     ConstructLabel,
-    compute_kappa_spatial,
+    compute_spatial_randomness,
 )
 from georsct.domain.construct_divergence_matrix import (
     CONSTRUCT_ORDER,
     DivergenceMatrix,
     build_divergence_matrix,
 )
-from georsct.domain.kappa_reconstruct import compute_kappa_reconstruct
+from georsct.domain.spatial_recoverability import compute_spatial_recoverability
 from georsct.ports.construct_data_source import ConstructDataSource
 from georsct.ports.model_fitter import ModelFitter
 
@@ -64,12 +64,12 @@ def certify_single_construct(
         W_geo: (n_regions, n_regions) row-normalized adjacency.
         model_fitter: Concrete ModelFitter implementation.
         task_type: "regression" or "binary_classification".
-        n_baseline_trials: Null-graph trials for kappa_reconstruct.
+        n_baseline_trials: Null-graph trials for spatial_recoverability.
         n_mantel_perms: Mantel permutations for corroboration.
 
     Returns:
-        ConstructCertificate with forward_score, kappa_spatial,
-        kappa_reconstruct, and provenance.
+        ConstructCertificate with forward_score, spatial_randomness,
+        spatial_recoverability, and provenance.
     """
     target_col = CONSTRUCT_TARGET_COLUMNS.get(construct, construct.value)
 
@@ -83,7 +83,7 @@ def certify_single_construct(
     # 1. Fit model via port -> forward score
     fp = model_fitter.fit_predict(features, target, fold_ids, task_type)
 
-    # 2. Compute residuals -> kappa_spatial via domain function
+    # 2. Compute residuals -> spatial_randomness via domain function
     residuals = target - fp.predictions
     valid_mask = np.isfinite(residuals)
 
@@ -91,11 +91,11 @@ def certify_single_construct(
     region_resid = _aggregate_to_regions(
         residuals, region_ids, region_order, valid_mask,
     )
-    kappa_s, morans_i = compute_kappa_spatial(region_resid, W_geo)
+    kappa_s, morans_i = compute_spatial_randomness(region_resid, W_geo)
 
-    # 3. Compute region embeddings -> kappa_reconstruct via domain function
+    # 3. Compute region embeddings -> spatial_recoverability via domain function
     embed = model_fitter.aggregate_embeddings(features, region_ids, region_order)
-    sr = compute_kappa_reconstruct(
+    sr = compute_spatial_recoverability(
         embed.embeddings,
         coords2d,
         n_baseline_trials=n_baseline_trials,
@@ -106,8 +106,8 @@ def certify_single_construct(
         construct=construct,
         target_column=target_col,
         forward_score=float(np.clip(fp.forward_score, 0.0, 1.0)),
-        kappa_spatial=float(kappa_s),
-        kappa_reconstruct=float(sr.kappa_reconstruct),
+        spatial_randomness=float(kappa_s),
+        spatial_recoverability=float(sr.spatial_recoverability),
         morans_i=float(morans_i),
         n_regions=len(region_order),
         n_observations=len(target),
@@ -181,11 +181,11 @@ def compute_five_construct_divergence(
         certificates.append(cert)
 
         log.info(
-            "  %s: forward=%.3f  kappa_spatial=%.3f  kappa_reconstruct=%.3f",
+            "  %s: forward=%.3f  spatial_randomness=%.3f  spatial_recoverability=%.3f",
             construct.name,
             cert.forward_score,
-            cert.kappa_spatial,
-            cert.kappa_reconstruct,
+            cert.spatial_randomness,
+            cert.spatial_recoverability,
         )
 
     geo_label = f"{scenario_id}/{event_id}" if event_id else scenario_id

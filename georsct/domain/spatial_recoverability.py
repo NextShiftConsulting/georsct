@@ -13,7 +13,7 @@ from rsct_spatial.topology.recoverability import (  # noqa: F401
     mds_stress,
     coordinate_lift,
     SpatialRecoverabilityResult,
-    compute_kappa_reconstruct,
+    compute_spatial_recoverability,
     AdversarialPermutationResult,
     adversarial_geography_permutation,
 )
@@ -25,7 +25,7 @@ from rsct_spatial.topology.recoverability import (  # noqa: F401
 
 def gate_3b_decision(
     forward_score: float,
-    kappa_reconstruct: float,
+    spatial_recoverability: float,
     forward_floor: float = 0.0,
     reconstruct_floor: float = 0.3,
 ) -> str:
@@ -39,7 +39,7 @@ def gate_3b_decision(
         gate_3b_decision as _canonical,
     )
     return _canonical(
-        forward_score, kappa_reconstruct, forward_floor, reconstruct_floor,
+        forward_score, spatial_recoverability, forward_floor, reconstruct_floor,
     )
 
 
@@ -48,7 +48,7 @@ def gate_3b_decision(
 # =========================================================================
 
 KAPPA_REGISTRY_ENTRY = {
-    "name": "kappa_reconstruct",
+    "name": "spatial_recoverability",
     "full_name": "Spatial Recoverability Score",
     "domain": "spatial_topology",
     "formula": "1 - (crossings - baseline) / max_possible_crossings",
@@ -57,13 +57,13 @@ KAPPA_REGISTRY_ENTRY = {
     "monotonicity": "higher = more planar-consistent implied topology",
     "gate": "Gate 3B (spatial recoverability)",
     "gate_condition": (
-        "forward_score >= floor AND kappa_reconstruct < reconstruct_floor "
+        "forward_score >= floor AND spatial_recoverability < reconstruct_floor "
         "=> RE_ENCODE"
     ),
     "orthogonality": (
-        "kappa_spatial measures residual autocorrelation (Moran's I). "
-        "kappa_reconstruct measures planarity of the implied neighbor graph. "
-        "Different objects: clustered errors (high kappa_spatial) can coexist "
+        "spatial_randomness measures residual autocorrelation (Moran's I). "
+        "spatial_recoverability measures planarity of the implied neighbor graph. "
+        "Different objects: clustered errors (high spatial_randomness) can coexist "
         "with a perfectly planar representation, and vice versa."
     ),
     "lineage": (
