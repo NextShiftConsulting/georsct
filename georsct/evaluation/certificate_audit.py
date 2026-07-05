@@ -355,7 +355,7 @@ class CertificateAuditor:
                         task=r.task,
                         message=(
                             f"Ceiling simplex violation: "
-                            f"R={r.R_ceiling:.6f} + S={r.S_ceiling:.6f} + "
+                            f"R={r.R_ceiling:.6f} + S_sup={r.S_ceiling:.6f} + "
                             f"TRF={r.task_residual_floor:.6f} = {total_c:.6f} != 1.0 "
                             f"(zcta={r.zcta}, model={r.model_version})"
                         ),
@@ -363,7 +363,7 @@ class CertificateAuditor:
                             "zcta": r.zcta,
                             "model": r.model_version,
                             "R": r.R_ceiling,
-                            "S": r.S_ceiling,
+                            "S_sup": r.S_ceiling,
                             "task_residual_floor": r.task_residual_floor,
                             "total": total_c,
                         },
@@ -380,7 +380,7 @@ class CertificateAuditor:
                         task=r.task,
                         message=(
                             f"Proxy simplex violation: "
-                            f"R={r.R_proxy:.6f} + S={r.S_proxy:.6f} + "
+                            f"R={r.R_proxy:.6f} + S_sup={r.S_proxy:.6f} + "
                             f"N={r.N_proxy:.6f} = {total_p:.6f} != 1.0 "
                             f"(zcta={r.zcta}, model={r.model_version})"
                         ),
@@ -388,7 +388,7 @@ class CertificateAuditor:
                             "zcta": r.zcta,
                             "model": r.model_version,
                             "R": r.R_proxy,
-                            "S": r.S_proxy,
+                            "S_sup": r.S_proxy,
                             "N": r.N_proxy,
                             "total": total_p,
                         },

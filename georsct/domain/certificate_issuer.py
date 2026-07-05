@@ -4,7 +4,7 @@ certificate_issuer.py — Issue YRSNCertificates for geo_cert model predictions.
 
 Maps geo_cert model performance onto the RSCT simplex:
   R = model R² (representation adequacy)
-  S = 1 - R - TRF  (supportive structure, computed from the other two)
+  S_sup = 1 - R - TRF  (superfluous structure, computed from the other two)
   TRF = task_residual_floor[task] or N_proxy[zcta, task, model]
 
 Two certificate modes per (zcta, task, model):
@@ -62,21 +62,21 @@ def _clamp(x: float, lo: float = 0.0, hi: float = 1.0) -> float:
     return max(lo, min(hi, x))
 
 
-def _make_cert(R: float, S: float, N: float, omega: float = 1.0) -> YRSNCertificate:
-    """Build a YRSNCertificate from R, S, N.
+def _make_cert(R: float, S_sup: float, N: float, omega: float = 1.0) -> YRSNCertificate:
+    """Build a YRSNCertificate from R, S_sup, N.
 
     alpha = R / (R + N), clamped to avoid division by zero.
     tau = 1 / alpha_omega, where alpha_omega = omega * alpha + (1-omega) * prior.
     omega maps to calibration confidence (1.0 = fully calibrated in v1).
     """
     R = _clamp(R)
-    S = _clamp(S)
+    S_sup = _clamp(S_sup)
     N = _clamp(N)
 
     # Enforce simplex: renormalize if sum != 1 due to floating point
-    total = R + S + N
+    total = R + S_sup + N
     if total > 0 and abs(total - 1.0) > 1e-9:
-        R, S, N = R / total, S / total, N / total
+        R, S_sup, N = R / total, S_sup / total, N / total
 
     alpha = R / (R + N) if (R + N) > 1e-12 else 0.5
     prior = 0.5
@@ -85,7 +85,7 @@ def _make_cert(R: float, S: float, N: float, omega: float = 1.0) -> YRSNCertific
 
     return YRSNCertificate(
         R=round(R, 6),
-        S=round(S, 6),
+        S=round(S_sup, 6),
         N=round(N, 6),
         alpha=round(alpha, 6),
         omega=round(omega, 6),
