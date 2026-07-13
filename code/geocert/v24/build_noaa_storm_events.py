@@ -309,7 +309,7 @@ def main():
 
     if args.upload:
         import boto3
-from swarm_auth import get_aws_credentials
+        from swarm_auth import get_aws_credentials
         key = f"{PREFIX}/noaa_storm_events_zcta.parquet"
         _aws = get_aws_credentials()
         s3 = boto3.client("s3", **_aws)
