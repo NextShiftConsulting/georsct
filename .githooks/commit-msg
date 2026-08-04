@@ -1,0 +1,12 @@
+#!/bin/bash
+# Remove Claude/AI attributions from commit messages
+# Auto-installed by no-AI-attribution policy
+
+export LC_ALL=C
+
+TEMP_FILE=$(mktemp)
+trap "rm -f $TEMP_FILE" EXIT
+
+grep -v -E "(Generated with.*[Cc]laude|Co-[Aa]uthored-[Bb]y:.*[Cc]laude|Co-[Aa]uthored-[Bb]y:.*[Aa]nthropic|Co-[Aa]uthored-[Bb]y:.*[Aa]I|noreply@anthropic)" "$1" > "$TEMP_FILE"
+
+sed -e :a -e "/^\s*$/{ \$d; N; ba; }" "$TEMP_FILE" > "$1"
