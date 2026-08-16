@@ -1,0 +1,130 @@
+#!/bin/bash
+# Pre-commit hook to detect secrets and sensitive data
+# Prevents accidental commits of API keys, passwords, tokens, etc.
+#
+# INSTALLATION:
+#   Option 1: git config core.hooksPath .githooks
+#   Option 2: cp .githooks/pre-commit .git/hooks/pre-commit
+#
+# Copyright (C) 2025 Next Shift Consulting LLC - AGPL-3.0
+
+echo "Checking for secrets..."
+
+# Files being committed
+FILES=$(git diff --cached --name-only --diff-filter=ACM)
+
+if [ -z "$FILES" ]; then
+    exit 0
+fi
+
+# Patterns to detect secrets (case-insensitive where appropriate)
+PATTERNS=(
+    # API Keys and Tokens
+    'AKIA[0-9A-Z]{16}'                          # AWS Access Key ID
+    'aws_secret_access_key\s*=\s*["\x27]?[A-Za-z0-9/+=]{40}'  # AWS Secret
+    'sk-[a-zA-Z0-9]{48}'                        # OpenAI API Key
+    'sk-proj-[a-zA-Z0-9]{48}'                   # OpenAI Project Key
+    'ghp_[a-zA-Z0-9]{36}'                       # GitHub Personal Access Token
+    'gho_[a-zA-Z0-9]{36}'                       # GitHub OAuth Token
+    'github_pat_[a-zA-Z0-9]{22}_[a-zA-Z0-9]{59}' # GitHub Fine-grained PAT
+    'xox[baprs]-[0-9]{10,13}-[0-9]{10,13}-[a-zA-Z0-9]{24}' # Slack Token
+    'AIza[0-9A-Za-z_-]{35}'                     # Google API Key
+    'ya29\.[0-9A-Za-z_-]+'                      # Google OAuth Token
+    'sk_live_[0-9a-zA-Z]{24}'                   # Stripe Live Key
+    'sk_test_[0-9a-zA-Z]{24}'                   # Stripe Test Key
+    'sq0atp-[0-9A-Za-z_-]{22}'                  # Square Access Token
+    'sq0csp-[0-9A-Za-z_-]{43}'                  # Square OAuth Secret
+    'hf_[a-zA-Z0-9]{34}'                        # HuggingFace Token
+    'sk_[a-f0-9]{48,64}'                         # ElevenLabs API Key
+    'sk-or-v1-[a-f0-9]{64}'                      # OpenRouter API Key
+
+    # Private Keys
+    '-----BEGIN RSA PRIVATE KEY-----'
+    '-----BEGIN DSA PRIVATE KEY-----'
+    '-----BEGIN EC PRIVATE KEY-----'
+    '-----BEGIN OPENSSH PRIVATE KEY-----'
+    '-----BEGIN PGP PRIVATE KEY BLOCK-----'
+
+    # Generic patterns
+    'password\s*=\s*["\x27][^"\x27]{8,}["\x27]'
+    'passwd\s*=\s*["\x27][^"\x27]{8,}["\x27]'
+    'secret\s*=\s*["\x27][^"\x27]{8,}["\x27]'
+    'api_key\s*=\s*["\x27][^"\x27]{16,}["\x27]'
+    'apikey\s*=\s*["\x27][^"\x27]{16,}["\x27]'
+    'auth_token\s*=\s*["\x27][^"\x27]{16,}["\x27]'
+    'access_token\s*=\s*["\x27][^"\x27]{16,}["\x27]'
+)
+
+# File patterns to skip (binary, generated, etc.)
+SKIP_PATTERNS='\.pyc$|\.pyo$|\.so$|\.dll$|\.exe$|\.bin$|\.png$|\.jpg$|\.jpeg$|\.gif$|\.ico$|\.woff$|\.ttf$|\.eot$|\.pdf$|\.zip$|\.tar$|\.gz$|\.lock$|package-lock\.json$|yarn\.lock$'
+
+FOUND_SECRET=0
+
+for FILE in $FILES; do
+    # Skip binary and generated files
+    if echo "$FILE" | grep -qE "$SKIP_PATTERNS"; then
+        continue
+    fi
+
+    # Skip if file doesn't exist (deleted)
+    if [ ! -f "$FILE" ]; then
+        continue
+    fi
+
+    # Check each pattern
+    for PATTERN in "${PATTERNS[@]}"; do
+        if grep -qE "$PATTERN" "$FILE" 2>/dev/null; then
+            echo "ERROR: Potential secret found in $FILE"
+            echo "       Pattern: $PATTERN"
+            grep -nE "$PATTERN" "$FILE" 2>/dev/null | head -3
+            echo ""
+            FOUND_SECRET=1
+        fi
+    done
+done
+
+# Check for common secret files
+SECRET_FILES=(
+    '.env'
+    '.env.local'
+    '.env.production'
+    'credentials.json'
+    'secrets.json'
+    'secrets.yaml'
+    'secrets.yml'
+    'id_rsa'
+    'id_dsa'
+    'id_ecdsa'
+    'id_ed25519'
+    '.htpasswd'
+    '.netrc'
+    '.npmrc'
+    '.pypirc'
+)
+
+for FILE in $FILES; do
+    BASENAME=$(basename "$FILE")
+    for SECRET_FILE in "${SECRET_FILES[@]}"; do
+        if [ "$BASENAME" = "$SECRET_FILE" ]; then
+            echo "ERROR: Attempting to commit sensitive file: $FILE"
+            FOUND_SECRET=1
+        fi
+    done
+done
+
+if [ $FOUND_SECRET -eq 1 ]; then
+    echo ""
+    echo "=========================================="
+    echo "COMMIT BLOCKED: Potential secrets detected"
+    echo "=========================================="
+    echo ""
+    echo "If this is a false positive, you can:"
+    echo "  1. Add the file to .gitignore"
+    echo "  2. Use 'git commit --no-verify' to bypass (not recommended)"
+    echo "  3. Remove the sensitive data and try again"
+    echo ""
+    exit 1
+fi
+
+echo "No secrets detected."
+exit 0
