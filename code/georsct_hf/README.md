@@ -457,12 +457,12 @@ GeoRSCT is released under **CC-BY-4.0**.
 
 Version scheme: `{major}.{minor}.{patch}`. v24.0.1 = first public release with v24 enrichment layers (NOAA, NFIP, TWI).
 
-To pin a specific version in code:
+To pin a specific version in code, pin the Hugging Face commit. No `v24.0.1` tag exists on the Hub; the v24.0.1 release is `main` at commit `15650ecc` (tag `v23.0.2` is the prior release):
 
 ```python
 from datasets import load_dataset
 
-ds = load_dataset("rudymartin/georsct", revision="v24.0.1")
+ds = load_dataset("rudymartin/georsct", revision="15650ecc0116dca0979406c7e904b06d823aae9f")
 ```
 
 ### Citation
